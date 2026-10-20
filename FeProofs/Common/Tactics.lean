@@ -65,6 +65,27 @@ def rdView? (ty : Expr) : MetaM (Option (Expr × Expr)) := do
     return some (ty.getArg! 0, ty.getArg! 4)
   return none
 
+/-- `UInt256.toNat` of a closed word literal (`UInt256.ofNat n`, `⟨n⟩`, or a sum of those) is a
+`Nat` literal, by evaluation. Normalizes the offsets and lengths in memory terms, which block
+summaries write in either form, so that lemmas stated with plain `Nat` offsets apply. -/
+simproc_decl reduceUInt256ToNat (UInt256.toNat _) := fun e => do
+  let_expr Ethereum.UInt256.toNat x ← e | return .continue
+  let some n ← pcValue? x | return .continue
+  return .done { expr := mkNatLit n }
+
+/-- A word literal `⟨n⟩` (`UInt256.mk` of a `Fin` literal) is `UInt256.ofNat n`: the two spellings
+block summaries and library lemmas use for the same constant. -/
+simproc_decl reduceUInt256Mk (Ethereum.UInt256.mk _) := fun e => do
+  let_expr Ethereum.UInt256.mk v ← e | return .continue
+  let_expr OfNat.ofNat _ n _ ← v | return .continue
+  unless n.rawNatLit?.isSome do return .continue
+  return .done { expr := mkApp (mkConst ``Ethereum.UInt256.ofNat) (mkNatLit n.rawNatLit?.get!) }
+
+/-- Normalizes word literals: `UInt256.toNat` of a literal word to a `Nat` literal
+(`reduceUInt256ToNat`) and `⟨n⟩` to `UInt256.ofNat n` (`reduceUInt256Mk`). -/
+macro "u256_lits" loc:(Lean.Parser.Tactic.location)? : tactic =>
+  `(tactic| simp only [reduceUInt256ToNat, reduceUInt256Mk] $(loc)?)
+
 /-- `decide`, only on a goal without local variables (a symbolic goal could take long to fail). -/
 elab "decide_closed" : tactic => do
   let ty ← instantiateMVars (← (← getMainGoal).getType)
@@ -151,6 +172,11 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
   if eqs.size > 1 then
     let rws ← eqs.mapM fun (stx, _, _) => `(Lean.Parser.Tactic.rwRule| $stx:term)
     if ← tryTac (evalTactic (← `(tactic| (rw [$rws,*]; decide_closed)))) then return true
+  -- an equation whose literals are written `⟨n⟩`, or `a = c` against `a ≠ b`
+  for (stx, _, _) in eqs do
+    if ← tryTac (evalTactic (← `(tactic| (have h := $stx; u256_lits at h; rw [h]; decide_closed))))
+    then return true
+    if ← tryTac (evalTactic (← `(tactic| exact ne_of_eq_of_ne $stx (by decide)))) then return true
   for (stx, _, t) in elabd do
     if fits t then
       if ← tryTac (evalTactic (← `(tactic| exact Classical.not_not.mp $stx))) then
@@ -235,18 +261,6 @@ def step (h : FVarId) (name : Name) (hints : Array Term) : TacticM (Option FVarI
       if let some (val, vty) ← withMainContext (do applyBlock h blk (← elabHints hints)) then
         return some (← install h name blk val vty)
   return none
-
-/-- `UInt256.toNat` of a closed word literal (`UInt256.ofNat n`, `⟨n⟩`, or a sum of those) is a
-`Nat` literal, by evaluation. Normalizes the offsets and lengths in memory terms, which block
-summaries write in either form, so that lemmas stated with plain `Nat` offsets apply. -/
-simproc_decl reduceUInt256ToNat (UInt256.toNat _) := fun e => do
-  let_expr Ethereum.UInt256.toNat x ← e | return .continue
-  let some n ← pcValue? x | return .continue
-  return .done { expr := mkNatLit n }
-
-/-- Rewrites `UInt256.toNat` of word literals to `Nat` literals (`reduceUInt256ToNat`). -/
-macro "u256_lits" loc:(Lean.Parser.Tactic.location)? : tactic =>
-  `(tactic| simp only [reduceUInt256ToNat] $(loc)?)
 
 syntax rdUsing := " using " "[" term,* "]"
 syntax rdAs := " as " ident
