@@ -75,9 +75,8 @@ theorem feScalarStoreReachSetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x60 0xfe 0x47 0xb1 ⟨1627277233⟩ (by native_decide)
       (by simpa [feScalarStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feScalarStoreBlocks.feScalarStore_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1627277233⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
-  exact ⟨_, _, by simpa [feScalarStoreBlocks.feScalarStore_block_8_taken_stack] using rd2⟩
+  rd_run rd0 to 36 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Dispatcher path to `get()` (arm entry pc 67). -/
 theorem feScalarStoreReachGetBody {σ σ₀ A I} {g : Sat256}
@@ -91,10 +90,8 @@ theorem feScalarStoreReachGetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x6d 0x4c 0xe6 0x3c ⟨1833756220⟩ (by native_decide)
       (by simpa [feScalarStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feScalarStoreBlocks.feScalarStore_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1627277233⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feScalarStoreBlocks.feScalarStore_block_23_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1833756220⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
-  exact ⟨_, _, by simpa [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack] using rd3⟩
+  rd_run rd0 to 67 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Calldata shorter than a selector -/
 theorem feScalarStoreX_short {σ σ₀ A I} {g : Sat256}
@@ -102,9 +99,8 @@ theorem feScalarStoreX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feScalarStoreBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
-  have rd2 := feScalarStoreBlocks.feScalarStore_block_42 (by simp) rd1
-  exact rd2
+  rd_run rd0 using [lt_four_ne_zero_of_lt hshort]
+  exact rd0
 
 /-- No selector matches -/
 theorem feScalarStoreX_noMatch {σ σ₀ A I} {g : Sat256}

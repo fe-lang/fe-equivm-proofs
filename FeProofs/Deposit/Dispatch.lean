@@ -117,9 +117,8 @@ theorem feDepositReachSupportsInterfaceBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x01 0xff 0xc9 0xa7 ⟨33540519⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feDepositBlocks.feDeposit_block_9_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
-  exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_taken_stack] using rd2⟩
+  rd_run rd0 to 60 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Dispatcher path to `deposit(bytes,bytes,bytes,bytes32)` (arm entry pc 154). -/
 theorem feDepositReachDepositBody {σ σ₀ A I} {g : Sat256}
@@ -133,10 +132,8 @@ theorem feDepositReachDepositBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x22 0x89 0x51 0x18 ⟨579424536⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
-  exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd3⟩
+  rd_run rd0 to 154 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Dispatcher path to `get_deposit_count()` (arm entry pc 1716). -/
 theorem feDepositReachGet_deposit_countBody {σ σ₀ A I} {g : Sat256}
@@ -150,11 +147,8 @@ theorem feDepositReachGet_deposit_countBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x62 0x1f 0xd1 0x30 ⟨1646252336⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feDepositBlocks.feDeposit_block_34_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
-  exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd4⟩
+  rd_run rd0 to 1716 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Dispatcher path to `get_deposit_root()` (arm entry pc 1853). -/
 theorem feDepositReachGet_deposit_rootBody {σ σ₀ A I} {g : Sat256}
@@ -168,12 +162,8 @@ theorem feDepositReachGet_deposit_rootBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xc5 0xf2 0x89 0x2f ⟨3321006383⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feDepositBlocks.feDeposit_block_34_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feDepositBlocks.feDeposit_block_45_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3321006383⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
-  exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd5⟩
+  rd_run rd0 to 1853 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  exact ⟨_, _, rd0⟩
 
 /-- Calldata shorter than a selector -/
 theorem feDepositX_short {σ σ₀ A I} {g : Sat256}
@@ -181,9 +171,8 @@ theorem feDepositX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feDepositBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
-  have rd2 := feDepositBlocks.feDeposit_block_2245 (by simp) rd1
-  exact rd2
+  rd_run rd0 using [lt_four_ne_zero_of_lt hshort]
+  exact rd0
 
 /-- No selector matches -/
 theorem feDepositX_noMatch {σ σ₀ A I} {g : Sat256}

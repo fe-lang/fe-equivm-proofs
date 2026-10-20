@@ -1,5 +1,6 @@
 import Reasoning.ABI
 import Reasoning.Solc
+import Reasoning.Dispatch
 
 /-!
 # ABI decoding facts shared by the contracts
@@ -11,6 +12,13 @@ arguments.
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
 
 namespace FeProofs
+
+/-! ## Selectors -/
+
+/-- The selector word as the dispatcher's blocks compute it, `SHR(224, CALLDATALOAD(0))`. -/
+theorem selWord_eq {I : ExecutionEnv} {w : UInt256} (h : solcSelectorWord I = w) :
+    UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
+      (UInt256.ofNat 224) = w := h
 
 /-! ## `address` arguments -/
 
