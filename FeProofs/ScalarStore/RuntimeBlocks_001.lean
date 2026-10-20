@@ -270,4 +270,17 @@ theorem feScalarStore_block_72 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {me
   have r6 := r5.push0 (by native_decide) (by evm_ov)
   exact RD.genRet r6 (by native_decide) (by evm_ov)
 
+/-- Static-mode twin of `feScalarStore_block_59`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feScalarStore_block_59_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ScalarStore.feScalarStoreBytecode ee g s0 (UInt256.ofNat 59) R mem aw rdata σ k C)
+    : RDstatic FeProofs.ScalarStore.feScalarStoreBytecode g s0 := by
+  let r0 := h
+  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
+  have r2 := r1.calldataload (by native_decide) (by evm_ov)
+  have r3 := r2.push0 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r3 hperm (by native_decide) (by evm_ov)
+
 end feScalarStoreBlocks

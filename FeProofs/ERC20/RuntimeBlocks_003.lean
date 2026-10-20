@@ -751,4 +751,77 @@ theorem feERC20_block_613_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : St
   obtain ⟨k', C', h'⟩ := RD.pack h0
   exact ⟨_, k', C', h'⟩
 
+/-- Static-mode twin of `feERC20_block_372_taken`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feERC20_block_372_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 : UInt256} {R : List UInt256}
+    (hstack : R.length + 7 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 372) (x0 :: x1 :: x2 :: x3 :: x4 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
+  let r0 := h
+  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
+  have r2 := r1.dup1 (by native_decide) (by evm_ov)
+  have r3 := r2.swap2 (by native_decide) (by evm_ov)
+  have r4 := r3.sub (by native_decide) (by evm_ov)
+  have r5 := r4.dup5 (by native_decide) (by evm_ov)
+  have r6 := r5.push0 (by native_decide) (by evm_ov)
+  have r7 := RD.genMstore r6 (by native_decide) (by evm_ov)
+  have r8 := r7.push1 (UInt256.ofNat 1) (by native_decide) (by evm_ov)
+  have r9 := r8.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r10 := RD.genMstore r9 (by native_decide) (by evm_ov)
+  have r11 := r10.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r12 := r11.push0 (by native_decide) (by evm_ov)
+  have r13 := RD.genKeccak256 r12 (by native_decide) (by evm_ov)
+  have r14 := r13.swap3 (by native_decide) (by evm_ov)
+  have r15 := r14.push0 (by native_decide) (by evm_ov)
+  have r16 := RD.genMstore r15 (by native_decide) (by evm_ov)
+  have r17 := r16.swap2 (by native_decide) (by evm_ov)
+  have r18 := r17.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r19 := RD.genMstore r18 (by native_decide) (by evm_ov)
+  have r20 := r19.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r21 := r20.push0 (by native_decide) (by evm_ov)
+  have r22 := RD.genKeccak256 r21 (by native_decide) (by evm_ov)
+  have r23 := r22.swap1 (by native_decide) (by evm_ov)
+  have r24 := r23.swap2 (by native_decide) (by evm_ov)
+  have r25 := r24.swap1 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r25 hperm (by native_decide) (by evm_ov)
+
+/-- Static-mode twin of `feERC20_block_426_taken`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feERC20_block_426_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
+    (hstack : R.length + 6 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 426) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
+  let r0 := h
+  have r1 := r0.dup4 (by native_decide) (by evm_ov)
+  have r2 := r1.push0 (by native_decide) (by evm_ov)
+  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
+  have r4 := r3.push0 (by native_decide) (by evm_ov)
+  have r5 := r4.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r6 := RD.genMstore r5 (by native_decide) (by evm_ov)
+  have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r8 := r7.push0 (by native_decide) (by evm_ov)
+  have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r9 hperm (by native_decide) (by evm_ov)
+
+/-- Static-mode twin of `feERC20_block_460`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feERC20_block_460_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
+    (hstack : R.length + 6 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 460) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
+  let r0 := h
+  have r1 := r0.dup3 (by native_decide) (by evm_ov)
+  have r2 := r1.push0 (by native_decide) (by evm_ov)
+  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
+  have r4 := r3.push0 (by native_decide) (by evm_ov)
+  have r5 := r4.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r6 := RD.genMstore r5 (by native_decide) (by evm_ov)
+  have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r8 := r7.push0 (by native_decide) (by evm_ov)
+  have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r9 hperm (by native_decide) (by evm_ov)
+
 end feERC20Blocks

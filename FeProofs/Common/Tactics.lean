@@ -7,7 +7,8 @@ import FeProofs.Common.Calls
 
 `scripts/generate_rd_blocks.py` (EquiVM) emits one lemma per basic block, named after the
 bytecode constant: for `…feXBytecode` the block at `pc` is `feXBlocks.feX_block_<pc>`, with
-`_taken`/`_fallthrough` variants for a conditional jump, and for creation code
+`_taken`/`_fallthrough` variants for a conditional jump (and `_static` twins, from
+`scripts/static_twins.py`, that halt at a state change when `ee.perm = false`), and for creation code
 (`feXCreationBytecode ++ tail`) it is `feXCreationBlocks.feXCreation_block_<pc>`.
 
 * `rd_step h` applies the summary of the block at `h`'s program counter to `h : RD code …`,
@@ -81,10 +82,9 @@ simproc_decl reduceUInt256Mk (Ethereum.UInt256.mk _) := fun e => do
   unless n.rawNatLit?.isSome do return .continue
   return .done { expr := mkApp (mkConst ``Ethereum.UInt256.ofNat) (mkNatLit n.rawNatLit?.get!) }
 
-/-- Normalizes word literals: `UInt256.toNat` of a literal word to a `Nat` literal
-(`reduceUInt256ToNat`) and `⟨n⟩` to `UInt256.ofNat n` (`reduceUInt256Mk`). -/
+/-- Rewrites `UInt256.toNat` of word literals to `Nat` literals (`reduceUInt256ToNat`). -/
 macro "u256_lits" loc:(Lean.Parser.Tactic.location)? : tactic =>
-  `(tactic| simp only [reduceUInt256ToNat, reduceUInt256Mk] $(loc)?)
+  `(tactic| simp only [reduceUInt256ToNat] $(loc)?)
 
 /-- `decide`, only on a goal without local variables (a symbolic goal could take long to fail). -/
 elab "decide_closed" : tactic => do
@@ -174,7 +174,7 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
     if ← tryTac (evalTactic (← `(tactic| (rw [$rws,*]; decide_closed)))) then return true
   -- an equation whose literals are written `⟨n⟩`, or `a = c` against `a ≠ b`
   for (stx, _, _) in eqs do
-    if ← tryTac (evalTactic (← `(tactic| (have h := $stx; u256_lits at h; rw [h]; decide_closed))))
+    if ← tryTac (evalTactic (← `(tactic| (have h := $stx; simp only [reduceUInt256Mk] at h; rw [h]; decide_closed))))
     then return true
     if ← tryTac (evalTactic (← `(tactic| exact ne_of_eq_of_ne $stx (by decide)))) then return true
   for (stx, _, t) in elabd do
@@ -256,7 +256,8 @@ def step (h : FVarId) (name : Name) (hints : Array Term) : TacticM (Option FVarI
     evalTactic (← `(tactic| replace $pcId:ident := RD.normalizePC (pc' := UInt256.ofNat $lit) $pcId (by decide)))
     pure (← lookup hName).fvarId
   let base := pre.appendAfter s!"_{n}"
-  for blk in [base, base.appendAfter "_taken", base.appendAfter "_fallthrough"] do
+  for blk in [base, base.appendAfter "_taken", base.appendAfter "_fallthrough",
+      base.appendAfter "_static"] do
     if (← getEnv).contains blk then
       if let some (val, vty) ← withMainContext (do applyBlock h blk (← elabHints hints)) then
         return some (← install h name blk val vty)

@@ -433,4 +433,17 @@ theorem feDeposit_block_1866_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 1876)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
+/-- Static-mode twin of `feDeposit_block_1627`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feDeposit_block_1627_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 : UInt256} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1627) (x0 :: x1 :: x2 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.Deposit.feDepositBytecode g s0 := by
+  let r0 := h
+  have r1 := r0.swap1 (by native_decide) (by evm_ov)
+  have r2 := r1.pop (by native_decide) (by evm_ov)
+  have r3 := r2.swap1 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r3 hperm (by native_decide) (by evm_ov)
+
 end feDepositBlocks

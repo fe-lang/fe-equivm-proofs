@@ -577,4 +577,34 @@ theorem feERC20_block_810 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   have r17 := r16.push0 (by native_decide) (by evm_ov)
   exact RD.genRev r17 (by native_decide) (by evm_ov)
 
+/-- Static-mode twin of `feERC20_block_660_taken`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feERC20_block_660_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 : UInt256} {R : List UInt256}
+    (hstack : R.length + 6 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 660) (x0 :: x1 :: x2 :: x3 :: x4 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
+  let r0 := h
+  have r1 := r0.swap1 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r1 hperm (by native_decide) (by evm_ov)
+
+/-- Static-mode twin of `feERC20_block_684`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feERC20_block_684_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
+    (hstack : R.length + 6 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 684) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
+  let r0 := h
+  have r1 := r0.dup4 (by native_decide) (by evm_ov)
+  have r2 := r1.push0 (by native_decide) (by evm_ov)
+  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
+  have r4 := r3.push0 (by native_decide) (by evm_ov)
+  have r5 := r4.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r6 := RD.genMstore r5 (by native_decide) (by evm_ov)
+  have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r8 := r7.push0 (by native_decide) (by evm_ov)
+  have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r9 hperm (by native_decide) (by evm_ov)
+
 end feERC20Blocks

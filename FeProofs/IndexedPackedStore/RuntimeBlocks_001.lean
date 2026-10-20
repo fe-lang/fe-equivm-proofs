@@ -395,4 +395,46 @@ theorem feIndexedPackedStore_block_159_taken {ee : ExecutionEnv} {g : Sat256} {s
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
+/-- Static-mode twin of `feIndexedPackedStore_block_79`: its steps up to the state change, which halts when
+    `ee.perm = false`. -/
+theorem feIndexedPackedStore_block_79_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+    (hstack : R.length + 5 ≤ 1024)
+    (hperm : ee.perm = false)
+    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 79) (x0 :: R) mem aw rdata σ k C)
+    : RDstatic FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode g s0 := by
+  let r0 := h
+  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
+  have r2 := r1.push1 (UInt256.ofNat 31) (by native_decide) (by evm_ov)
+  have r3 := r2.dup2 (by native_decide) (by evm_ov)
+  have r4 := r3.and (by native_decide) (by evm_ov)
+  have r5 := r4.push1 (UInt256.ofNat 3) (by native_decide) (by evm_ov)
+  have r6 := r5.shl (by native_decide) (by evm_ov)
+  have r7 := r6.push1 (UInt256.ofNat 255) (by native_decide) (by evm_ov)
+  have r8 := r7.dup2 (by native_decide) (by evm_ov)
+  have r9 := r8.shl (by native_decide) (by evm_ov)
+  have r10 := r9.swap2 (by native_decide) (by evm_ov)
+  have r11 := r10.push1 (UInt256.ofNat 5) (by native_decide) (by evm_ov)
+  have r12 := r11.shr (by native_decide) (by evm_ov)
+  have r13 := r12.pushConst (UInt256.ofNat 18569430475105882587588266137607568536673111973893317399460219858819262702947) (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
+  have r14 := r13.add (by native_decide) (by evm_ov)
+  have r15 := r14.dup1 (by native_decide) (by evm_ov)
+  obtain ⟨_, _, r16⟩ := RD.sload r15 (by native_decide) (by evm_ov)
+  have r17 := r16.swap3 (by native_decide) (by evm_ov)
+  have r18 := r17.push0 (by native_decide) (by evm_ov)
+  have r19 := r18.not (by native_decide) (by evm_ov)
+  have r20 := r19.xor (by native_decide) (by evm_ov)
+  have r21 := r20.swap1 (by native_decide) (by evm_ov)
+  have r22 := r21.swap3 (by native_decide) (by evm_ov)
+  have r23 := r22.and (by native_decide) (by evm_ov)
+  have r24 := r23.push1 (UInt256.ofNat 36) (by native_decide) (by evm_ov)
+  have r25 := r24.calldataload (by native_decide) (by evm_ov)
+  have r26 := r25.push1 (UInt256.ofNat 255) (by native_decide) (by evm_ov)
+  have r27 := r26.and (by native_decide) (by evm_ov)
+  have r28 := r27.swap1 (by native_decide) (by evm_ov)
+  have r29 := r28.swap2 (by native_decide) (by evm_ov)
+  have r30 := r29.shl (by native_decide) (by evm_ov)
+  have r31 := r30.or (by native_decide) (by evm_ov)
+  have r32 := r31.swap1 (by native_decide) (by evm_ov)
+  exact RD.sstoreStatic r32 hperm (by native_decide) (by evm_ov)
+
 end feIndexedPackedStoreBlocks
