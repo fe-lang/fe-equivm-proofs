@@ -1,5 +1,5 @@
 import FeProofs
-/-! Lists the declarations of `FeProofs.*` modules that the capstone theorem never uses.
+/-! Lists the declarations of `FeProofs.*` modules that no capstone theorem (`…ContractCorrect`) uses.
 Run: `lake env lean scripts/Unused.lean`. -/
 open Lean Meta
 
@@ -20,7 +20,9 @@ def closureOf (env : Environment) (roots : Array Name) : NameSet := Id.run do
 
 #eval show CoreM Unit from do
   let env ← getEnv
-  let used := closureOf env #[`FeProofs.Deposit.feDepositContractCorrect]
+  let roots := env.constants.toList.filterMap fun (n, _) =>
+    if (`FeProofs).isPrefixOf n && n.lastComponentAsString.endsWith "ContractCorrect" then some n else none
+  let used := closureOf env roots.toArray
   let mut byMod : Std.HashMap Name (Array (Nat × Name)) := {}
   let mut total := 0
   for (n, ci) in env.constants.toList do

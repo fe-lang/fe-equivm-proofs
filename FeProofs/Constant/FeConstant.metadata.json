@@ -1,0 +1,54 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [],
+        "name": "answer",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeConstant.fe": "FeConstant"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeConstant",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeConstant.fe": {
+      "content": "msg FeConstantMsg {\n    #[selector = sol(\"answer()\")]\n    Answer -> u256,\n}\n\npub contract FeConstant {\n    recv FeConstantMsg {\n        Answer -> u256 {\n            42\n        }\n    }\n}\n",
+      "keccak256": "0x070fd4791ce990df29b764abece4ef1fb05a523cfe346b5c01017b40be877243"
+    }
+  },
+  "version": 1
+}

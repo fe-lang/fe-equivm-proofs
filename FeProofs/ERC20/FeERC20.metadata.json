@@ -1,0 +1,213 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "initial_supply",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [
+          {
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "transfer",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "approve",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "transferFrom",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "spender",
+            "type": "address"
+          }
+        ],
+        "name": "allowance",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "totalSupply",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "from",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "to",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "Transfer",
+        "type": "event"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "spender",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "Approval",
+        "type": "event"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeERC20.fe": "FeERC20"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeERC20",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeERC20.fe": {
+      "content": "// The EquiVM `Examples/ERC20` token (`ERC20.sol`) written in Fe, with the same storage layout:\n// `balances` at slot 0, `allowances` (a map of maps, so a Solidity nested mapping) at slot 1,\n// `total_supply` at slot 2.\nuse std::evm::{Ctx, Log}\nuse std::abi::sol\n\nmsg Erc20Msg {\n    #[selector = sol(\"transfer(address,uint256)\")]\n    Transfer { to: Address, value: u256 } -> bool,\n    #[selector = sol(\"approve(address,uint256)\")]\n    Approve { spender: Address, value: u256 } -> bool,\n    #[selector = sol(\"transferFrom(address,address,uint256)\")]\n    TransferFrom { from: Address, to: Address, value: u256 } -> bool,\n    #[selector = sol(\"balanceOf(address)\")]\n    BalanceOf { owner: Address } -> u256,\n    #[selector = sol(\"allowance(address,address)\")]\n    Allowance { owner: Address, spender: Address } -> u256,\n    #[selector = sol(\"totalSupply()\")]\n    TotalSupply -> u256,\n}\n\n#[event]\nstruct Transfer {\n    #[indexed]\n    from: Address,\n    #[indexed]\n    to: Address,\n    value: u256,\n}\n\n#[event]\nstruct Approval {\n    #[indexed]\n    owner: Address,\n    #[indexed]\n    spender: Address,\n    value: u256,\n}\n\nstruct TokenStore {\n    balances: StorageMap<Address, u256>,\n    allowances: StorageMap<Address, StorageMap<Address, u256>>,\n    total_supply: u256,\n}\n\npub contract FeERC20 uses (ctx: Ctx, log: mut Log) {\n    mut store: TokenStore\n\n    init(initial_supply: u256) uses (mut store, ctx, mut log) {\n        let sender = ctx.caller()\n        store.balances[sender] = initial_supply\n        store.total_supply = initial_supply\n        log.emit(Transfer { from: Address::zero(), to: sender, value: initial_supply })\n    }\n\n    recv Erc20Msg {\n        Transfer { to, value } -> bool uses (mut store, ctx, mut log) {\n            let sender = ctx.caller()\n            assert!(store.balances[sender] >= value, \"ERC20: insufficient balance\")\n            store.balances[sender] -= value\n            store.balances[to] = store.balances[to] + value\n            log.emit(Transfer { from: sender, to, value })\n            true\n        }\n\n        Approve { spender, value } -> bool uses (mut store, ctx, mut log) {\n            let owner = ctx.caller()\n            store.allowances[owner][spender] = value\n            log.emit(Approval { owner, spender, value })\n            true\n        }\n\n        TransferFrom { from, to, value } -> bool uses (mut store, ctx, mut log) {\n            let spender = ctx.caller()\n            let current_allowance = store.allowances[from][spender]\n            assert!(current_allowance >= value, \"ERC20: insufficient allowance\")\n            assert!(store.balances[from] >= value, \"ERC20: insufficient balance\")\n            store.allowances[from][spender] = current_allowance - value\n            store.balances[from] = store.balances[from] - value\n            store.balances[to] = store.balances[to] + value\n            log.emit(Transfer { from, to, value })\n            true\n        }\n\n        BalanceOf { owner } -> u256 uses (store) {\n            store.balances[owner]\n        }\n\n        Allowance { owner, spender } -> u256 uses (store) {\n            store.allowances[owner][spender]\n        }\n\n        TotalSupply -> u256 uses (store) {\n            store.total_supply\n        }\n    }\n}\n",
+      "keccak256": "0x87e8ed7568f01523c39a3a29a25f618a2e901577fc8cec52e2d34c6044846da5"
+    }
+  },
+  "version": 1
+}

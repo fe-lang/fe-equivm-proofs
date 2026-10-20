@@ -1,0 +1,59 @@
+[
+  {
+    "type": "function",
+    "name": "get",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "set",
+    "inputs": [
+      {
+        "name": "index",
+        "type": "uint256"
+      },
+      {
+        "name": "value",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setTwo",
+    "inputs": [
+      {
+        "name": "first_index",
+        "type": "uint256"
+      },
+      {
+        "name": "first_value",
+        "type": "uint256"
+      },
+      {
+        "name": "second_index",
+        "type": "uint256"
+      },
+      {
+        "name": "second_value",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  }
+]

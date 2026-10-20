@@ -1,0 +1,76 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "initial",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [],
+        "name": "get",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "set",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeScalarStore.fe": "FeScalarStore"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeScalarStore",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeScalarStore.fe": {
+      "content": "use std::abi::sol\n\nmsg FeScalarStoreMsg {\n    #[selector = sol(\"get()\")]\n    Get -> u256,\n    #[selector = sol(\"set(uint256)\")]\n    Set { value: u256 },\n}\n\npub contract FeScalarStore {\n    mut stored: u256\n\n    init(initial: u256) uses (mut stored) {\n        stored = initial\n    }\n\n    recv FeScalarStoreMsg {\n        Get -> u256 uses (stored) {\n            stored\n        }\n\n        Set { value } uses (mut stored) {\n            stored = value\n        }\n    }\n}\n",
+      "keccak256": "0x71e37571e5408c1705c6f8b1f3c81990f4ef5a5b626a181c1468bb2250a995c1"
+    }
+  },
+  "version": 1
+}

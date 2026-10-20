@@ -1,0 +1,12 @@
+msg FeConstantMsg {
+    #[selector = sol("answer()")]
+    Answer -> u256,
+}
+
+pub contract FeConstant {
+    recv FeConstantMsg {
+        Answer -> u256 {
+            42
+        }
+    }
+}

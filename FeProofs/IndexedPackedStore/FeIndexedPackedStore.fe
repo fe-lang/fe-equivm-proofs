@@ -1,0 +1,42 @@
+use std::abi::sol
+use std::evm::{StoragePackedArray, revert}
+
+msg FeIndexedPackedStoreMsg {
+    #[selector = sol("get(uint256)")]
+    Get { index: u256 } -> u256,
+    #[selector = sol("set(uint256,uint256)")]
+    Set { index: u256, value: u256 },
+    #[selector = sol("setTwo(uint256,uint256,uint256,uint256)")]
+    SetTwo { first_index: u256, first_value: u256, second_index: u256, second_value: u256 },
+}
+
+pub contract FeIndexedPackedStore {
+    mut pack: StoragePackedArray<8>,
+
+    recv FeIndexedPackedStoreMsg {
+        Get { index } -> u256 uses (pack) {
+            if index >= 64 {
+                revert(())
+            }
+            pack.get(index)
+        }
+
+        Set { index, value } uses (mut pack) {
+            if index >= 64 {
+                revert(())
+            }
+            pack.set(i: index, value)
+        }
+
+        SetTwo { first_index, first_value, second_index, second_value } uses (mut pack) {
+            if first_index >= 64 {
+                revert(())
+            }
+            pack.set(i: first_index, value: first_value)
+            if second_index >= 64 {
+                revert(())
+            }
+            pack.set(i: second_index, value: second_value)
+        }
+    }
+}

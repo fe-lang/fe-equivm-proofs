@@ -1,0 +1,14 @@
+[
+  {
+    "type": "function",
+    "name": "answer",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure"
+  }
+]

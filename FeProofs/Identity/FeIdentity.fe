@@ -1,0 +1,12 @@
+msg FeIdentityMsg {
+    #[selector = sol("identity(uint256)")]
+    Identity { value: u256 } -> u256,
+}
+
+pub contract FeIdentity {
+    recv FeIdentityMsg {
+        Identity { value } -> u256 {
+            value
+        }
+    }
+}

@@ -1,0 +1,70 @@
+[
+  {
+    "type": "function",
+    "name": "echo_u8",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "uint8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "echo_i8",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "int8"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "int8"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "echo_bool",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "bool"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
+    "name": "echo_address",
+    "inputs": [
+      {
+        "name": "value",
+        "type": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "pure"
+  }
+]

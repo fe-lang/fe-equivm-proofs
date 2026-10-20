@@ -1,0 +1,99 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "index",
+            "type": "uint256"
+          }
+        ],
+        "name": "get",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "index",
+            "type": "uint256"
+          },
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "set",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "first_index",
+            "type": "uint256"
+          },
+          {
+            "name": "first_value",
+            "type": "uint256"
+          },
+          {
+            "name": "second_index",
+            "type": "uint256"
+          },
+          {
+            "name": "second_value",
+            "type": "uint256"
+          }
+        ],
+        "name": "setTwo",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeIndexedPackedStore.fe": "FeIndexedPackedStore"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeIndexedPackedStore",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeIndexedPackedStore.fe": {
+      "content": "use std::abi::sol\nuse std::evm::{StoragePackedArray, revert}\n\nmsg FeIndexedPackedStoreMsg {\n    #[selector = sol(\"get(uint256)\")]\n    Get { index: u256 } -> u256,\n    #[selector = sol(\"set(uint256,uint256)\")]\n    Set { index: u256, value: u256 },\n    #[selector = sol(\"setTwo(uint256,uint256,uint256,uint256)\")]\n    SetTwo { first_index: u256, first_value: u256, second_index: u256, second_value: u256 },\n}\n\npub contract FeIndexedPackedStore {\n    mut pack: StoragePackedArray<8>,\n\n    recv FeIndexedPackedStoreMsg {\n        Get { index } -> u256 uses (pack) {\n            if index >= 64 {\n                revert(())\n            }\n            pack.get(index)\n        }\n\n        Set { index, value } uses (mut pack) {\n            if index >= 64 {\n                revert(())\n            }\n            pack.set(i: index, value)\n        }\n\n        SetTwo { first_index, first_value, second_index, second_value } uses (mut pack) {\n            if first_index >= 64 {\n                revert(())\n            }\n            pack.set(i: first_index, value: first_value)\n            if second_index >= 64 {\n                revert(())\n            }\n            pack.set(i: second_index, value: second_value)\n        }\n    }\n}\n",
+      "keccak256": "0x0a58dbd131e8194c376282744075cbd24e2adc0a1fece12ce3b538310f51f5dc"
+    }
+  },
+  "version": 1
+}

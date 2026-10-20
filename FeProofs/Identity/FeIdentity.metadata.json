@@ -1,0 +1,59 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "identity",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeIdentity.fe": "FeIdentity"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeIdentity",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeIdentity.fe": {
+      "content": "msg FeIdentityMsg {\n    #[selector = sol(\"identity(uint256)\")]\n    Identity { value: u256 } -> u256,\n}\n\npub contract FeIdentity {\n    recv FeIdentityMsg {\n        Identity { value } -> u256 {\n            value\n        }\n    }\n}\n",
+      "keccak256": "0xb0eaadf721f02088bea5b7abc12ea1f48ceefebb1cbebe6a102f5b9cdb892e5d"
+    }
+  },
+  "version": 1
+}

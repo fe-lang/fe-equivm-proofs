@@ -1,0 +1,110 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint8"
+          }
+        ],
+        "name": "echo_u8",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint8"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "int8"
+          }
+        ],
+        "name": "echo_i8",
+        "outputs": [
+          {
+            "name": "",
+            "type": "int8"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "bool"
+          }
+        ],
+        "name": "echo_bool",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "address"
+          }
+        ],
+        "name": "echo_address",
+        "outputs": [
+          {
+            "name": "",
+            "type": "address"
+          }
+        ],
+        "stateMutability": "pure",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeNarrowAbi.fe": "FeNarrowAbi"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeNarrowAbi",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeNarrowAbi.fe": {
+      "content": "use std::abi::sol\nuse std::evm::Address\n\nmsg FeNarrowAbiMsg {\n    #[selector = sol(\"echo_u8(uint8)\")]\n    EchoU8 { value: u8 } -> u8,\n    #[selector = sol(\"echo_i8(int8)\")]\n    EchoI8 { value: i8 } -> i8,\n    #[selector = sol(\"echo_bool(bool)\")]\n    EchoBool { value: bool } -> bool,\n    #[selector = sol(\"echo_address(address)\")]\n    EchoAddress { value: Address } -> Address,\n}\n\npub contract FeNarrowAbi {\n    recv FeNarrowAbiMsg {\n        EchoU8 { value } -> u8 {\n            value\n        }\n\n        EchoI8 { value } -> i8 {\n            value\n        }\n\n        EchoBool { value } -> bool {\n            value\n        }\n\n        EchoAddress { value } -> Address {\n            value\n        }\n    }\n}\n",
+      "keccak256": "0x8c935432cdd29a94251bf1a8664dff4d01ce76bf00776b8cfe2963603758c30e"
+    }
+  },
+  "version": 1
+}

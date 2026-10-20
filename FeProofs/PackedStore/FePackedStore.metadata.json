@@ -1,0 +1,106 @@
+{
+  "compiler": {
+    "commit": "822e80878",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [],
+        "name": "get0",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "get1",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "set0",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ],
+        "name": "set1",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "first",
+            "type": "uint256"
+          },
+          {
+            "name": "second",
+            "type": "uint256"
+          }
+        ],
+        "name": "setBoth",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FePackedStore.fe": "FePackedStore"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FePackedStore",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FePackedStore.fe": {
+      "content": "use std::abi::sol\nuse std::evm::StoragePackedArray\n\nmsg FePackedStoreMsg {\n    #[selector = sol(\"get0()\")]\n    Get0 -> u256,\n    #[selector = sol(\"get1()\")]\n    Get1 -> u256,\n    #[selector = sol(\"set0(uint256)\")]\n    Set0 { value: u256 },\n    #[selector = sol(\"set1(uint256)\")]\n    Set1 { value: u256 },\n    #[selector = sol(\"setBoth(uint256,uint256)\")]\n    SetBoth { first: u256, second: u256 },\n}\n\npub contract FePackedStore {\n    mut pack: StoragePackedArray<8>,\n\n    recv FePackedStoreMsg {\n        Get0 -> u256 uses (pack) {\n            pack.get(0)\n        }\n\n        Get1 -> u256 uses (pack) {\n            pack.get(1)\n        }\n\n        Set0 { value } uses (mut pack) {\n            pack.set(i: 0, value)\n        }\n\n        Set1 { value } uses (mut pack) {\n            pack.set(i: 1, value)\n        }\n\n        SetBoth { first, second } uses (mut pack) {\n            pack.set(i: 0, value: first)\n            pack.set(i: 1, value: second)\n        }\n    }\n}\n",
+      "keccak256": "0xa19a0fa35eba48d1b910deb2bfbb7e93725e369d106860663efe0b3cd5687c1c"
+    }
+  },
+  "version": 1
+}

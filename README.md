@@ -7,15 +7,27 @@ specification written in EquiVM's specification language, Stele.
 
 ## Contracts
 
-| Module | Contract | Compiler | Theorem |
-| --- | --- | --- | --- |
-| `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/822e80878/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | Fe 26.4.0 (`822e80878`), Sonatina, `-O 1`, Osaka | `feDepositContractCorrect` |
+All compiled with Fe 26.4.0 (`822e80878`), Sonatina backend, `-O 1`, Osaka.
 
-`feDepositContractCorrect` covers the constructor and every runtime entry point
-(`deposit`, `get_deposit_root`, `get_deposit_count`, `supportsInterface`): for
-every input, the deployed bytecode returns, reverts, writes storage and emits
-events exactly as the Stele specification in `FeProofs/Deposit/SpecSyntax.lean`
-does. What the theorem assumes and does not claim:
+| Module | Contract | Theorem |
+| --- | --- | --- |
+| `FeProofs.Constant` | `answer() -> u256` returning 42 | `feConstantContractCorrect` |
+| `FeProofs.Identity` | `identity(uint256)` | `feIdentityContractCorrect` |
+| `FeProofs.NarrowAbi` | `uint8`/`int8`/`bool`/`address` echoes | `feNarrowAbiContractCorrect` |
+| `FeProofs.ScalarStore` | one `u256` field with a `uint256` constructor | `feScalarStoreContractCorrect` |
+| `FeProofs.PackedStore` | `StoragePackedArray<8>` lanes 0 and 1 | `fePackedStoreContractCorrect` |
+| `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
+| `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/822e80878/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
+| `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | in progress: `transfer` and `transferFrom` are `sorry` |
+
+Each theorem covers the constructor and the whole runtime: for every input, the deployed
+bytecode returns, reverts, writes storage and emits events exactly as the contract's Stele
+specification (`SpecSyntax.lean`) does.
+
+### The deposit contract
+
+`feDepositContractCorrect` covers every entry point (`deposit`, `get_deposit_root`,
+`get_deposit_count`, `supportsInterface`). What it assumes and does not claim:
 
 - The specification mirrors the Fe source, statement by statement. The theorem
   does not compare the Fe contract with the Solidity mainnet contract, and does
@@ -39,20 +51,20 @@ lake exe cache get   # Mathlib's prebuilt files
 lake build
 ```
 
-The build fails on any error. To list the axioms the capstone depends on:
+The build fails on any error. To list the axioms each capstone theorem depends on:
 
 ```sh
-printf 'import FeProofs\n#print axioms FeProofs.Deposit.feDepositContractCorrect\n' | lake env lean --stdin
+lake env lean scripts/Audit.lean
 ```
 
-Expect `propext`, `Classical.choice`, `Quot.sound` and the `native_decide`
-evaluations of concrete bytecode facts, and no `sorryAx`.
+Expect `propext`, `Classical.choice`, `Quot.sound` and a count of `native_decide`
+evaluations of concrete bytecode facts, and no `sorryAx` (except in unfinished proofs).
 
 ## Reproducing the bytecode
 
 Each contract directory holds the Fe source, the compiler settings
 (`*.build.json`) and the bytecode the proofs are about. With the Fe compiler at
-the listed commit:
+the listed commit, for example:
 
 ```sh
 fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode
