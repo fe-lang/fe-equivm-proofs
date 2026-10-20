@@ -65,7 +65,6 @@ theorem feIndexedPackedStoreGetBody {σ σ₀ A I} {g : UInt256}
   u256_lits at rd
   rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), laneRead_eq, shr5_eq] at rd
   have hval := evalElemCast (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) hin hxi (by simp)
-  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hval
   exact rd.reEquivExecution hcode hd hdec
     (ExecFuncBody.execBlockRet (ExecBlock.consNormal hreq (ExecBlock.consNormal
       (ExecStmt.requireTrue (by rw [evalIndexLt hxi, decide_eq_true hin]))

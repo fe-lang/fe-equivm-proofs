@@ -38,10 +38,10 @@ theorem feScalarStoreGetBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDispatchedRevert hcode rd hd
       fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
   rd_run rd using [hwv]
+  u256_lits at rd
+  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)] at rd
   have hread := stored_read (L := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (by simp)
-  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
-  exact (RDret.of_output_eq rd (toByteArray_write32_read_back ByteArray.empty _ 0 (by decide))
-    ).reEquivExecution hcode hd (feScalarStoreGetDecode hsz)
+  exact rd.reEquivExecution hcode hd (feScalarStoreGetDecode hsz)
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
     (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨0⟩ σ I)))
 

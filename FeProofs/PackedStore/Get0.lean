@@ -33,19 +33,13 @@ theorem fePackedStoreGet0Body {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDispatchedRevert hcode rd hd
       fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
   rd_run rd using [hwv]
-  have rret : RDret fePackedStoreBytecode _ _ σ
-      (packedByte (codeOwnerStorageWord I σ packedSlot) 0).toByteArray :=
-    RDret.of_output_eq rd ((toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)).trans
-      (congrArg UInt256.toByteArray (packedByte_lane0 _)))
+  u256_lits at rd
+  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), packedByte_lane0] at rd
   have hbody := nonpayableReturnExprBodyReturns (cfg := config) (contract := contract)
     (imms := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (locals := ∅)
     (by simp only [initState]; exact hwv)
     (evalLaneCast "lane0" 0 (by simp) rfl rfl)
-  have hW : Stele.EVM.storageLoad (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-      (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.codeOwner packedSlot =
-      codeOwnerStorageWord I σ packedSlot := codeOwnerStorageWord_initState packedSlot
-  rw [hW] at hbody
-  exact rret.reEquivExecution hcode hd hdec hbody
+  exact rd.reEquivExecution hcode hd hdec hbody
     (returnEquiv_of_encode (uint256ReturnEncoding _))
 
 end FeProofs.PackedStore
