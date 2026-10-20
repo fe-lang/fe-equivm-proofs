@@ -25,24 +25,18 @@ theorem feNarrowAbiCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : Execution
     RDret feNarrowAbiCreationBytecode g (initState σ σ₀ g A I) σ feNarrowAbiBytecode := by
   have hcode' : I.code = feNarrowAbiCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := feNarrowAbiCreationBlocks.feNarrowAbiCreation_block_0_taken (by simp)
-    (by rw [hwv]; decide) (by jump_dest) rd0
-  have rret := feNarrowAbiCreationBlocks.feNarrowAbiCreation_block_8 (by simp) rd1
-  rw [ByteArray.append_empty, feNarrowAbiCreation_runtime_copy] at rret
-  exact rret
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
+  rd_run rd using [hwv]
+  rwa [ByteArray.append_empty, feNarrowAbiCreation_runtime_copy] at rd
 
 theorem feNarrowAbiCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     (hcode : I.code = feNarrowAbiCreationBytecode) (hwv : I.weiValue ≠ ⟨0⟩) :
     RDrev feNarrowAbiCreationBytecode g (initState σ σ₀ g A I) := by
   have hcode' : I.code = feNarrowAbiCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := feNarrowAbiCreationBlocks.feNarrowAbiCreation_block_0_fallthrough (by simp)
-    (isZero_eq_zero_of_ne hwv) rd0
-  have rrev := feNarrowAbiCreationBlocks.feNarrowAbiCreation_block_5 (by simp) rd1
-  rw [ByteArray.append_empty] at rrev
-  exact rrev
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
+  rd_run rd using [isZero_eq_zero_of_ne hwv]
+  rwa [ByteArray.append_empty] at rd
 
 theorem feNarrowAbiConstructorCorrect :
     typedConstructorRefinement config feNarrowAbiCreationBytecode contract
