@@ -88,34 +88,10 @@ theorem depositCall3 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : AccountM
   obtain ⟨ev3, σ3, z3, o3, aw3, k3, C3, hc3, hs3, r858, hb3⟩ :=
     staticCallBridge r857 hs (by native_decide) (by simp; omega)
   rw [hpay, ← precompile2_eq] at hc3
-  have r858' := RD.normalizePC (pc' := UInt256.ofNat 858) r858 (by decide)
   have hpl := evalSigRightPayload (cfg := config) (stele := pFrame L) (evm := evm) hsig hsigsz
-  by_cases hok3 : z3 = true ∧ 32 ≤ o3.size
-  swap
-  · have hrev : RDrev feDepositBytecode g s0 := by
-      cases z3 with
-      | false =>
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_858_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_858_taken (by simp; omega) (by decide) (by jump_dest) r858')
-      | true =>
-        have hshort : o3.size < 32 := by
-          by_contra hge
-          exact hok3 ⟨rfl, by omega⟩
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_858_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_865_taken
-            (by simp [feDepositBlocks.feDeposit_block_858_fallthrough_stack]; omega)
-            (lt32_size_word_ne hshort) (by jump_dest)
-            (feDepositBlocks.feDeposit_block_858_fallthrough (by simp; omega) (by decide) r858'))
-    exact Or.inr ⟨hrev, ExecBlock.consRevert
-      (sha64Call_revert (caller := pFrame L) rfl (ret := "signature_right") hpl hc3 hok3)⟩
-  obtain ⟨rfl, hout3⟩ := hok3
-  have r874 := feDepositBlocks.feDeposit_block_865_fallthrough
-    (by simp [feDepositBlocks.feDeposit_block_858_fallthrough_stack]; omega)
-    (lt32_size_word hout3 hb3)
-    (feDepositBlocks.feDeposit_block_858_fallthrough (by simp; omega) (by decide) r858')
-  simp only [feDepositBlocks.feDeposit_block_858_fallthrough_stack] at r874
+  rd_checked r858 z3 o3 as hrev hout3 to 874
+  · exact Or.inr ⟨hrev, ExecBlock.consRevert
+      (sha64Call_revert (caller := pFrame L) rfl (ret := "signature_right") hpl hc3 hout3)⟩
   have hin : (UInt256.ofNat 608).toNat + 32 ≤
       ((memLoad (UInt256.ofNat (448 + 64)) M).toByteArray.write 0 M (UInt256.ofNat 608).toNat 32).size := by
     rw [h608]; omega
@@ -127,7 +103,7 @@ theorem depositCall3 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : AccountM
   have hP2 := write_size_ge (memLoad (UInt256.ofNat (448 + 64)) M).toByteArray M (srcOff := 0)
     (dest := (UInt256.ofNat 608).toNat) (len := 32) (by decide) (by rw [toByteArray_size])
     (gapSmall (by decide))
-  exact Or.inl ⟨σ3, ev3, o3, _, _, _, _, r874, hl3, hf3, by rw [hsz3]; omega, hs3,
+  exact Or.inl ⟨σ3, ev3, o3, _, _, _, _, r858, hl3, hf3, by rw [hsz3]; omega, hs3,
     fun res h => ExecBlock.consNormal hs10 h⟩
 
 end FeProofs.Deposit

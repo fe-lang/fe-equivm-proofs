@@ -38,24 +38,16 @@ theorem feDepositGet_deposit_countBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feDepositReachGet_deposit_countBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feDepositBlocks.feDeposit_block_1716_fallthrough (by simp) hwv rd
-    obtain ⟨k1, C1, rd2⟩ := feDepositBlocks.feDeposit_block_1723_fallthrough
-      (by simp [feDepositBlocks.feDeposit_block_1716_fallthrough_stack])
-      (by native_decide) rd1
-    have rd3 := feDepositBlocks.feDeposit_block_1807
-      (by simp [
-        feDepositBlocks.feDeposit_block_1716_fallthrough_stack]) rd2
-    have rret := feDepositBlocks.feDeposit_block_1811 (by simp [
-      feDepositBlocks.feDeposit_block_1716_fallthrough_stack]) rd3
-    rw [evmChunk_eq, countReturn_eq] at rret
-    obtain ⟨F, hbody⟩ := getCountBody (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-      (by simp only [initState]; exact hwv)
-    rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hbody
-    exact rret.reEquivExecution hcode hd (feDepositGetCountDecode hsz) hbody
-      (returnEquiv.returned rfl (le64_returnEncoding _))
-  · have rd1 := feDepositBlocks.feDeposit_block_1716_taken (by simp) hwv (by jump_dest) rd
-    exact RDrev.reEquivDispatchedRevert hcode (feDepositBlocks.feDeposit_block_2245
-      (by simp [feDepositBlocks.feDeposit_block_1716_taken_stack]) rd1)
-      hd fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
+      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  rd_run rd using [hwv, (by native_decide)]
+  rw [evmChunk_eq, countReturn_eq] at rd
+  obtain ⟨F, hbody⟩ := getCountBody (initState σ σ₀ (Sat256.ofUInt256 g) A I)
+    (by simp only [initState]; exact hwv)
+  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hbody
+  exact rd.reEquivExecution hcode hd (feDepositGetCountDecode hsz) hbody
+    (returnEquiv.returned rfl (le64_returnEncoding _))
 
 end FeProofs.Deposit

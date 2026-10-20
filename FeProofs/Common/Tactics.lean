@@ -48,7 +48,7 @@ partial def pcValue? (e : Expr) : MetaM (Option Nat) := do
 
 /-- The block-lemma prefix for a bytecode term, from its constant's name. -/
 def blockPrefix? (code : Expr) : MetaM (Option Name) := do
-  let code ← instantiateMVars code
+  let code ← whnfR (← instantiateMVars code)
   let c := match_expr code with
     | HAppend.hAppend _ _ _ _ a _ => a
     | _ => code

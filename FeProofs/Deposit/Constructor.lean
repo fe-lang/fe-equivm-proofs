@@ -39,11 +39,10 @@ theorem feDepositConstructorCorrect :
   have rd0 := RD.initState (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
   by_cases hwv : I.weiValue = ⟨0⟩
   · have hwv' : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.weiValue = ⟨0⟩ := hwv
-    have rd4 := feDepositCreationBlocks.feDepositCreation_block_0_fallthrough (by simp) hwv rd0
-    have rd5 := feDepositCreationBlocks.feDepositCreation_block_4 (by simp) rd4
+    rd_run rd0 to 5 using [hwv]
     have rd5' : RD ctorCode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
         (UInt256.ofNat 5) [UInt256.ofNat 0] ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ _ _ :=
-      rd5
+      rd0
     have hinit : ExecBlock config { contract := contract, locals := ∅ }
         (initState σ σ₀ (Sat256.ofUInt256 g) A I) ctorInit
         (.ok { contract := contract, locals := (∅ : Store).insert "height" (.int 0) }
@@ -58,20 +57,18 @@ theorem feDepositConstructorCorrect :
       exact ExecFuncBody.execBlockRevert <|
         ExecBlock.consNormal (ExecStmt.requireTrue (evalCallvalueEq_true hwv')) <|
           ExecBlock.consRevert (ExecStmt.for hinit hloop)
-    · have rret := feDepositCreationBlocks.feDepositCreation_block_71 (by simp) rd71
-      rw [ByteArray.append_empty, ctorRuntime_read] at rret
+    · rd_step rd71
+      rw [ByteArray.append_empty, ctorRuntime_read] at rd71
       have hbody : ExecTransitionBody config contract (initState σ σ₀ (Sat256.ofUInt256 g) A I) ∅
           contract.ctor.body (.returned { contract := contract, locals := Lf } evmf none) := by
         rw [ctorBody_eq]
         exact ExecFuncBody.execBlockOK <|
           ExecBlock.consNormal (ExecStmt.requireTrue (evalCallvalueEq_true hwv')) <|
             ExecBlock.consNormal (ExecStmt.for hinit hloop) ExecBlock.nil
-      exact RDret.constructorRefinementEmptyParams rret hcode rfl hbody hsf.accounts
-  · have rd41 := feDepositCreationBlocks.feDepositCreation_block_0_taken (by simp) hwv
-      (by jump_dest) rd0
-    have hrev := feDepositCreationBlocks.feDepositCreation_block_41 (by simp) rd41
-    rw [ByteArray.append_empty] at hrev
-    refine RDrev.constructorRefinementEmptyParams hrev hcode rfl ?_
+      exact RDret.constructorRefinementEmptyParams rd71 hcode rfl hbody hsf.accounts
+  · rd_run rd0 using [hwv]
+    rw [ByteArray.append_empty] at rd0
+    refine RDrev.constructorRefinementEmptyParams rd0 hcode rfl ?_
     rw [ctorBody_eq]
     exact bodyReverts_nonPayable hwv
 

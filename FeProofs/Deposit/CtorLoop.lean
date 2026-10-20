@@ -196,9 +196,8 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
     intro h hn σh evmh mem rdata aw k C L hh hz rd hs
     obtain rfl : h = 31 := by omega
     right
-    have rd71 := feDepositCreationBlocks.feDepositCreation_block_5_taken (by simp) (by decide)
-      (by jump_dest) rd
-    refine ⟨σh, evmh, L, mem, rdata, aw, _, _, hs, rd71, ExecForLoop.falseDone ?_⟩
+    rd_step rd
+    refine ⟨σh, evmh, L, mem, rdata, aw, _, _, hs, rd, ExecForLoop.falseDone ?_⟩
     rw [evalHeightLt hh]
     rfl
   | succ m ih =>
@@ -208,14 +207,9 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
         .ok (.bool true) := by
       have hlt' : Int.ofNat h < 31 := Int.ofNat_lt.mpr hlt
       rw [evalHeightLt hh, decide_eq_true hlt']
-    have rd14 := feDepositCreationBlocks.feDepositCreation_block_5_fallthrough (by simp)
-      (lt31_word hlt) rd
-    obtain ⟨gas, k1, C1, rd35⟩ := feDepositCreationBlocks.feDepositCreation_block_14 (by simp) rd14
-    simp only [feDepositCreationBlocks.feDepositCreation_block_14_stack,
-      feDepositCreationBlocks.feDepositCreation_block_14_memory] at rd35
+    rd_run rd using [lt31_word hlt]
     obtain ⟨evm', σ', z, out, aw', k2, C2, hcall, hs', rd36, hob⟩ :=
-      staticCallBridge rd35 hs (by native_decide) (by simp)
-    have rd36' := RD.normalizePC (pc' := UInt256.ofNat 36) rd36 (by decide)
+      staticCallBridge rd hs (by native_decide) (by simp)
     rw [pairMem_read, ← precompile2_eq] at hcall
     -- the Stele body up to the call
     have hcur := zeroHash_read (L := L) (evm := evmh) (i := h) (by omega) (evalVarF hh) hz
@@ -225,66 +219,40 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
         .ok (.int (Int.ofNat (σh.get? I.codeOwner |>.option (⟨0⟩ : UInt256)
           (fun ac => ac.storage.getD ((UInt256.ofNat 33) + UInt256.ofNat h) (⟨0⟩ : UInt256))).toNat)) :=
       evalVarF (store_get_self _ _ _)
-    by_cases hok : z = true ∧ 32 ≤ out.size
-    · obtain ⟨rfl, hout⟩ := hok
-      have rd45 := feDepositCreationBlocks.feDepositCreation_block_36_taken (by simp) (by decide)
-        (by jump_dest) rd36'
-      have rd54 := feDepositCreationBlocks.feDepositCreation_block_45_fallthrough
-        (by simp [feDepositCreationBlocks.feDepositCreation_block_36_taken_stack])
-        (lt32_size_word hout hob) rd45
-      obtain ⟨k3, C3, rd5⟩ := feDepositCreationBlocks.feDepositCreation_block_54
-        (by simp) hperm
-        (by jump_dest) rd54
-      simp only [feDepositCreationBlocks.feDepositCreation_block_54_stack] at rd5
-      rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairMem_size _ _)),
-        succ_word hlt] at rd5
-      -- the Stele body after the call
-      have hcall2 := shaPairCall_ok (caller := { contract := contract, locals := loopL1 L σh I h })
-        rfl (ret := "next") hcurVar hcurVar hcall hout
-      have hh2 : (loopL2 L σh I h out).get? "height" = some (.int (Int.ofNat h)) := by
-        store_get; exact hh
-      have hz2 : (loopL2 L σh I h out).get? "zero_hashes" = none := by
-        store_get; exact hz
-      have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalInc hh2) hz2
-        (calldataWord out 0)
-      rw [hs'.env] at hassign
-      have hs'' := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
-      have hstore := ExecStmt.assign (hperm := Or.inr (by rw [hs'.env]; exact hperm))
-        (evalVarF (store_get_self _ _ _)) hassign
-      have hpost := ExecStmt.assign (cfg := config) (hperm := Or.inl rfl)
-        (evalInc (evm := Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
-          (calldataWord out 0)) hh2) (assignLocalF (old := .int (Int.ofNat h)) hh2)
-      have hh3 : (loopL3 L σh I h out).get? "height" = some (.int (Int.ofNat (h + 1))) :=
-        store_get_self _ _ _
-      have hz3 : (loopL3 L σh I h out).get? "zero_hashes" = none := by
-        store_get; exact hz
-      have hbody : ExecBlock config { contract := contract, locals := L } evmh ctorLoopBody
-          (.ok { contract := contract, locals := loopL2 L σh I h out }
-            (Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
-              (calldataWord out 0))) :=
-        ExecBlock.consNormal (ExecStmt.letDecl hcur) <|
-          ExecBlock.consNormal hcall2 <| ExecBlock.consNormal hstore ExecBlock.nil
-      rcases ih (h + 1) (by omega) hh3 hz3 rd5 hs'' with ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71, hloop⟩
-      · exact Or.inl ⟨hrev, ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
-      · exact Or.inr ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71,
-          ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
-    · left
-      refine ⟨?_, ExecForLoop.bodyRevert hcond (ExecBlock.consNormal (ExecStmt.letDecl hcur)
-        (ExecBlock.consRevert (shaPairCall_revert rfl hcurVar hcurVar hcall hok)))⟩
-      cases z with
-      | false =>
-        exact feDepositCreationBlocks.feDepositCreation_block_41
-          (by simp [feDepositCreationBlocks.feDepositCreation_block_36_fallthrough_stack])
-          (feDepositCreationBlocks.feDepositCreation_block_36_fallthrough (by simp) (by decide) rd36')
-      | true =>
-        have hshort : out.size < 32 := by
-          by_contra hge; exact hok ⟨rfl, by omega⟩
-        have rd45 := feDepositCreationBlocks.feDepositCreation_block_36_taken (by simp) (by decide)
-          (by jump_dest) rd36'
-        exact feDepositCreationBlocks.feDepositCreation_block_41
-          (by simp [feDepositCreationBlocks.feDepositCreation_block_36_taken_stack])
-          (feDepositCreationBlocks.feDepositCreation_block_45_taken
-            (by simp [feDepositCreationBlocks.feDepositCreation_block_36_taken_stack])
-            (lt32_size_word_ne hshort) (by jump_dest) rd45)
+    rd_checked rd36 z out as hrev hout to 5
+    · exact Or.inl ⟨hrev, ExecForLoop.bodyRevert hcond (ExecBlock.consNormal (ExecStmt.letDecl hcur)
+        (ExecBlock.consRevert (shaPairCall_revert rfl hcurVar hcurVar hcall hout)))⟩
+    rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairMem_size _ _)),
+      succ_word hlt] at rd36
+    -- the Stele body after the call
+    have hcall2 := shaPairCall_ok (caller := { contract := contract, locals := loopL1 L σh I h })
+      rfl (ret := "next") hcurVar hcurVar hcall hout
+    have hh2 : (loopL2 L σh I h out).get? "height" = some (.int (Int.ofNat h)) := by
+      store_get; exact hh
+    have hz2 : (loopL2 L σh I h out).get? "zero_hashes" = none := by
+      store_get; exact hz
+    have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalInc hh2) hz2
+      (calldataWord out 0)
+    rw [hs'.env] at hassign
+    have hs'' := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
+    have hstore := ExecStmt.assign (hperm := Or.inr (by rw [hs'.env]; exact hperm))
+      (evalVarF (store_get_self _ _ _)) hassign
+    have hpost := ExecStmt.assign (cfg := config) (hperm := Or.inl rfl)
+      (evalInc (evm := Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
+        (calldataWord out 0)) hh2) (assignLocalF (old := .int (Int.ofNat h)) hh2)
+    have hh3 : (loopL3 L σh I h out).get? "height" = some (.int (Int.ofNat (h + 1))) :=
+      store_get_self _ _ _
+    have hz3 : (loopL3 L σh I h out).get? "zero_hashes" = none := by
+      store_get; exact hz
+    have hbody : ExecBlock config { contract := contract, locals := L } evmh ctorLoopBody
+        (.ok { contract := contract, locals := loopL2 L σh I h out }
+          (Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
+            (calldataWord out 0))) :=
+      ExecBlock.consNormal (ExecStmt.letDecl hcur) <|
+        ExecBlock.consNormal hcall2 <| ExecBlock.consNormal hstore ExecBlock.nil
+    rcases ih (h + 1) (by omega) hh3 hz3 rd36 hs'' with ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71, hloop⟩
+    · exact Or.inl ⟨hrev, ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
+    · exact Or.inr ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71,
+        ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
 
 end FeProofs.Deposit

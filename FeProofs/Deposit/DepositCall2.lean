@@ -206,25 +206,8 @@ theorem call2 {σ σ₀ A I} {g : UInt256} {σ1 : AccountMap} {evm : EVM.State} 
   obtain ⟨evm', σ', z, out, aw', k', C', hcall, hs', r2, hob2⟩ :=
     staticCallBridge r1 hs (by native_decide) (by simp)
   rw [c2Payload hok hargs hl0 hl1 hl2 hob hsz, ← precompile2_eq] at hcall
-  cases z with
-  | false =>
-    have r3 := feDepositBlocks.feDeposit_block_822_taken (by simp) (by decide) (by jump_dest) r2
-    exact Or.inl ⟨feDepositBlocks.feDeposit_block_2245
-      (by simp [feDepositBlocks.feDeposit_block_822_taken_stack]) r3,
-      sha64Call_revert rfl he hcall (by simp)⟩
-  | true =>
-    have r3 := feDepositBlocks.feDeposit_block_822_fallthrough (by simp) (by decide) r2
-    simp only [feDepositBlocks.feDeposit_block_822_fallthrough_stack] at r3
-    by_cases hsz2 : 32 ≤ out.size
-    · have r4 := feDepositBlocks.feDeposit_block_827_fallthrough (by simp)
-        (ult_zero (by rw [ulit_toNat' _ hob2, ulit_toNat' 32 (by decide)]; exact hsz2)) r3
-      simp only [feDepositBlocks.feDeposit_block_827_fallthrough_stack] at r4
-      exact Or.inr ⟨evm', σ', out, aw', _, _, hsz2, hob2, hs', r4, sha64Call_ok rfl he hcall hsz2⟩
-    · have r4 := feDepositBlocks.feDeposit_block_827_taken (by simp)
-        (by rw [ult_one (by rw [ulit_toNat' _ hob2, ulit_toNat' 32 (by decide)]; omega)]; decide)
-        (by jump_dest) r3
-      exact Or.inl ⟨feDepositBlocks.feDeposit_block_2245
-        (by simp [feDepositBlocks.feDeposit_block_827_taken_stack]) r4,
-        sha64Call_revert rfl he hcall (by simp; omega)⟩
+  rd_checked r2 z out as hrev hsz2 to 838
+  · exact Or.inl ⟨hrev, sha64Call_revert rfl he hcall hsz2⟩
+  · exact Or.inr ⟨evm', σ', out, aw', _, _, hsz2, hob2, hs', r2, sha64Call_ok rfl he hcall hsz2⟩
 
 end FeProofs.Deposit

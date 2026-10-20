@@ -131,9 +131,8 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
     have h32 : height = 32 := by omega
     subst h32
     refine Or.inr (Or.inr ⟨?_, _, _, ExecForLoop.falseDone (by rw [evalLoopCond hh]; rfl)⟩)
-    have rd1 := feDepositBlocks.feDeposit_block_1605_taken (by simp; omega) (by decide)
-      (by jump_dest) rd
-    exact feDepositBlocks.feDeposit_block_1688 (by simp; omega) rd1
+    rd_run rd
+    exact rd
   | succ v ih =>
     intro height node size L evm σ mem aw rdata k C R hv hR rd hs hn hsz hh hb
     have hlt : height < 32 := by omega
@@ -144,15 +143,13 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
     have hcondS : evalExpr? config { contract := contract, locals := L } evm dlCond =
         .ok (.bool true) := by
       rw [evalLoopCond hh, decide_eq_true hlt]
-    have rd1 := feDepositBlocks.feDeposit_block_1605_fallthrough (by simp; omega) hcondE rd
+    rd_step rd using [hcondE]
     have hpermE : evm.executionEnv.perm = true := by rw [hs.env]; exact hperm
     by_cases hp : size.toNat % 2 = 1
     · have hland : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 1 :=
         u256_inj (by rw [land_one_toNat, hp]; rfl)
-      have rd2 := feDepositBlocks.feDeposit_block_1615_fallthrough (by simp; omega)
-        (by rw [hland]; decide) rd1
-      have rret := feDepositBlocks.feDeposit_block_1627 (by simp; omega) hperm rd2
-      rw [show ((⟨0⟩ : UInt256).toNat) = 0 from rfl, byteArray_readWithPadding_zero] at rret
+      rd_run rd using [hland, hperm]
+      rw [show ((⟨0⟩ : UInt256).toNat) = 0 from rfl, byteArray_readWithPadding_zero] at rd
       have hret : ExecBlock config { contract := contract, locals := L } evm dlBody
           (.returned { contract := contract, locals := L }
             (Stele.EVM.storageStore evm evm.executionEnv.codeOwner (⟨0⟩ + UInt256.ofNat height) node)
@@ -160,22 +157,17 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
         ExecBlock.consReturn (ExecStmt.iteTrue (by rw [evalParity hsz, decide_eq_true hp])
           (ExecBlock.consNormal (ExecStmt.assign (Or.inr hpermE) (evalLocalVar hn)
             (assignBranch hlt hh hb node)) (ExecBlock.consReturn (ExecStmt.return evalEmptyReturn))))
-      refine Or.inl ⟨_, _, _, rret, ExecForLoop.bodyReturn hcondS hret, ?_⟩
+      refine Or.inl ⟨_, _, _, rd, ExecForLoop.bodyReturn hcondS hret, ?_⟩
       have hw := (hs.storageWrite (UInt256.ofNat height) node).accounts
       rw [u256_zero_add, hs.env]
       exact hw.symm
     · have hp0 : size.toNat % 2 = 0 := by omega
       have hland : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 0 :=
         u256_inj (by rw [land_one_toNat, hp0]; rfl)
-      have rd2 := feDepositBlocks.feDeposit_block_1615_taken (by simp; omega)
-        (by rw [hland]; decide) (by jump_dest) rd1
-      obtain ⟨gw, k2, C2, rd3⟩ := feDepositBlocks.feDeposit_block_1634 (by simp; omega) rd2
-      simp only [feDepositBlocks.feDeposit_block_1634_stack,
-        feDepositBlocks.feDeposit_block_1634_memory] at rd3
+      rd_run rd using [hland]
       obtain ⟨evm', σ', z, out, aw', k3, C3, hcall, hs', rd4, hosz⟩ :=
-        staticCallBridge rd3 hs (by native_decide) (by simp; omega)
+        staticCallBridge rd hs (by native_decide) (by simp; omega)
       rw [twoWords_read, ← pairPayload_eq, ← precompile2_eq] at hcall
-      have rd5 := RD.normalizePC (pc' := UInt256.ofNat 1655) rd4 (by native_decide)
       have hsib : evalExpr? config { contract := contract, locals := L } evm
           (.storage dlBranchRef) =
           .ok (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat height)).toNat)) := by
@@ -193,75 +185,50 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       have hnodev : evalExpr? config { contract := contract, locals := L1 } evm (.var "node") =
           .ok (.int (Int.ofNat node.toNat)) :=
         evalLocalVar (by store_get; exact hn)
-      by_cases hok : z = true ∧ 32 ≤ out.size
-      · obtain ⟨rfl, hout⟩ := hok
-        simp only [if_true] at rd5
-        have rd6 := feDepositBlocks.feDeposit_block_1655_fallthrough (by simp; omega) (by decide) rd5
-        simp only [feDepositBlocks.feDeposit_block_1655_fallthrough_stack] at rd6
-        have rd7 := feDepositBlocks.feDeposit_block_1662_fallthrough (by simp; omega)
-          (ult_zero (by rw [ulit_toNat' _ hosz, ulit_toNat' 32 (by decide)]; exact hout)) rd6
-        have rd8 := feDepositBlocks.feDeposit_block_1671 (by simp; omega) (by jump_dest) rd7
-        simp only [feDepositBlocks.feDeposit_block_1671_stack] at rd8
-        have hload : ∀ M : ByteArray, 160 + 32 ≤ M.size →
-            memLoad (UInt256.ofNat 160) (callOutputMem M out (UInt256.ofNat 160) (UInt256.ofNat 32)) =
-              calldataWord out 0 :=
-          fun M hM => callOutput_load M out (UInt256.ofNat 160) hosz hout hM
-        rw [hload _ (twoWords_size _ _ _),
-          ofNat_succ_add height (show height + 1 < UInt256.size from lt_of_lt_of_le (Nat.succ_lt_succ hlt) (by decide))] at rd8
-        have hcallS := shaPairCall_ok (ret := "parent") rfl hsibv hnodev hcall hout
-        set L4 : Store := ((L1.insert "parent" (shaDigest out)).insert "node" (shaDigest out)).insert
-          "size" (.int (Int.ofNat (UInt256.shiftRight size (UInt256.ofNat 1)).toNat)) with hL4
-        set L5 : Store := L4.insert "height" (.int (Int.ofNat (height + 1))) with hL5
-        have hih := ih (height + 1) (calldataWord out 0) (UInt256.shiftRight size (UInt256.ofNat 1))
-          L5 evm' σ' _ _ _ _ _ R (by omega) hR rd8 hs'
-          (by store_get)
-          (by store_get)
-          (store_get_self _ _ _)
-          (by store_get; exact hb)
-        have hbody : ExecBlock config { contract := contract, locals := L } evm dlBody
-            (.ok { contract := contract, locals := L4 } evm') := by
-          refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
-          refine ExecBlock.consNormal (ExecStmt.letDecl hsib) ?_
-          refine ExecBlock.consNormal hcallS ?_
-          refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalLocalVar (store_get_self _ _ _))
-            (assignLocal (old := .int (Int.ofNat node.toNat))
-              (by store_get; exact hn))) ?_
-          refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl)
-            (evalHalf (by store_get; exact hsz))
-            (assignLocal (old := .int (Int.ofNat size.toNat))
-              (by store_get; exact hsz))) ?_
-          exact ExecBlock.nil
-        have hh4 : L4.get? "height" = some (.int (Int.ofNat height)) :=
-          (by store_get; exact hh)
-        have hpost : ExecBlock config { contract := contract, locals := L4 } evm' dlPost
-            (.ok { contract := contract, locals := L5 } evm') :=
-          ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalInc hh4) (assignLocal hh4))
-            ExecBlock.nil
-        rcases hih with ⟨σf, frf, evmf, hret, hloop, hacc⟩ | ⟨hrev, hloop⟩ | ⟨hrev, frf, evmf, hloop⟩
-        · exact Or.inl ⟨σf, frf, evmf, hret, ExecForLoop.iterate hcondS hbody hpost hloop, hacc⟩
-        · exact Or.inr (Or.inl ⟨hrev, ExecForLoop.iterate hcondS hbody hpost hloop⟩)
-        · exact Or.inr (Or.inr ⟨hrev, frf, evmf, ExecForLoop.iterate hcondS hbody hpost hloop⟩)
-      · refine Or.inr (Or.inl ⟨?_, ExecForLoop.bodyRevert hcondS ?_⟩)
-        · cases z with
-          | false =>
-              simp only [Bool.false_eq_true, if_false] at rd5
-              have rd6 := feDepositBlocks.feDeposit_block_1655_taken (by simp; omega) (by decide)
-                (by jump_dest) rd5
-              exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1655_taken_stack]; omega) rd6
-          | true =>
-              have hshort : out.size < 32 := by
-                by_contra hc
-                exact hok ⟨rfl, by omega⟩
-              simp only [if_true] at rd5
-              have rd6 := feDepositBlocks.feDeposit_block_1655_fallthrough (by simp; omega) (by decide) rd5
-              simp only [feDepositBlocks.feDeposit_block_1655_fallthrough_stack] at rd6
-              have rd7 := feDepositBlocks.feDeposit_block_1662_taken (by simp; omega)
-                (by rw [ult_one (by rw [ulit_toNat' _ hosz, ulit_toNat' 32 (by decide)]; exact hshort)]
-                    decide) (by jump_dest) rd6
-              exact feDepositBlocks.feDeposit_block_2245 (by simp; omega) rd7
-        · refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
-          refine ExecBlock.consNormal (ExecStmt.letDecl hsib) ?_
-          exact ExecBlock.consRevert (shaPairCall_revert (ret := "parent") rfl hsibv hnodev hcall hok)
+      rd_checked rd4 z out as hrev hout to 1605
+      · refine Or.inr (Or.inl ⟨hrev, ExecForLoop.bodyRevert hcondS ?_⟩)
+        refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
+        refine ExecBlock.consNormal (ExecStmt.letDecl hsib) ?_
+        exact ExecBlock.consRevert (shaPairCall_revert (ret := "parent") rfl hsibv hnodev hcall hout)
+      have hload : ∀ M : ByteArray, 160 + 32 ≤ M.size →
+          memLoad (UInt256.ofNat 160) (callOutputMem M out (UInt256.ofNat 160) (UInt256.ofNat 32)) =
+            calldataWord out 0 :=
+        fun M hM => callOutput_load M out (UInt256.ofNat 160) hosz hout hM
+      rw [hload _ (twoWords_size _ _ _),
+        ofNat_succ_add height (show height + 1 < UInt256.size from lt_of_lt_of_le (Nat.succ_lt_succ hlt) (by decide))] at rd4
+      have hcallS := shaPairCall_ok (ret := "parent") rfl hsibv hnodev hcall hout
+      set L4 : Store := ((L1.insert "parent" (shaDigest out)).insert "node" (shaDigest out)).insert
+        "size" (.int (Int.ofNat (UInt256.shiftRight size (UInt256.ofNat 1)).toNat)) with hL4
+      set L5 : Store := L4.insert "height" (.int (Int.ofNat (height + 1))) with hL5
+      have hih := ih (height + 1) (calldataWord out 0) (UInt256.shiftRight size (UInt256.ofNat 1))
+        L5 evm' σ' _ _ _ _ _ R (by omega) hR rd4 hs'
+        (by store_get)
+        (by store_get)
+        (store_get_self _ _ _)
+        (by store_get; exact hb)
+      have hbody : ExecBlock config { contract := contract, locals := L } evm dlBody
+          (.ok { contract := contract, locals := L4 } evm') := by
+        refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
+        refine ExecBlock.consNormal (ExecStmt.letDecl hsib) ?_
+        refine ExecBlock.consNormal hcallS ?_
+        refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalLocalVar (store_get_self _ _ _))
+          (assignLocal (old := .int (Int.ofNat node.toNat))
+            (by store_get; exact hn))) ?_
+        refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl)
+          (evalHalf (by store_get; exact hsz))
+          (assignLocal (old := .int (Int.ofNat size.toNat))
+            (by store_get; exact hsz))) ?_
+        exact ExecBlock.nil
+      have hh4 : L4.get? "height" = some (.int (Int.ofNat height)) :=
+        (by store_get; exact hh)
+      have hpost : ExecBlock config { contract := contract, locals := L4 } evm' dlPost
+          (.ok { contract := contract, locals := L5 } evm') :=
+        ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalInc hh4) (assignLocal hh4))
+          ExecBlock.nil
+      rcases hih with ⟨σf, frf, evmf, hret, hloop, hacc⟩ | ⟨hrev, hloop⟩ | ⟨hrev, frf, evmf, hloop⟩
+      · exact Or.inl ⟨σf, frf, evmf, hret, ExecForLoop.iterate hcondS hbody hpost hloop, hacc⟩
+      · exact Or.inr (Or.inl ⟨hrev, ExecForLoop.iterate hcondS hbody hpost hloop⟩)
+      · exact Or.inr (Or.inr ⟨hrev, frf, evmf, ExecForLoop.iterate hcondS hbody hpost hloop⟩)
 
 abbrev dcRef : StorageRef := { base := "deposit_count", steps := [] }
 
