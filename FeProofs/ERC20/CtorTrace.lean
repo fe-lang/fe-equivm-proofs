@@ -118,29 +118,18 @@ theorem feERC20CtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv}
       (sstoreAccountMap I.codeOwner (sstoreAccountMap I.codeOwner σ
         (keccakWord (UInt256.ofNat 96) (UInt256.ofNat 64) (ctorKeyMem w I.source)) w)
         (UInt256.ofNat 2) w) feERC20Bytecode := by
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20CreationBlocks.feERC20Creation_block_0_taken (by simp)
-    (by rw [hwv]; decide) (by jump_dest) rd0
-  have rd2 := feERC20CreationBlocks.feERC20Creation_block_9_fallthrough (by simp)
-    (by rw [ctorCode_size]; decide) rd1
-  have rd3 := feERC20CreationBlocks.feERC20Creation_block_20_fallthrough (by simp)
-    (by native_decide) rd2
-  have rd4 := feERC20CreationBlocks.feERC20Creation_block_33 (by simp) rd3
-  have rd5 := feERC20CreationBlocks.feERC20Creation_block_36_fallthrough (by simp)
-    (by rw [ctorCode_size]; decide) rd4
-  have rret := feERC20CreationBlocks.feERC20Creation_block_48 (by simp) hperm rd5
-  simp only [feERC20CreationBlocks.feERC20Creation_block_36_fallthrough_memory,
-    ctorCode_size] at rret
-  rw [ctorArgMem_load, ctorRuntime_read] at rret
-  exact rret
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
+  rd_run rd using [hwv, ctorCode_size w, (by native_decide)]
+  simp only [ctorCode_size] at rd
+  rw [ctorArgMem_load, ctorRuntime_read] at rd
+  exact rd
 
 theorem feERC20CtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     {tail : ByteArray} (hcode : I.code = feERC20CreationBytecode ++ tail)
     (hwv : I.weiValue ≠ ⟨0⟩) :
     RDrev (feERC20CreationBytecode ++ tail) g (initState σ σ₀ g A I) := by
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20CreationBlocks.feERC20Creation_block_0_fallthrough (by simp)
-    (isZero_eq_zero_of_ne hwv) rd0
-  exact feERC20CreationBlocks.feERC20Creation_block_5 (by simp) rd1
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
+  rd_run rd using [isZero_eq_zero_of_ne hwv]
+  exact rd
 
 end FeProofs.ERC20
