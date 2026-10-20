@@ -33,21 +33,17 @@ theorem feERC20TotalSupplyBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feERC20ReachTotalSupplyBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feERC20Blocks.feERC20_block_189_fallthrough (by simp) hwv rd
-    have rret := feERC20Blocks.feERC20_block_194 (by simp) rd1
-    have hout : ((σ.get? I.codeOwner |>.option (⟨0⟩ : UInt256)
-          (fun ac => ac.storage.getD (UInt256.ofNat 2) (⟨0⟩ : UInt256))).toByteArray.write 0
-          ByteArray.empty (⟨0⟩ : UInt256).toNat 32).readWithPadding (⟨0⟩ : UInt256).toNat
-          (UInt256.ofNat 32).toNat = (solcSlotWordAt ⟨2⟩ σ I).toByteArray :=
-      toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)
-    rw [hout] at rret
-    have hread := totalSupply_read (L := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (by simp)
-    rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
-    exact rret.reEquivExecution hcode hd (feERC20TotalSupplyDecode hsz)
-      (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
-      (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨2⟩ σ I)))
-  · have rd1 := feERC20Blocks.feERC20_block_189_taken (by simp) hwv (by jump_dest) rd
-    exact RDrev.reEquivDispatchedRevert hcode (feERC20Blocks.feERC20_block_86 (by simp) rd1)
-      hd fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
+      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  rd_run rd using [hwv]
+  u256_lits at rd
+  rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
+  have hread := totalSupply_read (L := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (by simp)
+  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
+  exact rd.reEquivExecution hcode hd (feERC20TotalSupplyDecode hsz)
+    (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
+    (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨2⟩ σ I)))
 
 end FeProofs.ERC20
