@@ -123,18 +123,6 @@ theorem lt31_word {h : ℕ} (hlt : h < 31) :
     (ofNat_lt_ofNat (lt_trans hlt (by decide)) (by decide)).mpr hlt
   simp only [UInt256.lt, decide_eq_true hw]; decide
 
-theorem lt32_size_word {n : ℕ} (hn : 32 ≤ n) (hb : n < UInt256.size) :
-    UInt256.lt (UInt256.ofNat n) (UInt256.ofNat 32) = UInt256.ofNat 0 := by
-  have hw : ¬ (UInt256.ofNat n < UInt256.ofNat 32) := by
-    rw [ofNat_lt_ofNat hb (by decide)]; omega
-  simp only [UInt256.lt, decide_eq_false hw]; decide
-
-theorem lt32_size_word_ne {n : ℕ} (hn : n < 32) :
-    UInt256.lt (UInt256.ofNat n) (UInt256.ofNat 32) ≠ UInt256.ofNat 0 := by
-  have hw : UInt256.ofNat n < UInt256.ofNat 32 :=
-    (ofNat_lt_ofNat (lt_trans hn (by decide)) (by decide)).mpr hn
-  simp only [UInt256.lt, decide_eq_true hw]; decide
-
 theorem succ_word {h : ℕ} (hlt : h < 31) :
     UInt256.ofNat 1 + UInt256.ofNat h = UInt256.ofNat (h + 1) := by
   apply u256_inj

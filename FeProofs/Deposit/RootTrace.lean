@@ -59,18 +59,16 @@ theorem rootPrologue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
     ∃ k' C', RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1866)
       [countWord σ I, ⟨0⟩, ⟨0⟩, countWord σ I] ByteArray.empty (UInt256.ofNat 0)
       ByteArray.empty σ k' C' := by
-  have rd1 := feDepositBlocks.feDeposit_block_1853_fallthrough (by simp) hwv rd
-  exact feDepositBlocks.feDeposit_block_1860
-    (by simp) rd1
+  rd_run rd to 1866 using [hwv]
+  exact ⟨_, _, rd⟩
 
 theorem rootCallvalue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
     (hwv : I.weiValue ≠ ⟨0⟩)
     (rd : RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1853) [sel]
       ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ k C) :
-    RDrev code g (initState σ σ₀ g A I) :=
-  feDepositBlocks.feDeposit_block_2245
-    (by simp [feDepositBlocks.feDeposit_block_1853_taken_stack])
-    (feDepositBlocks.feDeposit_block_1853_taken (by simp) hwv (by jump_dest) rd)
+    RDrev code g (initState σ σ₀ g A I) := by
+  rd_run rd using [hwv]
+  exact rd
 
 section Loop
 
@@ -79,15 +77,15 @@ variable {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : U
 
 theorem rootHeadContinue {size node h count : UInt256} (hh : h.toNat < 32)
     (rd : RD code ee g s0 (UInt256.ofNat 1866) [size, node, h, count] mem aw rdata σ k C) :
-    RD code ee g s0 (UInt256.ofNat 1876) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) :=
-  feDepositBlocks.feDeposit_block_1866_fallthrough (by simp)
-    (by rw [ult_one (a := h) (b := UInt256.ofNat 32) hh]; decide) rd
+    RD code ee g s0 (UInt256.ofNat 1876) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) := by
+  rd_run rd to 1876 using [ult_one (a := h) (b := UInt256.ofNat 32) hh]
+  exact rd
 
 theorem rootHeadExit {size node h count : UInt256} (hh : 32 ≤ h.toNat)
     (rd : RD code ee g s0 (UInt256.ofNat 1866) [size, node, h, count] mem aw rdata σ k C) :
-    RD code ee g s0 (UInt256.ofNat 1991) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) :=
-  feDepositBlocks.feDeposit_block_1866_taken (by simp)
-    (by rw [ult_zero (a := h) (b := UInt256.ofNat 32) hh]; decide) (by jump_dest) rd
+    RD code ee g s0 (UInt256.ofNat 1991) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) := by
+  rd_run rd to 1991 using [ult_zero (a := h) (b := UInt256.ofNat 32) hh]
+  exact rd
 
 /-- Odd lane: `branch[height]` and `node` are written to `0xa0`/`0xc0`, stopping at the call. -/
 theorem rootOddPre {size node h count : UInt256}
@@ -98,10 +96,9 @@ theorem rootOddPre {size node h count : UInt256}
         UInt256.ofNat 32, gw, size, h, count]
       ((UInt256.toByteArray node).write 0
         ((UInt256.toByteArray (solcSlotWord σ ee h)).write 0 mem 160 32) 192 32)
-      (M (M aw (UInt256.ofNat 160) ⟨32⟩) (UInt256.ofNat 192) ⟨32⟩) rdata σ k' C' :=
-  feDepositBlocks.feDeposit_block_1888 (by simp)
-    (feDepositBlocks.feDeposit_block_1876_fallthrough (by simp)
-      (by rw [hodd, uInt256_eq_self]; decide) rd)
+      (M (M aw (UInt256.ofNat 160) ⟨32⟩) (UInt256.ofNat 192) ⟨32⟩) rdata σ k' C' := by
+  rd_run rd using [hodd, uInt256_eq_self]
+  exact ⟨_, _, _, rd⟩
 
 /-- Even lane: `node` and `zero_hashes[height]` are written to `0xa0`/`0xc0`, stopping at the
     call. -/
@@ -113,10 +110,9 @@ theorem rootEvenPre {size node h count : UInt256}
         UInt256.ofNat 32, gw, size, h, count]
       ((UInt256.toByteArray (solcSlotWord σ ee (UInt256.ofNat 33 + h))).write 0
         ((UInt256.toByteArray node).write 0 mem 160 32) 192 32)
-      (M (M aw (UInt256.ofNat 160) ⟨32⟩) (UInt256.ofNat 192) ⟨32⟩) rdata σ k' C' :=
-  feDepositBlocks.feDeposit_block_1932 (by simp)
-    (feDepositBlocks.feDeposit_block_1876_taken (by simp)
-      (by rw [heven]; decide) (by jump_dest) rd)
+      (M (M aw (UInt256.ofNat 160) ⟨32⟩) (UInt256.ofNat 192) ⟨32⟩) rdata σ k' C' := by
+  rd_run rd using [heven]
+  exact ⟨_, _, _, rd⟩
 
 /-- After an in-loop hash call: revert unless it succeeded with at least 32 return bytes;
     otherwise load the digest and continue at the loop head. -/
@@ -128,50 +124,12 @@ theorem rootLoopPost (pc : UInt256) {z : Bool} {o : ByteArray} {gw size h count 
     (z = true → 32 ≤ o.size → ∃ k' C', RD code ee g s0 (UInt256.ofNat 1866)
       [UInt256.shiftRight size (UInt256.ofNat 1), memLoad (UInt256.ofNat 160) mem,
         UInt256.ofNat 1 + h, count] mem (M aw (UInt256.ofNat 160) ⟨32⟩) o σ k' C') := by
-  have hz1 : UInt256.isZero (⟨1⟩ : UInt256) = UInt256.ofNat 0 := by decide
-  have hz0 : UInt256.isZero (⟨0⟩ : UInt256) ≠ UInt256.ofNat 0 := by decide
-  have hosz : (UInt256.ofNat o.size).toNat = o.size := ulit_toNat' _ ho
-  rcases hpc with rfl | rfl
-  · refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
-    · rcases hbad with hz | hlen
-      · subst hz
-        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack])
-          (feDepositBlocks.feDeposit_block_1909_taken (by simp) hz0 (by jump_dest) rd)
-      · cases z
-        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack])
-            (feDepositBlocks.feDeposit_block_1909_taken (by simp) hz0 (by jump_dest) rd)
-        · have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp) hz1 rd
-          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1916_taken (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
-              (by rw [ult_one (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32)
-                (by rw [hosz]; exact hlen)]; decide) (by jump_dest) rd1)
-    · subst hz
-      have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp) hz1 rd
-      have rd2 := feDepositBlocks.feDeposit_block_1916_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
-        (ult_zero (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32) (by rw [hosz]; exact hlen)) rd1
-      have rd3 := feDepositBlocks.feDeposit_block_1925 (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack]) (by jump_dest) rd2
-      exact ⟨_, _, feDepositBlocks.feDeposit_block_1977
-        (by simp) (by jump_dest) rd3⟩
-  · refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
-    · rcases hbad with hz | hlen
-      · subst hz
-        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_taken_stack])
-          (feDepositBlocks.feDeposit_block_1958_taken (by simp) hz0 (by jump_dest) rd)
-      · cases z
-        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_taken_stack])
-            (feDepositBlocks.feDeposit_block_1958_taken (by simp) hz0 (by jump_dest) rd)
-        · have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp) hz1 rd
-          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1965_taken (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-              (by rw [ult_one (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32)
-                (by rw [hosz]; exact hlen)]; decide) (by jump_dest) rd1)
-    · subst hz
-      have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp) hz1 rd
-      have rd2 := feDepositBlocks.feDeposit_block_1965_fallthrough (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-        (ult_zero (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32) (by rw [hosz]; exact hlen)) rd1
-      have rd3 := feDepositBlocks.feDeposit_block_1974 (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) rd2
-      exact ⟨_, _, feDepositBlocks.feDeposit_block_1977
-        (by simp) (by jump_dest) rd3⟩
+  rcases hpc with rfl | rfl <;> refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩ <;>
+    first
+    | (cases z
+       · rd_run rd; exact rd
+       · rd_run rd using [lt32_size_word_ne (hbad.resolve_left (by simp))]; exact rd)
+    | (subst hz; rd_run rd to 1866 using [lt32_size_word hlen ho]; exact ⟨_, _, rd⟩)
 
 /-- After the final (length mix-in) hash call: revert unless it succeeded with at least 32
     return bytes; otherwise return the loaded digest. -/
@@ -181,32 +139,14 @@ theorem rootExitPost {z : Bool} {o : ByteArray} {gw : UInt256} {R : List UInt256
     ((z = false ∨ o.size < 32) → RDrev code g s0) ∧
     (z = true → 32 ≤ o.size →
       RDret code g s0 σ (memLoad (UInt256.ofNat 160) mem).toByteArray) := by
-  have hz1 : UInt256.isZero (⟨1⟩ : UInt256) = UInt256.ofNat 0 := by decide
-  have hz0 : UInt256.isZero (⟨0⟩ : UInt256) ≠ UInt256.ofNat 0 := by decide
-  have hosz : (UInt256.ofNat o.size).toNat = o.size := ulit_toNat' _ ho
   refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
-  · rcases hbad with hz | hlen
-    · subst hz
-      exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2085_taken_stack]; omega)
-        (feDepositBlocks.feDeposit_block_2085_taken (by simp; omega) hz0 (by jump_dest) rd)
-    · cases z
-      · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2085_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_2085_taken (by simp; omega) hz0 (by jump_dest) rd)
-      · have rd1 := feDepositBlocks.feDeposit_block_2085_fallthrough (by simp; omega) hz1 rd
-        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2085_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_2092_taken (by simp [feDepositBlocks.feDeposit_block_2085_fallthrough_stack]; omega)
-            (by rw [ult_one (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32)
-              (by rw [hosz]; exact hlen)]; decide) (by jump_dest) rd1)
+  · cases z
+    · rd_run rd; exact rd
+    · rd_run rd using [lt32_size_word_ne (hbad.resolve_left (by simp))]; exact rd
   · subst hz
-    have rd1 := feDepositBlocks.feDeposit_block_2085_fallthrough (by simp; omega) hz1 rd
-    have rd2 := feDepositBlocks.feDeposit_block_2092_fallthrough (by simp [feDepositBlocks.feDeposit_block_2085_fallthrough_stack]; omega)
-      (ult_zero (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32) (by rw [hosz]; exact hlen)) rd1
-    have rret := feDepositBlocks.feDeposit_block_2101 (by simp [feDepositBlocks.feDeposit_block_2085_fallthrough_stack]; omega) rd2
-    have hout : ((memLoad (UInt256.ofNat 160) mem).toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32).readWithPadding
-        (⟨0⟩ : UInt256).toNat (UInt256.ofNat 32).toNat = (memLoad (UInt256.ofNat 160) mem).toByteArray :=
-      toByteArray_write32_read_back mem _ 0 (Nat.zero_le _)
-    rw [hout] at rret
-    exact rret
+    rd_run rd using [lt32_size_word hlen ho]
+    u256_lits at rd
+    rwa [toByteArray_write32_read_back mem _ 0 (Nat.zero_le _)] at rd
 
 end Loop
 
