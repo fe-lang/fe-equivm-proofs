@@ -81,11 +81,8 @@ theorem feScalarStoreSetBody {σ σ₀ A I} {g : UInt256}
           ExecBlock.nil))) (by rw [storageStore_accountMap]; rfl)
       (returnEquiv.fallthrough rfl rfl (by native_decide))
   · have hpf : I.perm = false := by simpa using hperm
-    have r1 := rd.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-    have r2 := r1.calldataload (by native_decide) (by evm_ov)
-    have r3 := r2.push0 (by native_decide) (by evm_ov)
-    have rs := r3.sstoreStatic hpf (by native_decide) (by evm_ov)
-    exact RDstatic.reEquivStaticHalt hcode rs hd (feScalarStoreSetDecode_ok hlen hhi)
+    rd_step rd
+    exact RDstatic.reEquivStaticHalt hcode rd hd (feScalarStoreSetDecode_ok hlen hhi)
       (ExecFuncBody.execBlockStatic (ExecBlock.consNormal (ExecStmt.requireTrue hcv)
         (ExecBlock.consStatic (ExecStmt.assignStatic hval hassign
           (by show I.perm = false; exact hpf)))))

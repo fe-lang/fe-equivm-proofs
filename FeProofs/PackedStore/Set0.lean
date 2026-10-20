@@ -1,6 +1,5 @@
 import FeProofs.PackedStore.Dispatch
 import FeProofs.PackedStore.Lanes
-import FeProofs.PackedStore.Static
 import FeProofs.Common.Basic
 
 /-!
@@ -65,7 +64,8 @@ theorem fePackedStoreSet0Body {σ σ₀ A I} {g : UInt256}
       (by rw [storeLane_accountMap, setPackedByte_lane0]; try rfl)
       (returnEquiv.fallthrough rfl rfl (by native_decide))
   · have hpf : I.perm = false := by simpa using hperm
-    exact RDstatic.reEquivStaticHalt hcode (fePackedStore_block_407_static (by simp) rd hpf) hd hdec
+    rd_step rd
+    exact RDstatic.reEquivStaticHalt hcode rd hd hdec
       (ExecFuncBody.execBlockStatic (ExecBlock.consNormal hreq (ExecBlock.consStatic
         (ExecStmt.assignStatic hval hasg (by simp only [initState]; exact hpf)))))
 

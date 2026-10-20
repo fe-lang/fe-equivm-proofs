@@ -1,6 +1,5 @@
 import FeProofs.IndexedPackedStore.Dispatch
 import FeProofs.IndexedPackedStore.Elems
-import FeProofs.IndexedPackedStore.Static
 import FeProofs.Common.Basic
 import Reasoning.ExternalCall
 
@@ -92,7 +91,8 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
   by_cases hperm : I.perm = true
   swap
   · have hpf : I.perm = false := by simpa using hperm
-    exact RDstatic.reEquivStaticHalt hcode (feIndexedPackedStore_block_182_static (by simp) rd hpf)
+    rd_step rd
+    exact RDstatic.reEquivStaticHalt hcode rd
       hd hdec (ExecFuncBody.execBlockStatic (ExecBlock.consNormal hreq (ExecBlock.consNormal hreq1
         (ExecBlock.consStatic
           (ExecStmt.assignStatic hval1 hasg1 (by simp only [hevm, initState]; exact hpf))))))
