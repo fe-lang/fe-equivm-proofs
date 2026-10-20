@@ -56,47 +56,6 @@ theorem pairAt_size (a b : UInt256) (mem : ByteArray) (s t : UInt256)
   have := write32_size_ge b.toByteArray (a.toByteArray.write 0 mem s.toNat 32) (s.toNat + 32) hwb hAsz
   omega
 
-/-- `MLOAD(0x40)` is unchanged by writes at or above `0x60`. -/
-theorem memLoad64_write (src base : ByteArray) {srcOff dest len : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size)
-    (hd : 96 ≤ dest) (hb : 96 ≤ base.size) :
-    memLoad (UInt256.ofNat 64) (src.write srcOff base dest len) = memLoad (UInt256.ofNat 64) base := by
-  have hsz := write_size_ge src base hpos hsrc hgap (dest := dest)
-  unfold memLoad
-  rw [show (UInt256.ofNat 64).toNat = 64 from rfl, if_neg (by omega), if_neg (by omega),
-    readWithPadding_eq_extract _ 64 (by omega), readWithPadding_eq_extract _ 64 (by omega),
-    write_extract_below src base hpos hsrc hgap (by omega) (by omega) (by omega)]
-
-/-- `MLOAD` of the word a successful call wrote at `off`. -/
-theorem callOutput_loadAt (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hin : off.toNat + 32 ≤ mem.size) :
-    memLoad off (callOutputMem mem out off (UInt256.ofNat 32)) = calldataWord out 0 :=
-  callOutput_load mem out off hb hs hin
-
-theorem callOutput_sizeAt (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hin : off.toNat + 32 ≤ mem.size) :
-    (callOutputMem mem out off (UInt256.ofNat 32)).size = mem.size :=
-  callOutput32_size mem out off hb hin
-
-theorem gapSmall {d b : ℕ} (hd : d < 2 ^ 32) : d - b < USize.size := by
-  have := USize.le_size; omega
-
-theorem callOutput_memLoad64' (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hoff : 96 ≤ off.toNat) (hin : off.toNat + 32 ≤ mem.size) :
-    memLoad (UInt256.ofNat 64) (callOutputMem mem out off ⟨32⟩) =
-      memLoad (UInt256.ofNat 64) mem := by
-  unfold callOutputMem
-  rw [callOutputLen32 hb, Nat.min_eq_left hs]
-  exact memLoad64_write out mem (by decide) (by omega) (by have := USize.le_size; omega) hoff
-    (by omega)
-
-/-- A successful call's output write keeps `MLOAD(0x40)`. -/
-theorem callOutput_memLoad64 (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hoff : 96 ≤ off.toNat) (hin : off.toNat + 32 ≤ mem.size) :
-    memLoad (UInt256.ofNat 64) (callOutputMem mem out off (UInt256.ofNat 32)) =
-      memLoad (UInt256.ofNat 64) mem :=
-  callOutput_memLoad64' mem out off hb hs hoff hin
-
 /-! ## The segment -/
 
 abbrev hL12 (L : Store) (o4 : ByteArray) : Store := L.insert "signature_root" (shaDigest o4)

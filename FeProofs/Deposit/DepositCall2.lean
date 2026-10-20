@@ -11,43 +11,6 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.Deposit
 
-/-- A 32-byte word write leaves a window it does not overlap unchanged. -/
-theorem wordWrite_extract (w : UInt256) (base : ByteArray) {dest i j : Nat} (hij : i ≤ j)
-    (hj : j ≤ base.size) (hd : j ≤ dest ∨ (dest + 32 ≤ i ∧ dest ≤ base.size))
-    (hgap : dest < 2 ^ 32) :
-    (w.toByteArray.write 0 base dest 32).extract i j = base.extract i j := by
-  rcases hd with hd | ⟨hd, hb⟩
-  · exact write_extract_below _ _ (by decide) (by rw [toByteArray_size]) (small_gap _ _ hgap) hij hj hd
-  · exact write_extract_preserved _ _ (by decide) (by rw [toByteArray_size]) hb hij hj (Or.inr hd)
-
-theorem wordWrite_size (w : UInt256) (base : ByteArray) {dest : Nat} (hgap : dest < 2 ^ 32) :
-    base.size ≤ (w.toByteArray.write 0 base dest 32).size :=
-  write_size_ge _ _ (by decide) (by rw [toByteArray_size]) (small_gap _ _ hgap)
-
-theorem out32_len (out : ByteArray) (hob : out.size < UInt256.size) (hsz : 32 ≤ out.size) :
-    (min (UInt256.ofNat 32) (UInt256.ofNat out.size)).toNat = 32 := by
-  have h := callOutputLen32 hob
-  rw [Nat.min_eq_left hsz] at h
-  exact h
-
-/-- A returned word copied to `off` leaves a window it does not overlap unchanged. -/
-theorem out32_extract (out base : ByteArray) (hob : out.size < UInt256.size) (hsz : 32 ≤ out.size)
-    {off : UInt256} {i j : Nat} (hij : i ≤ j) (hj : j ≤ base.size)
-    (hd : j ≤ off.toNat ∨ (off.toNat + 32 ≤ i ∧ off.toNat ≤ base.size)) (hgap : off.toNat < 2 ^ 32) :
-    (callOutputMem base out off (UInt256.ofNat 32)).extract i j = base.extract i j := by
-  unfold callOutputMem
-  rw [out32_len out hob hsz]
-  rcases hd with hd | ⟨hd, hb⟩
-  · exact write_extract_below _ _ (by decide) (by omega) (small_gap _ _ hgap) hij hj hd
-  · exact write_extract_preserved _ _ (by decide) (by omega) hb hij hj (Or.inr hd)
-
-theorem out32_size (out base : ByteArray) (hob : out.size < UInt256.size) (hsz : 32 ≤ out.size)
-    {off : UInt256} (hgap : off.toNat < 2 ^ 32) :
-    base.size ≤ (callOutputMem base out off (UInt256.ofNat 32)).size := by
-  unfold callOutputMem
-  rw [out32_len out hob hsz]
-  exact write_size_ge _ _ (by decide) (by omega) (small_gap _ _ hgap)
-
 set_option maxHeartbeats 2000000 in
 /-- After block 650's writes: extent, the untouched signature window, and the bumped free
     pointer `0x260`. -/

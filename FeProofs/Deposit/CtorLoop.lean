@@ -25,12 +25,6 @@ abbrev ctorCode : ByteArray := feDepositCreationBytecode ++ ByteArray.empty
 
 /-! ## The hashed buffer -/
 
-theorem write32_size_ge (src base : ByteArray) (dest : ℕ) (hsrc : 32 ≤ src.size)
-    (hlo : dest ≤ base.size) : dest + 32 ≤ (src.write 0 base dest 32).size := by
-  rw [write32_eq src base dest hsrc hlo, ByteArray.size_append, ByteArray.size_append,
-    ByteArray.size_extract, ByteArray.size_extract]
-  omega
-
 /-! ## `zero_hashes[i]`: slot `33 + i`
 
 Adapted from the `get_deposit_root` read facts, with the write counterpart. -/
@@ -83,12 +77,6 @@ theorem zeroHash_write {L : Store} {evm : EVM.State} {idx : Expr} {i : Nat} (hi 
     ctor_storageBackend (zeroHash_loc hi) (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256 evm _ v)
 
 /-! ## Word facts for the loop -/
-
-theorem callOutput_load32 (mem out : ByteArray) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hin : 32 ≤ mem.size) :
-    memLoad (⟨0⟩ : UInt256) (callOutputMem mem out (⟨0⟩ : UInt256) (UInt256.ofNat 32)) =
-      calldataWord out 0 :=
-  callOutput_load mem out ⟨0⟩ hb hs (by simpa using hin)
 
 theorem lt31_word {h : ℕ} (hlt : h < 31) :
     UInt256.isZero (UInt256.lt (UInt256.ofNat h) (UInt256.ofNat 31)) = UInt256.ofNat 0 := by

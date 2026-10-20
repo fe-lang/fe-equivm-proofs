@@ -24,52 +24,6 @@ theorem dPayload_extract (cd : ByteArray) (o : ℕ) :
   rw [← byteArray_toList_eq, List.drop_drop]
   congr 2; omega
 
-/-- A write leaves every window it does not overlap unchanged. -/
-theorem write_extract_preserved (src base : ByteArray) {srcOff dest len i j : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hdest : dest ≤ base.size)
-    (hij : i ≤ j) (hj : j ≤ base.size) (hdisj : j ≤ dest ∨ dest + len ≤ i) :
-    (src.write srcOff base dest len).extract i j = base.extract i j := by
-  have hp : (base.extract 0 dest).size = dest := by rw [ByteArray.size_extract]; omega
-  have hs : (src.extract srcOff (srcOff + len)).size = len := by
-    rw [ByteArray.size_extract]; omega
-  rw [copyWindow_eq src base srcOff dest len hpos hsrc hdest]
-  rcases hdisj with hl | hr
-  · rw [extract_append_left _ _ i j (by rw [ByteArray.size_append, hp, hs]; omega),
-      extract_append_left _ _ i j (by rw [hp]; exact hl), extract_extract_BA,
-      show 0 + i = i from Nat.zero_add i, show min (0 + j) dest = j by omega]
-  · rw [extract_append_right_window _ _ i j (by rw [ByteArray.size_append, hp, hs]; omega),
-      ByteArray.size_append, hp, hs, extract_extract_BA,
-      show dest + len + (i - (dest + len)) = i by omega,
-      show min (dest + len + (j - (dest + len))) base.size = j by omega]
-
-/-- A write never shrinks memory. -/
-theorem write_size_ge (src base : ByteArray) {srcOff dest len : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size) :
-    base.size ≤ (src.write srcOff base dest len).size := by
-  by_cases hd : dest ≤ base.size
-  · rw [copyWindow_size src base srcOff dest len hpos hsrc hd]; omega
-  · rw [write_from_gap_eq src base srcOff dest len hpos hsrc (by omega) hgap]
-    simp only [ByteArray.size_append]; omega
-
-/-- A write of `len` source bytes reaches `dest + len`. -/
-theorem write_size_reach (src base : ByteArray) {srcOff dest len : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size) :
-    dest + len ≤ (src.write srcOff base dest len).size := by
-  by_cases hd : dest ≤ base.size
-  · rw [copyWindow_size src base srcOff dest len hpos hsrc hd]; omega
-  · rw [write_from_gap_eq src base srcOff dest len hpos hsrc (by omega) hgap]
-    simp only [ByteArray.size_append, ByteArray.size_extract, ByteArray_zeroes_size]; omega
-
-/-- A write at or above a window leaves it unchanged, even when the write extends memory. -/
-theorem write_extract_below (src base : ByteArray) {srcOff dest len i j : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size)
-    (hij : i ≤ j) (hj : j ≤ base.size) (hjd : j ≤ dest) :
-    (src.write srcOff base dest len).extract i j = base.extract i j := by
-  by_cases hd : dest ≤ base.size
-  · exact write_extract_preserved src base hpos hsrc hd hij hj (Or.inl hjd)
-  · rw [write_from_gap_eq src base srcOff dest len hpos hsrc (by omega) hgap,
-      ByteArray.append_assoc, extract_append_left _ _ i j hj]
-
 /-- The decoder's memory before its copy: the free-pointer bump and the last-word clear. -/
 abbrev rPreCopy (ee : ExecutionEnv) (mem : ByteArray) (p F : UInt256) (z : ℕ) : ByteArray :=
   (UInt256.toByteArray ⟨0⟩).write 0
