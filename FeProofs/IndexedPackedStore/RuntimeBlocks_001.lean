@@ -23,16 +23,6 @@ theorem feIndexedPackedStore_block_0_taken {ee : ExecutionEnv} {g : Sat256} {s0 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_0_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_0_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 0. -/
 theorem feIndexedPackedStore_block_0_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -48,15 +38,6 @@ theorem feIndexedPackedStore_block_0_fallthrough {ee : ExecutionEnv} {g : Sat256
   have r6 := r5.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 8)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_0_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 8) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_0_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_8_taken`. -/
 def feIndexedPackedStore_block_8_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
@@ -82,16 +63,6 @@ theorem feIndexedPackedStore_block_8_taken {ee : ExecutionEnv} {g : Sat256} {s0 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 47)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_8_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) (UInt256.ofNat 447770341)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 47) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 8) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 47) (feIndexedPackedStore_block_8_taken_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_8_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_8_fallthrough`. -/
 def feIndexedPackedStore_block_8_fallthrough_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
   ((UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) :: R)
@@ -115,15 +86,6 @@ theorem feIndexedPackedStore_block_8_fallthrough {ee : ExecutionEnv} {g : Sat256
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 23)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_8_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) (UInt256.ofNat 447770341)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 8) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 23) (feIndexedPackedStore_block_8_fallthrough_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_8_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 23. -/
 theorem feIndexedPackedStore_block_23_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
@@ -140,16 +102,6 @@ theorem feIndexedPackedStore_block_23_taken {ee : ExecutionEnv} {g : Sat256} {s0
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 153)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_23_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 1659099261)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 153) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 23) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 153) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_23_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 23. -/
 theorem feIndexedPackedStore_block_23_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
@@ -164,15 +116,6 @@ theorem feIndexedPackedStore_block_23_fallthrough {ee : ExecutionEnv} {g : Sat25
   have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 33)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_23_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 1659099261)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 23) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 33) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_23_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 33. -/
 theorem feIndexedPackedStore_block_33_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -190,16 +133,6 @@ theorem feIndexedPackedStore_block_33_taken {ee : ExecutionEnv} {g : Sat256} {s0
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 336)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_33_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 2500318106)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 336) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 33) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 336) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_33_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 33. -/
 theorem feIndexedPackedStore_block_33_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
@@ -215,15 +148,6 @@ theorem feIndexedPackedStore_block_33_fallthrough {ee : ExecutionEnv} {g : Sat25
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 44)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_33_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 2500318106)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 33) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 44) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_33_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 44. -/
 theorem feIndexedPackedStore_block_44 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 1 ≤ 1024)
@@ -235,15 +159,6 @@ theorem feIndexedPackedStore_block_44 {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r2 := r1.jump (by native_decide) hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r2 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_44_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 1 ≤ 1024)
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 44) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_44 hstack hvalid h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_47_taken`. -/
 def feIndexedPackedStore_block_47_taken_stack {R : List UInt256} : List UInt256 :=
@@ -265,16 +180,6 @@ theorem feIndexedPackedStore_block_47_taken {ee : ExecutionEnv} {g : Sat256} {s0
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_47_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 47) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) (feIndexedPackedStore_block_47_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_47_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_47_fallthrough`. -/
 def feIndexedPackedStore_block_47_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -293,15 +198,6 @@ theorem feIndexedPackedStore_block_47_fallthrough {ee : ExecutionEnv} {g : Sat25
   have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 53)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_47_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 47) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 53) (feIndexedPackedStore_block_47_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_47_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 53. -/
 theorem feIndexedPackedStore_block_53_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
@@ -323,16 +219,6 @@ theorem feIndexedPackedStore_block_53_taken {ee : ExecutionEnv} {g : Sat256} {s0
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_53_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 53) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_53_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 53. -/
 theorem feIndexedPackedStore_block_53_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -351,15 +237,6 @@ theorem feIndexedPackedStore_block_53_fallthrough {ee : ExecutionEnv} {g : Sat25
   have r9 := r8.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 65)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_53_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 53) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 65) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_53_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_65_taken`. -/
 def feIndexedPackedStore_block_65_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
@@ -383,16 +260,6 @@ theorem feIndexedPackedStore_block_65_taken {ee : ExecutionEnv} {g : Sat256} {s0
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 79)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_65_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 79) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 79) (feIndexedPackedStore_block_65_taken_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_65_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_65_fallthrough`. -/
 def feIndexedPackedStore_block_65_fallthrough_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
   ((uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) :: R)
@@ -413,15 +280,6 @@ theorem feIndexedPackedStore_block_65_fallthrough {ee : ExecutionEnv} {g : Sat25
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_65_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 64)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) (feIndexedPackedStore_block_65_fallthrough_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_65_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 75. -/
 theorem feIndexedPackedStore_block_75 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
@@ -498,16 +356,6 @@ theorem feIndexedPackedStore_block_153_taken {ee : ExecutionEnv} {g : Sat256} {s
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_153_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 153) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) (feIndexedPackedStore_block_153_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_153_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feIndexedPackedStore_block_153_fallthrough`. -/
 def feIndexedPackedStore_block_153_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -526,15 +374,6 @@ theorem feIndexedPackedStore_block_153_fallthrough {ee : ExecutionEnv} {g : Sat2
   have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 159)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_153_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue = (UInt256.ofNat 0))
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 153) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 159) (feIndexedPackedStore_block_153_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_153_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 159. -/
 theorem feIndexedPackedStore_block_159_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
@@ -555,15 +394,5 @@ theorem feIndexedPackedStore_block_159_taken {ee : ExecutionEnv} {g : Sat256} {s
   have r9 := r8.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 75)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feIndexedPackedStore_block_159_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 128)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode 0).contains (UInt256.ofNat 75) = true)
-    (h : RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 159) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.IndexedPackedStore.feIndexedPackedStoreBytecode ee g s0 (UInt256.ofNat 75) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feIndexedPackedStore_block_159_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
 
 end feIndexedPackedStoreBlocks

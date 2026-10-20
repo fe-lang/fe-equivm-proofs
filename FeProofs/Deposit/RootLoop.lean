@@ -146,10 +146,10 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
     rw [rootParity, evalParity hL.size, hodd]; rfl
   have ha : evalExpr? config (fr (sibStore L (solcSlotWord σ I (UInt256.ofNat i))))
       evm (.var "sibling") = .ok (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat i)).toNat)) :=
-    evalVar (store_get_self _ _ _)
+    evalLocalVar (store_get_self _ _ _)
   have hb : evalExpr? config (fr (sibStore L (solcSlotWord σ I (UInt256.ofNat i))))
       evm (.var "node") = .ok (.int (Int.ofNat node.toNat)) :=
-    evalVar (by store_get; exact hL.node)
+    evalLocalVar (by store_get; exact hL.node)
   by_cases hok : z = true ∧ 32 ≤ out.size
   · obtain ⟨rfl, hlen⟩ := hok
     have hsha := shaPairCall_ok (ret := "parent") rfl ha hb hcall' hlen
@@ -161,7 +161,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
         (shaDigest out)).get? "node" = some (.int (Int.ofNat node.toNat)) := by
       store_get; exact hL.node
     have hasg := ExecStmt.assign (cfg := config) (origin := .localVar) (Or.inl rfl)
-      (evalVar (c := contract) (evm := evm') hparent) (assignLocal (c := contract) hnodeOld)
+      (evalLocalVar (C := contract) (evm := evm') hparent) (assignLocal (c := contract) hnodeOld)
     have hodd' : ExecBlock config { contract := contract, locals := L } evm rootOdd _ :=
       ExecBlock.consNormal hlet (ExecBlock.consNormal hsha (ExecBlock.consNormal hasg ExecBlock.nil))
     obtain ⟨L2, L3, hsize, hpostB, hL3⟩ := rootFinish (evm' := evm') (i := i)
@@ -231,10 +231,10 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
     rw [rootParity, evalParity hL.size, heven]; rfl
   have ha : evalExpr? config (fr (zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))))
       evm (.var "node") = .ok (.int (Int.ofNat node.toNat)) :=
-    evalVar (by store_get; exact hL.node)
+    evalLocalVar (by store_get; exact hL.node)
   have hb : evalExpr? config (fr (zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))))
       evm (.var "zero") = .ok (.int (Int.ofNat (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i)).toNat)) :=
-    evalVar (store_get_self _ _ _)
+    evalLocalVar (store_get_self _ _ _)
   by_cases hok : z = true ∧ 32 ≤ out.size
   · obtain ⟨rfl, hlen⟩ := hok
     have hsha := shaPairCall_ok (ret := "parent") rfl ha hb hcall' hlen
@@ -244,7 +244,7 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
         (shaDigest out)).get? "node" = some (.int (Int.ofNat node.toNat)) := by
       store_get; exact hL.node
     have hasg := ExecStmt.assign (cfg := config) (origin := .localVar) (Or.inl rfl)
-      (evalVar (c := contract) (evm := evm') hparent) (assignLocal (c := contract) hnodeOld)
+      (evalLocalVar (C := contract) (evm := evm') hparent) (assignLocal (c := contract) hnodeOld)
     have heven' : ExecBlock config { contract := contract, locals := L } evm rootEven _ :=
       ExecBlock.consNormal hlet (ExecBlock.consNormal hsha (ExecBlock.consNormal hasg ExecBlock.nil))
     obtain ⟨L2, L3, hsize, hpostB, hL3⟩ := rootFinish (evm' := evm') (i := i)

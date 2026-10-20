@@ -11,7 +11,7 @@ Arm entry pc 743: call-value check, head-size check (pc 749), the canonical-addr
 check jumps to the revert block at pc 86.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.ERC20
 

@@ -47,7 +47,7 @@ theorem feNarrowAbiCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : Execution
 theorem feNarrowAbiConstructorCorrect :
     typedConstructorRefinement config feNarrowAbiCreationBytecode contract
       (fun _ => feNarrowAbiBytecode) :=
-  FeProofs.Common.nonpayableEmptyConstructorCorrect rfl rfl rfl
+  FeProofs.nonpayableEmptyConstructorCorrect rfl rfl rfl
     feNarrowAbiCtorRet feNarrowAbiCtorRev
 
 end FeProofs.NarrowAbi

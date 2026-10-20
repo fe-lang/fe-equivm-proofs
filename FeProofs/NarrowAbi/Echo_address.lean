@@ -45,7 +45,7 @@ theorem feNarrowAbiEcho_addressBody {σ σ₀ A I} {g : UInt256}
             decodeCalldata_address_ok hlen hhi hcanon
           exact rret.reEquivExecution hcode hd hdec
             (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
-              (evalExpr_var (store_get_self _ _ _)))
+              (evalLocalVar (store_get_self _ _ _)))
             (returnEquiv_of_encode (addressReturnEncoding hcanon))
         · have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_260_taken (by simp)
             (shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)) (by jump_dest) rd2

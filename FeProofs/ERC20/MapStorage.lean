@@ -31,36 +31,6 @@ theorem keccakWord_mapSlot (key base : UInt256) (mem : ByteArray) :
   exact mappingSlot_single key base
 
 -- LIBRARY CANDIDATE: duplicates `FeProofs.NarrowAbi.shiftRight160_*` (the canonical-address check).
-theorem shiftRight160_toNat (w : UInt256) :
-    (UInt256.shiftRight w ⟨160⟩).toNat = w.toNat / EVM.twoPow 160 := by
-  unfold UInt256.shiftRight
-  rw [if_neg (by decide)]
-  change (w.val.val >>> 160) % UInt256.size = w.toNat / EVM.twoPow 160
-  rw [Nat.shiftRight_eq_div_pow]
-  change w.toNat / 2 ^ 160 % UInt256.size = w.toNat / EVM.twoPow 160
-  rw [Nat.mod_eq_of_lt (lt_of_le_of_lt
-    (Nat.div_le_self w.toNat (2 ^ 160)) w.val.isLt)]
-  rfl
-
-theorem shiftRight160_eq_zero {w : UInt256} (hcanon : w.toNat < EVM.addressModulus) :
-    UInt256.shiftRight w (UInt256.ofNat 160) = UInt256.ofNat 0 := by
-  apply u256_inj
-  change (UInt256.shiftRight w ⟨160⟩).toNat = 0
-  rw [shiftRight160_toNat]
-  rw [Nat.div_eq_of_lt]
-  simpa [EVM.addressModulus] using hcanon
-
-theorem shiftRight160_ne_zero {w : UInt256} (hdirty : EVM.addressModulus ≤ w.toNat) :
-    UInt256.shiftRight w (UInt256.ofNat 160) ≠ UInt256.ofNat 0 := by
-  intro hzero
-  have hnat := congrArg UInt256.toNat hzero
-  change (UInt256.shiftRight w ⟨160⟩).toNat = 0 at hnat
-  rw [shiftRight160_toNat] at hnat
-  rw [Nat.div_eq_zero_iff] at hnat
-  rcases hnat with hpow | hlt
-  · exact (by native_decide : EVM.twoPow 160 ≠ 0) hpow
-  · exact (not_lt_of_ge (by simpa [EVM.addressModulus] using hdirty)) hlt
-
 /-- `balanceOf[owner]` reads the word at `mapSlot owner 0`. -/
 theorem balanceOf_read {L : Store} {evm : EVM.State} {w : UInt256}
     (hcanon : w.toNat < EVM.addressModulus) (hL : L.get? "balanceOf" = none)

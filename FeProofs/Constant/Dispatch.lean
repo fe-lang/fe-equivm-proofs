@@ -60,7 +60,7 @@ theorem feConstantReachAnswerBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x85 0xbb 0x7d 0x69 ⟨2243657065⟩ (by native_decide)
       (by simpa [feConstantSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feConstantBlocks.feConstant_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feConstantBlocks.feConstant_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feConstantBlocks.feConstant_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2243657065⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
   exact ⟨_, _, by simpa [feConstantBlocks.feConstant_block_8_taken_stack] using rd2⟩
 
@@ -70,7 +70,7 @@ theorem feConstantX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feConstantBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feConstantBlocks.feConstant_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feConstantBlocks.feConstant_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feConstantBlocks.feConstant_block_32 (by simp) rd1
   exact rd2
 
@@ -81,7 +81,7 @@ theorem feConstantX_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 1 → (feConstantSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feConstantBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feConstantBlocks.feConstant_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feConstantBlocks.feConstant_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feConstantBlocks.feConstant_block_8_fallthrough (by simp) (by
     have e := answerEvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e

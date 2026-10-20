@@ -110,7 +110,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
         (solcDecodeLenCheckOk_4_64 hlen hhi hsize) rd1
       by_cases hcanon : (calldataWord I.calldata 4).toNat < EVM.addressModulus
       · have rd3 := feERC20Blocks.feERC20_block_103_fallthrough (by simp)
-          (approveShr160_eq_zero hcanon) rd2
+          (shiftRight160_eq_zero hcanon) rd2
         simp only [feERC20Blocks.feERC20_block_103_fallthrough_stack] at rd3
         let evmS := initState σ σ₀ (Sat256.ofUInt256 g) A I
         have hcv : evalExpr? config { contract := contract, locals := approveLocals I } evmS
@@ -168,7 +168,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
               (ExecBlock.consStatic (ExecStmt.assignStatic hval hassign
                 (by show I.perm = false; exact hpf)))))
       · have rd3 := feERC20Blocks.feERC20_block_103_taken (by simp)
-          (approveShr160_ne_zero (Nat.le_of_not_lt hcanon)) (by jump_dest) rd2
+          (shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)) (by jump_dest) rd2
         exact RDrev.reEquivDecodingFailed hcode
           (feERC20Blocks.feERC20_block_86 (by simp [feERC20Blocks.feERC20_block_103_taken_stack]) rd3)
           hd (feERC20ApproveDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))

@@ -11,7 +11,7 @@ read-modify-write of word `keccak256(0) + index / 32` replacing byte `index % 32
 low byte (pc 79).  Under `STATICCALL` the `SSTORE` halts, matching Stele's static violation.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.IndexedPackedStore
 

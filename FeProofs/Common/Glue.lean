@@ -5,13 +5,13 @@ import Stele.Semantics
 # Small proof glue shared by the Fe examples
 
 -- LIBRARY CANDIDATES: `not_selIs_of_selIs` (`Reasoning/Dispatch.lean`), `RDret.of_output_eq`
--- (`Reasoning/Reach.lean`), `evalExpr_var` (`Reasoning/SteleArithmetic.lean`; GENERALIZES
+-- (`Reasoning/Reach.lean`), `evalLocalVar` (`Reasoning/SteleArithmetic.lean`; GENERALIZES
 -- `evalExpr_varInt` to any value).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.Common
+namespace FeProofs
 
 /-- Distinct selector-table entries cannot both match the calldata selector. -/
 theorem not_selIs_of_selIs {I : ExecutionEnv} {a b : ByteArray}
@@ -24,12 +24,4 @@ theorem RDret.of_output_eq {code : ByteArray} {g : Sat256} {s0 : State} {acc : A
     {o o' : ByteArray} (h : RDret code g s0 acc o) (e : o = o') : RDret code g s0 acc o' :=
   e ▸ h
 
-theorem evalExpr_var {cfg : Config} {contract : ContractDecl} {evm : EVM.State} {locals : Store}
-    {name : Ident} {v : Value} (h : locals.get? name = some v) :
-    evalExpr? cfg { contract := contract, locals := locals } evm (.var name) = .ok v := by
-  rw [evalExpr?]
-  change EvalResult.ofOption EvalError.unboundVariable (locals.get? name) = .ok v
-  rw [h]
-  rfl
-
-end FeProofs.Common
+end FeProofs

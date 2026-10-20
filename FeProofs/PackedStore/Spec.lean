@@ -36,13 +36,9 @@ Fe does not use solc's layout for this field: the array's words start at `keccak
 def packedSlot : Ethereum.UInt256 :=
   ⟨18569430475105882587588266137607568536673111973893317399460219858819262702947⟩
 
-theorem packedSlot_eq_keccak :
-    packedSlot = Ethereum.uInt256OfByteArray (Ethereum.KEC (Ethereum.UInt256.toByteArray ⟨0⟩)) := by
-  native_decide
-
 def storageLayout : StorageLayout
-  | { base := "lane0", steps := [] } => some (.leaf (FeProofs.Common.packedByteLoc packedSlot 0))
-  | { base := "lane1", steps := [] } => some (.leaf (FeProofs.Common.packedByteLoc packedSlot 1))
+  | { base := "lane0", steps := [] } => some (.leaf (FeProofs.packedByteLoc packedSlot 0))
+  | { base := "lane1", steps := [] } => some (.leaf (FeProofs.packedByteLoc packedSlot 1))
   | _ => none
 
 def storageBackend : StorageBackend := solidityStorageBackend storageLayout

@@ -18,25 +18,7 @@ abbrev argWord (I : ExecutionEnv) : UInt256 := calldataWord I.calldata 4
 
 abbrev int8Ty : ABIType := .elem (.int (.sint ⟨8, by decide⟩))
 
-/-- Distinct table entries cannot both match the calldata selector. -/
-theorem not_selIs_of_selIs {I : ExecutionEnv} {a b : ByteArray} (ha : selIs I a) (hab : a ≠ b) :
-    ¬ selIs I b := fun hb =>
-  hab ((byteArray_eq_of_beq ha).trans (byteArray_eq_of_beq hb).symm)
-
-/-- Rewrite the bytes a terminal segment returns. -/
-theorem RDret.of_output_eq {code : ByteArray} {g : Sat256} {s0 : State} {acc : AccountMap}
-    {o o' : ByteArray} (h : RDret code g s0 acc o) (e : o = o') : RDret code g s0 acc o' :=
-  e ▸ h
-
 -- LIBRARY CANDIDATE: `Reasoning/SteleArithmetic.lean`; GENERALIZES `evalExpr_varInt` to any value.
-theorem evalExpr_var {cfg : Config} {contract : ContractDecl} {evm : EVM.State} {locals : Store}
-    {name : Ident} {v : Value} (h : locals.get? name = some v) :
-    evalExpr? cfg { contract := contract, locals := locals } evm (.var name) = .ok v := by
-  rw [evalExpr?]
-  change EvalResult.ofOption EvalError.unboundVariable (locals.get? name) = .ok v
-  rw [h]
-  rfl
-
 /-! ## Calldata decoding of one scalar word -/
 
 -- LIBRARY CANDIDATE: `Reasoning/ABI.lean`; GENERALIZES `decodeCalldata_uint_result` to any scalar
@@ -84,7 +66,7 @@ theorem decodeWordI8_ok {w : UInt256} (hcanon : i8Canonical w) :
     decodeABIWord? int8Ty w = some (i8Value w) := by
   rcases hcanon with hpos | hneg
   · change (↑w.val : Nat) < EVM.twoPow 7 at hpos
-    simp only [int8Ty, decodeABIWord?, i8Value]
+    simp only [decodeABIWord?, i8Value]
     rw [if_neg (by decide : ¬8 = 0), if_pos hpos, if_pos hpos]
   · have hnpos : ¬w.toNat < EVM.twoPow 7 := by
       have hstart : EVM.twoPow 7 < EVM.wordModulus - EVM.twoPow 7 := by native_decide
@@ -92,7 +74,7 @@ theorem decodeWordI8_ok {w : UInt256} (hcanon : i8Canonical w) :
       omega
     change ¬(↑w.val : Nat) < EVM.twoPow 7 at hnpos
     change EVM.wordModulus - EVM.twoPow 7 ≤ (↑w.val : Nat) at hneg
-    simp only [int8Ty, decodeABIWord?, i8Value]
+    simp only [decodeABIWord?, i8Value]
     rw [if_neg (by decide : ¬8 = 0), if_neg hnpos, if_pos hneg, if_neg hnpos]
 
 theorem decodeWordI8_none {w : UInt256}
@@ -101,7 +83,7 @@ theorem decodeWordI8_none {w : UInt256}
     decodeABIWord? int8Ty w = none := by
   change EVM.twoPow 7 ≤ (↑w.val : Nat) at hpos
   change (↑w.val : Nat) < EVM.wordModulus - EVM.twoPow 7 at hneg
-  simp only [int8Ty, decodeABIWord?]
+  simp only [decodeABIWord?]
   change (if (↑w.val : Nat) < EVM.twoPow 7 then _
     else if EVM.wordModulus - EVM.twoPow 7 ≤ (↑w.val : Nat) then _ else none) = none
   rw [if_neg (by omega), if_neg (by omega)]
@@ -220,11 +202,6 @@ theorem sarShiftLeft248_of_ge128 {low : UInt256}
       omega
     rw [ulit_toNat' _ hout]
     omega
-
-theorem lowByte_eq_self_of_lt256 {w : UInt256} (h : w.toNat < 256) :
-    UInt256.land w ⟨255⟩ = w := by
-  apply u256_inj
-  rw [lowByte_toNat, Nat.mod_eq_of_lt h]
 
 theorem negativeLowByte {w : UInt256}
     (hneg : EVM.wordModulus - 128 ≤ w.toNat) :
@@ -359,7 +336,7 @@ theorem int8ReturnEncoding {w : UInt256} (hcanon : i8Canonical w) :
     have habs : (Int.ofNat w.toNat - Int.ofNat EVM.wordModulus).natAbs =
         EVM.wordModulus - w.toNat := by
       rw [show Int.ofNat w.toNat - Int.ofNat EVM.wordModulus =
-          -((EVM.wordModulus - w.toNat : ℕ) : Int) by simp only [Int.ofNat_eq_coe]; omega,
+          -((EVM.wordModulus - w.toNat : ℕ) : Int) by simp only [Int.ofNat_eq_natCast]; omega,
         Int.natAbs_neg, Int.natAbs_natCast]
     have hword : EVM.wordOfInt
         (Int.ofNat w.toNat - Int.ofNat EVM.wordModulus) = w := by
@@ -396,36 +373,6 @@ theorem int8ReturnEncoding {w : UInt256} (hcanon : i8Canonical w) :
     rfl
 
 /-! ## `address` -/
-
-theorem shiftRight160_toNat (w : UInt256) :
-    (UInt256.shiftRight w ⟨160⟩).toNat = w.toNat / EVM.twoPow 160 := by
-  unfold UInt256.shiftRight
-  rw [if_neg (by decide)]
-  change (w.val.val >>> 160) % UInt256.size = w.toNat / EVM.twoPow 160
-  rw [Nat.shiftRight_eq_div_pow]
-  change w.toNat / 2 ^ 160 % UInt256.size = w.toNat / EVM.twoPow 160
-  rw [Nat.mod_eq_of_lt (lt_of_le_of_lt
-    (Nat.div_le_self w.toNat (2 ^ 160)) w.val.isLt)]
-  rfl
-
-theorem shiftRight160_eq_zero {w : UInt256} (hcanon : w.toNat < EVM.addressModulus) :
-    UInt256.shiftRight w (UInt256.ofNat 160) = UInt256.ofNat 0 := by
-  apply u256_inj
-  change (UInt256.shiftRight w ⟨160⟩).toNat = 0
-  rw [shiftRight160_toNat]
-  rw [Nat.div_eq_of_lt]
-  simpa [EVM.addressModulus] using hcanon
-
-theorem shiftRight160_ne_zero {w : UInt256} (hdirty : EVM.addressModulus ≤ w.toNat) :
-    UInt256.shiftRight w (UInt256.ofNat 160) ≠ UInt256.ofNat 0 := by
-  intro hzero
-  have hnat := congrArg UInt256.toNat hzero
-  change (UInt256.shiftRight w ⟨160⟩).toNat = 0 at hnat
-  rw [shiftRight160_toNat] at hnat
-  rw [Nat.div_eq_zero_iff] at hnat
-  rcases hnat with hpow | hlt
-  · exact (by native_decide : EVM.twoPow 160 ≠ 0) hpow
-  · exact (not_lt_of_ge (by simpa [EVM.addressModulus] using hdirty)) hlt
 
 theorem addressReturnEncoding {w : UInt256} (hcanon : w.toNat < EVM.addressModulus) :
     encodeReturnValue? (.elem .address) (.address (AccountAddress.ofNat w.toNat)) =

@@ -43,7 +43,7 @@ theorem highHalf_toByteArray (w : UInt256) :
         ((EVM.Word.toBytesBE w).drop 16)
       rw [List.take_append_drop, List.length_drop, hlen, fromBytesBE_word] at hdiv
       rw [fromBytesBE_word, fromBytesBigEndian_append_zeros, ← hdiv,
-        ushlN_toNat _ 128 (by decide), ushrN_toNat _ 128 (by decide)]
+        ushlN_toNat _ 128 (by decide), shiftRight_toNat_of_lt _ 128 (by decide)]
       show w.toNat / 2 ^ 128 * 2 ^ 128 % 2 ^ 256 = w.toNat / 2 ^ (8 * (32 - 16)) * 2 ^ (8 * 16)
       rw [Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_mul_le_self _ _) hw)]
   rw [← word_toBytesBE_toByteArray_eq_toByteArray, hlist, list_toByteArray_append,

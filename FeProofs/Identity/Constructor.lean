@@ -47,7 +47,7 @@ theorem feIdentityCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionE
 theorem feIdentityConstructorCorrect :
     typedConstructorRefinement config feIdentityCreationBytecode contract
       (fun _ => feIdentityBytecode) :=
-  FeProofs.Common.nonpayableEmptyConstructorCorrect rfl rfl rfl
+  FeProofs.nonpayableEmptyConstructorCorrect rfl rfl rfl
     feIdentityCtorRet feIdentityCtorRev
 
 end FeProofs.Identity

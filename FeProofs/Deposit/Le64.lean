@@ -1,4 +1,5 @@
 import FeProofs.Deposit.Common
+import FeProofs.Common.PackedByte
 import Reasoning.SteleArithmetic
 
 /-!
@@ -30,19 +31,6 @@ theorem ushlN_toNat (a : UInt256) (s : ℕ) (hs : s < 256) :
   show (a.toNat <<< (UInt256.ofNat s).toNat) % UInt256.size = _
   rw [hsv, Nat.shiftLeft_eq]
   rfl
-
-theorem ushrN_toNat (a : UInt256) (s : ℕ) (hs : s < 256) :
-    (UInt256.shiftRight a (UInt256.ofNat s)).toNat = a.toNat / 2 ^ s := by
-  have hsv : (UInt256.ofNat s).toNat = s := ulit_toNat' s (by
-    rw [show UInt256.size = 2 ^ 256 from rfl]; omega)
-  have ha : a.toNat < UInt256.size := a.val.isLt
-  unfold UInt256.shiftRight
-  rw [if_neg (by show ¬ (UInt256.ofNat s).toNat ≥ 256; omega)]
-  show (Fin.shiftRight a.val (UInt256.ofNat s).val).val = _
-  unfold Fin.shiftRight
-  show (a.toNat >>> (UInt256.ofNat s).toNat) % UInt256.size = _
-  rw [hsv, Nat.shiftRight_eq_div_pow]
-  exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) ha)
 
 /-! ## Stele `uint256` bit operations on word values -/
 
@@ -104,7 +92,7 @@ theorem evalShr_word (a : UInt256) (s : ℕ) (hs : s < 256) {x : Int}
           (if u256T.isSigned && normalizeInt u256T (Int.ofNat a.toNat) < 0 then -1 else 0))
       else EvalResult.ok (Value.int (normalizeInt u256T (Int.ofNat a.toNat) /
         Int.ofNat (EVM.twoPow (Int.ofNat s).toNat)))) = _
-  rw [if_neg h1, if_neg h2, ushrN_toNat a s hs, int_toNat_ofNat, normalizeInt_uint256_word a]
+  rw [if_neg h1, if_neg h2, shiftRight_toNat_of_lt a s hs, int_toNat_ofNat, normalizeInt_uint256_word a]
   simp only [EVM.twoPow]
   rfl
 
@@ -256,7 +244,7 @@ theorem evmChunk_eq (m : UInt256) :
 theorem le64Value_lt (m : UInt256) : le64Value m < 2 ^ 64 := by
   have hw : (u64ChunkWord m).toNat < 2 ^ 256 := (u64ChunkWord m).val.isLt
   show (UInt256.shiftRight (u64ChunkWord m) (UInt256.ofNat 192)).toNat < 2 ^ 64
-  rw [ushrN_toNat _ 192 (by decide), Nat.div_lt_iff_lt_mul (by positivity)]
+  rw [shiftRight_toNat_of_lt _ 192 (by decide), Nat.div_lt_iff_lt_mul (by positivity)]
   calc (u64ChunkWord m).toNat < 2 ^ 256 := hw
     _ = 2 ^ 64 * 2 ^ 192 := by norm_num
 

@@ -75,7 +75,7 @@ theorem feScalarStoreReachSetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x60 0xfe 0x47 0xb1 ⟨1627277233⟩ (by native_decide)
       (by simpa [feScalarStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feScalarStoreBlocks.feScalarStore_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1627277233⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
   exact ⟨_, _, by simpa [feScalarStoreBlocks.feScalarStore_block_8_taken_stack] using rd2⟩
 
@@ -91,9 +91,9 @@ theorem feScalarStoreReachGetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x6d 0x4c 0xe6 0x3c ⟨1833756220⟩ (by native_decide)
       (by simpa [feScalarStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feScalarStoreBlocks.feScalarStore_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1627277233⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feScalarStoreBlocks.feScalarStore_block_23_taken (by simp [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1833756220⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
+  have rd3 := feScalarStoreBlocks.feScalarStore_block_23_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1833756220⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
   exact ⟨_, _, by simpa [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack] using rd3⟩
 
 /-- Calldata shorter than a selector -/
@@ -102,7 +102,7 @@ theorem feScalarStoreX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feScalarStoreBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feScalarStoreBlocks.feScalarStore_block_42 (by simp) rd1
   exact rd2
 
@@ -113,19 +113,19 @@ theorem feScalarStoreX_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 2 → (feScalarStoreSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feScalarStoreBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feScalarStoreBlocks.feScalarStore_block_8_fallthrough (by simp) (by
     have e := setEvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
-  have rd3 := feScalarStoreBlocks.feScalarStore_block_23_fallthrough (by simp [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack]) (by
+  have rd3 := feScalarStoreBlocks.feScalarStore_block_23_fallthrough (by simp) (by
     have e := getEvmSelector hsz
     simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
-  have rd4 := feScalarStoreBlocks.feScalarStore_block_33 (by simp [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack]) (by jump_dest) rd3
-  have rd5 := feScalarStoreBlocks.feScalarStore_block_42 (by simp [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack]) rd4
+  have rd4 := feScalarStoreBlocks.feScalarStore_block_33 (by simp) (by jump_dest) rd3
+  have rd5 := feScalarStoreBlocks.feScalarStore_block_42 (by simp) rd4
   simpa [feScalarStoreBlocks.feScalarStore_block_8_fallthrough_stack] using rd5
 
 end FeProofs.ScalarStore

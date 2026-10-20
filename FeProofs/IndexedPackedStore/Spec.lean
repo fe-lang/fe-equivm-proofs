@@ -34,13 +34,9 @@ element `i` is byte `i % 32` of word `i / 32`.  `uint8[64] pack` names the first
 def packedSlot : Ethereum.UInt256 :=
   ⟨18569430475105882587588266137607568536673111973893317399460219858819262702947⟩
 
-theorem packedSlot_eq_keccak :
-    packedSlot = Ethereum.uInt256OfByteArray (Ethereum.KEC (Ethereum.UInt256.toByteArray ⟨0⟩)) := by
-  native_decide
-
 /-- The word and byte of element `i`. -/
 def elemLoc (i : Nat) : StorageLoc :=
-  FeProofs.Common.packedByteLoc (packedSlot + Ethereum.UInt256.ofNat (i / 32))
+  FeProofs.packedByteLoc (packedSlot + Ethereum.UInt256.ofNat (i / 32))
     ⟨i % 32, Nat.mod_lt _ (by decide)⟩
 
 def storageLayout : StorageLayout

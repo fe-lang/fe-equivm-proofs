@@ -10,7 +10,7 @@ Arm entry pc 540: call-value check, head-size check (pc 546), the canonical-addr
 returned as one word (pc 568).  Every failed check jumps to the revert block at pc 86.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.ERC20
 

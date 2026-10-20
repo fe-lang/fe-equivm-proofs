@@ -68,7 +68,7 @@ theorem eventS17_eval {n r : UInt256}
     evalExpr? config { contract := contract, locals := L } evm
         (.binary .eq (.var "node") (.cast (.var "deposit_data_root") uint256StorageTy)) =
       .ok (.bool (decide (n = r))) := by
-  refine evalBin (by decide) (by decide) (evalVar hn) hr ?_
+  refine evalBin (by decide) (by decide) (evalLocalVar hn) hr ?_
   simp only [evalBinaryOp?]
   congr 2
   by_cases h : n = r
@@ -121,7 +121,7 @@ theorem eventEmitArgs {node m c : UInt256} {pk wc sig : Value}
     store_get; exact hE.sig
   have h5 : (eventExitStore L m c).get? "index_bytes" =
       some (.bytes ⟨(le64Bytes (mask64 c)).toArray⟩) := store_get_self _ _ _
-  simp only [evalExprs?, evalVar h1, evalVar h2, evalVar h3, evalVar h4, evalVar h5, bind,
+  simp only [evalExprs?, evalLocalVar h1, evalLocalVar h2, evalLocalVar h3, evalLocalVar h4, evalLocalVar h5, bind,
     EvalResult.bind, pure]
 
 end Stmts
@@ -164,7 +164,7 @@ theorem depositEventSegment {I : ExecutionEnv} {g : Sat256} {s0 : State} {evm : 
   have hs17 : ExecStmt config { contract := contract, locals := L } evm eventS17
       (.ok { contract := contract, locals := L } evm) :=
     ExecStmt.requireTrue (by rw [eventS17_eval hE.node hroot]; simp [heq])
-  have hs18 := le64Call (ret := "amount_bytes") (L := L) (evm := evm) (evalVar hE.amount)
+  have hs18 := le64Call (ret := "amount_bytes") (L := L) (evm := evm) (evalLocalVar hE.amount)
   have hs19 := le64Call (ret := "index_bytes") (L := eventAmountStore L m) (evm := evm)
     (eventCountCast hs (by store_get; exact hE.count))
   have hargs := eventEmitArgs (evm := evm) (c := eventCount σ I) hE

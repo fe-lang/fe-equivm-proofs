@@ -92,7 +92,7 @@ theorem feIndexedPackedStoreReachSetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x1a 0xb0 0x6e 0xe5 ⟨447770341⟩ (by native_decide)
       (by simpa [feIndexedPackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨447770341⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
   exact ⟨_, _, by simpa [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_taken_stack] using rd2⟩
 
@@ -108,9 +108,9 @@ theorem feIndexedPackedStoreReachSetTwoBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x62 0xe3 0xd8 0x7d ⟨1659099261⟩ (by native_decide)
       (by simpa [feIndexedPackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨447770341⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_taken (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1659099261⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
+  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1659099261⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
   exact ⟨_, _, by simpa [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack] using rd3⟩
 
 /-- Dispatcher path to `get(uint256)` (arm entry pc 336). -/
@@ -125,10 +125,10 @@ theorem feIndexedPackedStoreReachGetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x95 0x07 0xd3 0x9a ⟨2500318106⟩ (by native_decide)
       (by simpa [feIndexedPackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨447770341⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_fallthrough (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1659099261⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_33_taken (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2500318106⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
+  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1659099261⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_33_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2500318106⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
   exact ⟨_, _, by simpa [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack] using rd4⟩
 
 /-- Calldata shorter than a selector -/
@@ -137,7 +137,7 @@ theorem feIndexedPackedStoreX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feIndexedPackedStoreBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_75 (by simp) rd1
   exact rd2
 
@@ -148,24 +148,24 @@ theorem feIndexedPackedStoreX_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 3 → (feIndexedPackedStoreSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feIndexedPackedStoreBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough (by simp) (by
     have e := setEvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
-  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_fallthrough (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by
+  have rd3 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_23_fallthrough (by simp) (by
     have e := setTwoEvmSelector hsz
     simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
-  have rd4 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_33_fallthrough (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by
+  have rd4 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_33_fallthrough (by simp) (by
     have e := getEvmSelector hsz
     simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd3
-  have rd5 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_44 (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) (by jump_dest) rd4
-  have rd6 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_75 (by simp [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack]) rd5
+  have rd5 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_44 (by simp) (by jump_dest) rd4
+  have rd6 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_75 (by simp) rd5
   simpa [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack] using rd6
 
 end FeProofs.IndexedPackedStore

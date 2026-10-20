@@ -51,7 +51,7 @@ theorem feNarrowAbiEcho_u8Body {σ σ₀ A I} {g : UInt256}
             (decodeCalldata_uint_result _ hlen hhi).trans (if_pos hcanon)
           exact rret.reEquivExecution hcode hd hdec
             (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
-              (evalExpr_var (store_get_self _ _ _)))
+              (evalLocalVar (store_get_self _ _ _)))
             (returnEquiv_of_encode (uint8ReturnEncoding _ hcanon))
         · have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_142_taken (by simp)
             (by

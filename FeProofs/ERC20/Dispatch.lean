@@ -148,7 +148,7 @@ theorem feERC20ReachApproveBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x09 0x5e 0xa7 0xb3 ⟨157198259⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_taken_stack] using rd2⟩
 
@@ -164,9 +164,9 @@ theorem feERC20ReachTotalSupplyBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x18 0x16 0x0d 0xdd ⟨404098525⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_taken (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
+  have rd3 := feERC20Blocks.feERC20_block_23_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd3⟩
 
 /-- Dispatcher path to `transferFrom(address,address,uint256)` (arm entry pc 203). -/
@@ -181,10 +181,10 @@ theorem feERC20ReachTransferFromBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x23 0xb8 0x72 0xdd ⟨599290589⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_taken (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
+  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feERC20Blocks.feERC20_block_33_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd4⟩
 
 /-- Dispatcher path to `balanceOf(address)` (arm entry pc 540). -/
@@ -199,11 +199,11 @@ theorem feERC20ReachBalanceOfBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x70 0xa0 0x82 0x31 ⟨1889567281⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feERC20Blocks.feERC20_block_43_taken (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
+  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
+  have rd5 := feERC20Blocks.feERC20_block_43_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd5⟩
 
 /-- Dispatcher path to `transfer(address,uint256)` (arm entry pc 585). -/
@@ -218,12 +218,12 @@ theorem feERC20ReachTransferBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xa9 0x05 0x9c 0xbb ⟨2835717307⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd4
-  have rd6 := feERC20Blocks.feERC20_block_54_taken (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2835717307⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd5
+  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
+  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd4
+  have rd6 := feERC20Blocks.feERC20_block_54_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2835717307⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd5
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd6⟩
 
 /-- Dispatcher path to `allowance(address,address)` (arm entry pc 743). -/
@@ -238,13 +238,13 @@ theorem feERC20ReachAllowanceBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xdd 0x62 0xed 0x3e ⟨3714247998⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨157198259⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd4
-  have rd6 := feERC20Blocks.feERC20_block_54_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2835717307⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd5
-  have rd7 := feERC20Blocks.feERC20_block_65_taken (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3714247998⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd6
+  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨404098525⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨599290589⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
+  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1889567281⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd4
+  have rd6 := feERC20Blocks.feERC20_block_54_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨2835717307⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd5
+  have rd7 := feERC20Blocks.feERC20_block_65_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3714247998⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd6
   exact ⟨_, _, by simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd7⟩
 
 /-- Calldata shorter than a selector -/
@@ -253,7 +253,7 @@ theorem feERC20X_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feERC20Bytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feERC20Blocks.feERC20_block_86 (by simp) rd1
   exact rd2
 
@@ -264,39 +264,39 @@ theorem feERC20X_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 6 → (feERC20SelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feERC20Bytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by
     have e := approveEvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by
+  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by
     have e := totalSupplyEvmSelector hsz
     simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by
+  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp) (by
     have e := transferFromEvmSelector hsz
     simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd3
-  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by
+  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp) (by
     have e := balanceOfEvmSelector hsz
     simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd4
-  have rd6 := feERC20Blocks.feERC20_block_54_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by
+  have rd6 := feERC20Blocks.feERC20_block_54_fallthrough (by simp) (by
     have e := transferEvmSelector hsz
     simp only [hnm 4 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd5
-  have rd7 := feERC20Blocks.feERC20_block_65_fallthrough (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by
+  have rd7 := feERC20Blocks.feERC20_block_65_fallthrough (by simp) (by
     have e := allowanceEvmSelector hsz
     simp only [hnm 5 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd6
-  have rd8 := feERC20Blocks.feERC20_block_76 (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) (by jump_dest) rd7
-  have rd9 := feERC20Blocks.feERC20_block_86 (by simp [feERC20Blocks.feERC20_block_8_fallthrough_stack]) rd8
+  have rd8 := feERC20Blocks.feERC20_block_76 (by simp) (by jump_dest) rd7
+  have rd9 := feERC20Blocks.feERC20_block_86 (by simp) rd8
   simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd9
 
 end FeProofs.ERC20

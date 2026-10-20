@@ -13,7 +13,7 @@ shows the account maps agree.  Under `STATICCALL` the `SSTORE` halts, matching S
 violation at the first lane assignment.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.PackedStore
 

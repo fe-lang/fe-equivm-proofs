@@ -82,7 +82,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
     (stele := fr (((∅ : Store).insert "count" (.int (Int.ofNat (countWord σ I).toNat))).insert
       "node" (.int 0)))
     (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (name := "size") (ty := some uint256Ty)
-    (evalVar (x := "count") (by store_get))
+    (evalLocalVar (name := "count") (by store_get))
   have hinit : ExecBlock config (fr (rootPrefixStore (countWord σ I)))
       (initState σ σ₀ (Sat256.ofUInt256 g) A I) rootInit
       (.ok (fr ((rootPrefixStore (countWord σ I)).insert "height" (.int 0)))
@@ -125,18 +125,18 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
   have hargs : evalExprs? config (fr L') evm' [.cast (.var "count") u64Ty] =
       .ok [.int (Int.ofNat (mask64 (countWord σ I)).toNat)] := by
     refine evalExprs?_singleton ?_
-    rw [evalCastInt (.uint ⟨64, by decide⟩) (evalVar hL'.count), normalize_u64_word]
+    rw [evalCastInt (.uint ⟨64, by decide⟩) (evalLocalVar hL'.count), normalize_u64_word]
   obtain ⟨F, hchunkBody⟩ := u64ChunkBody config (fr L') evm' (mask64 (countWord σ I))
   have hchunk := internalCallFunctionReturn (name := "u64_chunk") (retVar := "length_chunk")
     (callee := u64ChunkFn) hargs rfl rfl hchunkBody
   have ha : evalExpr? config (fr (L'.insert "length_chunk"
       (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)))) evm' (.var "node") =
       .ok (.int (Int.ofNat node'.toNat)) :=
-    evalVar (by store_get; exact hL'.node)
+    evalLocalVar (by store_get; exact hL'.node)
   have hb : evalExpr? config (fr (L'.insert "length_chunk"
       (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)))) evm' (.var "length_chunk") =
       .ok (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)) :=
-    evalVar (store_get_self _ _ _)
+    evalLocalVar (store_get_self _ _ _)
   by_cases hok : z = true ∧ 32 ≤ out.size
   · obtain ⟨rfl, hlen⟩ := hok
     have hsha := shaPairCall_ok (ret := "root") rfl ha hb hcall' hlen
@@ -144,7 +144,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
       (stele := fr ((L'.insert "length_chunk"
         (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat))).insert "root"
         (shaDigest out)))
-      (evalExprs?_singleton (evalVar (store_get_self _ _ _)))
+      (evalExprs?_singleton (evalLocalVar (store_get_self _ _ _)))
     have hmem : 224 ≤ (feDepositBlocks.feDeposit_block_1991_memory (mem := mem') (x1 := node')
         (x3 := countWord σ I)).size :=
       toByteArray_write_size_ge_off_add32 _ _ 192 (lt_usize _ (by omega))

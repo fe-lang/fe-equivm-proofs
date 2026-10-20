@@ -110,7 +110,7 @@ theorem feNarrowAbiReachEcho_i8Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x47 0x17 0x70 0xab ⟨1192718507⟩ (by native_decide)
       (by simpa [feNarrowAbiSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1192718507⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd1
   exact ⟨_, _, by simpa [feNarrowAbiBlocks.feNarrowAbi_block_8_taken_stack] using rd2⟩
 
@@ -126,9 +126,9 @@ theorem feNarrowAbiReachEcho_u8Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xb5 0xb4 0xf1 0x5b ⟨3048534363⟩ (by native_decide)
       (by simpa [feNarrowAbiSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1192718507⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_taken (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
+  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
   exact ⟨_, _, by simpa [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack] using rd3⟩
 
 /-- Dispatcher path to `echo_bool(bool)` (arm entry pc 180). -/
@@ -143,10 +143,10 @@ theorem feNarrowAbiReachEcho_boolBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xcc 0xf1 0xbd 0x97 ⟨3438394775⟩ (by native_decide)
       (by simpa [feNarrowAbiSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1192718507⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_taken (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3438394775⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
+  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3438394775⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
   exact ⟨_, _, by simpa [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack] using rd4⟩
 
 /-- Dispatcher path to `echo_address(address)` (arm entry pc 242). -/
@@ -161,11 +161,11 @@ theorem feNarrowAbiReachEcho_addressBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xd2 0x1c 0x65 0x3b ⟨3525076283⟩ (by native_decide)
       (by simpa [feNarrowAbiSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1192718507⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3438394775⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feNarrowAbiBlocks.feNarrowAbi_block_43_taken (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3525076283⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
+  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3048534363⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3438394775⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
+  have rd5 := feNarrowAbiBlocks.feNarrowAbi_block_43_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3525076283⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
   exact ⟨_, _, by simpa [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack] using rd5⟩
 
 /-- Calldata shorter than a selector -/
@@ -174,7 +174,7 @@ theorem feNarrowAbiX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feNarrowAbiBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_99 (by simp) rd1
   exact rd2
 
@@ -185,29 +185,29 @@ theorem feNarrowAbiX_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 4 → (feNarrowAbiSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feNarrowAbiBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough (by simp) (by
     have e := echo_i8EvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
-  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by
+  have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp) (by
     have e := echo_u8EvmSelector hsz
     simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
-  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by
+  have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_fallthrough (by simp) (by
     have e := echo_boolEvmSelector hsz
     simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd3
-  have rd5 := feNarrowAbiBlocks.feNarrowAbi_block_43_fallthrough (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by
+  have rd5 := feNarrowAbiBlocks.feNarrowAbi_block_43_fallthrough (by simp) (by
     have e := echo_addressEvmSelector hsz
     simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd4
-  have rd6 := feNarrowAbiBlocks.feNarrowAbi_block_53 (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) (by jump_dest) rd5
-  have rd7 := feNarrowAbiBlocks.feNarrowAbi_block_99 (by simp [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack]) rd6
+  have rd6 := feNarrowAbiBlocks.feNarrowAbi_block_53 (by simp) (by jump_dest) rd5
+  have rd7 := feNarrowAbiBlocks.feNarrowAbi_block_99 (by simp) rd6
   simpa [feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough_stack] using rd7
 
 end FeProofs.NarrowAbi

@@ -10,7 +10,7 @@ For an index `i < 64`, the bytecode's word `keccak256(0) + (i >> 5)` and bit off
 write of `pack[i]` are the packed-byte read and read-modify-write of that word.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.IndexedPackedStore
 
@@ -42,8 +42,8 @@ theorem bitOffset_eq (x : UInt256) :
     hland, ulit_toNat' _ (by
       have := Nat.mod_lt x.toNat (show 0 < 32 by decide)
       have hs : (256 : Nat) ≤ UInt256.size := by decide
-      simp only [elemByte]; omega)]
-  simp only [elemByte]
+      simp only; omega)]
+  simp only
   omega
 
 /-- The bytecode's lane read is `packedByte`. -/
@@ -64,7 +64,7 @@ theorem elemRef_eval {L : Store} {evm : EVM.State} {x : Ident} {i : Nat} (hi : i
     evalStorageRef config { contract := contract, locals := L } evm (elemRef x) =
       .ok { base := "pack", steps := [.aindex (.int (Int.ofNat i))] } := by
   have hidx : evalExpr? config { contract := contract, locals := L } evm (.var x) =
-      .ok (.int (Int.ofNat i)) := evalExpr_var hx
+      .ok (.int (Int.ofNat i)) := evalLocalVar hx
   have hty : storageTypeAt? contract.storage { base := "pack", steps := [] } =
       some (.array uint8Ty 64) := rfl
   simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, hidx, valueToKey?,
@@ -118,7 +118,7 @@ theorem evalCastU8 {L : Store} {evm : EVM.State} {x : Ident} {v : UInt256}
     (h : L.get? x = some (.int (Int.ofNat v.toNat))) :
     evalExpr? config { contract := contract, locals := L } evm (.cast (.var x) uint8Ty) =
       .ok (.int (Int.ofNat (packedByte0 v).toNat)) := by
-  rw [evalExpr_cast_int (evalExpr_var h)]
+  rw [evalExpr_cast_int (evalLocalVar h)]
   congr 2
   rw [packedByte0_toNat]
   change Int.ofNat v.toNat % Int.ofNat 256 = Int.ofNat (v.toNat % 256)
@@ -127,43 +127,6 @@ theorem evalCastU8 {L : Store} {evm : EVM.State} {x : Ident} {v : UInt256}
 
 -- LIBRARY CANDIDATE: copied from FeProofs.PackedStore (two static uint256 arguments).
 /-! ## Calldata of `setBoth(uint256,uint256)` -/
-
-theorem decodeCalldata_uint256_uint256_ok {cd : ByteArray} {x y : Ident}
-    (hsz68 : 68 ≤ cd.size) (hbig : cd.size < 2 ^ 255 + 4) :
-    decodeCalldata [x, y] [abiUInt256, abiUInt256] cd =
-      some (((∅ : Store).insert x (.int (Int.ofNat (calldataWord cd 4).toNat))).insert y
-        (.int (Int.ofNat (calldataWord cd 36).toNat))) := by
-  have htlen : cd.toList.length = cd.size := by
-    rw [byteArray_toList_eq, Array.length_toList]; rfl
-  have htake4 : ((cd.toList.drop 4).take 32).length = 32 := by
-    rw [List.length_take, List.length_drop, htlen]; omega
-  have htake36 : ((cd.toList.drop 36).take 32).length = 32 := by
-    rw [List.length_take, List.length_drop, htlen]; omega
-  have hword4 : ABI.bytesToWord ((cd.toList.drop 4).take 32) = calldataWord cd 4 :=
-    decode_word_at_eq cd 4 (by omega) (by norm_num)
-  have hword36 : ABI.bytesToWord ((cd.toList.drop 36).take 32) = calldataWord cd 36 :=
-    decode_word_at_eq cd 36 (by omega) (by norm_num)
-  have hdrop : (cd.toList.drop 4).drop 32 = cd.toList.drop 36 := by
-    rw [List.drop_drop]
-  rw [decodeCalldata_scalarWords_eq (by decide)]
-  rw [if_neg (by rw [htlen]; omega : ¬ cd.toList.length < 4)]
-  rw [if_neg (by rintro ⟨_, hc⟩; rw [List.length_drop, htlen] at hc; omega)]
-  simp only [decodeScalarWords?, decodeScalarWord?, readWord?, readBytes?, List.drop_zero,
-    Nat.zero_add, hdrop, htake4, htake36, ↓reduceIte, hword4, hword36, bind, Option.bind]
-  have hb4 : ((calldataWord cd 4).val : Nat) < EVM.twoPow 256 := (calldataWord cd 4).val.isLt
-  have hb36 : ((calldataWord cd 36).val : Nat) < EVM.twoPow 256 := (calldataWord cd 36).val.isLt
-  simp [decodeABIWord?, decodeCalldata.insertValues, abiUInt256, hb4, hb36]
-  rfl
-
-theorem decodeCalldata_uint256_uint256_none_short {cd : ByteArray} {x y : Ident}
-    (hshort : cd.size < 68) :
-    decodeCalldata [x, y] [abiUInt256, abiUInt256] cd = none :=
-  decodeCalldata_scalar_none_short (by decide) (by simpa using hshort)
-
-theorem decodeCalldata_uint256_uint256_none_huge {cd : ByteArray} {x y : Ident}
-    (hhuge : 2 ^ 255 + 4 ≤ cd.size) :
-    decodeCalldata [x, y] [abiUInt256, abiUInt256] cd = none :=
-  decodeCalldata_scalar_none_huge (by decide) rfl hhuge
 
 
 theorem evalIndexLt {L : Store} {evm : EVM.State} {x : Ident} {i : Nat}
@@ -214,7 +177,7 @@ theorem decodeCalldata_four_uint256_ok {cd : ByteArray} {a b c d : Ident}
   have hb36 : ((calldataWord cd 36).val : Nat) < EVM.twoPow 256 := (calldataWord cd 36).val.isLt
   have hb68 : ((calldataWord cd 68).val : Nat) < EVM.twoPow 256 := (calldataWord cd 68).val.isLt
   have hb100 : ((calldataWord cd 100).val : Nat) < EVM.twoPow 256 := (calldataWord cd 100).val.isLt
-  simp [decodeABIWord?, decodeCalldata.insertValues, abiUInt256, hb4, hb36, hb68, hb100]
+  simp [decodeABIWord?, decodeCalldata.insertValues, hb4, hb36, hb68, hb100]
   rfl
 
 theorem decodeCalldata_four_uint256_none_short {cd : ByteArray} {a b c d : Ident}

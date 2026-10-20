@@ -9,7 +9,7 @@ Arm entry pc 336: call-value check, head check (pc 342), the `index < 64` check 
 lane read of word `keccak256(0) + index / 32` and the 32-byte return (pc 365).
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.IndexedPackedStore
 

@@ -14,7 +14,7 @@ other bit, truncation to eight bits, isolation of distinct lanes, and last-write
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
 
-namespace FeProofs.Common
+namespace FeProofs
 
 def packedByte0 (word : UInt256) : UInt256 := UInt256.land word ⟨255⟩
 
@@ -199,72 +199,6 @@ theorem setPackedByte_truncate (old value : UInt256) (offset : Fin 32) :
   apply u256_inj
   simp only [setPackedByte_toNat, packedByte0_toNat, Nat.mod_mod]
 
-/-- Every output bit comes either from the selected byte or the original word. -/
-theorem setPackedByte_testBit (old value : UInt256) (offset : Fin 32) (bit : Nat) :
-    (setPackedByte old value offset).toNat.testBit bit =
-      if 8 * offset.val ≤ bit ∧ bit < 8 * offset.val + 8 then
-        value.toNat.testBit (bit - 8 * offset.val)
-      else old.toNat.testBit bit := by
-  rw [setPackedByte_toNat_mod]
-  rw [show (255 : Nat) = 2 ^ 8 - 1 by decide,
-    show (256 : Nat) = 2 ^ 8 by decide, ← Nat.shiftLeft_eq, ← Nat.shiftLeft_eq]
-  simp only [Nat.testBit_mod_two_pow, Nat.testBit_or, Nat.testBit_and,
-    Nat.testBit_xor, Nat.testBit_two_pow_sub_one, testBit_shiftLeft]
-  by_cases hlo : bit < 8 * offset.val
-  · have hhi : bit < 256 := by omega
-    simp [hlo, hhi, show ¬ 8 * offset.val ≤ bit by omega]
-  · by_cases hhi : bit < 8 * offset.val + 8
-    · have h256 : bit < 256 := by omega
-      have hsub : bit - 8 * offset.val < 8 := by omega
-      simp [hlo, hhi, h256, hsub, show 8 * offset.val ≤ bit by omega]
-    · have hsub : ¬ bit - 8 * offset.val < 8 := by omega
-      by_cases h256 : bit < 256
-      · simp [hlo, hhi, h256, hsub]
-      · have hold : old.toNat.testBit bit = false :=
-          Nat.testBit_lt_two_pow (lt_of_lt_of_le (show old.toNat < 2 ^ 256 from old.val.isLt)
-            (show (2 : Nat) ^ 256 ≤ 2 ^ bit from
-              Nat.pow_le_pow_right (by decide) (by omega : 256 ≤ bit)))
-        simp [hlo, hhi, h256, hsub, hold]
-
-theorem packedByte_testBit (word : UInt256) (offset : Fin 32) (bit : Nat) :
-    (packedByte word offset).toNat.testBit bit =
-      (decide (bit < 8) && word.toNat.testBit (8 * offset.val + bit)) := by
-  rw [packedByte_toNat, show (256 : Nat) = 2 ^ 8 by decide,
-    ← Nat.pow_mul, ← Nat.shiftRight_eq_div_pow,
-    Nat.testBit_mod_two_pow, Nat.testBit_shiftRight]
-
-theorem packedByte_setPackedByte_same (old value : UInt256) (offset : Fin 32) :
-    packedByte (setPackedByte old value offset) offset = packedByte0 value := by
-  apply u256_inj
-  apply Nat.eq_of_testBit_eq
-  intro bit
-  rw [packedByte_testBit, setPackedByte_testBit, packedByte0_toNat,
-    show (256 : Nat) = 2 ^ 8 by decide, Nat.testBit_mod_two_pow]
-  by_cases hbit : bit < 8 <;> simp [hbit, show 8 * offset.val ≤ 8 * offset.val + bit by omega]
-
-theorem packedByte_setPackedByte_other (old value : UInt256) (read write : Fin 32)
-    (hne : read ≠ write) :
-    packedByte (setPackedByte old value write) read = packedByte old read := by
-  apply u256_inj
-  apply Nat.eq_of_testBit_eq
-  intro bit
-  rw [packedByte_testBit, packedByte_testBit, setPackedByte_testBit]
-  by_cases hbit : bit < 8
-  · have hval : read.val ≠ write.val := fun h => hne (Fin.ext h)
-    have hout : ¬ (8 * write.val ≤ 8 * read.val + bit ∧
-        8 * read.val + bit < 8 * write.val + 8) := by omega
-    simp [hout]
-  · simp [hbit]
-
-theorem setPackedByte_lastWrite (old first second : UInt256) (offset : Fin 32) :
-    setPackedByte (setPackedByte old first offset) second offset =
-      setPackedByte old second offset := by
-  apply u256_inj
-  apply Nat.eq_of_testBit_eq
-  intro bit
-  simp only [setPackedByte_testBit]
-  split <;> simp_all
-
 theorem storageLocLoad_packedByte (evm : EVM.State) (slot : UInt256) (offset : Fin 32) :
     storageLocLoad evm (packedByteLoc slot offset) =
       .int (Int.ofNat (packedByte
@@ -280,4 +214,4 @@ theorem storageLocLoad_packedByte (evm : EVM.State) (slot : UInt256) (offset : F
       exact Nat.pow_lt_pow_right (by decide) offset.isLt)]
   exact nat_land_mask_eq_mod _ 8
 
-end FeProofs.Common
+end FeProofs

@@ -40,7 +40,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
             (.returned { contract := contract, locals := (∅ : Store).insert "value" v }
               (initState σ σ₀ (Sat256.ofUInt256 g) A I) (some [v])) := fun v =>
           nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
-            (evalExpr_var (store_get_self _ _ _))
+            (evalLocalVar (store_get_self _ _ _))
         have hdecOk : i8Canonical (calldataWord I.calldata 4) →
             config.externalABI.decodeCalldata? (echo_i8Transition.params.map Param.name)
               (transitionSignature echo_i8Transition).paramTypes I.calldata =
@@ -54,7 +54,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
         by_cases hpos : (calldataWord I.calldata 4).toNat < 128
         · -- Non-negative canonical word: the low byte is the word, and its sign bit is clear.
           have hlow : UInt256.land (calldataWord I.calldata 4) ⟨255⟩ = calldataWord I.calldata 4 :=
-            lowByte_eq_self_of_lt256 (by omega)
+            lowByteClean (by omega)
           have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_74_taken (by simp)
             (by
               show UInt256.isZero (UInt256.land (UInt256.land (calldataWord I.calldata 4) ⟨255⟩)

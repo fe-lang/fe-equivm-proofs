@@ -9,7 +9,7 @@ Arm entry pc 125: call-value check, then `SLOAD(packedSlot)` and the lane extrac
 returned zero-extended to a word.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.PackedStore
 

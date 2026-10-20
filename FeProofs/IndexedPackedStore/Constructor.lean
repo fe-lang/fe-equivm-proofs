@@ -47,7 +47,7 @@ theorem feIndexedPackedStoreCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : 
 theorem feIndexedPackedStoreConstructorCorrect :
     typedConstructorRefinement config feIndexedPackedStoreCreationBytecode contract
       (fun _ => feIndexedPackedStoreBytecode) :=
-  FeProofs.Common.nonpayableEmptyConstructorCorrect rfl rfl rfl
+  FeProofs.nonpayableEmptyConstructorCorrect rfl rfl rfl
     feIndexedPackedStoreCtorRet feIndexedPackedStoreCtorRev
 
 end FeProofs.IndexedPackedStore

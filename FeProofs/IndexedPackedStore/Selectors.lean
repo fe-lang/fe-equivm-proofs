@@ -13,10 +13,6 @@ open Ethereum Ethereum.EVM
 
 namespace FeProofs.IndexedPackedStore
 
-/-- The 4-byte selector word computed by `CALLDATALOAD(0); SHR 224`. -/
-abbrev feIndexedPackedStoreSelWord (I : ExecutionEnv) : UInt256 :=
-  UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes 0 32)) ⟨224⟩
-
 /-- The 4-byte selector of `I`'s calldata equals `sel`. -/
 abbrev selIs (I : ExecutionEnv) (sel : ByteArray) : Prop :=
   (sel == I.calldata.extract 0 4) = true

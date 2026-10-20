@@ -46,9 +46,6 @@ abbrev dlBody : List Stmt :=
     .assign .localVar { base := "node", steps := [] } (.var "parent"),
     .assign .localVar { base := "size", steps := [] } (.binary .div (.var "size") (.intLit 2)) ]
 
-theorem small_gap (mem : ByteArray) (off : Nat) (h : off < 2 ^ 32) : off - mem.size < USize.size :=
-  Nat.lt_of_le_of_lt (Nat.sub_le _ _) (Nat.lt_of_lt_of_le h USize.le_size)
-
 /-- The two words the loop stores at `0xa0` and `0xc0` are the 64-byte call payload. -/
 theorem twoWords_read (mem : ByteArray) (b n : UInt256) :
     (n.toByteArray.write 0 (b.toByteArray.write 0 mem (UInt256.ofNat 160).toNat 32)
@@ -91,7 +88,7 @@ theorem assignBranch {L : Store} {evm : EVM.State} {i : Nat} (hi : i < 32)
       .ok ({ contract := contract, locals := L },
         Stele.EVM.storageStore evm evm.executionEnv.codeOwner (⟨0⟩ + UInt256.ofNat i) w) := by
   have hidx : evalExpr? config { contract := contract, locals := L } evm (.var "height") =
-      .ok (.int (Int.ofNat i)) := evalVar hh
+      .ok (.int (Int.ofNat i)) := evalLocalVar hh
   have hty : storageTypeAt? contract.storage { base := "branch", steps := [] } =
       some (.array (.elem uint256Elem) 32) := rfl
   have her : evalStorageRef config { contract := contract, locals := L } evm dlBranchRef =
@@ -161,7 +158,7 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
             (Stele.EVM.storageStore evm evm.executionEnv.codeOwner (⟨0⟩ + UInt256.ofNat height) node)
             (some [])) :=
         ExecBlock.consReturn (ExecStmt.iteTrue (by rw [evalParity hsz, decide_eq_true hp])
-          (ExecBlock.consNormal (ExecStmt.assign (Or.inr hpermE) (evalVar hn)
+          (ExecBlock.consNormal (ExecStmt.assign (Or.inr hpermE) (evalLocalVar hn)
             (assignBranch hlt hh hb node)) (ExecBlock.consReturn (ExecStmt.return evalEmptyReturn))))
       refine Or.inl ⟨_, _, _, rret, ExecForLoop.bodyReturn hcondS hret, ?_⟩
       have hw := (hs.storageWrite (UInt256.ofNat height) node).accounts
@@ -192,10 +189,10 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
         with hL1
       have hsibv : evalExpr? config { contract := contract, locals := L1 } evm (.var "sibling") =
           .ok (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat height)).toNat)) :=
-        evalVar (store_get_self _ _ _)
+        evalLocalVar (store_get_self _ _ _)
       have hnodev : evalExpr? config { contract := contract, locals := L1 } evm (.var "node") =
           .ok (.int (Int.ofNat node.toNat)) :=
-        evalVar (by store_get; exact hn)
+        evalLocalVar (by store_get; exact hn)
       by_cases hok : z = true ∧ 32 ≤ out.size
       · obtain ⟨rfl, hout⟩ := hok
         simp only [if_true] at rd5
@@ -226,7 +223,7 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
           refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
           refine ExecBlock.consNormal (ExecStmt.letDecl hsib) ?_
           refine ExecBlock.consNormal hcallS ?_
-          refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalVar (store_get_self _ _ _))
+          refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalLocalVar (store_get_self _ _ _))
             (assignLocal (old := .int (Int.ofNat node.toNat))
               (by store_get; exact hn))) ?_
           refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl)
@@ -344,7 +341,7 @@ theorem depositTail {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       (.ok { contract := contract, locals := L1 } evm) := ExecStmt.letDecl hsizeE
   have h23 : ExecStmt config { contract := contract, locals := L1 } evm
       (.assign .storage dcRef (.var "size")) (.ok { contract := contract, locals := L1 } evm1) :=
-    ExecStmt.assign (Or.inr hpermE) (evalVar (store_get_self _ _ _)) hassign
+    ExecStmt.assign (Or.inr hpermE) (evalLocalVar (store_get_self _ _ _)) hassign
   set L2 : Store := L1.insert "height" (.int 0) with hL2
   have hinit : ExecBlock config { contract := contract, locals := L1 } evm1
       [.letDecl "height" (some (.elem (.int (.uint ⟨256, by decide⟩)))) (.intLit 0)]

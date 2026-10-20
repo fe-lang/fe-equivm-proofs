@@ -121,7 +121,7 @@ theorem feScalarStoreConstructorCorrect :
     typedConstructorRefinement config feScalarStoreCreationBytecode contract
       (fun _ => feScalarStoreBytecode) := by
   intro σ σ₀ g A I args deployedInitcode hdeploy hcode _hcalldata hperm
-  obtain ⟨i, rfl, h0, hlt, hd⟩ := FeProofs.Common.uint256CtorDeployment_shape hdeploy
+  obtain ⟨i, rfl, h0, hlt, hd⟩ := FeProofs.uint256CtorDeployment_shape hdeploy
   rw [hd] at hcode
   have hexec : ∀ {res}, ExecTransitionBody config contract (initState σ σ₀ (Sat256.ofUInt256 g) A I)
       (ctorLocals i) contract.ctor.body res → steleCtorExec config contract [.int i] σ σ₀ g A I res :=

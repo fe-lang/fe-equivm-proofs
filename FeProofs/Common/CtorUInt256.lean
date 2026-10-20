@@ -13,7 +13,7 @@ argument list encodes.
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
 
-namespace FeProofs.Common
+namespace FeProofs
 
 theorem uint256CtorDeployment_shape {name : Ident} {initcode d : ByteArray} {args : List Value}
     (h : genSolidityConstructorDeployment [{ name := name, ty := .elem (.int (.uint ⟨256, by decide⟩)) }]
@@ -61,4 +61,4 @@ theorem uint256CtorDeployment_shape {name : Ident} {initcode d : ByteArray} {arg
                 abiTupleHeadSize?, staticABIEncodedSize?, isDynamicABIType, encodeABIValue?,
                 encodeABIWord?] at h
 
-end FeProofs.Common
+end FeProofs

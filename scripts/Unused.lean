@@ -27,6 +27,7 @@ def closureOf (env : Environment) (roots : Array Name) : NameSet := Id.run do
   let mut total := 0
   for (n, ci) in env.constants.toList do
     if ci matches .recInfo _ then continue
+    if ci.type.isConstOf ``ParserDescr || ci.type.isConstOf ``TrailingParserDescr then continue
     let some idx := env.getModuleIdxFor? n | continue
     let mod := env.header.moduleNames[idx.toNat]!
     unless (`FeProofs).isPrefixOf mod do continue

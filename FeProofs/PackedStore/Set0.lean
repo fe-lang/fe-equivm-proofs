@@ -11,7 +11,7 @@ Arm entry pc 390: call-value check, head-size check (pc 395), then one read-modi
 `SSTORE` halts, matching Stele's static violation at the storage assignment.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.PackedStore
 

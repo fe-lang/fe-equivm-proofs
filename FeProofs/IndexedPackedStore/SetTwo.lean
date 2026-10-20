@@ -13,7 +13,7 @@ empty return (pc 263).  A bad second index reverts after the first write, which 
 discards; under `STATICCALL` the first `SSTORE` halts.
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach FeProofs.Common
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.IndexedPackedStore
 

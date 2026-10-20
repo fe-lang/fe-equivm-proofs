@@ -38,7 +38,7 @@ theorem feNarrowAbiEcho_boolBody {σ σ₀ A I} {g : UInt256}
             (.returned { contract := contract, locals := (∅ : Store).insert "value" (.bool b) }
               (initState σ σ₀ (Sat256.ofUInt256 g) A I) (some [.bool b])) := fun b =>
           nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
-            (evalExpr_var (store_get_self _ _ _))
+            (evalLocalVar (store_get_self _ _ _))
         by_cases hw0 : calldataWord I.calldata 4 = ⟨0⟩
         · have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_198_taken (by simp)
             (by

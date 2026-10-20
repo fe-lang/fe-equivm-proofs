@@ -13,7 +13,7 @@ reverts (non-zero call value) or returns the runtime code without touching stora
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.Common
+namespace FeProofs
 
 /-- An empty non-payable constructor refines its Stele spec when the initcode returns the
     runtime code under zero call value (preserving the accounts) and reverts otherwise. -/
@@ -52,4 +52,4 @@ theorem nonpayableEmptyConstructorCorrect
     rw [hbody]
     exact bodyReverts_nonPayable (by simp only [initState]; exact hwv)
 
-end FeProofs.Common
+end FeProofs
