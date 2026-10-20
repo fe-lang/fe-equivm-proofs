@@ -1,5 +1,6 @@
 import Reasoning.Reach
 import Reasoning.JumpDest
+import FeProofs.Common.Calls
 
 /-!
 # Chaining generated block summaries
@@ -295,5 +296,42 @@ elab_rules : tactic
     if let some t := target then
       let ty ← withMainContext (do instantiateMVars (← fv.getType))
       throwError "rd_run: stopped before pc {t.getNat}:{indentExpr ty}"
+
+/-- After an external call, `rd : RD code … ((if z then ⟨1⟩ else ⟨0⟩) :: …) … out …` stands where
+Fe checks the success flag and then `RETURNDATASIZE < 32`. `rd_checked rd z out as hrev hout`
+splits on `hout : z = true ∧ 32 ≤ out.size`: first the failing case, with
+`hrev : RDrev code g s0` (both checks' revert paths run by `rd_run`), then the passing case,
+with `z := true`, `hout : 32 ≤ out.size` and `rd` run past the checks (to `N` with `to N`). The
+call's `out.size < UInt256.size` must be a hypothesis. -/
+syntax (name := rdChecked) "rd_checked " ident ident ident " as " ident ident (" to " num)? : tactic
+
+elab_rules : tactic
+  | `(tactic| rd_checked $rd $z $out as $hrev $hout $[to $n]?) => do
+    let g :: rest ← getGoals | throwError "rd_checked: no goals"
+    setGoals [g]
+    evalTactic (← `(tactic| by_cases $hout:ident : $z = true ∧ 32 ≤ ($out).size))
+    let [gpos, gneg] ← getGoals | throwError "rd_checked: unexpected goals"
+    setGoals [gneg]
+    -- `hrev : RDrev code g s0`, with `code g s0` read off `rd`
+    let (code, gas, s0) ← gneg.withContext do
+      let some d := (← getLCtx).findFromUserName? rd.getId | throwError "rd_checked: no {rd.getId}"
+      let t ← whnfR (← instantiateMVars d.type)
+      unless t.isAppOfArity ``RD 12 do throwError "rd_checked: {rd.getId} is not an RD hypothesis"
+      return (← Term.exprToSyntax (t.getArg! 0), ← Term.exprToSyntax (t.getArg! 2),
+        ← Term.exprToSyntax (t.getArg! 3))
+    withMainContext <| evalTactic (← `(tactic| have $hrev : RDrev $code $gas $s0 := by
+      cases $z:ident
+      · rd_run $rd; exact $rd
+      · rd_run $rd using [lt32_size_word_ne (Nat.lt_of_not_le fun h => $hout ⟨rfl, h⟩)]
+        exact $rd))
+    let negGoals ← getGoals
+    setGoals [gpos]
+    -- an unhygienic `rfl`, which `rcases` reads as substitution
+    let rflId := mkIdent `rfl
+    evalTactic (← `(tactic| obtain ⟨$rflId:ident, $hout:ident⟩ := $hout))
+    match n with
+    | some n => evalTactic (← `(tactic| rd_run $rd to $n using [lt32_size_word $hout ‹_›]))
+    | none => evalTactic (← `(tactic| rd_run $rd using [lt32_size_word $hout ‹_›]))
+    setGoals (negGoals ++ (← getGoals) ++ rest)
 
 end FeProofs.RDTactic

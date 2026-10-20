@@ -127,61 +127,35 @@ theorem depositEventTrace {p a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256}
           mem' aw' rdata σ k' C') := by
   have hsz : 1000000000000 < UInt256.size := by decide
   refine ⟨fun hne => ?_, ?_⟩
-  · exact feDepositBlocks.feDeposit_block_1036 (by simp [feDepositBlocks.feDeposit_block_1026_fallthrough_stack]; omega)
-      (feDepositBlocks.feDeposit_block_1026_fallthrough (by simp; omega)
-        (uInt256_eq_zero_of_ne (fun h => hne (uInt256_eq_one_eq h))) rd)
+  · rd_run rd using [uInt256_eq_zero_of_ne (fun h => hne (uInt256_eq_one_eq h))]
+    exact rd
   -- the matching-root path up to pc 1491
   have pre : memLoad p mem = eventRoot ee → ∃ mem9 aw9 k9 C9 x0 x2 x3 x4 x5 x6 x7 x8,
       RD code ee g s0 (UInt256.ofNat 1491)
         (x0 :: eventCount σ ee :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: r5 :: R)
         mem9 aw9 rdata σ k9 C9 ∧ x2 = memLoad p mem := by
     intro heq
-    have rd1 := feDepositBlocks.feDeposit_block_1026_taken (by simp; omega)
-      (by rw [heq, uInt256_eq_self]; decide) (by jump_dest) rd
-    simp only [feDepositBlocks.feDeposit_block_1026_taken_stack] at rd1
-    obtain ⟨k2, C2, rd2⟩ := feDepositBlocks.feDeposit_block_1175 (by simp; omega) rd1
-    simp only [feDepositBlocks.feDeposit_block_1175_stack] at rd2
-    have rd3 := feDepositBlocks.feDeposit_block_1283_taken (by simp; omega)
+    rd_run rd to 1491 using [(by rw [heq, uInt256_eq_self]; decide),
       (by rw [ugt_zero (show (eventTotal r0 r1 r4).toNat ≤ _ by
-            rw [eventTotal_toNat h0 h1 h4, eventMax64]; omega)]; decide) (by jump_dest) rd2
-    simp only [feDepositBlocks.feDeposit_block_1283_taken_stack] at rd3
-    have rd4 := feDepositBlocks.feDeposit_block_1338_taken (by simp; omega)
+        rw [eventTotal_toNat h0 h1 h4, eventMax64]; omega)]; decide),
       (by rw [ugt_zero (a := UInt256.ofNat 160) (b := eventTotal r0 r1 r4)
-            (by rw [eventTotal_toNat h0 h1 h4, ulit_toNat' 160 (by omega)]; omega)]; decide)
-      (by jump_dest) rd3
-    simp only [feDepositBlocks.feDeposit_block_1338_taken_stack] at rd4
-    have rd5 := feDepositBlocks.feDeposit_block_1363_fallthrough (by simp; omega)
-      (ugt_zero (by rw [eventSub1 h0 h1 h4]; omega)) rd4
-    simp only [feDepositBlocks.feDeposit_block_1363_fallthrough_stack] at rd5
-    have rd6 := feDepositBlocks.feDeposit_block_1384_fallthrough (by simp; omega)
-      (ugt_zero (by rw [eventSub2 h0 h1 h4]; omega)) rd5
-    simp only [feDepositBlocks.feDeposit_block_1384_fallthrough_stack] at rd6
-    have rd7 := feDepositBlocks.feDeposit_block_1409_fallthrough (by simp; omega)
-      (ugt_zero (by rw [eventSub3 h0 h1 h4, ulit_toNat' 64 (by omega)]; omega)) rd6
-    simp only [feDepositBlocks.feDeposit_block_1409_fallthrough_stack] at rd7
-    have rd8 := feDepositBlocks.feDeposit_block_1436_fallthrough (by simp; omega)
-      (ugt_zero (by rw [eventSub4 h0 h1 h4]; omega)) rd7
-    simp only [feDepositBlocks.feDeposit_block_1436_fallthrough_stack] at rd8
-    have rd9 := feDepositBlocks.feDeposit_block_1465_fallthrough (by simp; omega)
-      (ugt_zero (by rw [eventSub5 h0 h1 h4, ulit_toNat' 64 (by omega)])) rd8
-    simp only [feDepositBlocks.feDeposit_block_1465_fallthrough_stack] at rd9
-    exact ⟨_, _, _, _, _, _, _, _, _, _, _, _, rd9, rfl⟩
+        (by rw [eventTotal_toNat h0 h1 h4, ulit_toNat' 160 (by omega)]; omega)]; decide),
+      ugt_zero (by rw [eventSub1 h0 h1 h4]; omega), ugt_zero (by rw [eventSub2 h0 h1 h4]; omega),
+      ugt_zero (by rw [eventSub3 h0 h1 h4, ulit_toNat' 64 (by omega)]; omega),
+      ugt_zero (by rw [eventSub4 h0 h1 h4]; omega),
+      ugt_zero (by rw [eventSub5 h0 h1 h4, ulit_toNat' 64 (by omega)])]
+    exact ⟨_, _, _, _, _, _, _, _, _, _, _, _, rd, rfl⟩
   refine ⟨fun heq hpf => ?_, fun heq hperm hbig => ?_, fun heq hperm hlt => ?_⟩
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, -⟩ := pre heq
     exact eventBlock1491Static (by simp; omega) rd9 hpf
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, -⟩ := pre heq
-    have rd10 := feDepositBlocks.feDeposit_block_1491_fallthrough (by simp; omega) hperm
-      (ult_zero (by rw [ulit_toNat' 4294967295 (by omega)]; exact hbig)) rd9
-    have rd11 := feDepositBlocks.feDeposit_block_1549
-      (by simp [feDepositBlocks.feDeposit_block_1491_fallthrough_stack]; omega) (by jump_dest) rd10
-    exact feDepositBlocks.feDeposit_block_2249
-      (by simp [feDepositBlocks.feDeposit_block_1491_fallthrough_stack]; omega) rd11
+    rd_run rd9 using [hperm, ult_zero (by rw [ulit_toNat' 4294967295 (by omega)]; exact hbig)]
+    exact rd9
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, hx2⟩ := pre heq
     subst hx2
-    have rd10 := feDepositBlocks.feDeposit_block_1491_taken (by simp; omega) hperm
-      (by rw [ult_one (by rw [ulit_toNat' 4294967295 (by omega)]; exact hlt)]; decide)
-      (by jump_dest) rd9
-    exact ⟨_, _, _, _, rd10⟩
+    rd_run rd9 to 1592 using [hperm,
+      (by rw [ult_one (by rw [ulit_toNat' 4294967295 (by omega)]; exact hlt)]; decide)]
+    exact ⟨_, _, _, _, rd9⟩
 
 end Trace
 

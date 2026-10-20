@@ -180,30 +180,9 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
     staticCallBridge r891 hs (by native_decide) (by simp; omega)
   rw [pairAt_read _ _ mem (UInt256.ofNat 608) (UInt256.ofNat 640) (by decide)
     (by omega), ← precompile2_eq] at hc4
-  have r892' := RD.normalizePC (pc' := UInt256.ofNat 892) r892 (by decide)
-  by_cases hok4 : z4 = true ∧ 32 ≤ o4.size
-  swap
-  · have hrev : RDrev feDepositBytecode g s0 := by
-      cases z4 with
-      | false =>
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_892_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_892_taken (by simp; omega) (by decide) (by jump_dest) r892')
-      | true =>
-        have hshort : o4.size < 32 := by
-          by_contra hge
-          exact hok4 ⟨rfl, by omega⟩
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_892_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_899_taken (by simp [feDepositBlocks.feDeposit_block_892_fallthrough_stack]; omega)
-          (lt32_size_word_ne hshort) (by jump_dest)
-          (feDepositBlocks.feDeposit_block_892_fallthrough (by simp; omega) (by decide) r892'))
-    exact Or.inr ⟨hrev, ExecBlock.consRevert (shaPairCall_revert (caller := pFrame L) rfl (ret := "signature_root")
-      (evalVarF hsl) (evalVarF hsr) hc4 hok4)⟩
-  obtain ⟨rfl, hout4⟩ := hok4
-  have r908 := feDepositBlocks.feDeposit_block_899_fallthrough (by simp [feDepositBlocks.feDeposit_block_892_fallthrough_stack]; omega)
-    (lt32_size_word hout4 hb4) (feDepositBlocks.feDeposit_block_892_fallthrough (by simp; omega) (by decide) r892')
-  simp only [feDepositBlocks.feDeposit_block_892_fallthrough_stack] at r908
+  rd_checked r892 z4 o4 as hrev hout4 to 908
+  · exact Or.inr ⟨hrev, ExecBlock.consRevert (shaPairCall_revert (caller := pFrame L) rfl (ret := "signature_root")
+      (evalVarF hsl) (evalVarF hsr) hc4 hout4)⟩
   have hl4 := callOutput_loadAt ((calldataWord o3 0).toByteArray.write 0
     ((calldataWord o2 0).toByteArray.write 0 mem (UInt256.ofNat 608).toNat 32) (UInt256.ofNat 640).toNat 32) o4 (UInt256.ofNat 608) hb4 hout4 (by omega)
   have hf4 := callOutput_memLoad64 ((calldataWord o3 0).toByteArray.write 0
@@ -219,7 +198,7 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
   have hs13 := u64ChunkCall (caller := pFrame (hL13 L o4 wc)) (evm := ev4) rfl
     (by store_get; exact ham)
   -- call 5: left = sha256(pubkey_root ‖ credentials) over the merkleization pair at 0x2a0
-  have r939 := feDepositBlocks.feDeposit_block_908 (by simp; omega) r908
+  have r939 := feDepositBlocks.feDeposit_block_908 (by simp; omega) r892
   simp only [feDepositBlocks.feDeposit_block_908_stack, feDepositBlocks.feDeposit_block_908_memory, hl4, hf4] at r939
   have hb5base : (hM4 mem (calldataWord o2 0) (calldataWord o3 0) o4).size ≤
       (hBase5 (hM4 mem (calldataWord o2 0) (calldataWord o3 0) o4)).size :=
@@ -238,35 +217,14 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
     staticCallBridge r939 hs4 (by native_decide) (by simp; omega)
   rw [pairAt_read _ _ _ (UInt256.ofNat 672) (UInt256.ofNat 672 + UInt256.ofNat 32) (by decide)
     hbase5, ← precompile2_eq] at hc5
-  have r940' := RD.normalizePC (pc' := UInt256.ofNat 940) r940 (by decide)
   have hs14rev := fun (hbad : ¬ (z5 = true ∧ 32 ≤ o5.size)) =>
     shaPairCall_revert (caller := pFrame (hL14 L o4 wc m)) (evm := ev4) rfl (ret := "left")
       (ea := .var "pubkey_root") (eb := .var "credentials") (a := calldataWord o1 0) (b := calldataWord wc 0)
       (evalVarF (by store_get; exact hpk))
       (evalVarF (by store_get)) hc5 hbad
-  by_cases hok5 : z5 = true ∧ 32 ≤ o5.size
-  swap
-  · have hrev : RDrev feDepositBytecode g s0 := by
-      cases z5 with
-      | false =>
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_940_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_940_taken (by simp; omega) (by decide) (by jump_dest) r940')
-      | true =>
-        have hshort : o5.size < 32 := by
-          by_contra hge
-          exact hok5 ⟨rfl, by omega⟩
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_940_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_947_taken (by simp [feDepositBlocks.feDeposit_block_940_fallthrough_stack]; omega)
-          (lt32_size_word_ne hshort) (by jump_dest)
-          (feDepositBlocks.feDeposit_block_940_fallthrough (by simp; omega) (by decide) r940'))
-    exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
-      ExecBlock.consRevert (hs14rev hok5)⟩
-  obtain ⟨rfl, hout5⟩ := hok5
-  have r956 := feDepositBlocks.feDeposit_block_947_fallthrough (by simp [feDepositBlocks.feDeposit_block_940_fallthrough_stack]; omega)
-    (lt32_size_word hout5 hb5) (feDepositBlocks.feDeposit_block_940_fallthrough (by simp; omega) (by decide) r940')
-  simp only [feDepositBlocks.feDeposit_block_940_fallthrough_stack] at r956
+  rd_checked r940 z5 o5 as hrev hout5 to 956
+  · exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
+      ExecBlock.consRevert (hs14rev hout5)⟩
   have hs14 := shaPairCall_ok (caller := pFrame (hL14 L o4 wc m)) (evm := ev4) rfl (ret := "left")
     (ea := .var "pubkey_root") (eb := .var "credentials") (a := calldataWord o1 0) (b := calldataWord wc 0)
     (evalVarF (by store_get; exact hpk))
@@ -275,7 +233,7 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
   have hl5 := callOutput_loadAt _ o5 (UInt256.ofNat 672) hb5 hout5 hin5
   have hsz5 := callOutput_sizeAt _ o5 (UInt256.ofNat 672) hb5 hin5
   -- call 6: right = sha256(amount_chunk ‖ signature_root)
-  have r974 := feDepositBlocks.feDeposit_block_956 (by simp; omega) r956
+  have r974 := feDepositBlocks.feDeposit_block_956 (by simp; omega) r940
   simp only [feDepositBlocks.feDeposit_block_956_stack, feDepositBlocks.feDeposit_block_956_memory, hl5] at r974
   have hbase6 := le_of_le_of_eq (le_trans (Nat.le_add_right _ 64) hp5) hsz5.symm
   have hp6 := pairAt_size (u64ChunkWord m) (calldataWord o4 0) _ (UInt256.ofNat 672)
@@ -284,35 +242,14 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
     staticCallBridge r974 hs5 (by native_decide) (by simp; omega)
   rw [pairAt_read _ _ _ (UInt256.ofNat 672) (UInt256.ofNat 672 + UInt256.ofNat 32) (by decide)
     hbase6, ← precompile2_eq] at hc6
-  have r975' := RD.normalizePC (pc' := UInt256.ofNat 975) r975 (by decide)
   have hs15rev := fun (hbad : ¬ (z6 = true ∧ 32 ≤ o6.size)) =>
     shaPairCall_revert (caller := pFrame (hL15 L o4 wc m o5)) (evm := ev5) rfl (ret := "right")
       (ea := .var "amount_chunk") (eb := .var "signature_root") (a := u64ChunkWord m) (b := calldataWord o4 0)
       (evalVarF (by store_get))
       (evalVarF (by store_get)) hc6 hbad
-  by_cases hok6 : z6 = true ∧ 32 ≤ o6.size
-  swap
-  · have hrev : RDrev feDepositBytecode g s0 := by
-      cases z6 with
-      | false =>
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_975_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_975_taken (by simp; omega) (by decide) (by jump_dest) r975')
-      | true =>
-        have hshort : o6.size < 32 := by
-          by_contra hge
-          exact hok6 ⟨rfl, by omega⟩
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_975_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_982_taken (by simp [feDepositBlocks.feDeposit_block_975_fallthrough_stack]; omega)
-          (lt32_size_word_ne hshort) (by jump_dest)
-          (feDepositBlocks.feDeposit_block_975_fallthrough (by simp; omega) (by decide) r975'))
-    exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
-      ExecBlock.consNormal hs14 <| ExecBlock.consRevert (hs15rev hok6)⟩
-  obtain ⟨rfl, hout6⟩ := hok6
-  have r991 := feDepositBlocks.feDeposit_block_982_fallthrough (by simp [feDepositBlocks.feDeposit_block_975_fallthrough_stack]; omega)
-    (lt32_size_word hout6 hb6) (feDepositBlocks.feDeposit_block_975_fallthrough (by simp; omega) (by decide) r975')
-  simp only [feDepositBlocks.feDeposit_block_975_fallthrough_stack] at r991
+  rd_checked r975 z6 o6 as hrev hout6 to 991
+  · exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
+      ExecBlock.consNormal hs14 <| ExecBlock.consRevert (hs15rev hout6)⟩
   have hs15 := shaPairCall_ok (caller := pFrame (hL15 L o4 wc m o5)) (evm := ev5) rfl (ret := "right")
     (ea := .var "amount_chunk") (eb := .var "signature_root") (a := u64ChunkWord m) (b := calldataWord o4 0)
     (evalVarF (by store_get))
@@ -321,7 +258,7 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
   have hl6 := callOutput_loadAt _ o6 (UInt256.ofNat 672) hb6 hout6 hin6
   have hsz6 := callOutput_sizeAt _ o6 (UInt256.ofNat 672) hb6 hin6
   -- call 7: node = sha256(left ‖ right)
-  have r1009 := feDepositBlocks.feDeposit_block_991 (by simp; omega) r991
+  have r1009 := feDepositBlocks.feDeposit_block_991 (by simp; omega) r975
   simp only [feDepositBlocks.feDeposit_block_991_stack, feDepositBlocks.feDeposit_block_991_memory, hl6] at r1009
   have hbase7 := le_of_le_of_eq (le_trans (Nat.le_add_right _ 64) hp6) hsz6.symm
   have hp7 := pairAt_size (calldataWord o5 0) (calldataWord o6 0) _ (UInt256.ofNat 672)
@@ -330,43 +267,22 @@ theorem depositHash_874 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
     staticCallBridge r1009 hs6 (by native_decide) (by simp; omega)
   rw [pairAt_read _ _ _ (UInt256.ofNat 672) (UInt256.ofNat 672 + UInt256.ofNat 32) (by decide)
     hbase7, ← precompile2_eq] at hc7
-  have r1010' := RD.normalizePC (pc' := UInt256.ofNat 1010) r1010 (by decide)
   have hs16rev := fun (hbad : ¬ (z7 = true ∧ 32 ≤ o7.size)) =>
     shaPairCall_revert (caller := pFrame (hL16 L o4 wc m o5 o6)) (evm := ev6) rfl (ret := "node")
       (ea := .var "left") (eb := .var "right") (a := calldataWord o5 0) (b := calldataWord o6 0)
       (evalVarF (by store_get))
       (evalVarF (store_get_self _ _ _)) hc7 hbad
-  by_cases hok7 : z7 = true ∧ 32 ≤ o7.size
-  swap
-  · have hrev : RDrev feDepositBytecode g s0 := by
-      cases z7 with
-      | false =>
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_1010_taken_stack]; omega)
-          (feDepositBlocks.feDeposit_block_1010_taken (by simp; omega) (by decide) (by jump_dest) r1010')
-      | true =>
-        have hshort : o7.size < 32 := by
-          by_contra hge
-          exact hok7 ⟨rfl, by omega⟩
-        exact feDepositBlocks.feDeposit_block_2245
-          (by simp [feDepositBlocks.feDeposit_block_1010_fallthrough_stack]; omega)
-          (feDepositBlocks.feDeposit_block_1017_taken (by simp [feDepositBlocks.feDeposit_block_1010_fallthrough_stack]; omega)
-          (lt32_size_word_ne hshort) (by jump_dest)
-          (feDepositBlocks.feDeposit_block_1010_fallthrough (by simp; omega) (by decide) r1010'))
-    exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
+  rd_checked r1010 z7 o7 as hrev hout7 to 1026
+  · exact Or.inr ⟨hrev, ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
       ExecBlock.consNormal hs14 <| ExecBlock.consNormal hs15 <|
-      ExecBlock.consRevert (hs16rev hok7)⟩
-  obtain ⟨rfl, hout7⟩ := hok7
-  have r1026 := feDepositBlocks.feDeposit_block_1017_fallthrough (by simp [feDepositBlocks.feDeposit_block_1010_fallthrough_stack]; omega)
-    (lt32_size_word hout7 hb7) (feDepositBlocks.feDeposit_block_1010_fallthrough (by simp; omega) (by decide) r1010')
-  simp only [feDepositBlocks.feDeposit_block_1010_fallthrough_stack] at r1026
+      ExecBlock.consRevert (hs16rev hout7)⟩
   have hs16 := shaPairCall_ok (caller := pFrame (hL16 L o4 wc m o5 o6)) (evm := ev6) rfl (ret := "node")
     (ea := .var "left") (eb := .var "right") (a := calldataWord o5 0) (b := calldataWord o6 0)
     (evalVarF (by store_get))
     (evalVarF (store_get_self _ _ _)) hc7 hout7
   have hin7 := le_trans (Nat.add_le_add_left (show 32 ≤ 64 by decide) _) hp7
   have hl7 := callOutput_loadAt _ o7 (UInt256.ofNat 672) hb7 hout7 hin7
-  exact Or.inl ⟨σ7, ev7, o4, o5, o6, o7, _, _, _, _, _, r1026, hl7, hs7, fun res h =>
+  exact Or.inl ⟨σ7, ev7, o4, o5, o6, o7, _, _, _, _, _, r1010, hl7, hs7, fun res h =>
     ExecBlock.consNormal hs11 <| ExecBlock.consNormal hs12 <| ExecBlock.consNormal hs13 <|
       ExecBlock.consNormal hs14 <| ExecBlock.consNormal hs15 <| ExecBlock.consNormal hs16 h⟩
 
