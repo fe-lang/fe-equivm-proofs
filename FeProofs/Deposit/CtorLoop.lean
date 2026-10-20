@@ -85,7 +85,7 @@ theorem zeroHash_loc {i : Nat} (hi : i < 32) :
     ctorLayout { base := "zero_hashes", steps := [.aindex (.int (Int.ofNat i))] } =
       some (.leaf (uint256Loc (⟨33⟩ + UInt256.ofNat i))) := by
   show some (StorageAddr.leaf _) = _
-  simp only [keyWord_ofNat hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
+  simp only [keyWord_ofNat, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
     Nat.mod_one, Nat.zero_mul]
   rfl
 
@@ -245,10 +245,9 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
         (by simp [feDepositCreationBlocks.feDepositCreation_block_36_taken_stack])
         (lt32_size_word hout hob) rd45
       obtain ⟨k3, C3, rd5⟩ := feDepositCreationBlocks.feDepositCreation_block_54
-        (by simp [feDepositCreationBlocks.feDepositCreation_block_36_taken_stack]) hperm
+        (by simp) hperm
         (by jump_dest) rd54
-      simp only [feDepositCreationBlocks.feDepositCreation_block_54_stack,
-        feDepositCreationBlocks.feDepositCreation_block_36_taken_stack] at rd5
+      simp only [feDepositCreationBlocks.feDepositCreation_block_54_stack] at rd5
       rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairMem_size _ _)),
         succ_word hlt] at rd5
       -- the Stele body after the call

@@ -92,11 +92,11 @@ theorem depositPrefix_ok (evm : EVM.State) (cd : ByteArray) (hok : dArgsOk cd) (
   · rw [pModEval]; simp; omega
   · exact pDivEval _ _
   · simp [evalExpr?, EvalResult.ofOption, evalBinaryOp?, EvalResult.bind, bind, pure]; omega
-  · simp only [evalExpr?, EvalResult.ofOption, EvalResult.bind, bind, pure, Std.HashMap.get?_eq_getElem?,
+  · simp only [evalExpr?, EvalResult.ofOption, EvalResult.bind, bind, Std.HashMap.get?_eq_getElem?,
       Std.HashMap.getElem?_insert_self, castValue?]
-    rw [normalizeInt_uint_eq_self _ _ (by simp only [Int.ofNat_eq_coe]; omega) (by
+    rw [normalizeInt_uint_eq_self _ _ (by simp only [Int.ofNat_eq_natCast]; omega) (by
       show Int.ofNat (pValue evm) / 1000000000 < Int.ofNat (EVM.twoPow 64)
-      unfold EVM.twoPow; simp only [Int.ofNat_eq_coe]; push_cast; omega)]
+      unfold EVM.twoPow; simp only [Int.ofNat_eq_natCast]; push_cast; omega)]
 
 /-- If a prefix condition fails, the body reverts at that `require`. -/
 theorem depositPrefix_rev (evm : EVM.State) (cd : ByteArray) (hok : dArgsOk cd) (hbad : ¬ pOk cd evm) :
@@ -108,7 +108,7 @@ theorem depositPrefix_rev (evm : EVM.State) (cd : ByteArray) (hok : dArgsOk cd) 
   unfold pOk at hbad
   have hne : ∀ (a : Nat) (b : Int), Int.ofNat a ≠ b →
       (Value.int (Int.ofNat a) == Value.int b) = false := by
-    intro a b hab; simp only [Int.ofNat_eq_coe] at hab; simp [hab]
+    intro a b hab; simp only [Int.ofNat_eq_natCast] at hab; simp [hab]
   have a0 : ABlock config evm (pFrame (dStore cd)) depositTransition.body (pFrame (dStore cd))
       depositTransition.body := ABlock.start
   by_cases h0 : dLen cd 0 = 48
@@ -116,21 +116,21 @@ theorem depositPrefix_rev (evm : EVM.State) (cd : ByteArray) (hok : dArgsOk cd) 
   · have h0' : dWord cd (dWord cd 0) ≠ 48 := h0
     refine a0.requireRevert ?_
     rw [pLenEval _ _ _ _ (dStore_pubkey cd), s0,
-      hne _ 48 (by simp only [Int.ofNat_eq_coe]; exact_mod_cast h0')]
+      hne _ 48 (by simp only [Int.ofNat_eq_natCast]; exact_mod_cast h0')]
   have a1 := a0.requireStep (by rw [pLenEval _ _ _ _ (dStore_pubkey cd), s0.trans h0]; rfl)
   by_cases h1 : dLen cd 1 = 32
   swap
   · have h1' : dWord cd (dWord cd 32) ≠ 32 := h1
     refine a1.requireRevert ?_
     rw [pLenEval _ _ _ _ (dStore_wc cd), s1,
-      hne _ 32 (by simp only [Int.ofNat_eq_coe]; exact_mod_cast h1')]
+      hne _ 32 (by simp only [Int.ofNat_eq_natCast]; exact_mod_cast h1')]
   have a2 := a1.requireStep (by rw [pLenEval _ _ _ _ (dStore_wc cd), s1.trans h1]; rfl)
   by_cases h2 : dLen cd 2 = 96
   swap
   · have h2' : dWord cd (dWord cd 64) ≠ 96 := h2
     refine a2.requireRevert ?_
     rw [pLenEval _ _ _ _ (dStore_sig cd), s2,
-      hne _ 96 (by simp only [Int.ofNat_eq_coe]; exact_mod_cast h2')]
+      hne _ 96 (by simp only [Int.ofNat_eq_natCast]; exact_mod_cast h2')]
   have a3 := a2.requireStep (by rw [pLenEval _ _ _ _ (dStore_sig cd), s2.trans h2]; rfl)
   by_cases hv1 : 1000000000000000000 ≤ pValue evm
   swap

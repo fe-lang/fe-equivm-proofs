@@ -133,9 +133,9 @@ theorem feDepositReachDepositBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x22 0x89 0x51 0x18 ⟨579424536⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_taken (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
+  have rd3 := feDepositBlocks.feDeposit_block_24_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd2
   exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd3⟩
 
 /-- Dispatcher path to `get_deposit_count()` (arm entry pc 1716). -/
@@ -150,10 +150,10 @@ theorem feDepositReachGet_deposit_countBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x62 0x1f 0xd1 0x30 ⟨1646252336⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feDepositBlocks.feDeposit_block_34_taken (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
+  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feDepositBlocks.feDeposit_block_34_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd3
   exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd4⟩
 
 /-- Dispatcher path to `get_deposit_root()` (arm entry pc 1853). -/
@@ -168,11 +168,11 @@ theorem feDepositReachGet_deposit_rootBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xc5 0xf2 0x89 0x2f ⟨3321006383⟩ (by native_decide)
       (by simpa [feDepositSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨33540519⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
-  have rd4 := feDepositBlocks.feDeposit_block_34_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
-  have rd5 := feDepositBlocks.feDeposit_block_45_taken (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3321006383⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
+  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨579424536⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd2
+  have rd4 := feDepositBlocks.feDeposit_block_34_fallthrough (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨1646252336⟩) = ⟨0⟩ by rw [hword]; native_decide)) rd3
+  have rd5 := feDepositBlocks.feDeposit_block_45_taken (by simp) (by simpa [solcSelectorWord] using (show (UInt256.eq (solcSelectorWord I) ⟨3321006383⟩) ≠ ⟨0⟩ by rw [hword]; native_decide)) (by jump_dest) rd4
   exact ⟨_, _, by simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd5⟩
 
 /-- Calldata shorter than a selector -/
@@ -181,7 +181,7 @@ theorem feDepositX_short {σ σ₀ A I} {g : Sat256}
     (hshort : I.calldata.size < 4) :
     RDrev (feDepositBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_taken (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) (by jump_dest) rd0
+  have rd1 := feDepositBlocks.feDeposit_block_0_taken (by simp) (lt_four_ne_zero_of_lt hshort) (by jump_dest) rd0
   have rd2 := feDepositBlocks.feDeposit_block_2245 (by simp) rd1
   exact rd2
 
@@ -192,29 +192,29 @@ theorem feDepositX_noMatch {σ σ₀ A I} {g : Sat256}
     (hnm : ∀ i, i < 4 → (feDepositSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feDepositBytecode) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (by first | exact lt_four_eq_zero_of_ge hsz hsize | exact lt_four_ne_zero_of_lt hshort | exact isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort) | (rw [lt_four_eq_zero_of_ge hsz hsize]; decide) | (rw [isZero_eq_zero_of_ne (lt_four_ne_zero_of_lt hshort)]; decide)) rd0
+  have rd1 := feDepositBlocks.feDeposit_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feDepositBlocks.feDeposit_block_9_fallthrough (by simp) (by
     have e := supportsInterfaceEvmSelector hsz
     simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
-  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by
+  have rd3 := feDepositBlocks.feDeposit_block_24_fallthrough (by simp) (by
     have e := depositEvmSelector hsz
     simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
-  have rd4 := feDepositBlocks.feDeposit_block_34_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by
+  have rd4 := feDepositBlocks.feDeposit_block_34_fallthrough (by simp) (by
     have e := get_deposit_countEvmSelector hsz
     simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd3
-  have rd5 := feDepositBlocks.feDeposit_block_45_fallthrough (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by
+  have rd5 := feDepositBlocks.feDeposit_block_45_fallthrough (by simp) (by
     have e := get_deposit_rootEvmSelector hsz
     simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd4
-  have rd6 := feDepositBlocks.feDeposit_block_56 (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) (by jump_dest) rd5
-  have rd7 := feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_9_fallthrough_stack]) rd6
+  have rd6 := feDepositBlocks.feDeposit_block_56 (by simp) (by jump_dest) rd5
+  have rd7 := feDepositBlocks.feDeposit_block_2245 (by simp) rd6
   simpa [feDepositBlocks.feDeposit_block_9_fallthrough_stack] using rd7
 
 end FeProofs.Deposit

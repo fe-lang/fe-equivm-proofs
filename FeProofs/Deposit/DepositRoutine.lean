@@ -104,7 +104,7 @@ theorem decodeBytesPanic {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
     (h : RD feDepositBytecode ee g s0 (UInt256.ofNat 2226) R mem aw rdata σ k C) :
     RDrev feDepositBytecode g s0 := by
   have r1 := feDepositBlocks.feDeposit_block_2226 (by omega) (by jump_dest) h
-  exact feDepositBlocks.feDeposit_block_2289 (by simp [feDepositBlocks.feDeposit_block_2226_stack]; omega) r1
+  exact feDepositBlocks.feDeposit_block_2289 (by simp; omega) r1
 
 set_option maxHeartbeats 1000000 in
 /-- Any failing check of the `bytes` decoder reverts (the overflow and allocation checks panic). -/
@@ -133,25 +133,25 @@ theorem decodeBytesRoutine_rev {ee : ExecutionEnv} {g : Sat256} {s0 : State} {me
   by_cases h3 : UInt256.lt (p + UInt256.ofNat 32) p = UInt256.ofNat 0
   swap
   · exact decodeBytesPanic (R := feDepositBlocks.feDeposit_block_2128_taken_stack (ee := ee)
-      (x0 := p) (R := cds :: ret :: R)) (by simp [feDepositBlocks.feDeposit_block_2128_fallthrough_stack, feDepositBlocks.feDeposit_block_2141_fallthrough_stack, feDepositBlocks.feDeposit_block_2150_fallthrough_stack, feDepositBlocks.feDeposit_block_2172_taken_stack, feDepositBlocks.feDeposit_block_2172_fallthrough_stack, feDepositBlocks.feDeposit_block_2191_stack, feDepositBlocks.feDeposit_block_2195_fallthrough_stack, feDepositBlocks.feDeposit_block_2128_taken_stack, feDepositBlocks.feDeposit_block_2150_taken_stack, feDepositBlocks.feDeposit_block_2141_taken_stack, feDepositBlocks.feDeposit_block_2226_stack]; omega)
+      (x0 := p) (R := cds :: ret :: R)) (by simp [feDepositBlocks.feDeposit_block_2128_taken_stack]; omega)
       (feDepositBlocks.feDeposit_block_2128_taken (by simp; omega) h3 (by jump_dest) r2)
   have r3 := feDepositBlocks.feDeposit_block_2128_fallthrough (by simp; omega) h3 r2
   simp only [feDepositBlocks.feDeposit_block_2128_fallthrough_stack] at r3
   by_cases h4 : UInt256.lt cds (p + UInt256.ofNat 32) = UInt256.ofNat 0
   swap
-  · exact decodeBytesPanic (by simp [feDepositBlocks.feDeposit_block_2128_fallthrough_stack, feDepositBlocks.feDeposit_block_2141_fallthrough_stack, feDepositBlocks.feDeposit_block_2150_fallthrough_stack, feDepositBlocks.feDeposit_block_2172_taken_stack, feDepositBlocks.feDeposit_block_2172_fallthrough_stack, feDepositBlocks.feDeposit_block_2191_stack, feDepositBlocks.feDeposit_block_2195_fallthrough_stack, feDepositBlocks.feDeposit_block_2128_taken_stack, feDepositBlocks.feDeposit_block_2150_taken_stack, feDepositBlocks.feDeposit_block_2141_taken_stack, feDepositBlocks.feDeposit_block_2226_stack]; omega)
+  · exact decodeBytesPanic (by simp [feDepositBlocks.feDeposit_block_2141_taken_stack]; omega)
       (feDepositBlocks.feDeposit_block_2141_taken (by simp; omega) h4 (by jump_dest) r3)
   have r4 := feDepositBlocks.feDeposit_block_2141_fallthrough (by simp; omega) h4 r3
   simp only [feDepositBlocks.feDeposit_block_2141_fallthrough_stack] at r4
   by_cases h5 : UInt256.gt (rLen ee p) (UInt256.sub cds (p + UInt256.ofNat 32)) = UInt256.ofNat 0
   swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2128_fallthrough_stack, feDepositBlocks.feDeposit_block_2141_fallthrough_stack, feDepositBlocks.feDeposit_block_2150_fallthrough_stack, feDepositBlocks.feDeposit_block_2172_taken_stack, feDepositBlocks.feDeposit_block_2172_fallthrough_stack, feDepositBlocks.feDeposit_block_2191_stack, feDepositBlocks.feDeposit_block_2195_fallthrough_stack, feDepositBlocks.feDeposit_block_2128_taken_stack, feDepositBlocks.feDeposit_block_2150_taken_stack, feDepositBlocks.feDeposit_block_2141_taken_stack, feDepositBlocks.feDeposit_block_2226_stack]; omega)
+  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2150_taken_stack]; omega)
       (feDepositBlocks.feDeposit_block_2150_taken (by simp; omega) h5 (by jump_dest) r4)
   have r5 := feDepositBlocks.feDeposit_block_2150_fallthrough (by simp; omega) h5 r4
   simp only [feDepositBlocks.feDeposit_block_2150_fallthrough_stack] at r5
   by_cases h6 : UInt256.gt (rLen ee p) (UInt256.ofNat 18446744073709551552) = UInt256.ofNat 0
   swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_2128_fallthrough_stack, feDepositBlocks.feDeposit_block_2141_fallthrough_stack, feDepositBlocks.feDeposit_block_2150_fallthrough_stack, feDepositBlocks.feDeposit_block_2172_taken_stack, feDepositBlocks.feDeposit_block_2172_fallthrough_stack, feDepositBlocks.feDeposit_block_2191_stack, feDepositBlocks.feDeposit_block_2195_fallthrough_stack, feDepositBlocks.feDeposit_block_2128_taken_stack, feDepositBlocks.feDeposit_block_2150_taken_stack, feDepositBlocks.feDeposit_block_2141_taken_stack, feDepositBlocks.feDeposit_block_2226_stack]; omega)
+  · exact feDepositBlocks.feDeposit_block_2245 (by simp; omega)
       (feDepositBlocks.feDeposit_block_2157_taken (by simp; omega) h6 (by jump_dest) r5)
   have r6 := feDepositBlocks.feDeposit_block_2157_fallthrough (by simp; omega) h6 r5
   have h7 : ¬ UInt256.isZero (UInt256.lt (rAlloc ee p) (UInt256.ofNat 32)) ≠ UInt256.ofNat 0 :=

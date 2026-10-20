@@ -106,7 +106,6 @@ theorem evalShr_word (a : UInt256) (s : ℕ) (hs : s < 256) {x : Int}
         Int.ofNat (EVM.twoPow (Int.ofNat s).toNat)))) = _
   rw [if_neg h1, if_neg h2, ushrN_toNat a s hs, int_toNat_ofNat, normalizeInt_uint256_word a]
   simp only [EVM.twoPow]
-  push_cast
   rfl
 
 /-! ## The `get_deposit_count` return buffer

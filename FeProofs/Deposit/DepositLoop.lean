@@ -78,7 +78,7 @@ theorem branchLoc {i : Nat} (hi : i < 32) :
     layout { base := "branch", steps := [.aindex (.int (Int.ofNat i))] } =
       some (.leaf (uint256Loc (⟨0⟩ + UInt256.ofNat i))) := by
   show some (StorageAddr.leaf _) = _
-  simp only [keyWord_ofNat hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
+  simp only [keyWord_ofNat, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
     Nat.mod_one, Nat.zero_mul]
   rfl
 

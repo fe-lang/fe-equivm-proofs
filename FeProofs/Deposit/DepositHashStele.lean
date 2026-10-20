@@ -40,7 +40,7 @@ theorem evalSlice {cfg : Config} {stele : Frame} {evm : EVM.State} {x : Ident} {
       .ok (.bytes (b.extract s e)) := by
   have hslice : sliceBytes? b (Int.ofNat s) (Int.ofNat e) = .ok (.bytes (b.extract s e)) := by
     simp only [sliceBytes?]
-    rw [if_neg (by simp), if_neg (by simp [int_toNat_ofNat]; omega)]
+    rw [if_neg (by simp), if_neg (by simp; omega)]
     rfl
   rw [evalExpr?]
   simp only [evalVarF hx, evalLit, EvalResult.bind, bind, hslice]

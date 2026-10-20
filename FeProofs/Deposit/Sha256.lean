@@ -101,13 +101,6 @@ theorem sha64_eval_precompile {fr : Frame} {evm : EVM.State} :
     evalExpr? config fr evm (.cast (.intLit 2) (.elem .address)) = .ok (.address precompile2) := by
   simp [evalExpr?, castValue?, EvalResult.ofOption, EvalResult.bind, bind, pure]
 
-theorem sha64_eval_var {fr : Frame} {evm : EVM.State} {x : Ident} {v : Value}
-    (h : fr.locals.get? x = some v) : evalExpr? config fr evm (.var x) = .ok v := by
-  rw [evalExpr?]
-  change EvalResult.ofOption EvalError.unboundVariable (fr.locals.get? x) = .ok v
-  rw [h]
-  rfl
-
 theorem sha64_eval_zero {fr : Frame} {evm : EVM.State} :
     evalExpr? config fr evm (.intLit 0) = .ok (.int 0) := by
   simp [evalExpr?, pure]
@@ -121,7 +114,7 @@ theorem sha64_eval_len {caller : Frame} {evm : EVM.State} {payload out : ByteArr
 theorem sha64_eval_ok {caller : Frame} {evm : EVM.State} {payload out : ByteArray} {z : Bool} :
     evalExpr? config { caller with locals := sha64CallLocals payload out z } evm (.var "ok") =
       .ok (.bool z) :=
-  sha64_eval_var (by store_get)
+  evalVarF (by store_get)
 
 theorem sha64_eval_ret {caller : Frame} {evm : EVM.State} {payload out : ByteArray} {z : Bool}
     (hout : 32 ≤ out.size) :
@@ -132,8 +125,8 @@ theorem sha64_eval_ret {caller : Frame} {evm : EVM.State} {payload out : ByteArr
   have hdv : config.externalABI.decodeValue? (.elem (.int (.uint ⟨256, by decide⟩)))
       (out.extract 0 32) = some (.int (Int.ofNat (calldataWord out 0).toNat)) :=
     decodeReturnUint_extract (by omega) hout (by norm_num)
-  have hres := sha64_eval_var (evm := evm)
-    (fr := { caller with locals := sha64CallLocals payload out z }) (x := "result")
+  have hres := evalVarF (evm := evm)
+    (cfg := config) (stele := { caller with locals := sha64CallLocals payload out z }) (name := "result")
     (v := .bytes out) (store_get_self _ _ _)
   have hslice : sliceBytes? out 0 32 = .ok (.bytes (out.extract 0 32)) := by
     simp only [sliceBytes?]
@@ -151,13 +144,13 @@ theorem sha64_eval_receiver {caller : Frame} {evm : EVM.State} {payload : ByteAr
     evalExpr? config
       { caller with locals := (sha64Locals payload).insert "precompile" (.address precompile2) } evm
       (.var "precompile") = .ok (.address precompile2) :=
-  sha64_eval_var (store_get_self _ _ _)
+  evalVarF (store_get_self _ _ _)
 
 theorem sha64_eval_payload {caller : Frame} {evm : EVM.State} {payload : ByteArray} :
     evalExpr? config
       { caller with locals := (sha64Locals payload).insert "precompile" (.address precompile2) } evm
       (.var "payload") = .ok (.bytes payload) :=
-  sha64_eval_var (by
+  evalVarF (by
     rw [store_get_ne (sha64Locals payload) (k := "precompile") (a := "payload") _ (by decide),
       store_get_self])
 
@@ -174,7 +167,7 @@ theorem sha64Body_ok {caller : Frame} {evm evm' : EVM.State} {payload out : Byte
       sha64_eval_payload hcall) ?_
   refine ExecBlock.consNormal (ExecStmt.requireTrue sha64_eval_ok) ?_
   refine ExecBlock.consNormal (ExecStmt.requireTrue (by
-    rw [sha64_eval_len, decide_eq_true (by rw [Int.ofNat_eq_coe]; exact_mod_cast hout)])) ?_
+    rw [sha64_eval_len, decide_eq_true (by rw [Int.ofNat_eq_natCast]; exact_mod_cast hout)])) ?_
   exact ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton (sha64_eval_ret hout)))
 
 theorem sha64Body_revert {caller : Frame} {evm evm' : EVM.State} {payload out : ByteArray} {z : Bool}
@@ -198,7 +191,7 @@ theorem sha64Body_revert {caller : Frame} {evm evm' : EVM.State} {payload out : 
           sha64_eval_payload hcall) ?_
       refine ExecBlock.consNormal (ExecStmt.requireTrue sha64_eval_ok) ?_
       exact ExecBlock.consRevert (ExecStmt.requireFalse (by
-        rw [sha64_eval_len, decide_eq_false (by rw [Int.ofNat_eq_coe]; omega)]))
+        rw [sha64_eval_len, decide_eq_false (by rw [Int.ofNat_eq_natCast]; omega)]))
 
 /-! ## `sha256_pair` -/
 
@@ -230,8 +223,8 @@ theorem pair_eval_args {fr : Frame} {evm : EVM.State} {a b : UInt256}
       [(.elem (.int (.uint ⟨256, by decide⟩)), .var "left"),
         (.elem (.int (.uint ⟨256, by decide⟩)), .var "right")] =
       .ok (EVM.Word.toBytesBE a ++ EVM.Word.toBytesBE b) :=
-    evalPackedArgs_cons (sha64_eval_var hl) (encodePacked_uint256 a)
-      (evalPackedArgs_single (sha64_eval_var hr) (encodePacked_uint256 b))
+    evalPackedArgs_cons (evalVarF hl) (encodePacked_uint256 a)
+      (evalPackedArgs_single (evalVarF hr) (encodePacked_uint256 b))
   rw [evalExpr?]
   simp only [hpk, EvalResult.bind, bind, pure]
 
@@ -247,7 +240,7 @@ theorem shaPairBody_ok {caller : Frame} (hc : caller.contract = contract) {evm e
     (pair_eval_args (by simp [pairLocals])
       (by store_get))
     (by rw [hc]; exact sha64Fn_lookup) rfl (sha64Body_ok hcall hout)) ?_
-  exact ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton (sha64_eval_var
+  exact ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton (evalVarF
     (by simp [resumeAfterInternalCall, collapseReturns]))))
 
 theorem shaPairBody_revert {caller : Frame} (hc : caller.contract = contract) {evm evm' : EVM.State}

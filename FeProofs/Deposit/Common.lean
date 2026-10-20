@@ -28,7 +28,7 @@ set_option maxRecDepth 2000000
 
 /-- The transition list as its handles. -/
 theorem transitions_eq : contract.transitions = [supportsInterfaceTransition, depositTransition, get_deposit_countTransition, get_deposit_rootTransition] := by
-  first | rfl | simp [contract, Syntax.contractSyntax]
+  rfl
 
 /-! ## Selector bridges: each transition's signature hashes to its table entry -/
 
@@ -38,8 +38,8 @@ set_option maxRecDepth 1000000 in
 theorem supportsInterfaceSelectorOf : selectorOf supportsInterfaceTransition = feDepositSelBytes 0 := by
   have hsig : transitionSigStr supportsInterfaceTransition = "supportsInterface(bytes4)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, supportsInterfaceTransition, contract,
-      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 4 = "4" by decide +kernel, show Nat.repr 32 = "32" by decide +kernel]
-      <;> decide +kernel
+      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, show Nat.repr 4 = "4" by decide +kernel]
+    decide +kernel
   unfold selectorOf
   rw [hsig]
   exact supportsInterfaceSelectorFact
@@ -50,8 +50,8 @@ set_option maxRecDepth 1000000 in
 theorem depositSelectorOf : selectorOf depositTransition = feDepositSelBytes 1 := by
   have hsig : transitionSigStr depositTransition = "deposit(bytes,bytes,bytes,bytes32)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, depositTransition, contract,
-      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 4 = "4" by decide +kernel, show Nat.repr 32 = "32" by decide +kernel]
-      <;> decide +kernel
+      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, show Nat.repr 32 = "32" by decide +kernel]
+    decide +kernel
   unfold selectorOf
   rw [hsig]
   exact depositSelectorFact
@@ -62,8 +62,8 @@ set_option maxRecDepth 1000000 in
 theorem get_deposit_countSelectorOf : selectorOf get_deposit_countTransition = feDepositSelBytes 2 := by
   have hsig : transitionSigStr get_deposit_countTransition = "get_deposit_count()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get_deposit_countTransition, contract,
-      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 4 = "4" by decide +kernel, show Nat.repr 32 = "32" by decide +kernel]
-      <;> decide +kernel
+      Syntax.contractSyntax]
+    decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get_deposit_countSelectorFact
@@ -74,8 +74,8 @@ set_option maxRecDepth 1000000 in
 theorem get_deposit_rootSelectorOf : selectorOf get_deposit_rootTransition = feDepositSelBytes 3 := by
   have hsig : transitionSigStr get_deposit_rootTransition = "get_deposit_root()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get_deposit_rootTransition, contract,
-      Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 4 = "4" by decide +kernel, show Nat.repr 32 = "32" by decide +kernel]
-      <;> decide +kernel
+      Syntax.contractSyntax]
+    decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get_deposit_rootSelectorFact

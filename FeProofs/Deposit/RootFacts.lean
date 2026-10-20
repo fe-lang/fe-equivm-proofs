@@ -22,7 +22,7 @@ theorem config_storageBackend : config.storageBackend = solidityStorageBackend l
 
 abbrev uint256Elem : ElemType := .int (.uint ⟨256, by decide⟩)
 
-theorem keyWord_ofNat {i : Nat} (hi : i < 32) :
+theorem keyWord_ofNat (i : Nat) :
     keyValueToWord (.int (Int.ofNat i)) = UInt256.ofNat i := by
   simp only [keyValueToWord, EVM.wordOfInt, EVM.word]
   rw [if_neg (by simp)]
@@ -70,7 +70,7 @@ theorem evalBranch {L : Store} {evm : EVM.State} {i : Nat} (hi : i < 32)
   refine evalArrayElem "branch" ⟨0⟩ hi ?_ hbase rfl rfl ?_
   · rw [evalExpr?, hh]; rfl
   · show some (StorageAddr.leaf _) = _
-    simp only [keyWord_ofNat hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
+    simp only [keyWord_ofNat, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
       Nat.mod_one, Nat.zero_mul]
     rfl
 
@@ -83,7 +83,7 @@ theorem evalZeroHash {L : Store} {evm : EVM.State} {i : Nat} (hi : i < 32)
   refine evalArrayElem "zero_hashes" ⟨33⟩ hi ?_ hbase rfl rfl ?_
   · rw [evalExpr?, hh]; rfl
   · show some (StorageAddr.leaf _) = _
-    simp only [keyWord_ofNat hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
+    simp only [keyWord_ofNat, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
       Nat.mod_one, Nat.zero_mul]
     rfl
 

@@ -24,9 +24,7 @@ macro "store_get" : tactic =>
 
 theorem evalVarF {cfg : Config} {stele : Frame} {evm : EVM.State} {name : Ident} {v : Value}
     (h : stele.locals.get? name = some v) : evalExpr? cfg stele evm (.var name) = .ok v := by
-  rw [evalExpr?]
-  change EvalResult.ofOption EvalError.unboundVariable (stele.locals.get? name) = _
-  rw [h]; rfl
+  rw [evalExpr?, h]; rfl
 
 /-- `evalVarF` for a frame built from its locals; also usable as a `simp` argument. -/
 theorem evalVar {cfg : Config} {c : ContractDecl} {L : Store} {evm : EVM.State} {x : Ident}

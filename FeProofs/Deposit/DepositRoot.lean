@@ -38,6 +38,6 @@ theorem evalRootCast {cfg : Config} {stele : Frame} {evm : EVM.State} (cd : Byte
   have hr' : stele.locals[("deposit_data_root" : Ident)]? =
       some (.fixedBytes ⟨31, by decide⟩ (dRootBytes cd)) := by
     simpa [Std.HashMap.get?_eq_getElem?] using hr
-  simp [evalExpr?, hr', castValue?, hv, EvalResult.ofOption, EvalResult.bind, bind, pure]
+  simp [evalExpr?, hr', castValue?, hv, EvalResult.ofOption, EvalResult.bind, bind]
 
 end FeProofs.Deposit

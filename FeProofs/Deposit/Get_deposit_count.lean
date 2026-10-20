@@ -43,9 +43,9 @@ theorem feDepositGet_deposit_countBody {σ σ₀ A I} {g : UInt256}
       (by simp [feDepositBlocks.feDeposit_block_1716_fallthrough_stack])
       (by native_decide) rd1
     have rd3 := feDepositBlocks.feDeposit_block_1807
-      (by simp [feDepositBlocks.feDeposit_block_1723_fallthrough_stack,
+      (by simp [
         feDepositBlocks.feDeposit_block_1716_fallthrough_stack]) rd2
-    have rret := feDepositBlocks.feDeposit_block_1811 (by simp [feDepositBlocks.feDeposit_block_1807_stack,
+    have rret := feDepositBlocks.feDeposit_block_1811 (by simp [
       feDepositBlocks.feDeposit_block_1716_fallthrough_stack]) rd3
     rw [evmChunk_eq, countReturn_eq] at rret
     obtain ⟨F, hbody⟩ := getCountBody (initState σ σ₀ (Sat256.ofUInt256 g) A I)

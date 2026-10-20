@@ -16,14 +16,13 @@ namespace FeProofs.Deposit
 
 /-- The decoded payload of the `bytes` argument whose head word is at relative offset `o` is the
     calldata window after its length word. -/
-theorem dPayload_extract (cd : ByteArray) (o : ℕ) (h : 4 + o + 32 + dWord cd o ≤ cd.size) :
+theorem dPayload_extract (cd : ByteArray) (o : ℕ) :
     cd.extract (4 + o + 32) (4 + o + 32 + dWord cd o) = dPayload cd o := by
   apply ByteArray.ext
   apply Array.toList_inj.mp
-  simp only [ByteArray.data_extract, Array.toList_extract, List.extract_eq_drop_take,
-    List.toList_toArray]
+  simp only [ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop]
   rw [← byteArray_toList_eq, List.drop_drop]
-  congr 2 <;> omega
+  congr 2; omega
 
 /-- A write leaves every window it does not overlap unchanged. -/
 theorem write_extract_preserved (src base : ByteArray) {srcOff dest len i j : ℕ}

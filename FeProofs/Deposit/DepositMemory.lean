@@ -185,7 +185,7 @@ theorem hMem3_layout :
   have pay0 : (hMem1 I).extract 288 336 = dPayload I.calldata (dWord I.calldata 0) := by
     have h := rMemAt_payload I ByteArray.empty (hPos I 0) (rFp ByteArray.empty) hF0 hlen0 hz0
       (by omega) (lt_usize _ (by decide)) cd0
-    have hx := dPayload_extract I.calldata (dWord I.calldata 0) hb0.2
+    have hx := dPayload_extract I.calldata (dWord I.calldata 0)
     rw [hd0] at hx
     rw [hp0] at h
     simp only [Nat.mul_zero] at h hx
@@ -194,14 +194,14 @@ theorem hMem3_layout :
   have pay1 : (hMem2 I).extract 384 416 = dPayload I.calldata (dWord I.calldata 32) := by
     have h := rMemAt_payload I (hMem1 I) (hPos I 1) (rFp (hMem1 I)) hF1 hlen1 hz1
       (by omega) (lt_usize _ (by decide)) cd1
-    have hx := dPayload_extract I.calldata (dWord I.calldata 32) hb1.2
+    have hx := dPayload_extract I.calldata (dWord I.calldata 32)
     rw [hd1] at hx
     rw [hp1] at h
     exact h.trans hx
   have pay2 : (hMem3 I).extract 448 544 = dPayload I.calldata (dWord I.calldata 64) := by
     have h := rMemAt_payload I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2
       (by omega) (lt_usize _ (by decide)) cd2
-    have hx := dPayload_extract I.calldata (dWord I.calldata 64) hb2.2
+    have hx := dPayload_extract I.calldata (dWord I.calldata 64)
     rw [hd2] at hx
     rw [hp2] at h
     exact h.trans hx

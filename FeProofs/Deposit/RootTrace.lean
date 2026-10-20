@@ -61,7 +61,7 @@ theorem rootPrologue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
       ByteArray.empty σ k' C' := by
   have rd1 := feDepositBlocks.feDeposit_block_1853_fallthrough (by simp) hwv rd
   exact feDepositBlocks.feDeposit_block_1860
-    (by simp [feDepositBlocks.feDeposit_block_1853_fallthrough_stack]) rd1
+    (by simp) rd1
 
 theorem rootCallvalue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
     (hwv : I.weiValue ≠ ⟨0⟩)
@@ -135,43 +135,43 @@ theorem rootLoopPost (pc : UInt256) {z : Bool} {o : ByteArray} {gw size h count 
   · refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
     · rcases hbad with hz | hlen
       · subst hz
-        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-          (feDepositBlocks.feDeposit_block_1909_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz0 (by jump_dest) rd)
+        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack])
+          (feDepositBlocks.feDeposit_block_1909_taken (by simp) hz0 (by jump_dest) rd)
       · cases z
-        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1909_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz0 (by jump_dest) rd)
-        · have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz1 rd
-          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1916_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
+        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack])
+            (feDepositBlocks.feDeposit_block_1909_taken (by simp) hz0 (by jump_dest) rd)
+        · have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp) hz1 rd
+          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
+            (feDepositBlocks.feDeposit_block_1916_taken (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
               (by rw [ult_one (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32)
                 (by rw [hosz]; exact hlen)]; decide) (by jump_dest) rd1)
     · subst hz
-      have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz1 rd
-      have rd2 := feDepositBlocks.feDeposit_block_1916_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
+      have rd1 := feDepositBlocks.feDeposit_block_1909_fallthrough (by simp) hz1 rd
+      have rd2 := feDepositBlocks.feDeposit_block_1916_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack])
         (ult_zero (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32) (by rw [hosz]; exact hlen)) rd1
-      have rd3 := feDepositBlocks.feDeposit_block_1925 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) (by jump_dest) rd2
+      have rd3 := feDepositBlocks.feDeposit_block_1925 (by simp [feDepositBlocks.feDeposit_block_1909_fallthrough_stack]) (by jump_dest) rd2
       exact ⟨_, _, feDepositBlocks.feDeposit_block_1977
-        (by simp [feDepositBlocks.feDeposit_block_1925_stack]) (by jump_dest) rd3⟩
+        (by simp) (by jump_dest) rd3⟩
   · refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
     · rcases hbad with hz | hlen
       · subst hz
-        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-          (feDepositBlocks.feDeposit_block_1958_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz0 (by jump_dest) rd)
+        exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_taken_stack])
+          (feDepositBlocks.feDeposit_block_1958_taken (by simp) hz0 (by jump_dest) rd)
       · cases z
-        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1958_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz0 (by jump_dest) rd)
-        · have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz1 rd
-          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
-            (feDepositBlocks.feDeposit_block_1965_taken (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
+        · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_taken_stack])
+            (feDepositBlocks.feDeposit_block_1958_taken (by simp) hz0 (by jump_dest) rd)
+        · have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp) hz1 rd
+          exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
+            (feDepositBlocks.feDeposit_block_1965_taken (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
               (by rw [ult_one (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32)
                 (by rw [hosz]; exact hlen)]; decide) (by jump_dest) rd1)
     · subst hz
-      have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) hz1 rd
-      have rd2 := feDepositBlocks.feDeposit_block_1965_fallthrough (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
+      have rd1 := feDepositBlocks.feDeposit_block_1958_fallthrough (by simp) hz1 rd
+      have rd2 := feDepositBlocks.feDeposit_block_1965_fallthrough (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack])
         (ult_zero (a := UInt256.ofNat o.size) (b := UInt256.ofNat 32) (by rw [hosz]; exact hlen)) rd1
-      have rd3 := feDepositBlocks.feDeposit_block_1974 (by simp [feDepositBlocks.feDeposit_block_1909_taken_stack, feDepositBlocks.feDeposit_block_1909_fallthrough_stack, feDepositBlocks.feDeposit_block_1958_taken_stack, feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) rd2
+      have rd3 := feDepositBlocks.feDeposit_block_1974 (by simp [feDepositBlocks.feDeposit_block_1958_fallthrough_stack]) rd2
       exact ⟨_, _, feDepositBlocks.feDeposit_block_1977
-        (by simp [feDepositBlocks.feDeposit_block_1974_stack]) (by jump_dest) rd3⟩
+        (by simp) (by jump_dest) rd3⟩
 
 /-- After the final (length mix-in) hash call: revert unless it succeeded with at least 32
     return bytes; otherwise return the loaded digest. -/

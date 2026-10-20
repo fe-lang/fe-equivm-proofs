@@ -51,7 +51,7 @@ theorem highHalf_toByteArray (w : UInt256) :
   congr 1
   apply ByteArray.ext
   apply Array.toList_inj.mp
-  simp [List.data_toByteArray, ByteArray.data_extract, Array.toList_extract, List.extract_eq_drop_take]
+  simp [List.data_toByteArray, ByteArray.data_extract]
 
 /-- **The pubkey payload.**  With the 48 pubkey bytes at `p`, the two stored words are the pubkey
     followed by 16 zero bytes. -/
