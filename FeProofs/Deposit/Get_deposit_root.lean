@@ -117,7 +117,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
   have hpay : (feDepositBlocks.feDeposit_block_1991_memory (mem := mem') (x1 := node')
       (x3 := countWord σ I)).readWithPadding (UInt256.ofNat 160).toNat (UInt256.ofNat 64).toNat =
       pairPayload node' (u64ChunkWord (mask64 (countWord σ I))) := by
-    rw [pairPayload_eq, ← evmChunk_eq]; exact rootPayload mem' node' _
+    rw [pairPayload_eq, ← evmChunk_eq]; exact pairWords_read mem' node' _ 160 192 64 rfl rfl (by decide)
   have hcall' : callViaEVM evm' (EVM.address precompile2) 0
       (pairPayload node' (u64ChunkWord (mask64 (countWord σ I)))) (z, evm'', out) false := by
     rw [precompile2_eq, ← hpay]; exact hcall

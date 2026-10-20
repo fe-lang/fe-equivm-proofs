@@ -46,24 +46,6 @@ abbrev dlBody : List Stmt :=
     .assign .localVar { base := "node", steps := [] } (.var "parent"),
     .assign .localVar { base := "size", steps := [] } (.binary .div (.var "size") (.intLit 2)) ]
 
-/-- The two words the loop stores at `0xa0` and `0xc0` are the 64-byte call payload. -/
-theorem twoWords_read (mem : ByteArray) (b n : UInt256) :
-    (n.toByteArray.write 0 (b.toByteArray.write 0 mem (UInt256.ofNat 160).toNat 32)
-        (UInt256.ofNat 192).toNat 32).readWithPadding (UInt256.ofNat 160).toNat
-        (UInt256.ofNat 64).toNat = b.toByteArray ++ n.toByteArray := by
-  rw [show (UInt256.ofNat 160).toNat = 160 from rfl, show (UInt256.ofNat 192).toNat = 192 from rfl,
-    show (UInt256.ofNat 64).toNat = 32 + 32 from rfl]
-  have h0 := toByteArray_write_size_ge_off_add32 b mem 160 (small_gap mem 160 (by decide))
-  have h1 := toByteArray_write_size_ge_off_add32 n (b.toByteArray.write 0 mem 160 32) 192
-    (small_gap _ 192 (by decide))
-  rw [byteArray_readWithPadding_split _ 160 32 32 (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by omega),
-    toByteArray_write_read_below_of_gap n _ 192 160 (by omega) (by omega)
-      (small_gap _ 192 (by decide)),
-    toByteArray_write_read_back_of_gap b mem 160 (small_gap mem 160 (by decide)),
-    show 160 + 32 = 192 from rfl,
-    toByteArray_write_read_back_of_gap n _ 192 (small_gap _ 192 (by decide))]
-
 theorem twoWords_size (mem : ByteArray) (b n : UInt256) :
     160 + 32 ≤ (n.toByteArray.write 0 (b.toByteArray.write 0 mem (UInt256.ofNat 160).toNat 32)
         (UInt256.ofNat 192).toNat 32).size := by
@@ -167,7 +149,8 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       rd_run rd using [hland]
       obtain ⟨evm', σ', z, out, aw', k3, C3, hcall, hs', rd4, hosz⟩ :=
         staticCallBridge rd hs (by native_decide) (by simp; omega)
-      rw [twoWords_read, ← pairPayload_eq, ← precompile2_eq] at hcall
+      u256_lits at hcall
+      rw [pairWords_read _ _ _ 160 192 64 rfl rfl (by decide), ← pairPayload_eq, ← precompile2_eq] at hcall
       have hsib : evalExpr? config { contract := contract, locals := L } evm
           (.storage dlBranchRef) =
           .ok (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat height)).toNat)) := by

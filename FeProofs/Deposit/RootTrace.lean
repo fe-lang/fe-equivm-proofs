@@ -28,22 +28,6 @@ set_option maxRecDepth 2000000
 
 /-! ## Memory facts -/
 
-/-- Two consecutive word writes at `0xa0`/`0xc0` read back as their 64-byte concatenation, whatever
-    the memory held before. -/
-theorem rootPayload (mem : ByteArray) (w1 w2 : UInt256) :
-    (((UInt256.toByteArray w2).write 0 ((UInt256.toByteArray w1).write 0 mem 160 32) 192 32)
-        ).readWithPadding 160 64 = w1.toByteArray ++ w2.toByteArray := by
-  have hgap1 : 160 - mem.size < USize.size := lt_usize _ (by omega)
-  have hs1 := toByteArray_write_size_ge_off_add32 w1 mem 160 hgap1
-  have hgap2 : 192 - ((UInt256.toByteArray w1).write 0 mem 160 32).size < USize.size :=
-    lt_usize _ (by omega)
-  have hs2 := toByteArray_write_size_ge_off_add32 w2 _ 192 hgap2
-  rw [show (64 : Nat) = 32 + 32 from rfl,
-    byteArray_readWithPadding_split_unbounded _ 160 32 32 (by decide) (by decide) (by omega),
-    toByteArray_write_read_below_of_gap w2 _ 192 160 hs1 (by decide) hgap2,
-    toByteArray_write_read_back_of_gap w1 mem 160 hgap1,
-    toByteArray_write_read_back_of_gap w2 _ 192 hgap2]
-
 /-! ## Trace segments -/
 
 local notation "code" => feDepositBytecode

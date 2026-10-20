@@ -133,7 +133,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
       ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat i))).write 0 mem 160 32) 192 32
       ).readWithPadding (UInt256.ofNat 160).toNat (UInt256.ofNat 64).toNat =
       pairPayload (solcSlotWord σ I (UInt256.ofNat i)) node := by
-    rw [pairPayload_eq]; exact rootPayload mem _ node
+    rw [pairPayload_eq]; exact pairWords_read mem _ node 160 192 64 rfl rfl (by decide)
   have hcall' : callViaEVM evm (EVM.address precompile2) 0
       (pairPayload (solcSlotWord σ I (UInt256.ofNat i)) node) (z, evm', out) false := by
     rw [precompile2_eq, ← hpay]; exact hcall
@@ -218,7 +218,7 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
       ((UInt256.toByteArray node).write 0 mem 160 32) 192 32
       ).readWithPadding (UInt256.ofNat 160).toNat (UInt256.ofNat 64).toNat =
       pairPayload node (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i)) := by
-    rw [pairPayload_eq]; exact rootPayload mem node _
+    rw [pairPayload_eq]; exact pairWords_read mem node _ 160 192 64 rfl rfl (by decide)
   have hcall' : callViaEVM evm (EVM.address precompile2) 0
       (pairPayload node (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))) (z, evm', out) false := by
     rw [precompile2_eq, ← hpay]; exact hcall

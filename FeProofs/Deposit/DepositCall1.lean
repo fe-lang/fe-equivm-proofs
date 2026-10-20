@@ -14,21 +14,6 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.Deposit
 
-/-- Two adjacent stored words read back as the 64-byte payload. -/
-theorem pairWords_read (mem : ByteArray) (b n : UInt256) (o : Nat) (ho : o + 32 < 2 ^ 32) :
-    (n.toByteArray.write 0 (b.toByteArray.write 0 mem o 32) (o + 32) 32).readWithPadding o 64 =
-      b.toByteArray ++ n.toByteArray := by
-  have h0 := toByteArray_write_size_ge_off_add32 b mem o (small_gap mem o (by omega))
-  have h1 := toByteArray_write_size_ge_off_add32 n (b.toByteArray.write 0 mem o 32) (o + 32)
-    (small_gap _ (o + 32) ho)
-  rw [show (64 : Nat) = 32 + 32 from rfl,
-    byteArray_readWithPadding_split _ o 32 32 (by decide) (by decide) (by decide) (by decide)
-      (by omega) (by omega),
-    toByteArray_write_read_below_of_gap n _ (o + 32) o (by omega) (by omega)
-      (small_gap _ (o + 32) ho),
-    toByteArray_write_read_back_of_gap b mem o (small_gap mem o (by omega)),
-    toByteArray_write_read_back_of_gap n _ (o + 32) (small_gap _ (o + 32) ho)]
-
 /-- The memory block 650 leaves (free-pointer bump, then the two pubkey words at the free
     pointer). -/
 abbrev c1Mem (I : ExecutionEnv) : ByteArray :=
@@ -44,7 +29,7 @@ theorem c1Payload {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
   unfold c1Mem feDepositBlocks.feDeposit_block_650_memory
   rw [hload3, mFp0, show (UInt256.ofNat 544).toNat = 544 from rfl,
     show (UInt256.ofNat 544 + UInt256.ofNat 32).toNat = 544 + 32 by decide,
-    show (UInt256.ofNat 64).toNat = 64 from rfl, pairWords_read _ _ _ 544 (by decide),
+    show (UInt256.ofNat 64).toNat = 64 from rfl, pairWords_read _ _ _ 544 (544 + 32) 64 rfl rfl (by decide),
     show UInt256.ofNat 256 + UInt256.ofNat 32 = UInt256.ofNat 288 by decide,
     show UInt256.ofNat 288 + UInt256.ofNat 32 = UInt256.ofNat (288 + 32) by decide]
   exact pubkeyWords_eq (hMem3 I) _ (by omega) (by decide) hpk

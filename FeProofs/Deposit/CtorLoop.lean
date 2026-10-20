@@ -31,33 +31,6 @@ theorem write32_size_ge (src base : ByteArray) (dest : ℕ) (hsrc : 32 ≤ src.s
     ByteArray.size_extract, ByteArray.size_extract]
   omega
 
-/-- Storing `w` at memory words 0 and 1 makes `[0, 64)` the pair payload `w ‖ w`. -/
-theorem pairMem_read (w : UInt256) (mem : ByteArray) :
-    (w.toByteArray.write 0 (w.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32)
-        (UInt256.ofNat 32).toNat 32).readWithPadding (⟨0⟩ : UInt256).toNat
-      (UInt256.ofNat 64).toNat = pairPayload w w := by
-  have hw : 32 ≤ w.toByteArray.size := by rw [toByteArray_size]
-  show (w.toByteArray.write 0 (w.toByteArray.write 0 mem 0 32) 32 32).readWithPadding 0 64 = _
-  have hAsz := write32_size_ge w.toByteArray mem 0 hw (Nat.zero_le _)
-  have hA0 : (w.toByteArray.write 0 mem 0 32).extract 0 32 = w.toByteArray := by
-    rw [← readWithPadding_eq_extract _ 0 hAsz, write32_read_back _ _ 0 hw (Nat.zero_le _),
-      toByteArray_extract_all]
-  generalize w.toByteArray.write 0 mem 0 32 = A at hAsz hA0
-  have hB := write32_size_ge w.toByteArray A 32 hw (by omega)
-  have hXY : (A.extract 0 32 ++ w.toByteArray.extract 0 32).size = 64 := by
-    rw [ByteArray.size_append, ByteArray.size_extract, ByteArray.size_extract, toByteArray_size]
-    omega
-  rw [readWithPadding_eq_extract' _ 0 64 (by decide) (by decide) (by omega),
-    write32_eq _ _ 32 hw (by omega), extract_append_left _ _ 0 64 (by rw [hXY]),
-    byteArray_extract_of_size _ 64 hXY, hA0, toByteArray_extract_all, pairPayload_eq]
-
-theorem pairMem_size (w : UInt256) (mem : ByteArray) :
-    64 ≤ (w.toByteArray.write 0 (w.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32)
-      (UInt256.ofNat 32).toNat 32).size := by
-  have hw : 32 ≤ w.toByteArray.size := by rw [toByteArray_size]
-  have hAsz := write32_size_ge w.toByteArray mem 0 hw (Nat.zero_le _)
-  exact write32_size_ge w.toByteArray _ 32 hw (by simpa using hAsz)
-
 /-! ## `zero_hashes[i]`: slot `33 + i`
 
 Adapted from the `get_deposit_root` read facts, with the write counterpart. -/
@@ -210,7 +183,8 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
     rd_run rd using [lt31_word hlt]
     obtain ⟨evm', σ', z, out, aw', k2, C2, hcall, hs', rd36, hob⟩ :=
       staticCallBridge rd hs (by native_decide) (by simp)
-    rw [pairMem_read, ← precompile2_eq] at hcall
+    u256_lits at hcall
+    rw [pairWords_read _ _ _ 0 32 64 rfl rfl (by decide), ← pairPayload_eq, ← precompile2_eq] at hcall
     -- the Stele body up to the call
     have hcur := zeroHash_read (L := L) (evm := evmh) (i := h) (by omega) (evalVarF hh) hz
     rw [hs.storageRead] at hcur
@@ -222,7 +196,8 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
     rd_checked rd36 z out as hrev hout to 5
     · exact Or.inl ⟨hrev, ExecForLoop.bodyRevert hcond (ExecBlock.consNormal (ExecStmt.letDecl hcur)
         (ExecBlock.consRevert (shaPairCall_revert rfl hcurVar hcurVar hcall hout)))⟩
-    rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairMem_size _ _)),
+    u256_lits at rd36
+    rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairWords_size _ _ _ 0 32 rfl (by decide))),
       succ_word hlt] at rd36
     -- the Stele body after the call
     have hcall2 := shaPairCall_ok (caller := { contract := contract, locals := loopL1 L σh I h })
