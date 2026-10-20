@@ -36,18 +36,15 @@ theorem feConstantAnswerBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feConstantReachAnswerBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feConstantBlocks.feConstant_block_26_taken (by simp) (by rw [hwv]; decide)
-      (by jump_dest) rd
-    have rret := feConstantBlocks.feConstant_block_36 (by simp) rd1
-    rw [feConstantAnswerOutput] at rret
-    exact rret.reEquivExecutionTransport hcode hd (feConstantAnswerDecode hsz)
-      (nonpayableIntLiteralBodyReturns _ _ 42 (by simp only [initState]; exact hwv))
-      (rvEvm := some [.int (Int.ofNat (UInt256.toNat ⟨42⟩))]) rfl
-      (returnEquiv_of_encode (uint256ReturnEncoding ⟨42⟩))
-  · have rd1 := feConstantBlocks.feConstant_block_26_fallthrough (by simp)
-      (isZero_eq_zero_of_ne hwv) rd
-    have rrev := feConstantBlocks.feConstant_block_32 (by simp) rd1
-    exact rrev.reEquivExecutionRevert hcode hd (feConstantAnswerDecode hsz)
+  swap
+  · rd_run rd using [isZero_eq_zero_of_ne hwv]
+    exact rd.reEquivExecutionRevert hcode hd (feConstantAnswerDecode hsz)
       (bodyReverts_nonPayable (by simp only [initState]; exact hwv))
+  rd_run rd using [hwv]
+  rw [feConstantAnswerOutput] at rd
+  exact rd.reEquivExecutionTransport hcode hd (feConstantAnswerDecode hsz)
+    (nonpayableIntLiteralBodyReturns _ _ 42 (by simp only [initState]; exact hwv))
+    (rvEvm := some [.int (Int.ofNat (UInt256.toNat ⟨42⟩))]) rfl
+    (returnEquiv_of_encode (uint256ReturnEncoding ⟨42⟩))
 
 end FeProofs.Constant

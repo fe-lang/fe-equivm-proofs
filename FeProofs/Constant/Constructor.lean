@@ -25,24 +25,18 @@ theorem feConstantCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionE
     RDret feConstantCreationBytecode g (initState σ σ₀ g A I) σ feConstantBytecode := by
   have hcode' : I.code = feConstantCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := feConstantCreationBlocks.feConstantCreation_block_0_taken (by simp)
-    (by rw [hwv]; decide) (by jump_dest) rd0
-  have rret := feConstantCreationBlocks.feConstantCreation_block_8 (by simp) rd1
-  rw [ByteArray.append_empty, feConstantCreation_runtime_copy] at rret
-  exact rret
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
+  rd_run rd using [hwv]
+  rwa [ByteArray.append_empty, feConstantCreation_runtime_copy] at rd
 
 theorem feConstantCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     (hcode : I.code = feConstantCreationBytecode) (hwv : I.weiValue ≠ ⟨0⟩) :
     RDrev feConstantCreationBytecode g (initState σ σ₀ g A I) := by
   have hcode' : I.code = feConstantCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
-  have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := feConstantCreationBlocks.feConstantCreation_block_0_fallthrough (by simp)
-    (isZero_eq_zero_of_ne hwv) rd0
-  have rrev := feConstantCreationBlocks.feConstantCreation_block_5 (by simp) rd1
-  rw [ByteArray.append_empty] at rrev
-  exact rrev
+  have rd := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
+  rd_run rd using [isZero_eq_zero_of_ne hwv]
+  rwa [ByteArray.append_empty] at rd
 
 theorem feConstantConstructorCorrect :
     typedConstructorRefinement config feConstantCreationBytecode contract
