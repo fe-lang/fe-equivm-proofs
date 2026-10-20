@@ -26,11 +26,8 @@ theorem fePackedStoreCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : Executi
   have hcode' : I.code = fePackedStoreCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := fePackedStoreCreationBlocks.fePackedStoreCreation_block_0_taken (by simp)
-    (by rw [hwv]; decide) (by jump_dest) rd0
-  have rret := fePackedStoreCreationBlocks.fePackedStoreCreation_block_8 (by simp) rd1
-  rw [ByteArray.append_empty, fePackedStoreCreation_runtime_copy] at rret
-  exact rret
+  rd_run rd0 using [hwv]
+  rwa [ByteArray.append_empty, fePackedStoreCreation_runtime_copy] at rd0
 
 theorem fePackedStoreCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     (hcode : I.code = fePackedStoreCreationBytecode) (hwv : I.weiValue ≠ ⟨0⟩) :
@@ -38,11 +35,8 @@ theorem fePackedStoreCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : Executi
   have hcode' : I.code = fePackedStoreCreationBytecode ++ ByteArray.empty := by
     rw [ByteArray.append_empty]; exact hcode
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
-  have rd1 := fePackedStoreCreationBlocks.fePackedStoreCreation_block_0_fallthrough (by simp)
-    (isZero_eq_zero_of_ne hwv) rd0
-  have rrev := fePackedStoreCreationBlocks.fePackedStoreCreation_block_5 (by simp) rd1
-  rw [ByteArray.append_empty] at rrev
-  exact rrev
+  rd_run rd0 using [isZero_eq_zero_of_ne hwv]
+  rwa [ByteArray.append_empty] at rd0
 
 theorem fePackedStoreConstructorCorrect :
     typedConstructorRefinement config fePackedStoreCreationBytecode contract

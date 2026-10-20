@@ -28,25 +28,24 @@ theorem fePackedStoreGet0Body {σ σ₀ A I} {g : UInt256}
     show decodeCalldata [] [] I.calldata = some ∅
     exact decodeCalldata_empty_ok hsz
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := fePackedStoreBlocks.fePackedStore_block_125_fallthrough (by simp) hwv rd
-    have rret : RDret fePackedStoreBytecode _ _ σ
-        (packedByte (codeOwnerStorageWord I σ packedSlot) 0).toByteArray :=
-      RDret.of_output_eq (fePackedStoreBlocks.fePackedStore_block_130 (by simp) rd1)
-        ((toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)).trans
-          (congrArg UInt256.toByteArray (packedByte_lane0 _)))
-    have hbody := nonpayableReturnExprBodyReturns (cfg := config) (contract := contract)
-      (imms := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (locals := ∅)
-      (by simp only [initState]; exact hwv)
-      (evalLaneCast "lane0" 0 (by simp) rfl rfl)
-    have hW : Stele.EVM.storageLoad (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-        (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.codeOwner packedSlot =
-        codeOwnerStorageWord I σ packedSlot := codeOwnerStorageWord_initState packedSlot
-    rw [hW] at hbody
-    exact rret.reEquivExecution hcode hd hdec hbody
-      (returnEquiv_of_encode (uint256ReturnEncoding _))
-  · have rd1 := fePackedStoreBlocks.fePackedStore_block_125_taken (by simp) hwv (by jump_dest) rd
-    exact RDrev.reEquivDispatchedRevert hcode
-      (fePackedStoreBlocks.fePackedStore_block_74 (by simp) rd1) hd
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
       fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  rd_run rd using [hwv]
+  have rret : RDret fePackedStoreBytecode _ _ σ
+      (packedByte (codeOwnerStorageWord I σ packedSlot) 0).toByteArray :=
+    RDret.of_output_eq rd ((toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)).trans
+      (congrArg UInt256.toByteArray (packedByte_lane0 _)))
+  have hbody := nonpayableReturnExprBodyReturns (cfg := config) (contract := contract)
+    (imms := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (locals := ∅)
+    (by simp only [initState]; exact hwv)
+    (evalLaneCast "lane0" 0 (by simp) rfl rfl)
+  have hW : Stele.EVM.storageLoad (initState σ σ₀ (Sat256.ofUInt256 g) A I)
+      (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.codeOwner packedSlot =
+      codeOwnerStorageWord I σ packedSlot := codeOwnerStorageWord_initState packedSlot
+  rw [hW] at hbody
+  exact rret.reEquivExecution hcode hd hdec hbody
+    (returnEquiv_of_encode (uint256ReturnEncoding _))
 
 end FeProofs.PackedStore
