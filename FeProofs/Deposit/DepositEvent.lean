@@ -81,26 +81,6 @@ section Trace
 variable {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256}
   {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
 
-/-- Static-mode twin of `feDeposit_block_1491_taken`: the same steps up to `LOG1` (pc 1534),
-    which halts under `ee.perm = false`. -/
-theorem eventBlock1491Static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 x5 x6 x7 x8 : UInt256} {R : List UInt256}
-    (hstack : R.length + 10 ≤ 1024)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1491) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C)
-    (hperm : ee.perm = false)
-    : RDstatic FeProofs.Deposit.feDepositBytecode g s0 := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r2 := r1.swap2 (by native_decide) (by evm_ov)
-  have r3 := r2.swap5 (by native_decide) (by evm_ov)
-  have r4 := RD.genMcopy r3 (by native_decide) (by evm_ov)
-  have r5 := r4.swap1 (by native_decide) (by evm_ov)
-  have r6 := r5.pop (by native_decide) (by evm_ov)
-  have r7 := r6.swap2 (by native_decide) (by evm_ov)
-  have r8 := r7.pushConst (UInt256.ofNat 45506446345753628416285423056165511379837572639148407563471291220684748896453) (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
-  have r9 := r8.swap2 (by native_decide) (by evm_ov)
-  have r10 := r9.swap6 (by native_decide) (by evm_ov)
-  exact RD.log1Static r10 hperm (by native_decide) (by evm_ov)
-
 /-- The stored deposit count (slot 32), as the bytecode reads it. -/
 abbrev eventCount (σ : AccountMap) (ee : ExecutionEnv) : UInt256 :=
   solcSlotWord σ ee (UInt256.ofNat 32)
@@ -147,7 +127,8 @@ theorem depositEventTrace {p a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256}
     exact ⟨_, _, _, _, _, _, _, _, _, _, _, _, rd, rfl⟩
   refine ⟨fun heq hpf => ?_, fun heq hperm hbig => ?_, fun heq hperm hlt => ?_⟩
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, -⟩ := pre heq
-    exact eventBlock1491Static (by simp; omega) rd9 hpf
+    rd_step rd9
+    exact rd9
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, -⟩ := pre heq
     rd_run rd9 using [hperm, ult_zero (by rw [ulit_toNat' 4294967295 (by omega)]; exact hbig)]
     exact rd9
