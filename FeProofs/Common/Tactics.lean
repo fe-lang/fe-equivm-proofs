@@ -177,6 +177,20 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
     if ← tryTac (evalTactic (← `(tactic| (have h := $stx; simp only [reduceUInt256Mk] at h; rw [h]; decide_closed))))
     then return true
     if ← tryTac (evalTactic (← `(tactic| exact ne_of_eq_of_ne $stx (by decide)))) then return true
+  -- all hints together, each normalized (`calldataWord` unfolded, literals in one spelling), as
+  -- `simp` rewrite rules: those that occur are used, the rest ignored
+  let facts := elabd.filter fun (_, _, t) => fits t
+  if !facts.isEmpty then
+    let names := (List.range facts.size).toArray.map fun i => mkIdent (Name.mkSimple s!"rd_hint{i}")
+    let args ← names.mapM fun nm => `(Lean.Parser.Tactic.simpLemma| $nm:ident)
+    let normalized : TacticM Unit := do
+      for ((stx, _, _), nm) in facts.zip names do
+        evalTactic (← `(tactic| have $nm := $stx))
+        evalTactic (← `(tactic|
+          try simp only [calldataWord, reduceUInt256Mk, reduceUInt256ToNat] at $nm:ident))
+      evalTactic (← `(tactic| simp only [reduceUInt256Mk, reduceUInt256ToNat, $args,*]))
+      evalTactic (← `(tactic| all_goals decide_closed))
+    if ← tryTac normalized then return true
   for (stx, _, t) in elabd do
     if fits t then
       if ← tryTac (evalTactic (← `(tactic| exact Classical.not_not.mp $stx))) then
