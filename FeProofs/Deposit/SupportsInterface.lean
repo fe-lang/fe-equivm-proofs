@@ -231,80 +231,47 @@ theorem feDepositSupportsInterfaceBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feDepositReachSupportsInterfaceBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feDepositBlocks.feDeposit_block_60_fallthrough (by simp) hwv rd
-    simp only [feDepositBlocks.feDeposit_block_60_fallthrough_stack] at rd1
-    by_cases hok : 36 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
-    · obtain ⟨hlen, hhi⟩ := hok
-      have rd2 := feDepositBlocks.feDeposit_block_67_fallthrough (by simp)
-        (solcDecodeLenCheckOk_4_32 hlen hhi hsize) rd1
-      cases hpad : zeroPadding? (siArgBytes I) 4 28 with
-      | none =>
-          have rd3 := feDepositBlocks.feDeposit_block_80_taken (by simp) (siPad_bad hlen hpad)
-            (by jump_dest) rd2
-          exact RDrev.reEquivDecodingFailed hcode (feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_80_taken_stack]) rd3)
-            hd (siDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hpad⟩)))
-      | some u =>
-          cases u
-          have rd3 := feDepositBlocks.feDeposit_block_80_fallthrough (by simp) (siPad_ok hlen hpad) rd2
-          simp only [feDepositBlocks.feDeposit_block_80_fallthrough_stack] at rd3
-          have hbody := siBodyReturns (initState σ σ₀ (Sat256.ofUInt256 g) A I) I
-            (by simp only [initState]; exact hwv)
-          have hdec := siDecode_ok hlen hhi hpad
-          by_cases h1 : siBytes I = [0x01, 0xff, 0xc9, 0xa7]
-          · have rd4 := feDepositBlocks.feDeposit_block_91_taken (by simp)
-              ((siSel_eq hlen _ rfl 33540519 (by decide) (by decide)).mpr h1) (by jump_dest) rd3
-            have rd5 := feDepositBlocks.feDeposit_block_123 (by simp) rd4
-            have rd6 := feDepositBlocks.feDeposit_block_127_fallthrough (by simp) (by decide) rd5
-            have rd7 := feDepositBlocks.feDeposit_block_132 (by simp [feDepositBlocks.feDeposit_block_127_fallthrough_stack]) (by jump_dest) rd6
-            have rret := feDepositBlocks.feDeposit_block_147 (by simp [feDepositBlocks.feDeposit_block_127_fallthrough_stack]) rd7
-            simp only [feDepositBlocks.feDeposit_block_132_memory] at rret
-            rw [siOut] at rret
-            exact rret.reEquivExecution hcode hd hdec hbody
-              (siReturn _ _ (by simp [siResult, h1]; rfl))
-          · have rd4 := feDepositBlocks.feDeposit_block_91_fallthrough (by simp)
-              (by
-                by_contra hne
-                exact h1 ((siSel_eq hlen _ rfl 33540519 (by decide) (by decide)).mp hne)) rd3
-            by_cases h2 : siBytes I = [0x85, 0x64, 0x09, 0x07]
-            · have rd5 := feDepositBlocks.feDeposit_block_104_taken (by simp)
-                (by rw [uInt256_eq_comm]
-                    exact (siSel_eq hlen _ rfl 2237925639 (by decide) (by decide)).mpr h2)
-                (by jump_dest) rd4
-              have rd6 := feDepositBlocks.feDeposit_block_117 (by simp [feDepositBlocks.feDeposit_block_104_taken_stack]) (by jump_dest) rd5
-              have rd7 := feDepositBlocks.feDeposit_block_127_fallthrough (by simp [feDepositBlocks.feDeposit_block_104_taken_stack]) (by decide) rd6
-              have rd8 := feDepositBlocks.feDeposit_block_132 (by simp [feDepositBlocks.feDeposit_block_104_taken_stack, feDepositBlocks.feDeposit_block_127_fallthrough_stack]) (by jump_dest) rd7
-              have rret := feDepositBlocks.feDeposit_block_147 (by simp [feDepositBlocks.feDeposit_block_104_taken_stack, feDepositBlocks.feDeposit_block_127_fallthrough_stack]) rd8
-              simp only [feDepositBlocks.feDeposit_block_132_memory] at rret
-              rw [siOut] at rret
-              exact rret.reEquivExecution hcode hd hdec hbody
-                (siReturn _ _ (by simp [siResult, h2]; rfl))
-            · have rd5 := feDepositBlocks.feDeposit_block_104_fallthrough (by simp)
-                (by
-                  rw [uInt256_eq_comm]
-                  by_contra hne
-                  exact h2 ((siSel_eq hlen _ rfl 2237925639 (by decide) (by decide)).mp hne)) rd4
-              have rd6 := feDepositBlocks.feDeposit_block_113 (by simp [feDepositBlocks.feDeposit_block_104_fallthrough_stack]) (by jump_dest) rd5
-              have rd7 := feDepositBlocks.feDeposit_block_127_taken (by simp [feDepositBlocks.feDeposit_block_104_fallthrough_stack]) (by decide)
-                (by jump_dest) rd6
-              have rd8 := feDepositBlocks.feDeposit_block_141 (by simp [feDepositBlocks.feDeposit_block_104_fallthrough_stack, feDepositBlocks.feDeposit_block_127_taken_stack]) rd7
-              have rret := feDepositBlocks.feDeposit_block_147 (by simp [feDepositBlocks.feDeposit_block_104_fallthrough_stack, feDepositBlocks.feDeposit_block_127_taken_stack]) rd8
-              simp only [feDepositBlocks.feDeposit_block_141_memory] at rret
-              rw [siOut] at rret
-              exact rret.reEquivExecution hcode hd hdec hbody
-                (siReturn _ _ (by simp [siResult, h1, h2]))
-    · have hbad : I.calldata.size < 36 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-      have hslt : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
-          (UInt256.ofNat 32) = ⟨1⟩ := by
-        rcases hbad with h | h
-        · exact solcDecodeLenCheckShort_4_32 hsz h hsize
-        · exact solcDecodeLenCheckHuge_4_32 h hsize
-      have rd2 := feDepositBlocks.feDeposit_block_67_taken (by simp) (by rw [hslt]; decide)
-        (by jump_dest) rd1
-      exact RDrev.reEquivDecodingFailed hcode (feDepositBlocks.feDeposit_block_2245 (by simp) rd2)
-        hd (siDecode_none hsz (by rcases hbad with h | h; exact Or.inl h; exact Or.inr (Or.inl h)))
-  · have rd1 := feDepositBlocks.feDeposit_block_60_taken (by simp) hwv (by jump_dest) rd
-    simp only [feDepositBlocks.feDeposit_block_60_taken_stack] at rd1
-    exact RDrev.reEquivDispatchedRevert hcode (feDepositBlocks.feDeposit_block_2245 (by simp) rd1)
-      hd fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
+      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  by_cases hok : 36 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
+  swap
+  · have hbad : I.calldata.size < 36 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
+    have hslt : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
+        (UInt256.ofNat 32) = ⟨1⟩ := by
+      rcases hbad with h | h
+      · exact solcDecodeLenCheckShort_4_32 hsz h hsize
+      · exact solcDecodeLenCheckHuge_4_32 h hsize
+    rd_run rd using [hwv, hslt]
+    exact RDrev.reEquivDecodingFailed hcode rd hd
+      (siDecode_none hsz (by rcases hbad with h | h; exact Or.inl h; exact Or.inr (Or.inl h)))
+  obtain ⟨hlen, hhi⟩ := hok
+  have hc := solcDecodeLenCheckOk_4_32 hlen hhi hsize
+  cases hpad : zeroPadding? (siArgBytes I) 4 28 with
+  | none =>
+      rd_run rd using [hwv, hc, siPad_bad hlen hpad]
+      exact RDrev.reEquivDecodingFailed hcode rd hd
+        (siDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hpad⟩)))
+  | some u =>
+      cases u
+      have hbody := siBodyReturns (initState σ σ₀ (Sat256.ofUInt256 g) A I) I
+        (by simp only [initState]; exact hwv)
+      have hdec := siDecode_ok hlen hhi hpad
+      have hsel1 := siSel_eq hlen [0x01, 0xff, 0xc9, 0xa7] rfl 33540519 (by decide) (by decide)
+      have hsel2 := siSel_eq hlen [0x85, 0x64, 0x09, 0x07] rfl 2237925639 (by decide) (by decide)
+      by_cases h1 : siBytes I = [0x01, 0xff, 0xc9, 0xa7]
+      · rd_run rd using [hwv, hc, siPad_ok hlen hpad, hsel1.mpr h1]
+        rw [siOut] at rd
+        exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h1]; rfl))
+      by_cases h2 : siBytes I = [0x85, 0x64, 0x09, 0x07]
+      · rd_run rd using [hwv, hc, siPad_ok hlen hpad, (by by_contra hne; exact h1 (hsel1.mp hne)),
+          (by rw [uInt256_eq_comm]; exact hsel2.mpr h2)]
+        rw [siOut] at rd
+        exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h2]; rfl))
+      · rd_run rd using [hwv, hc, siPad_ok hlen hpad, (by by_contra hne; exact h1 (hsel1.mp hne)),
+          (by rw [uInt256_eq_comm]; by_contra hne; exact h2 (hsel2.mp hne))]
+        rw [siOut] at rd
+        exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h1, h2]))
 
 end FeProofs.Deposit

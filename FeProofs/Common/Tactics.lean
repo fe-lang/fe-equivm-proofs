@@ -16,7 +16,7 @@ bytecode constant: for `…feXBytecode` the block at `pc` is `feXBlocks.feX_bloc
 
 Side conditions are discharged automatically: stack bounds by `simp`/`omega`, jump destinations by
 `jump_dest`, and branch conditions and other hypotheses by a `using [t, …]` term (as a proof, up to
-`≠`/`¬¬`, or as equations to rewrite with, one or all in order, before `decide`), `assumption`, `decide`, `simp` or `omega`. At a conditional jump the taken branch is tried first; when neither
+`¬¬`, or as equations to rewrite with, one or all in order, before `decide`), `assumption`, `decide`, `simp` or `omega`. At a conditional jump the taken branch is tried first; when neither
 condition can be discharged the step fails (`rd_step`) or the run stops there (`rd_run`). A
 program counter written as a closed sum, such as `UInt256.ofNat 891 + ⟨1⟩`, is normalized first.
 `as h'` names the result instead of reusing `h`.
@@ -70,74 +70,109 @@ elab "decide_closed" : tactic => do
   if ty.hasFVar || ty.hasMVar then throwError "decide_closed: goal is not closed"
   evalTactic (← `(tactic| decide))
 
+/-- Run `x` with at most `budget` heartbeats (raw units, as `IO.getNumHeartbeats` counts them);
+on running out, restore the state and return `none`. Failing comparisons between unrelated terms
+can unfold the jump-destination table or symbolic word arithmetic for a very long time. -/
+def withBudgetM? (budget : Nat) (x : MetaM α) : MetaM (Option α) := do
+  let s ← saveState
+  let now ← IO.getNumHeartbeats
+  tryCatchRuntimeEx
+    (some <$> withTheReader Core.Context
+      (fun c => { c with maxHeartbeats := budget, initHeartbeats := now }) x)
+    (fun _ => do s.restore; return none)
+
+/-- `withBudgetM?` for tactics. -/
+def withBudgetT? (budget : Nat) (x : TacticM α) : TacticM (Option α) := do
+  let s ← saveState
+  let now ← IO.getNumHeartbeats
+  tryCatchRuntimeEx
+    (some <$> withTheReader Core.Context
+      (fun c => { c with maxHeartbeats := budget, initHeartbeats := now }) x)
+    (fun _ => do s.restore; return none)
+
+/-- Heartbeat budget of one side-goal attempt. -/
+def attemptBudget : Nat := 3000000
+
+/-- Whether a proof of `t` proves `ty`: at reducible transparency, or at default transparency within
+`attemptBudget`. -/
+def provesGoal (t ty : Expr) : MetaM Bool := do
+  if ← withReducible (isDefEq t ty) then return true
+  return (← withBudgetM? attemptBudget (isDefEq t ty)).getD false
+
 /-- Whether `e` mentions a constant whose last name component is `n`. -/
 def mentions (e : Expr) (n : String) : Bool :=
   (e.find? fun x => x.isConst && x.constName!.lastComponentAsString == n).isSome
 
-/-- Close a side goal of a block summary. Candidate proofs (hints and hypotheses) are compared with
-the goal at reducible transparency, and only with goals of their own kind: comparing a
-jump-destination goal with anything else makes Lean unfold the bytecode's jump-destination table,
-which takes very long to fail. -/
-def discharge (g : MVarId) (hints : Array (Term × Expr × Expr)) : TacticM Bool := do
+/-- Close a side goal of a block summary. Every attempt runs within `attemptBudget`, and candidate
+proofs (hints and hypotheses) are only compared with goals of their own kind. -/
+def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : TacticM Bool := do
   let ty ← instantiateMVars (← g.getType)
   let gs ← getGoals
-  let tryTac (tac : TacticM Unit) : TacticM Bool := do
+  -- elaboration errors must fail the attempt, not close the goal with `sorry`
+  let tryTac (tac : TacticM Unit) (budget := attemptBudget) : TacticM Bool := do
     let s ← saveState
     try
       setGoals [g]
-      tac
-      if (← getUnsolvedGoals).isEmpty then setGoals gs; return true
+      let some () ← (if budget == 0 then some <$> Term.withoutErrToSorry tac
+        else withBudgetT? budget (Term.withoutErrToSorry tac)) | s.restore; return false
+      if (← getUnsolvedGoals).isEmpty && !(← instantiateMVars (mkMVar g)).hasSorry then
+        setGoals gs; return true
       s.restore; return false
     catch _ => s.restore; return false
   let isJump := mentions ty "D_J"
   let fits (t : Expr) : Bool :=
     mentions t "D_J" == isJump && !(t.isAppOf ``RD || t.isAppOf ``RDrev || t.isAppOf ``RDret)
   -- hints and hypotheses as proofs
-  let mut cands : Array Expr := hints.filterMap fun (_, e, t) => if fits t then some e else none
+  let elabd := hints.filterMap fun (stx, et) => et.map fun (e, t) => (stx, e, t)
+  let mut cands : Array Expr := elabd.filterMap fun (_, e, t) => if fits t then some e else none
   for d in (← g.getDecl).lctx do
     if !d.isImplementationDetail && fits (← instantiateMVars d.type) then cands := cands.push d.toExpr
   -- reducible transparency: at default transparency a mismatch can unfold word arithmetic for long
   for e in cands do
     let s ← saveState
-    if ← withReducible (isDefEq (← inferType e) ty) then
+    if ← provesGoal (← inferType e) ty then
       g.assign e; return true
     s.restore
-  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest)))
+  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest))) (budget := 0)
   -- stack bounds
   if mentions ty "length" then
     for tac in [← `(tactic| (simp; done)), ← `(tactic| omega), ← `(tactic| (simp; omega))] do
       if ← tryTac (evalTactic tac) then return true
     return false
-  -- branch conditions: decide, or rewrite with the hints first
+  -- branch conditions: hints that need the goal to elaborate, decide, or rewrite with the hints first
+  for (stx, et) in hints do
+    if et.isNone then
+      if ← tryTac (evalTactic (← `(tactic| exact $stx))) then return true
   if ← tryTac (evalTactic (← `(tactic| decide_closed))) then return true
-  let eqs := hints.filter fun (_, _, t) => t.isAppOf ``Eq && fits t
+  let eqs := elabd.filter fun (_, _, t) => t.isAppOf ``Eq && fits t
   for (stx, _, _) in eqs do
     if ← tryTac (evalTactic (← `(tactic| (rw [$stx:term]; decide_closed)))) then return true
   if eqs.size > 1 then
     let rws ← eqs.mapM fun (stx, _, _) => `(Lean.Parser.Tactic.rwRule| $stx:term)
     if ← tryTac (evalTactic (← `(tactic| (rw [$rws,*]; decide_closed)))) then return true
-  for (stx, _, t) in hints do
+  for (stx, _, t) in elabd do
     if fits t then
-      if ← tryTac (evalTactic (← `(tactic|
-          set_option linter.unnecessarySimpa false in simpa only [ne_eq, not_not] using $stx)))
-      then return true
+      if ← tryTac (evalTactic (← `(tactic| exact Classical.not_not.mp $stx))) then
+        return true
   return false
 
-/-- Elaborate the `using` terms once per step: each with its proof and type. -/
-def elabHints (hints : Array Term) : TacticM (Array (Term × Expr × Expr)) :=
-  hints.filterMapM fun (stx : Term) => do
+/-- Elaborate the `using` terms once per step, each with its proof and type; a term that needs
+the goal to elaborate (such as a `by` block) is kept as syntax. -/
+def elabHints (hints : Array Term) : TacticM (Array (Term × Option (Expr × Expr))) :=
+  hints.mapM fun (stx : Term) => do
+    let s ← saveState
     try
-      let e ← Term.elabTerm stx none
+      let e ← Term.withoutErrToSorry (Term.elabTerm stx none)
       Term.synthesizeSyntheticMVarsNoPostponing
       let e ← instantiateMVars e
-      if e.hasExprMVar then return none
+      if e.hasExprMVar then s.restore; return (stx, none)
       let t ← instantiateMVars (← inferType e)
-      return some ((stx, e, t) : Term × Expr × Expr)
-    catch _ => return none
+      return (stx, some (e, t))
+    catch _ => s.restore; return (stx, none)
 
 /-- Apply the block summary `blk` to the hypothesis `h`; on success return the new proof and
 its type. -/
-def applyBlock (h : FVarId) (blk : Name) (hints : Array (Term × Expr × Expr)) :
+def applyBlock (h : FVarId) (blk : Name) (hints : Array (Term × Option (Expr × Expr))) :
     TacticM (Option (Expr × Expr)) := do
   let s ← saveState
   try
