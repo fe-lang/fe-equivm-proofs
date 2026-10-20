@@ -37,7 +37,7 @@ theorem feERC20AllowanceBody {σ σ₀ A I} {g : UInt256}
   by_cases hok : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 68 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-    rd_run rd using [hwv, solcDecodeLenCheckBad_4_64 hsz hsize hbad]
+    rd_run rd using [hwv, solcDecodeLenCheckBad 2 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd (hbad.elim
       (decodeCalldata_address_address_none_short hsz) decodeCalldata_address_address_none_huge)
   obtain ⟨hlen, hhi⟩ := hok

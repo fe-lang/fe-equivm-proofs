@@ -41,12 +41,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
   by_cases hok : 132 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 132 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-    have hslt : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
-        (UInt256.ofNat 128) = ⟨1⟩ := by
-      rcases hbad with h | h
-      · exact solcCalldataStaticLenCheckShort (words := 4) hsz h hsize (by norm_num)
-      · exact solcCalldataStaticLenCheckHuge (words := 4) h hsize (by norm_num)
-    rd_run rd using [hwv, hslt]
+    rd_run rd using [hwv, solcDecodeLenCheckBad 4 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim decodeCalldata_four_uint256_none_short decodeCalldata_four_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok

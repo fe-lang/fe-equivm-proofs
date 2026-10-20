@@ -22,22 +22,14 @@ theorem selWord_eq {I : ExecutionEnv} {w : UInt256} (h : solcSelectorWord I = w)
 
 /-! ## Head-length check -/
 
-/-- Fe's head check `SLT(CALLDATASIZE - 4, 32)` fails for calldata shorter than one head word or
-of at least `2^255 + 4` bytes (stated as the block summaries' branch condition). -/
-theorem solcDecodeLenCheckBad_4_32 {sz : ℕ} (hhead : 4 ≤ sz) (hsz : sz < UInt256.size)
-    (hbad : sz < 36 ∨ 2 ^ 255 + 4 ≤ sz) :
-    UInt256.slt (UInt256.sub (UInt256.ofNat sz) (UInt256.ofNat 4)) (UInt256.ofNat 32) ≠
+/-- Fe's head check `SLT(CALLDATASIZE - 4, 32 * words)` fails for calldata shorter than the head
+or of at least `2^255 + 4` bytes (stated as the block summaries' branch condition). -/
+theorem solcDecodeLenCheckBad (words : ℕ) {sz : ℕ} (hhead : 4 ≤ sz) (hsz : sz < UInt256.size)
+    (hbad : sz < 4 + 32 * words ∨ 2 ^ 255 + 4 ≤ sz) (hneed : 32 * words < 2 ^ 255 := by norm_num) :
+    UInt256.slt (UInt256.sub (UInt256.ofNat sz) (UInt256.ofNat 4)) (UInt256.ofNat (32 * words)) ≠
       UInt256.ofNat 0 :=
-  ne_of_eq_of_ne (hbad.elim (solcDecodeLenCheckShort_4_32 hhead · hsz)
-    (solcDecodeLenCheckHuge_4_32 · hsz)) (by decide)
-
-/-- `solcDecodeLenCheckBad_4_32` for a two-word head. -/
-theorem solcDecodeLenCheckBad_4_64 {sz : ℕ} (hhead : 4 ≤ sz) (hsz : sz < UInt256.size)
-    (hbad : sz < 68 ∨ 2 ^ 255 + 4 ≤ sz) :
-    UInt256.slt (UInt256.sub (UInt256.ofNat sz) (UInt256.ofNat 4)) (UInt256.ofNat 64) ≠
-      UInt256.ofNat 0 :=
-  ne_of_eq_of_ne (hbad.elim (solcDecodeLenCheckShort_4_64 hhead · hsz)
-    (solcDecodeLenCheckHuge_4_64 · hsz)) (by decide)
+  ne_of_eq_of_ne (hbad.elim (solcCalldataStaticLenCheckShort hhead · hsz hneed)
+    (solcCalldataStaticLenCheckHuge · hsz hneed)) (by decide)
 
 /-! ## `address` arguments -/
 
