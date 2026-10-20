@@ -26,54 +26,29 @@ theorem feNarrowAbiEcho_addressBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feNarrowAbiReachEcho_addressBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_242_fallthrough (by simp) hwv rd
-    simp only [feNarrowAbiBlocks.feNarrowAbi_block_242_fallthrough_stack] at rd1
-    by_cases hlen : 36 ≤ I.calldata.size
-    · by_cases hhi : I.calldata.size < 2 ^ 255 + 4
-      · have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_248_fallthrough (by simp)
-          (solcDecodeLenCheckOk_4_32 hlen hhi hsize) rd1
-        by_cases hcanon : (argWord I).toNat < EVM.addressModulus
-        · have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_260_fallthrough (by simp)
-            (shiftRight160_eq_zero hcanon) rd2
-          simp only [feNarrowAbiBlocks.feNarrowAbi_block_260_fallthrough_stack] at rd3
-          have rret := RDret.of_output_eq (feNarrowAbiBlocks.feNarrowAbi_block_270 (by simp) rd3)
-            (toByteArray_write32_read_back ByteArray.empty (argWord I) 0 (by decide))
-          have hdec : config.externalABI.decodeCalldata? (echo_addressTransition.params.map Param.name)
-              (transitionSignature echo_addressTransition).paramTypes I.calldata =
-              some ((∅ : Store).insert "value"
-                (.address (AccountAddress.ofNat (argWord I).toNat))) :=
-            decodeCalldata_address_ok hlen hhi hcanon
-          exact rret.reEquivExecution hcode hd hdec
-            (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
-              (evalLocalVar (store_get_self _ _ _)))
-            (returnEquiv_of_encode (addressReturnEncoding hcanon))
-        · have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_260_taken (by simp)
-            (shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)) (by jump_dest) rd2
-          refine RDrev.reEquivDecodingFailed hcode
-            (feNarrowAbiBlocks.feNarrowAbi_block_99
-              (by simp [feNarrowAbiBlocks.feNarrowAbi_block_260_taken_stack]) rd3) hd ?_
-          show decodeCalldata ["value"] [.elem .address] I.calldata = _
-          exact decodeCalldata_address_none_noncanon hlen hhi hcanon
-      · have hbig : 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-        have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_248_taken (by simp)
-          (fun h => absurd ((solcDecodeLenCheckHuge_4_32 hbig hsize).symm.trans h) (by decide))
-          (by jump_dest) rd1
-        refine RDrev.reEquivDecodingFailed hcode
-          (feNarrowAbiBlocks.feNarrowAbi_block_99 (by simp) rd2) hd ?_
-        show decodeCalldata ["value"] [.elem .address] I.calldata = _
-        exact decodeCalldata_address_none_huge hbig
-    · have hshort : I.calldata.size < 36 := by omega
-      have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_248_taken (by simp)
-        (fun h => absurd ((solcDecodeLenCheckShort_4_32 hsz hshort hsize).symm.trans h) (by decide))
-        (by jump_dest) rd1
-      refine RDrev.reEquivDecodingFailed hcode
-        (feNarrowAbiBlocks.feNarrowAbi_block_99 (by simp) rd2) hd ?_
-      show decodeCalldata ["value"] [.elem .address] I.calldata = _
-      exact decodeCalldata_address_none_short hsz hshort
-  · have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_242_taken (by simp) hwv (by jump_dest) rd
-    exact RDrev.reEquivDispatchedRevert hcode
-      (feNarrowAbiBlocks.feNarrowAbi_block_99
-        (by simp [feNarrowAbiBlocks.feNarrowAbi_block_242_taken_stack]) rd1) hd
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
       fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  by_cases hlen : 36 ≤ I.calldata.size
+  swap
+  · rd_run rd using [hwv, (solcDecodeLenCheckShort_4_32 hsz (by omega) hsize).trans_ne (by decide)]
+    exact rd.reEquivDecodingFailed hcode hd (decodeCalldata_address_none_short hsz (by omega))
+  by_cases hhi : I.calldata.size < 2 ^ 255 + 4
+  swap
+  · rd_run rd using [hwv, (solcDecodeLenCheckHuge_4_32 (by omega) hsize).trans_ne (by decide)]
+    exact rd.reEquivDecodingFailed hcode hd (decodeCalldata_address_none_huge (by omega))
+  rd_run rd using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
+  by_cases hcanon : (argWord I).toNat < EVM.addressModulus
+  swap
+  · rd_run rd using [shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)]
+    exact rd.reEquivDecodingFailed hcode hd (decodeCalldata_address_none_noncanon hlen hhi hcanon)
+  rd_run rd using [shiftRight160_eq_zero hcanon]
+  u256_lits at rd
+  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)] at rd
+  exact rd.reEquivExecution hcode hd (decodeCalldata_address_ok hlen hhi hcanon)
+    (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
+      (evalLocalVar (store_get_self _ _ _)))
+    (returnEquiv_of_encode (addressReturnEncoding hcanon))
 
 end FeProofs.NarrowAbi
