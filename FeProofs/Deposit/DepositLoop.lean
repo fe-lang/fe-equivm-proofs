@@ -104,10 +104,6 @@ theorem assignBranch {L : Store} {evm : EVM.State} {i : Nat} (hi : i < 32)
 theorem evalEmptyReturn {fr : Frame} {evm : EVM.State} : evalExprs? config fr evm [] = .ok [] := by
   simp [evalExprs?, pure]
 
-theorem getIns {L : Store} {k a : Ident} {v : Value} {w : Option Value} (h : (k == a) = false)
-    (ha : L.get? a = w) : (L.insert k v).get? a = w := by
-  rw [store_get_ne L v h, ha]
-
 /-- **The insertion loop.**  From the loop head with `32 - height` rounds left, the EVM run and the
     Stele loop end alike: both return after a branch write, both revert at a failing hash, or the
     EVM panics after the last round while the Stele loop finishes (its trailing `require(false)`
@@ -199,7 +195,7 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
         evalVar (store_get_self _ _ _)
       have hnodev : evalExpr? config { contract := contract, locals := L1 } evm (.var "node") =
           .ok (.int (Int.ofNat node.toNat)) :=
-        evalVar (getIns (by decide) hn)
+        evalVar (by store_get; exact hn)
       by_cases hok : z = true ∧ 32 ≤ out.size
       · obtain ⟨rfl, hout⟩ := hok
         simp only [if_true] at rd5
@@ -221,11 +217,10 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
         set L5 : Store := L4.insert "height" (.int (Int.ofNat (height + 1))) with hL5
         have hih := ih (height + 1) (calldataWord out 0) (UInt256.shiftRight size (UInt256.ofNat 1))
           L5 evm' σ' _ _ _ _ _ R (by omega) hR rd8 hs'
-          (getIns (by decide) (getIns (by decide) (store_get_self _ _ _)))
-          (getIns (by decide) (store_get_self _ _ _))
+          (by store_get)
+          (by store_get)
           (store_get_self _ _ _)
-          (getIns (by decide) (getIns (by decide) (getIns (by decide) (getIns (by decide)
-            (getIns (by decide) hb)))))
+          (by store_get; exact hb)
         have hbody : ExecBlock config { contract := contract, locals := L } evm dlBody
             (.ok { contract := contract, locals := L4 } evm') := by
           refine ExecBlock.consNormal (ExecStmt.iteFalse hparS ExecBlock.nil) ?_
@@ -233,14 +228,14 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
           refine ExecBlock.consNormal hcallS ?_
           refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalVar (store_get_self _ _ _))
             (assignLocal (old := .int (Int.ofNat node.toNat))
-              (getIns (by decide) (getIns (by decide) hn)))) ?_
+              (by store_get; exact hn))) ?_
           refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl)
-            (evalHalf (getIns (by decide) (getIns (by decide) (getIns (by decide) hsz))))
+            (evalHalf (by store_get; exact hsz))
             (assignLocal (old := .int (Int.ofNat size.toNat))
-              (getIns (by decide) (getIns (by decide) (getIns (by decide) hsz))))) ?_
+              (by store_get; exact hsz))) ?_
           exact ExecBlock.nil
         have hh4 : L4.get? "height" = some (.int (Int.ofNat height)) :=
-          getIns (by decide) (getIns (by decide) (getIns (by decide) (getIns (by decide) hh)))
+          (by store_get; exact hh)
         have hpost : ExecBlock config { contract := contract, locals := L4 } evm' dlPost
             (.ok { contract := contract, locals := L5 } evm') :=
           ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl) (evalInc hh4) (assignLocal hh4))
@@ -336,7 +331,7 @@ theorem depositTail {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       .ok ({ contract := contract, locals := L1 },
         Stele.EVM.storageStore evm evm.executionEnv.codeOwner (UInt256.ofNat 32) w) :=
     assignStorageRef_storage_scalar_value (ty := .elem uint256Elem)
-      (getIns (by decide) hdc) (by simp only [evalStorageRef, evalStorageRefSteps]; rfl) rfl
+      (by store_get; exact hdc) (by simp only [evalStorageRef, evalStorageRefSteps]; rfl) rfl
       config_storageBackend (loc := uint256Loc (UInt256.ofNat 32)) rfl (Or.inl ⟨_, rfl⟩)
       (storageLocStore_uint256 evm _ w)
   rw [hcode] at hassign
@@ -356,10 +351,10 @@ theorem depositTail {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       (.ok { contract := contract, locals := L2 } evm1) :=
     ExecBlock.consNormal (ExecStmt.letDecl (by simp [evalExpr?, pure])) ExecBlock.nil
   have hloop := depositLoop hperm 32 0 node w L2 evm1 _ mem aw rdata k1 C1 R (by rfl) hR rd1 hs1
-    (getIns (by decide) (getIns (by decide) hn))
-    (getIns (by decide) (store_get_self _ _ _))
+    (by store_get; exact hn)
+    (by store_get)
     (store_get_self _ _ _)
-    (getIns (by decide) (getIns (by decide) hb))
+    (by store_get; exact hb)
   rcases hloop with ⟨σf, frf, evmf, hret, hfor, hacc⟩ | ⟨hrev, hfor⟩ | ⟨hrev, frf, evmf, hfor⟩
   · exact Or.inl ⟨σf, frf, evmf, hret, ExecBlock.consNormal h22 (ExecBlock.consNormal h23
       (ExecBlock.consReturn (ExecStmt.for hinit hfor))), hacc⟩

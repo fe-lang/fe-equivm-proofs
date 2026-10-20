@@ -43,7 +43,7 @@ theorem evalSlice {cfg : Config} {stele : Frame} {evm : EVM.State} {x : Ident} {
     rw [if_neg (by simp), if_neg (by simp [int_toNat_ofNat]; omega)]
     rfl
   rw [evalExpr?]
-  simp only [evalVarL hx, evalLit, EvalResult.bind, bind, hslice]
+  simp only [evalVarF hx, evalLit, EvalResult.bind, bind, hslice]
 
 /-- `abi.encodePacked(bytes(pubkey), bytes16(0))`. -/
 theorem evalPubkeyPayload {cfg : Config} {stele : Frame} {evm : EVM.State} {pk : ByteArray}
@@ -54,7 +54,7 @@ theorem evalPubkeyPayload {cfg : Config} {stele : Frame} {evm : EVM.State} {pk :
       .ok (.bytes (pk ++ ByteArray.zeroes 16)) := by
   have henc : encodePackedValue? (.elem (.bytes 15)) (.fixedBytes 15 (List.replicate 16 0)) =
       some (List.replicate 16 0) := by decide
-  have hpack := evalPackedArgs_cons (ty := .bytes) (evalVarL hpk) rfl
+  have hpack := evalPackedArgs_cons (ty := .bytes) (evalVarF hpk) rfl
     (evalPackedArgs_single (evalFixedLit (cfg := cfg) (stele := stele) (evm := evm) 15
       (List.replicate 16 0)) henc)
   rw [evalExpr?]
@@ -101,7 +101,7 @@ theorem evalCredentials {stele : Frame} {evm : EVM.State} {wc : ByteArray}
     rw [byteArray_extract_of_size wc 32 hsz] at h
     exact h
   rw [evalExpr?]
-  simp only [evalVarL hwc, EvalResult.bind, bind, hdv, pure]
+  simp only [evalVarF hwc, EvalResult.bind, bind, hdv, pure]
 
 /-! ## The internal calls -/
 
@@ -133,6 +133,6 @@ theorem u64ChunkCall {caller : Frame} (hc : caller.contract = contract) {evm : E
       (.ok { caller with locals := (caller.locals.insert "amount_chunk"
         (.int (Int.ofNat (u64ChunkWord m).toNat))) } evm) := by
   obtain ⟨F, hbody⟩ := u64ChunkBody config caller evm m
-  exact internalCallFunctionReturn (evalExprs?_singleton (evalVarL ha)) (by rw [hc]; rfl) rfl hbody
+  exact internalCallFunctionReturn (evalExprs?_singleton (evalVarF ha)) (by rw [hc]; rfl) rfl hbody
 
 end FeProofs.Deposit

@@ -111,7 +111,7 @@ theorem calls123 {σ σ₀ A I} {g : UInt256} {aw : UInt256} {k C : Nat}
   have hsig2 : (((pLocals I.calldata (initState σ σ₀ (Sat256.ofUInt256 g) A I)).insert "pubkey_root"
       (shaDigest out1)).insert "signature_left" (shaDigest out2)).get? "signature" =
       some (.bytes (dPayload I.calldata (dWord I.calldata 64))) := by
-    rw [store_get_ne _ _ (by decide)]; exact hsig1
+    store_get
   rcases depositCall3 (by simp) rd2 hs2 hleft hsigM hfp m3s hzero hsig2 hsigsz with
     ⟨σ3, evm3, o3, M3, aw3, k3, C3, rd3, hr3, hf3, hs3, hss3, hrun⟩ | ⟨hrev, hblk⟩
   · exact Or.inr ⟨σ3, evm3, out1, out2, o3, M3, aw3, k3, C3, rd3, hr3, hf3, hs3, hss3, fun res h => by

@@ -61,9 +61,6 @@ section Stmts
 
 variable {L : Store} {evm : EVM.State}
 
-theorem eventGetNe {k a : Ident} (v : Value) (h : (k == a) = false) (L : Store) :
-    (L.insert k v).get? a = L.get? a := store_get_ne L v h
-
 theorem eventS17_eval {n r : UInt256}
     (hn : L.get? "node" = some (.int (Int.ofNat n.toNat)))
     (hr : evalExpr? config { contract := contract, locals := L } evm
@@ -115,13 +112,13 @@ theorem eventEmitArgs {node m c : UInt256} {pk wc sig : Value}
           .var "index_bytes"] =
       .ok [pk, wc, .bytes ⟨(le64Bytes m).toArray⟩, sig, .bytes ⟨(le64Bytes (mask64 c)).toArray⟩] := by
   have h1 : (eventExitStore L m c).get? "pubkey" = some pk := by
-    rw [eventGetNe _ (by decide), eventGetNe _ (by decide)]; exact hE.pubkey
+    store_get; exact hE.pubkey
   have h2 : (eventExitStore L m c).get? "withdrawal_credentials" = some wc := by
-    rw [eventGetNe _ (by decide), eventGetNe _ (by decide)]; exact hE.wc
+    store_get; exact hE.wc
   have h3 : (eventExitStore L m c).get? "amount_bytes" = some (.bytes ⟨(le64Bytes m).toArray⟩) := by
-    rw [eventGetNe _ (by decide)]; exact store_get_self _ _ _
+    store_get
   have h4 : (eventExitStore L m c).get? "signature" = some sig := by
-    rw [eventGetNe _ (by decide), eventGetNe _ (by decide)]; exact hE.sig
+    store_get; exact hE.sig
   have h5 : (eventExitStore L m c).get? "index_bytes" =
       some (.bytes ⟨(le64Bytes (mask64 c)).toArray⟩) := store_get_self _ _ _
   simp only [evalExprs?, evalVar h1, evalVar h2, evalVar h3, evalVar h4, evalVar h5, bind,
@@ -130,11 +127,6 @@ theorem eventEmitArgs {node m c : UInt256} {pk wc sig : Value}
 end Stmts
 
 /-! ## The coupled segment -/
-
-theorem eventExit_get {L : Store} {m c : UInt256} {x : Ident} (hx1 : ("index_bytes" == x) = false)
-    (hx2 : ("amount_bytes" == x) = false) :
-    (eventExitStore L m c).get? x = L.get? x := by
-  rw [eventGetNe _ hx1, eventGetNe _ hx2]
 
 /-- **The event segment** (statements 17..21, pc 1026 → 1592): a joint revert (root mismatch or
     full tree), a joint static halt at the event, or both sides at pc 1592 with the count below
@@ -174,14 +166,14 @@ theorem depositEventSegment {I : ExecutionEnv} {g : Sat256} {s0 : State} {evm : 
     ExecStmt.requireTrue (by rw [eventS17_eval hE.node hroot]; simp [heq])
   have hs18 := le64Call (ret := "amount_bytes") (L := L) (evm := evm) (evalVar hE.amount)
   have hs19 := le64Call (ret := "index_bytes") (L := eventAmountStore L m) (evm := evm)
-    (eventCountCast hs (by rw [eventGetNe _ (by decide)]; exact hE.count))
+    (eventCountCast hs (by store_get; exact hE.count))
   have hargs := eventEmitArgs (evm := evm) (c := eventCount σ I) hE
   by_cases hperm : I.perm = true
   · have hs20 := ExecStmt.emit (cfg := config)
       (stele := { contract := contract, locals := eventExitStore L m (eventCount σ I) })
       (evm := evm) (name := "DepositEvent") (by rw [hs.env]; exact hperm) hargs
     have hlt := eventCountLt (L := eventExitStore L m (eventCount σ I)) (evm := evm) hs
-      (by rw [eventExit_get (by decide) (by decide)]; exact hE.count)
+      (by store_get; exact hE.count)
     by_cases hc : (eventCount σ I).toNat < 4294967295
     · obtain ⟨mem', aw', k', C', rd'⟩ := hok heq hperm hc
       refine Or.inr (Or.inr ⟨hperm, mem', aw', k', C', rd', hc, fun res hrest => ?_⟩)

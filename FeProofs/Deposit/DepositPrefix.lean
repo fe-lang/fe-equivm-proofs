@@ -62,16 +62,15 @@ def pOk (cd : ByteArray) (evm : EVM.State) : Prop :=
 theorem dStore_pubkey (cd : ByteArray) :
     (dStore cd).get? "pubkey" = some (.bytes (dPayload cd (dWord cd 0))) := by
   unfold dStore
-  rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), store_get_ne _ _ (by decide),
-    store_get_self]
+  store_get
 theorem dStore_wc (cd : ByteArray) :
     (dStore cd).get? "withdrawal_credentials" = some (.bytes (dPayload cd (dWord cd 32))) := by
   unfold dStore
-  rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), store_get_self]
+  store_get
 theorem dStore_sig (cd : ByteArray) :
     (dStore cd).get? "signature" = some (.bytes (dPayload cd (dWord cd 64))) := by
   unfold dStore
-  rw [store_get_ne _ _ (by decide), store_get_self]
+  store_get
 
 theorem depositPrefix_ok (evm : EVM.State) (cd : ByteArray) (hok : dArgsOk cd) (hp : pOk cd evm) :
     ABlock config evm (pFrame (dStore cd)) depositTransition.body (pFrame (pLocals cd evm))

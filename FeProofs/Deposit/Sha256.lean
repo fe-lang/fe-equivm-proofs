@@ -121,7 +121,7 @@ theorem sha64_eval_len {caller : Frame} {evm : EVM.State} {payload out : ByteArr
 theorem sha64_eval_ok {caller : Frame} {evm : EVM.State} {payload out : ByteArray} {z : Bool} :
     evalExpr? config { caller with locals := sha64CallLocals payload out z } evm (.var "ok") =
       .ok (.bool z) :=
-  sha64_eval_var (by rw [store_get_ne _ (k := "result") (a := "ok") _ (by decide), store_get_self])
+  sha64_eval_var (by store_get)
 
 theorem sha64_eval_ret {caller : Frame} {evm : EVM.State} {payload out : ByteArray} {z : Bool}
     (hout : 32 ≤ out.size) :
@@ -245,7 +245,7 @@ theorem shaPairBody_ok {caller : Frame} (hc : caller.contract = contract) {evm e
   refine ExecFuncBody.execBlockRet ?_
   refine ExecBlock.consNormal (internalCallFunctionReturn
     (pair_eval_args (by simp [pairLocals])
-      (by rw [store_get_ne _ (k := "left") (a := "right") _ (by decide), store_get_self]))
+      (by store_get))
     (by rw [hc]; exact sha64Fn_lookup) rfl (sha64Body_ok hcall hout)) ?_
   exact ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton (sha64_eval_var
     (by simp [resumeAfterInternalCall, collapseReturns]))))
@@ -258,7 +258,7 @@ theorem shaPairBody_revert {caller : Frame} (hc : caller.contract = contract) {e
   refine ExecFuncBody.execBlockRevert ?_
   exact ExecBlock.consRevert (internalCallFunctionRevert
     (pair_eval_args (by simp [pairLocals])
-      (by rw [store_get_ne _ (k := "left") (a := "right") _ (by decide), store_get_self]))
+      (by store_get))
     (by rw [hc]; exact sha64Fn_lookup) rfl (sha64Body_revert hcall hbad))
 
 /-- **`sha256_pair(ea, eb)` over a successful call** binds the first returned word. -/

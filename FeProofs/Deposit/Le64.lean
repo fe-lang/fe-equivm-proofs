@@ -261,43 +261,6 @@ theorem le64Value_lt (m : UInt256) : le64Value m < 2 ^ 64 := by
   calc (u64ChunkWord m).toNat < 2 ^ 256 := hw
     _ = 2 ^ 64 * 2 ^ 192 := by norm_num
 
-/-! ## Expression evaluation helpers -/
-
-theorem evalBin {cfg : Config} {stele : Frame} {evm : EVM.State} {op : BinaryOp} {l r : Expr}
-    {lv rv res : Value} (hand : op ≠ .and) (hor : op ≠ .or)
-    (hl : evalExpr? cfg stele evm l = .ok lv) (hr : evalExpr? cfg stele evm r = .ok rv)
-    (hop : evalBinaryOp? op lv rv = .ok res) :
-    evalExpr? cfg stele evm (.binary op l r) = .ok res := by
-  rw [evalExpr_binary_nonshort hand hor]
-  simp only [hl, hr, EvalResult.bind, bind]
-  exact hop
-
-theorem evalVarL {cfg : Config} {stele : Frame} {evm : EVM.State} {name : Ident} {v : Value}
-    (h : stele.locals.get? name = some v) : evalExpr? cfg stele evm (.var name) = .ok v := by
-  rw [evalExpr?]
-  change EvalResult.ofOption EvalError.unboundVariable (stele.locals.get? name) = _
-  rw [h]; rfl
-
-theorem evalLit {cfg : Config} {stele : Frame} {evm : EVM.State} (n : Int) :
-    evalExpr? cfg stele evm (.intLit n) = .ok (.int n) := by
-  rw [evalExpr?]; rfl
-
-theorem evalCastInt {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr} {i : Int}
-    (t : IntType) (he : evalExpr? cfg stele evm e = .ok (.int i)) :
-    evalExpr? cfg stele evm (.cast e (.elem (.int t))) = .ok (.int (normalizeInt t i)) := by
-  rw [evalExpr?]
-  simp only [he, EvalResult.bind, bind, castValue_int, EvalResult.ofOption]
-
-theorem assignLocal_ok {cfg : Config} {stele : Frame} {evm : EVM.State} {name : Ident}
-    {old value : Value} (hget : stele.locals.get? name = some old) :
-    assignStorageRef? cfg stele evm .localVar { base := name } value =
-      .ok ({ stele with locals := stele.locals.insert name value }, evm) := by
-  simp only [assignStorageRef?, updateLocalPath?, EvalResult.bind, bind, pure]
-  change (match stele.locals.get? name with
-    | some _ => EvalResult.ok (({ stele with locals := stele.locals.insert name value } : Frame), evm)
-    | none => EvalResult.error EvalError.unboundVariable) = _
-  rw [hget]
-
 /-! ## The passes as Stele expressions -/
 
 theorem evalSwap8 {cfg : Config} {stele : Frame} {evm : EVM.State} {m : UInt256}
@@ -311,11 +274,11 @@ theorem evalSwap8 {cfg : Config} {stele : Frame} {evm : EVM.State} {m : UInt256}
       .ok (.int (Int.ofNat (swap8 m).toNat)) :=
   evalBin (by decide) (by decide)
     (evalBin (by decide) (by decide)
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _)
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _)
         (evalBitAnd_word m (UInt256.ofNat 71777214294589695) rfl (by decide)))
       (evalLit _) (evalShl_word _ 8 (by decide) rfl))
     (evalBin (by decide) (by decide)
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _) (evalShr_word m 8 (by decide) rfl))
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _) (evalShr_word m 8 (by decide) rfl))
       (evalLit _) (evalBitAnd_word _ (UInt256.ofNat 71777214294589695) rfl (by decide)))
     (evalBitOr_word _ _ rfl rfl)
 
@@ -330,11 +293,11 @@ theorem evalSwap16 {cfg : Config} {stele : Frame} {evm : EVM.State} {m : UInt256
       .ok (.int (Int.ofNat (swap16 m).toNat)) :=
   evalBin (by decide) (by decide)
     (evalBin (by decide) (by decide)
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _)
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _)
         (evalBitAnd_word m (UInt256.ofNat 281470681808895) rfl (by decide)))
       (evalLit _) (evalShl_word _ 16 (by decide) rfl))
     (evalBin (by decide) (by decide)
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _) (evalShr_word m 16 (by decide) rfl))
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _) (evalShr_word m 16 (by decide) rfl))
       (evalLit _) (evalBitAnd_word _ (UInt256.ofNat 281470681808895) rfl (by decide)))
     (evalBitOr_word _ _ rfl rfl)
 
@@ -348,8 +311,8 @@ theorem evalChunkExpr {cfg : Config} {stele : Frame} {evm : EVM.State} {m : UInt
       .ok (.int (Int.ofNat (chunkOf m).toNat)) :=
   evalBin (by decide) (by decide)
     (evalBin (by decide) (by decide)
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _) (evalShl_word m 32 (by decide) rfl))
-      (evalBin (by decide) (by decide) (evalVarL hv) (evalLit _) (evalShr_word m 32 (by decide) rfl))
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _) (evalShl_word m 32 (by decide) rfl))
+      (evalBin (by decide) (by decide) (evalVarF hv) (evalLit _) (evalShr_word m 32 (by decide) rfl))
       (evalBitOr_word _ _ rfl rfl))
     (evalLit _) (evalShl_word _ 192 (by decide) rfl)
 
@@ -366,15 +329,15 @@ theorem u64ChunkBody (cfg : Config) (stele : Frame) (evm : EVM.State) (m : UInt2
   have hcast : evalExpr? cfg
       { stele with locals := (∅ : Store).insert "value" (.int (Int.ofNat m.toNat)) } evm
       (.cast (.var "value") (.elem (.int u256T))) = .ok (.int (Int.ofNat m.toNat)) := by
-    rw [evalCastInt u256T (evalVarL (v := .int (Int.ofNat m.toNat)) (by simp)),
+    rw [evalCastInt u256T (evalVarF (v := .int (Int.ofNat m.toNat)) (by simp)),
       normalizeInt_uint256_word m]
   exact ⟨_, ExecFuncBody.execBlockRet <|
     ExecBlock.consNormal (ExecStmt.letDecl hcast) <|
     ExecBlock.consNormal (ExecStmt.assign (hperm := Or.inl rfl)
-      (evalSwap8 (m := m) (by simp)) (assignLocal_ok (old := .int (Int.ofNat m.toNat)) (by simp))) <|
+      (evalSwap8 (m := m) (by simp)) (assignLocalF (old := .int (Int.ofNat m.toNat)) (by simp))) <|
     ExecBlock.consNormal (ExecStmt.assign (hperm := Or.inl rfl)
       (evalSwap16 (m := swap8 m) (by simp))
-      (assignLocal_ok (old := .int (Int.ofNat (swap8 m).toNat)) (by simp))) <|
+      (assignLocalF (old := .int (Int.ofNat (swap8 m).toNat)) (by simp))) <|
     ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton
       (evalChunkExpr (m := swap16 (swap8 m)) (by simp))))⟩
 
@@ -407,7 +370,7 @@ theorem le64Body (cfg : Config) (stele : Frame) (hc : stele.contract = contract)
           "chunk" (.int (Int.ofNat (u64ChunkWord m).toNat))) } evm
       (.binary (.shr u256T) (.var "chunk") (.intLit 192)) =
       .ok (.int (Int.ofNat (le64Value m))) :=
-    evalBin (by decide) (by decide) (evalVarL (store_get_self _ _ _)) (evalLit _)
+    evalBin (by decide) (by decide) (evalVarF (store_get_self _ _ _)) (evalLit _)
       (evalShr_word _ 192 (by decide) rfl)
   have hcast := evalCastInt u64T hshr
   rw [le64Value_norm] at hcast
@@ -421,7 +384,7 @@ theorem le64Body (cfg : Config) (stele : Frame) (hc : stele.contract = contract)
     simp only [hpack, EvalResult.bind, bind, pure]
   exact ⟨_, ExecFuncBody.execBlockRet <|
     ExecBlock.consNormal (internalCallFunctionReturn (callee := u64ChunkFn)
-      (evalExprs?_singleton (evalVarL (v := .int (Int.ofNat m.toNat)) (by simp)))
+      (evalExprs?_singleton (evalVarF (v := .int (Int.ofNat m.toNat)) (by simp)))
       (by rw [hc]; rfl) rfl hchunk) <|
     ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton hret))⟩
 
@@ -465,7 +428,7 @@ theorem getCountBody (evm : EVM.State) (hwv : evm.executionEnv.weiValue = ⟨0�
     ExecBlock.consNormal (internalCallFunctionReturn (callee := le64Fn)
       (evalExprs?_singleton harg) rfl rfl hle) <|
     ExecBlock.consReturn (ExecStmt.return (evalExprs?_singleton
-      (evalVarL (by simp [resumeAfterInternalCall, collapseReturns]))))⟩
+      (evalVarF (by simp [resumeAfterInternalCall, collapseReturns]))))⟩
 
 /-! ## The ABI encoding of the returned `bytes` -/
 

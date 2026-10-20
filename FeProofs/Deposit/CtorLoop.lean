@@ -170,7 +170,7 @@ theorem evalHeightLt {L : Store} {evm : EVM.State} {h : ℕ}
     (hh : L.get? "height" = some (.int (Int.ofNat h))) :
     evalExpr? config { contract := contract, locals := L } evm ctorCond =
       .ok (.bool (decide (Int.ofNat h < 31))) :=
-  evalBin (by decide) (by decide) (evalVarL hh) (evalLit 31) (evalBinaryOp_lt_int_ok _ _)
+  evalBin (by decide) (by decide) (evalVarF hh) (evalLit 31) (evalBinaryOp_lt_int_ok _ _)
 
 /-! ## The simulation -/
 
@@ -230,13 +230,13 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
     have rd36' := RD.normalizePC (pc' := UInt256.ofNat 36) rd36 (by decide)
     rw [pairMem_read, ← precompile2_eq] at hcall
     -- the Stele body up to the call
-    have hcur := zeroHash_read (L := L) (evm := evmh) (i := h) (by omega) (evalVarL hh) hz
+    have hcur := zeroHash_read (L := L) (evm := evmh) (i := h) (by omega) (evalVarF hh) hz
     rw [hs.storageRead] at hcur
     have hcurVar : evalExpr? config { contract := contract, locals := loopL1 L σh I h } evmh
         (.var "cur") =
         .ok (.int (Int.ofNat (σh.get? I.codeOwner |>.option (⟨0⟩ : UInt256)
           (fun ac => ac.storage.getD ((UInt256.ofNat 33) + UInt256.ofNat h) (⟨0⟩ : UInt256))).toNat)) :=
-      evalVarL (store_get_self _ _ _)
+      evalVarF (store_get_self _ _ _)
     by_cases hok : z = true ∧ 32 ≤ out.size
     · obtain ⟨rfl, hout⟩ := hok
       have rd45 := feDepositCreationBlocks.feDepositCreation_block_36_taken (by simp) (by decide)
@@ -255,22 +255,22 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
       have hcall2 := shaPairCall_ok (caller := { contract := contract, locals := loopL1 L σh I h })
         rfl (ret := "next") hcurVar hcurVar hcall hout
       have hh2 : (loopL2 L σh I h out).get? "height" = some (.int (Int.ofNat h)) := by
-        rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), hh]
+        store_get; exact hh
       have hz2 : (loopL2 L σh I h out).get? "zero_hashes" = none := by
-        rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), hz]
+        store_get; exact hz
       have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalInc hh2) hz2
         (calldataWord out 0)
       rw [hs'.env] at hassign
       have hs'' := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
       have hstore := ExecStmt.assign (hperm := Or.inr (by rw [hs'.env]; exact hperm))
-        (evalVarL (store_get_self _ _ _)) hassign
+        (evalVarF (store_get_self _ _ _)) hassign
       have hpost := ExecStmt.assign (cfg := config) (hperm := Or.inl rfl)
         (evalInc (evm := Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
-          (calldataWord out 0)) hh2) (assignLocal_ok (old := .int (Int.ofNat h)) hh2)
+          (calldataWord out 0)) hh2) (assignLocalF (old := .int (Int.ofNat h)) hh2)
       have hh3 : (loopL3 L σh I h out).get? "height" = some (.int (Int.ofNat (h + 1))) :=
         store_get_self _ _ _
       have hz3 : (loopL3 L σh I h out).get? "zero_hashes" = none := by
-        rw [store_get_ne _ _ (by decide), hz2]
+        store_get; exact hz
       have hbody : ExecBlock config { contract := contract, locals := L } evmh ctorLoopBody
           (.ok { contract := contract, locals := loopL2 L σh I h out }
             (Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))

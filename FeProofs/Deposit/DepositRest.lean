@@ -91,11 +91,10 @@ theorem depositRest {σ σ₀ A I} {g : UInt256} (hcalls : Calls123 σ σ₀ A I
     (dPayload_size _ _ hargs.2.2.1.2).trans hp.2.1
   rcases depositHash_874 (L := rLocals11 I.calldata (initState σ σ₀ (Sat256.ofUInt256 g) A I) o1 o2 o3)
       (by simp) rd874 hs1 h608 h64 hsz
-      (by rw [get_ins_ne (by decide)]; exact store_get_self _ _ _)
+      (by store_get)
       (store_get_self _ _ _)
-      (by rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact store_get_self _ _ _)
-      (by repeat rw [get_ins_ne (by decide)]
-          exact store_get_self _ _ _)
+      (by store_get)
+      (by store_get)
       hwcsz ham with
     ⟨σ2, evm2, o4, o5, o6, o7, mem2, rdata2, aw2, k2, C2, rd1026, hnode, hs2, hk2⟩ | ⟨hrev, hblk⟩
   swap
@@ -108,16 +107,13 @@ theorem depositRest {σ σ₀ A I} {g : UInt256} (hcalls : Calls123 σ σ₀ A I
       (.bytes (dPayload I.calldata (dWord I.calldata 64))) := by
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [hnode]; exact store_get_self _ _ _
-    · repeat rw [get_ins_ne (by decide)]
-      exact store_get_self _ _ _
-    all_goals repeat rw [get_ins_ne (by decide)]
-    all_goals first | exact store_get_self _ _ _ | exact store_get_empty _
+    · store_get
+    all_goals store_get
   have hroot := evalRootCast (cfg := config) (evm := evm2)
     (stele := pFrame (hL17 (rLocals11 I.calldata (initState σ σ₀ (Sat256.ofUInt256 g) A I) o1 o2 o3)
       o4 (dPayload I.calldata (dWord I.calldata 32)) (rGwei I) o5 o6 o7)) I.calldata hargs.1 (by
         show Std.HashMap.get? _ "deposit_data_root" = _
-        repeat rw [get_ins_ne (by decide)]
-        exact store_get_self _ _ _)
+        store_get)
   rcases depositEventSegment (R := []) (by simp)
       (rAlloc_small hok 2 96 (by decide) hp.2.2.1 (by decide))
       (rAlloc_small hok 1 32 (by decide) hp.2.1 (by decide))

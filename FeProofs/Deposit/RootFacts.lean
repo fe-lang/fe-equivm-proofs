@@ -28,10 +28,6 @@ theorem keyWord_ofNat {i : Nat} (hi : i < 32) :
   rw [if_neg (by simp)]
   rfl
 
-theorem get_ins_ne {L : Store} {k a : Ident} {v : Value} (h : k ≠ a) :
-    (L.insert k v).get? a = L.get? a :=
-  store_get_ne L v (by simpa using h)
-
 /-- `deposit_count` is the word of slot 32. -/
 theorem evalDepositCount {L : Store} {evm : EVM.State} (hbase : L.get? "deposit_count" = none) :
     evalExpr? config { contract := contract, locals := L } evm
@@ -92,10 +88,6 @@ theorem evalZeroHash {L : Store} {evm : EVM.State} {i : Nat} (hi : i < 32)
     rfl
 
 /-! ## Loop arithmetic -/
-
-theorem evalVar {L : Store} {evm : EVM.State} {x : Ident} {v : Value} (h : L.get? x = some v) :
-    evalExpr? config { contract := contract, locals := L } evm (.var x) = .ok v := by
-  rw [evalExpr?, h]; rfl
 
 theorem evalLoopCond {L : Store} {evm : EVM.State} {i : Nat}
     (hh : L.get? "height" = some (.int (Int.ofNat i))) :
@@ -159,13 +151,6 @@ theorem evalInc {L : Store} {evm : EVM.State} {i : Nat}
         (.binary .add (.var "height") (.intLit 1)) = .ok (.int (Int.ofNat (i + 1))) := by
   simp only [evalExpr?, hh, bind, EvalResult.bind, pure, EvalResult.ofOption, evalBinaryOp?]
   rfl
-
-theorem assignLocal {L : Store} {evm : EVM.State} {x : Ident} {old v : Value}
-    (hx : L.get? x = some old) :
-    assignStorageRef? config { contract := contract, locals := L } evm .localVar { base := x } v =
-      .ok ({ contract := contract, locals := L.insert x v }, evm) := by
-  have hx' : L[x]? = some old := by simpa using hx
-  simp [assignStorageRef?, hx', updateLocalPath?, bind, EvalResult.bind, pure]
 
 theorem ofNat_succ_add (i : Nat) (hi : i + 1 < UInt256.size) :
     UInt256.ofNat 1 + UInt256.ofNat i = UInt256.ofNat (i + 1) := by
