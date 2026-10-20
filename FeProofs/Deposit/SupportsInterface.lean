@@ -238,12 +238,7 @@ theorem feDepositSupportsInterfaceBody {σ σ₀ A I} {g : UInt256}
   by_cases hok : 36 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 36 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-    have hslt : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
-        (UInt256.ofNat 32) = ⟨1⟩ := by
-      rcases hbad with h | h
-      · exact solcDecodeLenCheckShort_4_32 hsz h hsize
-      · exact solcDecodeLenCheckHuge_4_32 h hsize
-    rd_run rd using [hwv, hslt]
+    rd_run rd using [hwv, solcDecodeLenCheckBad_4_32 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (siDecode_none hsz (by rcases hbad with h | h; exact Or.inl h; exact Or.inr (Or.inl h)))
   obtain ⟨hlen, hhi⟩ := hok

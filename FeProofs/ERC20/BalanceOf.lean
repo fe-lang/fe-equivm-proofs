@@ -35,9 +35,7 @@ theorem feERC20BalanceOfBody {σ σ₀ A I} {g : UInt256}
   by_cases hok : 36 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 36 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-    rd_run rd using [hwv, ne_of_eq_of_ne
-      (hbad.elim (solcDecodeLenCheckShort_4_32 hsz · hsize) (solcDecodeLenCheckHuge_4_32 · hsize))
-      (by decide)]
+    rd_run rd using [hwv, solcDecodeLenCheckBad_4_32 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim (decodeCalldata_address_none_short hsz) decodeCalldata_address_none_huge)
   obtain ⟨hlen, hhi⟩ := hok

@@ -108,9 +108,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
   by_cases hok : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 68 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-    rd_run rd using [hwv, ne_of_eq_of_ne
-      (hbad.elim (solcDecodeLenCheckShort_4_64 hsz · hsize) (solcDecodeLenCheckHuge_4_64 · hsize))
-      (by decide)]
+    rd_run rd using [hwv, solcDecodeLenCheckBad_4_64 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd (feERC20ApproveDecode_none hsz (by omega))
   obtain ⟨hlen, hhi⟩ := hok
   have hc := solcDecodeLenCheckOk_4_64 hlen hhi hsize
