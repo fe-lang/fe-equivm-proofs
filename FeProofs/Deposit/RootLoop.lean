@@ -60,10 +60,6 @@ abbrev sibStore (L : Store) (a : UInt256) : Store := L.insert "sibling" (.int (I
 /-- The locals after binding the even lane's zero-subtree word. -/
 abbrev zeroStore (L : Store) (a : UInt256) : Store := L.insert "zero" (.int (Int.ofNat a.toNat))
 
-theorem get_insert_ne (L : Store) {k a : Ident} (v : Value) (h : k ≠ a) :
-    (L.insert k v).get? a = L.get? a :=
-  store_get_ne L v (by simpa using h)
-
 local notation "code" => feDepositBytecode
 
 /-- The outcome of one loop iteration on both sides: a joint revert, or iteration `i + 1`. -/
@@ -102,14 +98,14 @@ theorem rootFinish {evm' : EVM.State} {L1 : Store} {i : Nat} {d size count : UIn
       "height" (.int (Int.ofNat (i + 1))), ?_, ?_, ?_⟩
   · exact ExecStmt.assign (Or.inl rfl) (evalHalf hsize) (assignLocal hsize)
   · refine ExecBlock.consNormal (ExecStmt.assign (Or.inl rfl)
-      (evalInc (by rw [get_insert_ne _ _ (by decide)]; exact hheight))
-      (assignLocal (by rw [get_insert_ne _ _ (by decide)]; exact hheight))) ExecBlock.nil
+      (evalInc (by rw [get_ins_ne (by decide)]; exact hheight))
+      (assignLocal (by rw [get_ins_ne (by decide)]; exact hheight))) ExecBlock.nil
   · refine ⟨?_, store_get_self _ _ _, ?_, ?_, ?_, ?_⟩
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hcount
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hnode
-    · rw [get_insert_ne _ _ (by decide), store_get_self]
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hbranch
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hzero
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hcount
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hnode
+    · rw [get_ins_ne (by decide), store_get_self]
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hbranch
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hzero
 
 theorem ofNat_toNat_lt32 {i : Nat} (hi : i < 32) : (UInt256.ofNat i).toNat = i :=
   ulit_toNat' i (lt_of_lt_of_le hi (by decide))
@@ -143,7 +139,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
     rw [precompile2_eq, ← hpay]; exact hcall
   -- Stele: the sibling read, the parity test, and the hash call's arguments
   have hsib := evalBranch (evm := evm) hi hL.height hL.branch
-  rw [hs.storageRead, zero_add_slot] at hsib
+  rw [hs.storageRead, u256_zero_add] at hsib
   have hlet := ExecStmt.letDecl (ty := some uint256Ty) (name := "sibling") hsib
   have hcond : evalExpr? config { contract := contract, locals := L } evm rootParity =
       .ok (.bool true) := by
@@ -153,7 +149,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
     evalVar (store_get_self _ _ _)
   have hb : evalExpr? config (fr (sibStore L (solcSlotWord σ I (UInt256.ofNat i))))
       evm (.var "node") = .ok (.int (Int.ofNat node.toNat)) :=
-    evalVar (by rw [get_insert_ne _ _ (by decide)]; exact hL.node)
+    evalVar (by rw [get_ins_ne (by decide)]; exact hL.node)
   by_cases hok : z = true ∧ 32 ≤ out.size
   · obtain ⟨rfl, hlen⟩ := hok
     have hsha := shaPairCall_ok (ret := "parent") rfl ha hb hcall' hlen
@@ -163,7 +159,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
     have hnodeOld : ((L.insert "sibling"
         (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat i)).toNat))).insert "parent"
         (shaDigest out)).get? "node" = some (.int (Int.ofNat node.toNat)) := by
-      rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hL.node
+      rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hL.node
     have hasg := ExecStmt.assign (cfg := config) (origin := .localVar) (Or.inl rfl)
       (evalVar (evm := evm') hparent) (assignLocal hnodeOld)
     have hodd' : ExecBlock config { contract := contract, locals := L } evm rootOdd _ :=
@@ -173,17 +169,17 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
       (L1 := (((L.insert "sibling"
         (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat i)).toNat))).insert "parent"
         (shaDigest out)).insert "node" (shaDigest out)))
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.count)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.height)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.count)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.height)
       (store_get_self _ _ _)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.size)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.branch)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.zero)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.size)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.branch)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.zero)
     obtain ⟨k4, C4, rd4⟩ := hpost.2 rfl hlen
     have hmem : 224 ≤ ((UInt256.toByteArray node).write 0
         ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat i))).write 0 mem 160 32) 192 32).size :=
@@ -240,7 +236,7 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
     rw [rootParity, evalParity hL.size, heven]; rfl
   have ha : evalExpr? config (fr (zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))))
       evm (.var "node") = .ok (.int (Int.ofNat node.toNat)) :=
-    evalVar (by rw [get_insert_ne _ _ (by decide)]; exact hL.node)
+    evalVar (by rw [get_ins_ne (by decide)]; exact hL.node)
   have hb : evalExpr? config (fr (zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))))
       evm (.var "zero") = .ok (.int (Int.ofNat (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i)).toNat)) :=
     evalVar (store_get_self _ _ _)
@@ -251,7 +247,7 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
     have hparent := (store_get_self (zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))) "parent" (shaDigest out))
     have hnodeOld : ((zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))).insert "parent"
         (shaDigest out)).get? "node" = some (.int (Int.ofNat node.toNat)) := by
-      rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]; exact hL.node
+      rw [get_ins_ne (by decide), get_ins_ne (by decide)]; exact hL.node
     have hasg := ExecStmt.assign (cfg := config) (origin := .localVar) (Or.inl rfl)
       (evalVar (evm := evm') hparent) (assignLocal hnodeOld)
     have heven' : ExecBlock config { contract := contract, locals := L } evm rootEven _ :=
@@ -260,17 +256,17 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
       (d := calldataWord out 0) (size := size) (count := count)
       (L1 := (((zeroStore L (solcSlotWord σ I (⟨33⟩ + UInt256.ofNat i))).insert "parent"
         (shaDigest out)).insert "node" (shaDigest out)))
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.count)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.height)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.count)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.height)
       (store_get_self _ _ _)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.size)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.branch)
-      (by rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact hL.zero)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.size)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.branch)
+      (by rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact hL.zero)
     obtain ⟨k4, C4, rd4⟩ := hpost.2 rfl hlen
     have hmem : 224 ≤ ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat 33 + UInt256.ofNat i))).write 0
         ((UInt256.toByteArray node).write 0 mem 160 32) 192 32).size :=

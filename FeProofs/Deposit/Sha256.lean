@@ -112,26 +112,6 @@ theorem sha64_eval_zero {fr : Frame} {evm : EVM.State} :
     evalExpr? config fr evm (.intLit 0) = .ok (.int 0) := by
   simp [evalExpr?, pure]
 
-theorem sha64_prefix {caller : Frame} {evm evm' : EVM.State} {payload out : ByteArray} {z : Bool}
-    (hcall : callViaEVM evm (EVM.address precompile2) 0 payload (z, evm', out) false) :
-    ExecBlock config { caller with locals := sha64Locals payload } evm (sha64Fn.body.take 2)
-      (.ok { caller with locals := sha64CallLocals payload out z } evm') := by
-  refine ExecBlock.consNormal (ExecStmt.letDecl sha64_eval_precompile) ?_
-  refine ExecBlock.consNormal ?_ ExecBlock.nil
-  have hr := sha64_eval_var (evm := evm)
-    (fr := { caller with locals := (sha64Locals payload).insert "precompile" (.address precompile2) })
-    (x := "precompile") (v := .address precompile2) (by simp)
-  have hd := sha64_eval_var (evm := evm)
-    (fr := { caller with locals := (sha64Locals payload).insert "precompile" (.address precompile2) })
-    (x := "payload") (v := .bytes payload)
-    (by rw [store_get_ne (sha64Locals payload) (k := "precompile") (a := "payload") _ (by decide),
-      store_get_self])
-  cases z with
-  | false =>
-      exact ExecStmt.lowLevelCallFailure (Or.inl rfl) hr sha64_eval_zero hd hcall
-  | true =>
-      exact ExecStmt.lowLevelCallSuccess (Or.inl rfl) hr sha64_eval_zero hd hcall
-
 theorem sha64_eval_len {caller : Frame} {evm : EVM.State} {payload out : ByteArray} {z : Bool} :
     evalExpr? config { caller with locals := sha64CallLocals payload out z } evm
       (.binary .ge (.arrayLength .localVar { base := "result", steps := [] }) (.intLit 32)) =

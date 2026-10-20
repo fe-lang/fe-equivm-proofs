@@ -1,4 +1,5 @@
 import FeProofs.Deposit.Le64
+import FeProofs.Deposit.RootFacts
 import FeProofs.Deposit.Sha256
 import FeProofs.Deposit.CreationBlocks_001
 
@@ -40,7 +41,7 @@ theorem pairMem_read (w : UInt256) (mem : ByteArray) :
   have hAsz := write32_size_ge w.toByteArray mem 0 hw (Nat.zero_le _)
   have hA0 : (w.toByteArray.write 0 mem 0 32).extract 0 32 = w.toByteArray := by
     rw [← readWithPadding_eq_extract _ 0 hAsz, write32_read_back _ _ 0 hw (Nat.zero_le _),
-      extract_word_all]
+      toByteArray_extract_all]
   generalize w.toByteArray.write 0 mem 0 32 = A at hAsz hA0
   have hB := write32_size_ge w.toByteArray A 32 hw (by omega)
   have hXY : (A.extract 0 32 ++ w.toByteArray.extract 0 32).size = 64 := by
@@ -48,7 +49,7 @@ theorem pairMem_read (w : UInt256) (mem : ByteArray) :
     omega
   rw [readWithPadding_eq_extract' _ 0 64 (by decide) (by decide) (by omega),
     write32_eq _ _ 32 hw (by omega), extract_append_left _ _ 0 64 (by rw [hXY]),
-    byteArray_extract_of_size _ 64 hXY, hA0, extract_word_all, pairPayload_eq]
+    byteArray_extract_of_size _ 64 hXY, hA0, toByteArray_extract_all, pairPayload_eq]
 
 theorem pairMem_size (w : UInt256) (mem : ByteArray) :
     64 ≤ (w.toByteArray.write 0 (w.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32)
@@ -65,12 +66,6 @@ Adapted from the `get_deposit_root` read facts, with the write counterpart. -/
 def ctorLayout : StorageLayout := storageBackend.locate?
 
 theorem ctor_storageBackend : config.storageBackend = solidityStorageBackend ctorLayout := rfl
-
-theorem ctorKeyWord {i : Nat} (hi : i < 32) :
-    keyValueToWord (.int (Int.ofNat i)) = UInt256.ofNat i := by
-  simp only [keyValueToWord, EVM.wordOfInt, EVM.word]
-  rw [if_neg (by simp)]
-  rfl
 
 theorem zeroHashRef_eval {L : Store} {evm : EVM.State} {idx : Expr} {i : Nat} (hi : i < 32)
     (hidx : evalExpr? config { contract := contract, locals := L } evm idx = .ok (.int (Int.ofNat i))) :
@@ -90,7 +85,7 @@ theorem zeroHash_loc {i : Nat} (hi : i < 32) :
     ctorLayout { base := "zero_hashes", steps := [.aindex (.int (Int.ofNat i))] } =
       some (.leaf (uint256Loc (⟨33⟩ + UInt256.ofNat i))) := by
   show some (StorageAddr.leaf _) = _
-  simp only [ctorKeyWord hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
+  simp only [keyWord_ofNat hi, ulit_toNat' i (lt_of_lt_of_le hi (by decide)), Nat.div_one,
     Nat.mod_one, Nat.zero_mul]
   rfl
 
@@ -176,13 +171,6 @@ theorem evalHeightLt {L : Store} {evm : EVM.State} {h : ℕ}
     evalExpr? config { contract := contract, locals := L } evm ctorCond =
       .ok (.bool (decide (Int.ofNat h < 31))) :=
   evalBin (by decide) (by decide) (evalVarL hh) (evalLit 31) (evalBinaryOp_lt_int_ok _ _)
-
-theorem evalHeightSucc {L : Store} {evm : EVM.State} {h : ℕ}
-    (hh : L.get? "height" = some (.int (Int.ofNat h))) :
-    evalExpr? config { contract := contract, locals := L } evm
-        (.binary .add (.var "height") (.intLit 1)) = .ok (.int (Int.ofNat (h + 1))) := by
-  rw [evalBin (by decide) (by decide) (evalVarL hh) (evalLit 1) (evalBinaryOp_add_int_ok _ _)]
-  rfl
 
 /-! ## The simulation -/
 
@@ -270,14 +258,14 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
         rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), hh]
       have hz2 : (loopL2 L σh I h out).get? "zero_hashes" = none := by
         rw [store_get_ne _ _ (by decide), store_get_ne _ _ (by decide), hz]
-      have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalHeightSucc hh2) hz2
+      have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalInc hh2) hz2
         (calldataWord out 0)
       rw [hs'.env] at hassign
       have hs'' := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
       have hstore := ExecStmt.assign (hperm := Or.inr (by rw [hs'.env]; exact hperm))
         (evalVarL (store_get_self _ _ _)) hassign
       have hpost := ExecStmt.assign (cfg := config) (hperm := Or.inl rfl)
-        (evalHeightSucc (evm := Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
+        (evalInc (evm := Stele.EVM.storageStore evm' I.codeOwner (⟨33⟩ + UInt256.ofNat (h + 1))
           (calldataWord out 0)) hh2) (assignLocal_ok (old := .int (Int.ofNat h)) hh2)
       have hh3 : (loopL3 L σh I h out).get? "height" = some (.int (Int.ofNat (h + 1))) :=
         store_get_self _ _ _

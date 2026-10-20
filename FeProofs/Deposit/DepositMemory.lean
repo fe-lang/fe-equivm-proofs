@@ -114,8 +114,6 @@ section Layout
 variable {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
   (hl0 : dLen I.calldata 0 = 48) (hl1 : dLen I.calldata 1 = 32) (hl2 : dLen I.calldata 2 = 96)
 
-theorem smallGap (z : Nat) (h : z < 2 ^ 32) : z < USize.size := Nat.lt_of_lt_of_le h USize.le_size
-
 set_option maxHeartbeats 2000000 in
 include hok hargs hl0 hl1 hl2 in
 /-- The memory at pc 650: the free pointers, the allocations' extent, and the three payloads. -/
@@ -148,13 +146,13 @@ theorem hMem3_layout :
     rw [mFp0, a0]; rfl
   have hload1 : memLoad (UInt256.ofNat 64) (hMem1 I) = UInt256.ofNat 352 := by
     rw [hMem1, rMemAt_load64 I ByteArray.empty (hPos I 0) (rFp ByteArray.empty) hF0 hlen0 hz0
-      (by omega) (smallGap _ (by decide)) cd0 (by omega), mFp0, a0]
+      (by omega) (lt_usize _ (by decide)) cd0 (by omega), mFp0, a0]
     decide
   have hfp1 : rFp (hMem1 I) = UInt256.ofNat 352 := by
     show (if _ then _ else _) = _
     rw [hload1]; decide
   have s1 := rMemAt_size I ByteArray.empty (hPos I 0) (rFp ByteArray.empty) hF0 hlen0 hz0
-    (by omega) (smallGap _ (by decide)) cd0
+    (by omega) (lt_usize _ (by decide)) cd0
   -- layer 1: withdrawal credentials at 352
   have hF1 : (rFp (hMem1 I)).toNat = 352 := by rw [hfp1]; rfl
   have hlen1 : (UInt256.ofNat 32 + rLen I (hPos I 1)).toNat = 32 + 32 := by rw [e1]; rfl
@@ -162,13 +160,13 @@ theorem hMem3_layout :
     rw [hfp1, a1]; rfl
   have hload2 : memLoad (UInt256.ofNat 64) (hMem2 I) = UInt256.ofNat 416 := by
     rw [hMem2, rMemAt_load64 I (hMem1 I) (hPos I 1) (rFp (hMem1 I)) hF1 hlen1 hz1
-      (by omega) (smallGap _ (by decide)) cd1 (by omega), hfp1, a1]
+      (by omega) (lt_usize _ (by decide)) cd1 (by omega), hfp1, a1]
     decide
   have hfp2 : rFp (hMem2 I) = UInt256.ofNat 416 := by
     show (if _ then _ else _) = _
     rw [hload2]; decide
   have s2 := rMemAt_size I (hMem1 I) (hPos I 1) (rFp (hMem1 I)) hF1 hlen1 hz1
-    (by omega) (smallGap _ (by decide)) cd1
+    (by omega) (lt_usize _ (by decide)) cd1
   -- layer 2: signature at 416
   have hF2 : (rFp (hMem2 I)).toNat = 416 := by rw [hfp2]; rfl
   have hlen2 : (UInt256.ofNat 32 + rLen I (hPos I 2)).toNat = 32 + 96 := by rw [e2]; rfl
@@ -176,17 +174,17 @@ theorem hMem3_layout :
     rw [hfp2, a2]; rfl
   have hload3 : memLoad (UInt256.ofNat 64) (hMem3 I) = UInt256.ofNat 544 := by
     rw [hMem3, rMemAt_load64 I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2
-      (by omega) (smallGap _ (by decide)) cd2 (by omega), hfp2, a2]
+      (by omega) (lt_usize _ (by decide)) cd2 (by omega), hfp2, a2]
     decide
   have s3 := rMemAt_size I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2
-    (by omega) (smallGap _ (by decide)) cd2
+    (by omega) (lt_usize _ (by decide)) cd2
   -- payloads
   have hd0 : dWord I.calldata (dWord I.calldata 0) = 48 := hl0
   have hd1 : dWord I.calldata (dWord I.calldata 32) = 32 := hl1
   have hd2 : dWord I.calldata (dWord I.calldata 64) = 96 := hl2
   have pay0 : (hMem1 I).extract 288 336 = dPayload I.calldata (dWord I.calldata 0) := by
     have h := rMemAt_payload I ByteArray.empty (hPos I 0) (rFp ByteArray.empty) hF0 hlen0 hz0
-      (by omega) (smallGap _ (by decide)) cd0
+      (by omega) (lt_usize _ (by decide)) cd0
     have hx := dPayload_extract I.calldata (dWord I.calldata 0) hb0.2
     rw [hd0] at hx
     rw [hp0] at h
@@ -195,14 +193,14 @@ theorem hMem3_layout :
     exact h.trans hx
   have pay1 : (hMem2 I).extract 384 416 = dPayload I.calldata (dWord I.calldata 32) := by
     have h := rMemAt_payload I (hMem1 I) (hPos I 1) (rFp (hMem1 I)) hF1 hlen1 hz1
-      (by omega) (smallGap _ (by decide)) cd1
+      (by omega) (lt_usize _ (by decide)) cd1
     have hx := dPayload_extract I.calldata (dWord I.calldata 32) hb1.2
     rw [hd1] at hx
     rw [hp1] at h
     exact h.trans hx
   have pay2 : (hMem3 I).extract 448 544 = dPayload I.calldata (dWord I.calldata 64) := by
     have h := rMemAt_payload I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2
-      (by omega) (smallGap _ (by decide)) cd2
+      (by omega) (lt_usize _ (by decide)) cd2
     have hx := dPayload_extract I.calldata (dWord I.calldata 64) hb2.2
     rw [hd2] at hx
     rw [hp2] at h
@@ -211,12 +209,12 @@ theorem hMem3_layout :
   have s2' : 416 ≤ (hMem2 I).size := s2
   refine ⟨hfp1, hfp2, hload3, by omega, ?_, ?_, pay2⟩
   · rw [hMem3, rMemAt_below I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2 (by omega)
-      (smallGap _ (by decide)) cd2 (by omega) (by omega) (by omega) (by omega),
+      (lt_usize _ (by decide)) cd2 (by omega) (by omega) (by omega) (by omega),
       hMem2, rMemAt_below I (hMem1 I) (hPos I 1) (rFp (hMem1 I)) hF1 hlen1 hz1 (by omega)
-      (smallGap _ (by decide)) cd1 (by omega) (by omega) (by omega) (by omega)]
+      (lt_usize _ (by decide)) cd1 (by omega) (by omega) (by omega) (by omega)]
     exact pay0
   · rw [hMem3, rMemAt_below I (hMem2 I) (hPos I 2) (rFp (hMem2 I)) hF2 hlen2 hz2 (by omega)
-      (smallGap _ (by decide)) cd2 (by omega) (by omega) (by omega) (by omega)]
+      (lt_usize _ (by decide)) cd2 (by omega) (by omega) (by omega) (by omega)]
     exact pay1
 
 end Layout

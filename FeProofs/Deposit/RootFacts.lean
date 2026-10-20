@@ -28,6 +28,10 @@ theorem keyWord_ofNat {i : Nat} (hi : i < 32) :
   rw [if_neg (by simp)]
   rfl
 
+theorem get_ins_ne {L : Store} {k a : Ident} {v : Value} (h : k ≠ a) :
+    (L.insert k v).get? a = L.get? a :=
+  store_get_ne L v (by simpa using h)
+
 /-- `deposit_count` is the word of slot 32. -/
 theorem evalDepositCount {L : Store} {evm : EVM.State} (hbase : L.get? "deposit_count" = none) :
     evalExpr? config { contract := contract, locals := L } evm
@@ -169,11 +173,5 @@ theorem ofNat_succ_add (i : Nat) (hi : i + 1 < UInt256.size) :
   rw [uadd_toNat, ulit_toNat' 1 (by omega), ulit_toNat' i (by omega), ulit_toNat' (i + 1) hi,
     Nat.mod_eq_of_lt (by omega)]
   omega
-
-theorem zero_add_slot (x : UInt256) : (⟨0⟩ : UInt256) + x = x := by
-  apply u256_inj
-  rw [uadd_toNat]
-  change (0 + x.toNat) % UInt256.size = x.toNat
-  rw [Nat.zero_add]; exact Nat.mod_eq_of_lt x.val.isLt
 
 end FeProofs.Deposit

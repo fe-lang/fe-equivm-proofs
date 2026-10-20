@@ -23,7 +23,8 @@ def closureOf (env : Environment) (roots : Array Name) : NameSet := Id.run do
   let used := closureOf env #[`FeProofs.Deposit.feDepositContractCorrect]
   let mut byMod : Std.HashMap Name (Array (Nat × Name)) := {}
   let mut total := 0
-  for (n, _) in env.constants.toList do
+  for (n, ci) in env.constants.toList do
+    if ci matches .recInfo _ then continue
     let some idx := env.getModuleIdxFor? n | continue
     let mod := env.header.moduleNames[idx.toNat]!
     unless (`FeProofs).isPrefixOf mod do continue

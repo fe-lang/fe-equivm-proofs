@@ -44,18 +44,6 @@ theorem rootPayload (mem : ByteArray) (w1 w2 : UInt256) :
     toByteArray_write_read_back_of_gap w1 mem 160 hgap1,
     toByteArray_write_read_back_of_gap w2 _ 192 hgap2]
 
-/-- `MLOAD(0xa0)` after the precompile's output was copied over `0xa0` (32 bytes of an output of at
-    least 32) is the output's first word. -/
-theorem rootOutputWord (o base : ByteArray) (ho : 32 ≤ o.size) (hbase : 224 ≤ base.size) :
-    memLoad (UInt256.ofNat 160) (o.write 0 base 160 32) = uInt256OfByteArray (o.extract 0 32) := by
-  have hsz : (o.write 0 base 160 32).size = base.size :=
-    byteArray_write_size_of_inBounds o base 160 32 ho (by omega)
-  unfold memLoad
-  rw [if_neg (by change ¬ 160 ≥ (o.write 0 base 160 32).size; omega)]
-  change UInt256.ofNat (fromByteArrayBigEndian ((o.write 0 base 160 32).readWithPadding 160 32)) = _
-  rw [writeReturnCopy_read32 o base 160 32 160 ho (by omega) (le_refl _) (by omega),
-    uInt256OfByteArray_eq]
-
 /-! ## Trace segments -/
 
 local notation "code" => feDepositBytecode

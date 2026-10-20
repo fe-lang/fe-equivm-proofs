@@ -71,14 +71,6 @@ theorem RestOutcome_eq (σ σ₀ : AccountMap) (A : Substate) (I : ExecutionEnv)
       (ExecBlock config (pFrame (pLocals I.calldata (initState σ σ₀ (Sat256.ofUInt256 g) A I)))
         (initState σ σ₀ (Sat256.ofUInt256 g) A I) (depositTransition.body.drop 8)) := rfl
 
-/-- Transport an outcome back along a block prefix. -/
-theorem OutAt.mono {σ σ₀ A I g} {E₁ E₀ : ExecResult → Prop} (hE : ∀ res, E₁ res → E₀ res)
-    (h : OutAt σ σ₀ A I g E₁) : OutAt σ σ₀ A I g E₀ := by
-  rcases h with ⟨σf, frf, evmf, hr, he, ha⟩ | ⟨hr, he⟩ | ⟨hr, he⟩
-  · exact Or.inl ⟨σf, frf, evmf, hr, hE _ he, ha⟩
-  · exact Or.inr (Or.inl ⟨hr, hE _ he⟩)
-  · exact Or.inr (Or.inr ⟨hr, hE _ he⟩)
-
 /-- A revert of the EVM run against a reverting block. -/
 theorem OutAt.rev {σ σ₀ A I g} {E : ExecResult → Prop}
     (hr : RDrev feDepositBytecode (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I))
@@ -88,18 +80,5 @@ theorem OutAt.rev {σ σ₀ A I g} {E : ExecResult → Prop}
 theorem OutAt.static {σ σ₀ A I g} {E : ExecResult → Prop}
     (hr : RDstatic feDepositBytecode (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I))
     (he : E .staticViolation) : OutAt σ σ₀ A I g E := Or.inr (Or.inr ⟨hr, he⟩)
-
-/-- Chain three segments: each either ends (an `OutAt` of its own block) or reaches a state `X`
-    of the next segment whose block runs back into its own. -/
-theorem OutAt.chain3 {σ σ₀ A I g} {α β : Type} {E₀ : ExecResult → Prop}
-    {P₁ : α → Prop} {E₁ : α → ExecResult → Prop} {P₂ : β → Prop} {E₂ : β → ExecResult → Prop}
-    (seg₁ : OutAt σ σ₀ A I g E₀ ∨ ∃ x, P₁ x ∧ ∀ res, E₁ x res → E₀ res)
-    (seg₂ : ∀ x, P₁ x → OutAt σ σ₀ A I g (E₁ x) ∨ ∃ y, P₂ y ∧ ∀ res, E₂ y res → E₁ x res)
-    (seg₃ : ∀ y, P₂ y → OutAt σ σ₀ A I g (E₂ y)) : OutAt σ σ₀ A I g E₀ := by
-  rcases seg₁ with h | ⟨x, hx, h₁⟩
-  · exact h
-  rcases seg₂ x hx with h | ⟨y, hy, h₂⟩
-  · exact h.mono h₁
-  · exact ((seg₃ y hy).mono h₂).mono h₁
 
 end FeProofs.Deposit

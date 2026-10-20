@@ -29,7 +29,7 @@ theorem wordThenRest_read (w : UInt256) (M : ByteArray) {s : â„•} (hs : s + 64 â
       (by rw [ByteArray.size_append, hA, hW]; omega),
     ByteArray.size_append, hA, hW,
     extract_append_right' _ _ s (s + 32) hA.symm (by rw [hA, hW]),
-    extract_extract_BA, extract_word_all,
+    extract_extract_BA, toByteArray_extract_all,
     show s + 32 + 0 = s + 32 by omega,
     show min (s + 32 + (s + 64 - (s + 32))) M.size = s + 64 by omega]
 

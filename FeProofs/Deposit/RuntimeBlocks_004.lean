@@ -25,15 +25,6 @@ theorem feDeposit_block_698_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 705)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_698_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 698) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 705) (feDeposit_block_698_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_698_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 705. -/
 theorem feDeposit_block_705_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -52,16 +43,6 @@ theorem feDeposit_block_705_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_705_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 705) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_705_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 705. -/
 theorem feDeposit_block_705_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -78,15 +59,6 @@ theorem feDeposit_block_705_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 715)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_705_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 705) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 715) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_705_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feDeposit_block_715`. -/
 def feDeposit_block_715_stack {g : Sat256} {mem : ByteArray} {aw : UInt256} {C : ℕ} {x0 : UInt256} {x1 : UInt256} {x2 : UInt256} {x3 : UInt256} {x4 : UInt256} {x5 : UInt256} {x6 : UInt256} {x7 : UInt256} {R : List UInt256} : List UInt256 :=
@@ -169,14 +141,6 @@ theorem feDeposit_block_715 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 821)) r64 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_715_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 x5 x6 x7 : UInt256} {R : List UInt256}
-    (hstack : R.length + 19 ≤ 1024)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 715) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 821) (feDeposit_block_715_stack (g := g) (mem := mem) (aw := aw) (C := C) (x0 := x0) (x1 := x1) (x2 := x2) (x3 := x3) (x4 := x4) (x5 := x5) (x6 := x6) (x7 := x7) (R := R)) (feDeposit_block_715_memory (mem := mem)) aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_715 hstack h)
-  exact ⟨_, k', C', h'⟩
-
 /- Unsupported instruction boundary at pc 821: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 822 from a fresh symbolic RD state. -/
 
 /-- Final stack for bytecode block summary `feDeposit_block_822_taken`. -/
@@ -197,16 +161,6 @@ theorem feDeposit_block_822_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r3 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_822_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 822) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) (feDeposit_block_822_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_822_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feDeposit_block_822_fallthrough`. -/
 def feDeposit_block_822_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -223,15 +177,6 @@ theorem feDeposit_block_822_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have r3 := r2.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 827)) r3 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_822_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 822) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 827) (feDeposit_block_822_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_822_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feDeposit_block_827_taken`. -/
 def feDeposit_block_827_taken_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
@@ -256,16 +201,6 @@ theorem feDeposit_block_827_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r8 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_827_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 827) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) (feDeposit_block_827_taken_stack (x0 := x0) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_827_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feDeposit_block_827_fallthrough`. -/
 def feDeposit_block_827_fallthrough_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
   (x0 :: R)
@@ -287,15 +222,6 @@ theorem feDeposit_block_827_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have r8 := r7.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 838)) r8 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_827_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 827) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 838) (feDeposit_block_827_fallthrough_stack (x0 := x0) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_827_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feDeposit_block_838`. -/
 def feDeposit_block_838_stack {g : Sat256} {mem : ByteArray} {aw : UInt256} {C : ℕ} {x0 : UInt256} {x1 : UInt256} {x2 : UInt256} {R : List UInt256} : List UInt256 :=
@@ -329,14 +255,6 @@ theorem feDeposit_block_838 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 857)) r15 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_838_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 : UInt256} {R : List UInt256}
-    (hstack : R.length + 10 ≤ 1024)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 838) (x0 :: x1 :: x2 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 857) (feDeposit_block_838_stack (g := g) (mem := mem) (aw := aw) (C := C) (x0 := x0) (x1 := x1) (x2 := x2) (R := R)) (feDeposit_block_838_memory (mem := mem) (x0 := x0) (x2 := x2)) aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_838 hstack h)
-  exact ⟨_, k', C', h'⟩
-
 /- Unsupported instruction boundary at pc 857: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 858 from a fresh symbolic RD state. -/
 
 /-- Final stack for bytecode block summary `feDeposit_block_858_taken`. -/
@@ -359,16 +277,6 @@ theorem feDeposit_block_858_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_858_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 858) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) (feDeposit_block_858_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_858_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feDeposit_block_858_fallthrough`. -/
 def feDeposit_block_858_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -388,15 +296,6 @@ theorem feDeposit_block_858_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 865)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_858_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 858) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 865) (feDeposit_block_858_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_858_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 865. -/
 theorem feDeposit_block_865_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -414,16 +313,6 @@ theorem feDeposit_block_865_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_865_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 865) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_865_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 865. -/
 theorem feDeposit_block_865_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -439,15 +328,6 @@ theorem feDeposit_block_865_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have r6 := r5.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 874)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_865_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 865) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 874) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_865_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feDeposit_block_874`. -/
 def feDeposit_block_874_stack {g : Sat256} {aw : UInt256} {C : ℕ} {x1 : UInt256} {x2 : UInt256} {R : List UInt256} : List UInt256 :=
@@ -480,14 +360,6 @@ theorem feDeposit_block_874 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 891)) r14 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_874_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 : UInt256} {R : List UInt256}
-    (hstack : R.length + 8 ≤ 1024)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 874) (x0 :: x1 :: x2 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 891) (feDeposit_block_874_stack (g := g) (aw := aw) (C := C) (x1 := x1) (x2 := x2) (R := R)) (feDeposit_block_874_memory (mem := mem) (x0 := x0) (x1 := x1) (x2 := x2)) aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_874 hstack h)
-  exact ⟨_, k', C', h'⟩
-
 /- Unsupported instruction boundary at pc 891: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 892 from a fresh symbolic RD state. -/
 
 /-- Final stack for bytecode block summary `feDeposit_block_892_taken`. -/
@@ -510,16 +382,6 @@ theorem feDeposit_block_892_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_892_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 892) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) (feDeposit_block_892_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_892_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feDeposit_block_892_fallthrough`. -/
 def feDeposit_block_892_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -539,15 +401,6 @@ theorem feDeposit_block_892_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 899)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_892_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 892) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 899) (feDeposit_block_892_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_892_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 899. -/
 theorem feDeposit_block_899_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -565,16 +418,6 @@ theorem feDeposit_block_899_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_899_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 899) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_899_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 899. -/
 theorem feDeposit_block_899_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -590,15 +433,6 @@ theorem feDeposit_block_899_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have r6 := r5.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 908)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_899_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 899) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 908) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_899_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feDeposit_block_908`. -/
 def feDeposit_block_908_stack {g : Sat256} {mem : ByteArray} {aw : UInt256} {C : ℕ} {x0 : UInt256} {x1 : UInt256} {R : List UInt256} : List UInt256 :=
@@ -641,14 +475,6 @@ theorem feDeposit_block_908 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 939)) r24 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_908_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
-    (hstack : R.length + 11 ≤ 1024)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 908) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 939) (feDeposit_block_908_stack (g := g) (mem := mem) (aw := aw) (C := C) (x0 := x0) (x1 := x1) (R := R)) (feDeposit_block_908_memory (mem := mem) (x2 := x2) (x3 := x3)) aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_908 hstack h)
-  exact ⟨_, k', C', h'⟩
-
 /- Unsupported instruction boundary at pc 939: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 940 from a fresh symbolic RD state. -/
 
 /-- Final stack for bytecode block summary `feDeposit_block_940_taken`. -/
@@ -670,15 +496,5 @@ theorem feDeposit_block_940_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2245)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feDeposit_block_940_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.isZero x0) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2245) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 940) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2245) (feDeposit_block_940_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feDeposit_block_940_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
 
 end feDepositBlocks

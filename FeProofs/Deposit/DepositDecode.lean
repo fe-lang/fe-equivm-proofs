@@ -61,9 +61,6 @@ theorem dReadNat_none (cd : ByteArray) (o : Nat) (h : cd.size < 4 + o + 32) :
   rw [dReadBytes_none cd o 32 h (by decide)]
   rfl
 
-theorem dWord_lt (cd : ByteArray) (o : Nat) : dWord cd o < 2 ^ 256 :=
-  (calldataWord cd (4 + o)).val.isLt
-
 theorem dBytes_ok (cd : ByteArray) (o : Nat) (hok : dBytesOk cd o)
     (hsmall : cd.size < 2 ^ 64) :
     decodeABIValue? .bytes (dArgs cd) o =

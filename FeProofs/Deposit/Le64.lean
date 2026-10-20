@@ -135,14 +135,8 @@ theorem countHeadMem_len : countHeadMem.extract 256 288 = (UInt256.ofNat 8).toBy
 
 theorem countHeadMem_size : countHeadMem.size = 288 := by native_decide
 
-theorem byteArray_extract_self (b : ByteArray) : b.extract 0 b.size = b := by
-  apply ByteArray.ext; rw [ByteArray.data_extract]; exact Array.extract_eq_self_of_le (le_refl _)
-
 theorem byteArray_extract_of_size (b : ByteArray) (n : ℕ) (h : b.size = n) : b.extract 0 n = b := by
   subst h; exact byteArray_extract_self b
-
-theorem extract_word_all (b : UInt256) : b.toByteArray.extract 0 32 = b.toByteArray :=
-  byteArray_extract_of_size _ 32 (toByteArray_size b)
 
 theorem countHeadMem_split :
     countHeadMem = countLenMem.extract 0 160 ++ (UInt256.ofNat 32).toByteArray.extract 0 32 ++
@@ -159,7 +153,7 @@ theorem countDataMem_eq (b : UInt256) :
       countLenMem ++ b.toByteArray := by
     rw [show (UInt256.ofNat 256 + UInt256.ofNat 32).toNat = countLenMem.size by
         rw [countLenMem_size]; decide,
-      write_at_end_eq _ _ 32 (by decide) (by omega), extract_word_all]
+      write_at_end_eq _ _ 32 (by decide) (by omega), toByteArray_extract_all]
   have hs : (countLenMem ++ b.toByteArray).size = 320 := by
     rw [ByteArray.size_append, countLenMem_size, hb]
   rw [e1, show (UInt256.ofNat 160).toNat = 160 from rfl, write32_eq _ _ 160 h32 (by omega), hs,
@@ -167,7 +161,7 @@ theorem countDataMem_eq (b : UInt256) :
     extract_append_span _ _ (160 + 32) 320 (by rw [countLenMem_size]; omega)
       (by rw [countLenMem_size]; omega),
     countLenMem_size, show 320 - 288 = 32 from rfl, countHeadMem_split]
-  simp only [extract_word_all]
+  simp only [toByteArray_extract_all]
   apply ByteArray.ext
   simp only [ByteArray.data_append, Array.append_assoc]
 
@@ -188,7 +182,7 @@ theorem countReturn_eq (b : UInt256) :
   have hBm : M.extract 256 (256 + 64) = (UInt256.ofNat 8).toByteArray ++ b.toByteArray := by
     rw [← hM, extract_append_span _ _ 256 (256 + 64) (by rw [countHeadMem_size]; omega)
         (by rw [countHeadMem_size]; omega), countHeadMem_size, countHeadMem_len,
-      show 256 + 64 - 288 = 32 from rfl, extract_word_all]
+      show 256 + 64 - 288 = 32 from rfl, toByteArray_extract_all]
   have hA : (M.extract 0 192).extract 160 192 = (UInt256.ofNat 32).toByteArray := by
     rw [extract_extract_BA, show 0 + 160 = 160 from rfl,
       show min (0 + 192) 192 = 192 from rfl, ← hM,
@@ -229,10 +223,6 @@ def le64Value (m : UInt256) : ℕ := (UInt256.shiftRight (u64ChunkWord m) (UInt2
 
 /-- `le64`'s bytes: the eight big-endian bytes of `le64Value`. -/
 def le64Bytes (m : UInt256) : List UInt8 := (EVM.word (le64Value m)).toBytesBE.drop 24
-
-theorem u256_lor_comm (a b : UInt256) : UInt256.lor a b = UInt256.lor b a := by
-  apply u256_inj
-  rw [u256_lor_toNat_exact, u256_lor_toNat_exact, Nat.lor_comm]
 
 /-- The bytecode's operand order for the three passes is the spec's, commuted. -/
 theorem evmChunk_eq (m : UInt256) :

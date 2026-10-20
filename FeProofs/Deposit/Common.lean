@@ -25,9 +25,6 @@ namespace FeProofs.Deposit
 
 set_option maxRecDepth 2000000
 
-@[simp] theorem feDepositBytecode_size : feDepositBytecode.size = 2307 := by
-  native_decide +revert
-
 /-- The transition list as its handles. -/
 theorem transitions_eq : contract.transitions = [supportsInterfaceTransition, depositTransition, get_deposit_countTransition, get_deposit_rootTransition] := by
   first | rfl | simp [contract, Syntax.contractSyntax]

@@ -82,7 +82,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
     (stele := fr (((∅ : Store).insert "count" (.int (Int.ofNat (countWord σ I).toNat))).insert
       "node" (.int 0)))
     (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (name := "size") (ty := some uint256Ty)
-    (evalVar (by rw [get_insert_ne _ (k := "node") (a := "count") _ (by decide)]
+    (evalVar (by rw [get_ins_ne (k := "node") (a := "count") (by decide)]
                  exact store_get_self _ _ _))
   have hinit : ExecBlock config (fr (rootPrefixStore (countWord σ I)))
       (initState σ σ₀ (Sat256.ofUInt256 g) A I) rootInit
@@ -92,11 +92,11 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
   have hL0 : RootLocals ((rootPrefixStore (countWord σ I)).insert "height" (.int 0)) 0 ⟨0⟩
       (countWord σ I) (countWord σ I) := by
     refine ⟨?_, store_get_self _ _ _, ?_, ?_, ?_, ?_⟩
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide),
-        get_insert_ne _ _ (by decide)]; exact store_get_self _ _ _
-    · rw [get_insert_ne _ _ (by decide), get_insert_ne _ _ (by decide)]
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide),
+        get_ins_ne (by decide)]; exact store_get_self _ _ _
+    · rw [get_ins_ne (by decide), get_ins_ne (by decide)]
       exact store_get_self _ _ _
-    · rw [get_insert_ne _ _ (by decide)]; exact store_get_self _ _ _
+    · rw [get_ins_ne (by decide)]; exact store_get_self _ _ _
     · simp
     · simp
   rcases rootLoop (count := countWord σ I) 32 0 _ _ ⟨0⟩ (countWord σ I) _ _ _ _ _ _ rfl hL0 hs0
@@ -135,7 +135,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
   have ha : evalExpr? config (fr (L'.insert "length_chunk"
       (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)))) evm' (.var "node") =
       .ok (.int (Int.ofNat node'.toNat)) :=
-    evalVar (by rw [get_insert_ne _ _ (by decide)]; exact hL'.node)
+    evalVar (by rw [get_ins_ne (by decide)]; exact hL'.node)
   have hb : evalExpr? config (fr (L'.insert "length_chunk"
       (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)))) evm' (.var "length_chunk") =
       .ok (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat)) :=

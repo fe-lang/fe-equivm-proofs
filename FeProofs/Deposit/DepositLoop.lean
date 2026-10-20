@@ -169,7 +169,7 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
             (assignBranch hlt hh hb node)) (ExecBlock.consReturn (ExecStmt.return evalEmptyReturn))))
       refine Or.inl ⟨_, _, _, rret, ExecForLoop.bodyReturn hcondS hret, ?_⟩
       have hw := (hs.storageWrite (UInt256.ofNat height) node).accounts
-      rw [zero_add_slot, hs.env]
+      rw [u256_zero_add, hs.env]
       exact hw.symm
     · have hp0 : size.toNat % 2 = 0 := by omega
       have hland : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 0 :=
@@ -186,7 +186,7 @@ theorem depositLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm
       have hsib : evalExpr? config { contract := contract, locals := L } evm
           (.storage dlBranchRef) =
           .ok (.int (Int.ofNat (solcSlotWord σ I (UInt256.ofNat height)).toNat)) := by
-        rw [evalBranch hlt hh hb, zero_add_slot, hs.storageRead]
+        rw [evalBranch hlt hh hb, u256_zero_add, hs.storageRead]
       have hparS : evalExpr? config { contract := contract, locals := L } evm
           (.binary .eq (.binary (.bitAnd (.uint ⟨256, by decide⟩)) (.var "size") (.intLit 1))
             (.intLit 1)) = .ok (.bool false) := by

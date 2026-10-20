@@ -31,7 +31,7 @@ theorem pairAt_read (a b : UInt256) (mem : ByteArray) (s t : UInt256)
   have hA0 : (a.toByteArray.write 0 mem s.toNat 32).extract s.toNat (s.toNat + 32) =
       a.toByteArray := by
     rw [← readWithPadding_eq_extract _ s.toNat hAsz, write32_read_back _ _ s.toNat hw hs,
-      extract_word_all]
+      toByteArray_extract_all]
   generalize a.toByteArray.write 0 mem s.toNat 32 = A at hAsz hA0
   have hB := write32_size_ge b.toByteArray A (s.toNat + 32) hwb hAsz
   have hX : (A.extract 0 (s.toNat + 32)).size = s.toNat + 32 := by
@@ -44,7 +44,7 @@ theorem pairAt_read (a b : UInt256) (mem : ByteArray) (s t : UInt256)
     extract_extract_BA, show 0 + s.toNat = s.toNat from Nat.zero_add _,
     show min (0 + (s.toNat + 32)) (s.toNat + 32) = s.toNat + 32 by omega,
     show s.toNat + 64 - (s.toNat + 32) = 32 by omega, hA0, pairPayload_eq]
-  simp only [extract_word_all]
+  simp only [toByteArray_extract_all]
 
 theorem pairAt_size (a b : UInt256) (mem : ByteArray) (s t : UInt256)
     (ht : t.toNat = s.toNat + 32) (hs : s.toNat ≤ mem.size) :
@@ -99,10 +99,6 @@ theorem callOutput_memLoad64 (mem out : ByteArray) (off : UInt256) (hb : out.siz
 
 /-! ## The segment -/
 
-theorem get_ins_ne {L : Store} {k a : Ident} {v : Value} (h : k ≠ a) :
-    (L.insert k v).get? a = L.get? a :=
-  store_get_ne L v (by simpa using h)
-
 abbrev hL12 (L : Store) (o4 : ByteArray) : Store := L.insert "signature_root" (shaDigest o4)
 abbrev hL13 (L : Store) (o4 wc : ByteArray) : Store :=
   (hL12 L o4).insert "credentials" (.int (Int.ofNat (calldataWord wc 0).toNat))
@@ -114,10 +110,6 @@ abbrev hL16 (L : Store) (o4 wc : ByteArray) (m : UInt256) (o5 o6 : ByteArray) : 
   (hL15 L o4 wc m o5).insert "right" (shaDigest o6)
 abbrev hL17 (L : Store) (o4 wc : ByteArray) (m : UInt256) (o5 o6 o7 : ByteArray) : Store :=
   (hL16 L o4 wc m o5 o6).insert "node" (shaDigest o7)
-
-/-- Two stores at `s` and `s + 32`. -/
-abbrev pairMem (M : ByteArray) (s a b : UInt256) : ByteArray :=
-  b.toByteArray.write 0 (a.toByteArray.write 0 M s.toNat 32) (s + UInt256.ofNat 32).toNat 32
 
 /-- Memory after call 4 (its digest over the signature pair at `0x260`). -/
 abbrev hM4 (mem : ByteArray) (l r : UInt256) (o4 : ByteArray) : ByteArray :=
