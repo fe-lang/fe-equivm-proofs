@@ -101,91 +101,79 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feERC20ReachApproveBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feERC20Blocks.feERC20_block_79_taken (by simp) (by rw [hwv]; decide)
-      (by jump_dest) rd
-    simp only [feERC20Blocks.feERC20_block_79_taken_stack] at rd1
-    by_cases hok : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
-    · obtain ⟨hlen, hhi⟩ := hok
-      have rd2 := feERC20Blocks.feERC20_block_90_fallthrough (by simp)
-        (solcDecodeLenCheckOk_4_64 hlen hhi hsize) rd1
-      by_cases hcanon : (calldataWord I.calldata 4).toNat < EVM.addressModulus
-      · have rd3 := feERC20Blocks.feERC20_block_103_fallthrough (by simp)
-          (shiftRight160_eq_zero hcanon) rd2
-        simp only [feERC20Blocks.feERC20_block_103_fallthrough_stack] at rd3
-        let evmS := initState σ σ₀ (Sat256.ofUInt256 g) A I
-        have hcv : evalExpr? config { contract := contract, locals := approveLocals I } evmS
-            (.binary .eq (.env .callvalue) (.intLit 0)) = .ok (.bool true) :=
-          evalCallvalueEq_true (by simp only [evmS, initState]; exact hwv)
-        have hval := approveEval_value evmS I
-        have hassign := approveAssign evmS I (by simp only [evmS, initState]) hcanon
-        by_cases hperm : I.perm = true
-        · have rret := feERC20Blocks.feERC20_block_113 (by simp) hperm rd3
-          rw [approvePair_keccak, approvePair_keccak, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
-            show (UInt256.ofNat 32).toNat = 32 from rfl,
-            toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rret
-          have hbody : ExecTransitionBody config contract evmS (approveLocals I) approveTransition.body
-              (.returned { contract := contract, locals := approveLocals I }
-                (Stele.EVM.storageStore evmS evmS.executionEnv.codeOwner (approveSlot I)
-                  (calldataWord I.calldata 36)) (some [(.bool true)])) := by
-            refine ExecFuncBody.execBlockRet ?_
-            refine ExecBlock.consNormal (ExecStmt.requireTrue hcv) ?_
-            refine ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm) hval hassign) ?_
-            refine ExecBlock.consNormal (ExecStmt.emit (by simpa [evmS, initState] using hperm)
-              (by simp [evalExprs?, approveEval_spender, approveEval_value, evalExpr?, envValue,
-                EvalResult.bind, bind, pure]; rfl)) ?_
-            exact ExecBlock.consReturn
-              (ExecStmt.return (by simp [evalExprs?, evalExpr?, EvalResult.bind, bind, pure]))
-          exact rret.reEquivExecutionGen hcode hd (feERC20ApproveDecode_ok hlen hhi hcanon) hbody
-            (by rw [storageStore_accountMap]; rfl)
-            (returnEquiv_of_encode boolTrueReturnEncoding)
-        · have hpf : I.perm = false := by simpa using hperm
-          let r0 := rd3
-          have r1 := r0.caller (by native_decide) (by evm_ov)
-          have r2 := r1.dup1 (by native_decide) (by evm_ov)
-          have r3 := r2.push0 (by native_decide) (by evm_ov)
-          have r4 := RD.genMstore r3 (by native_decide) (by evm_ov)
-          have r5 := r4.push1 (UInt256.ofNat 1) (by native_decide) (by evm_ov)
-          have r6 := r5.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-          have r7 := RD.genMstore r6 (by native_decide) (by evm_ov)
-          have r8 := r7.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-          have r9 := r8.push0 (by native_decide) (by evm_ov)
-          have r10 := RD.genKeccak256 r9 (by native_decide) (by evm_ov)
-          have r11 := r10.dup3 (by native_decide) (by evm_ov)
-          have r12 := r11.push0 (by native_decide) (by evm_ov)
-          have r13 := RD.genMstore r12 (by native_decide) (by evm_ov)
-          have r14 := r13.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-          have r15 := RD.genMstore r14 (by native_decide) (by evm_ov)
-          have r16 := r15.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-          have r17 := r16.push0 (by native_decide) (by evm_ov)
-          have r18 := RD.genKeccak256 r17 (by native_decide) (by evm_ov)
-          have r19 := r18.push1 (UInt256.ofNat 36) (by native_decide) (by evm_ov)
-          have r20 := r19.calldataload (by native_decide) (by evm_ov)
-          have r21 := r20.dup1 (by native_decide) (by evm_ov)
-          have r22 := r21.swap2 (by native_decide) (by evm_ov)
-          have rs := r22.sstoreStatic hpf (by native_decide) (by evm_ov)
-          exact RDstatic.reEquivStaticHalt hcode rs hd (feERC20ApproveDecode_ok hlen hhi hcanon)
-            (ExecFuncBody.execBlockStatic (ExecBlock.consNormal (ExecStmt.requireTrue hcv)
-              (ExecBlock.consStatic (ExecStmt.assignStatic hval hassign
-                (by show I.perm = false; exact hpf)))))
-      · have rd3 := feERC20Blocks.feERC20_block_103_taken (by simp)
-          (shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)) (by jump_dest) rd2
-        exact RDrev.reEquivDecodingFailed hcode
-          (feERC20Blocks.feERC20_block_86 (by simp [feERC20Blocks.feERC20_block_103_taken_stack]) rd3)
-          hd (feERC20ApproveDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))
-    · have hbad : I.calldata.size < 68 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
-      have hslt : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
-          (UInt256.ofNat 64) = ⟨1⟩ := by
-        rcases hbad with h | h
-        · exact solcDecodeLenCheckShort_4_64 hsz h hsize
-        · exact solcDecodeLenCheckHuge_4_64 h hsize
-      have rd2 := feERC20Blocks.feERC20_block_90_taken (by simp)
-        (by rw [hslt]; decide) (by jump_dest) rd1
-      exact RDrev.reEquivDecodingFailed hcode (feERC20Blocks.feERC20_block_86 (by simp) rd2)
-        hd (feERC20ApproveDecode_none hsz (by omega))
-  · have rd1 := feERC20Blocks.feERC20_block_79_fallthrough (by simp)
-      (isZero_eq_zero_of_ne hwv) rd
-    exact RDrev.reEquivDispatchedRevert hcode
-      (feERC20Blocks.feERC20_block_86 (by simp [feERC20Blocks.feERC20_block_79_fallthrough_stack]) rd1)
-      hd fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  swap
+  · rd_run rd using [isZero_eq_zero_of_ne hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
+      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  by_cases hok : 68 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
+  swap
+  · have hbad : I.calldata.size < 68 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
+    rd_run rd using [hwv, ne_of_eq_of_ne
+      (hbad.elim (solcDecodeLenCheckShort_4_64 hsz · hsize) (solcDecodeLenCheckHuge_4_64 · hsize))
+      (by decide)]
+    exact RDrev.reEquivDecodingFailed hcode rd hd (feERC20ApproveDecode_none hsz (by omega))
+  obtain ⟨hlen, hhi⟩ := hok
+  have hc := solcDecodeLenCheckOk_4_64 hlen hhi hsize
+  by_cases hcanon : (calldataWord I.calldata 4).toNat < EVM.addressModulus
+  swap
+  · rd_run rd using [hwv, hc, shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)]
+    exact RDrev.reEquivDecodingFailed hcode rd hd
+      (feERC20ApproveDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))
+  rd_run rd to 113 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  let evmS := initState σ σ₀ (Sat256.ofUInt256 g) A I
+  have hcv : evalExpr? config { contract := contract, locals := approveLocals I } evmS
+      (.binary .eq (.env .callvalue) (.intLit 0)) = .ok (.bool true) :=
+    evalCallvalueEq_true (by simp only [evmS, initState]; exact hwv)
+  have hval := approveEval_value evmS I
+  have hassign := approveAssign evmS I (by simp only [evmS, initState]) hcanon
+  by_cases hperm : I.perm = true
+  · rd_step rd
+    rw [approvePair_keccak, approvePair_keccak, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+      show (UInt256.ofNat 32).toNat = 32 from rfl,
+      toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
+    have hbody : ExecTransitionBody config contract evmS (approveLocals I) approveTransition.body
+        (.returned { contract := contract, locals := approveLocals I }
+          (Stele.EVM.storageStore evmS evmS.executionEnv.codeOwner (approveSlot I)
+            (calldataWord I.calldata 36)) (some [(.bool true)])) := by
+      refine ExecFuncBody.execBlockRet ?_
+      refine ExecBlock.consNormal (ExecStmt.requireTrue hcv) ?_
+      refine ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm) hval hassign) ?_
+      refine ExecBlock.consNormal (ExecStmt.emit (by simpa [evmS, initState] using hperm)
+        (by simp [evalExprs?, approveEval_spender, approveEval_value, evalExpr?, envValue,
+          EvalResult.bind, bind, pure]; rfl)) ?_
+      exact ExecBlock.consReturn
+        (ExecStmt.return (by simp [evalExprs?, evalExpr?, EvalResult.bind, bind, pure]))
+    exact rd.reEquivExecutionGen hcode hd (feERC20ApproveDecode_ok hlen hhi hcanon) hbody
+      (by rw [storageStore_accountMap]; rfl)
+      (returnEquiv_of_encode boolTrueReturnEncoding)
+  -- static mode: the `SSTORE` of block 113 halts
+  have hpf : I.perm = false := by simpa using hperm
+  have r1 := rd.caller (by native_decide) (by evm_ov)
+  have r2 := r1.dup1 (by native_decide) (by evm_ov)
+  have r3 := r2.push0 (by native_decide) (by evm_ov)
+  have r4 := RD.genMstore r3 (by native_decide) (by evm_ov)
+  have r5 := r4.push1 (UInt256.ofNat 1) (by native_decide) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r7 := RD.genMstore r6 (by native_decide) (by evm_ov)
+  have r8 := r7.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r9 := r8.push0 (by native_decide) (by evm_ov)
+  have r10 := RD.genKeccak256 r9 (by native_decide) (by evm_ov)
+  have r11 := r10.dup3 (by native_decide) (by evm_ov)
+  have r12 := r11.push0 (by native_decide) (by evm_ov)
+  have r13 := RD.genMstore r12 (by native_decide) (by evm_ov)
+  have r14 := r13.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
+  have r15 := RD.genMstore r14 (by native_decide) (by evm_ov)
+  have r16 := r15.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
+  have r17 := r16.push0 (by native_decide) (by evm_ov)
+  have r18 := RD.genKeccak256 r17 (by native_decide) (by evm_ov)
+  have r19 := r18.push1 (UInt256.ofNat 36) (by native_decide) (by evm_ov)
+  have r20 := r19.calldataload (by native_decide) (by evm_ov)
+  have r21 := r20.dup1 (by native_decide) (by evm_ov)
+  have r22 := r21.swap2 (by native_decide) (by evm_ov)
+  have rs := r22.sstoreStatic hpf (by native_decide) (by evm_ov)
+  exact RDstatic.reEquivStaticHalt hcode rs hd (feERC20ApproveDecode_ok hlen hhi hcanon)
+    (ExecFuncBody.execBlockStatic (ExecBlock.consNormal (ExecStmt.requireTrue hcv)
+      (ExecBlock.consStatic (ExecStmt.assignStatic hval hassign
+        (by show I.perm = false; exact hpf)))))
 
 end FeProofs.ERC20
