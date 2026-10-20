@@ -49,24 +49,13 @@ theorem depositHead_ok {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accoun
     ∃ aw' k' C', RD feDepositBytecode I g s0 (UInt256.ofNat 242) (hStack I) (hMem3 I) aw'
       ByteArray.empty σ k' C' := by
   obtain ⟨hh, hw0, hr0, hw1, hr1, hw2, hr2⟩ := hok
-  have r1 := feDepositBlocks.feDeposit_block_154_fallthrough (by simp) hh h
-  simp only [feDepositBlocks.feDeposit_block_154_fallthrough_stack] at r1
-  have r2 := feDepositBlocks.feDeposit_block_169_fallthrough (by simp) hw0 r1
-  simp only [feDepositBlocks.feDeposit_block_169_fallthrough_stack] at r2
-  have r3 := feDepositBlocks.feDeposit_block_182 (by simp) (by jump_dest) r2
-  simp only [feDepositBlocks.feDeposit_block_182_stack] at r3
-  obtain ⟨_, _, _, r4⟩ := decodeBytesRoutine_ok' (by simp) hr0 (by jump_dest) r3
-  have r5 := feDepositBlocks.feDeposit_block_193_fallthrough (by simp) hw1 r4
-  simp only [feDepositBlocks.feDeposit_block_193_fallthrough_stack] at r5
-  have r6 := feDepositBlocks.feDeposit_block_206 (by simp) (by jump_dest) r5
-  simp only [feDepositBlocks.feDeposit_block_206_stack] at r6
-  obtain ⟨_, _, _, r7⟩ := decodeBytesRoutine_ok' (by simp) hr1 (by jump_dest) r6
-  have r8 := feDepositBlocks.feDeposit_block_217_fallthrough (by simp) hw2 r7
-  simp only [feDepositBlocks.feDeposit_block_217_fallthrough_stack] at r8
-  have r9 := feDepositBlocks.feDeposit_block_230 (by simp) (by jump_dest) r8
-  simp only [feDepositBlocks.feDeposit_block_230_stack] at r9
-  obtain ⟨_, _, _, r10⟩ := decodeBytesRoutine_ok' (by simp) hr2 (by jump_dest) r9
-  exact ⟨_, _, _, r10⟩
+  rd_run h to 2110 using [hh, hw0]
+  obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr0 (by jump_dest) h
+  rd_run h to 2110 using [hw1]
+  obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr1 (by jump_dest) h
+  rd_run h to 2110 using [hw2]
+  obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr2 (by jump_dest) h
+  exact ⟨_, _, _, h⟩
 
 set_option maxHeartbeats 2000000 in
 /-- Any failing argument check reverts. -/
@@ -78,44 +67,22 @@ theorem depositHead_rev {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accou
   unfold hOk at hbad
   by_cases hh : UInt256.slt (UInt256.sub (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4))
       (UInt256.ofNat 128) = UInt256.ofNat 0
-  swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_154_taken_stack])
-      (feDepositBlocks.feDeposit_block_154_taken (by simp) hh (by jump_dest) h)
-  have r1 := feDepositBlocks.feDeposit_block_154_fallthrough (by simp) hh h
-  simp only [feDepositBlocks.feDeposit_block_154_fallthrough_stack] at r1
+  swap; · rd_run h using [hh]; exact h
   by_cases hw0 : UInt256.gt (hWord I 0) (UInt256.lnot (UInt256.ofNat 4)) = UInt256.ofNat 0
-  swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_169_taken_stack])
-      (feDepositBlocks.feDeposit_block_169_taken (by simp) hw0 (by jump_dest) r1)
-  have r2 := feDepositBlocks.feDeposit_block_169_fallthrough (by simp) hw0 r1
-  simp only [feDepositBlocks.feDeposit_block_169_fallthrough_stack] at r2
-  have r3 := feDepositBlocks.feDeposit_block_182 (by simp) (by jump_dest) r2
-  simp only [feDepositBlocks.feDeposit_block_182_stack] at r3
+  swap; · rd_run h using [hh, hw0]; exact h
+  rd_run h to 2110 using [hh, hw0]
   by_cases hr0 : rOk I (hPos I 0) (hCds I)
-  swap
-  · exact decodeBytesRoutine_rev (by simp) hr0 r3
-  obtain ⟨_, _, _, r4⟩ := decodeBytesRoutine_ok' (by simp) hr0 (by jump_dest) r3
+  swap; · exact decodeBytesRoutine_rev (by simp) hr0 h
+  obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr0 (by jump_dest) h
   by_cases hw1 : UInt256.gt (hWord I 1) (UInt256.lnot (UInt256.ofNat 4)) = UInt256.ofNat 0
-  swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_193_taken_stack])
-      (feDepositBlocks.feDeposit_block_193_taken (by simp) hw1 (by jump_dest) r4)
-  have r5 := feDepositBlocks.feDeposit_block_193_fallthrough (by simp) hw1 r4
-  simp only [feDepositBlocks.feDeposit_block_193_fallthrough_stack] at r5
-  have r6 := feDepositBlocks.feDeposit_block_206 (by simp) (by jump_dest) r5
-  simp only [feDepositBlocks.feDeposit_block_206_stack] at r6
+  swap; · rd_run h using [hw1]; exact h
+  rd_run h to 2110 using [hw1]
   by_cases hr1 : rOk I (hPos I 1) (hCds I)
-  swap
-  · exact decodeBytesRoutine_rev (by simp) hr1 r6
-  obtain ⟨_, _, _, r7⟩ := decodeBytesRoutine_ok' (by simp) hr1 (by jump_dest) r6
+  swap; · exact decodeBytesRoutine_rev (by simp) hr1 h
+  obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr1 (by jump_dest) h
   by_cases hw2 : UInt256.gt (hWord I 2) (UInt256.lnot (UInt256.ofNat 4)) = UInt256.ofNat 0
-  swap
-  · exact feDepositBlocks.feDeposit_block_2245 (by simp [feDepositBlocks.feDeposit_block_217_taken_stack])
-      (feDepositBlocks.feDeposit_block_217_taken (by simp) hw2 (by jump_dest) r7)
-  have r8 := feDepositBlocks.feDeposit_block_217_fallthrough (by simp) hw2 r7
-  simp only [feDepositBlocks.feDeposit_block_217_fallthrough_stack] at r8
-  have r9 := feDepositBlocks.feDeposit_block_230 (by simp) (by jump_dest) r8
-  simp only [feDepositBlocks.feDeposit_block_230_stack] at r9
-  have hr2 : ¬ rOk I (hPos I 2) (hCds I) := fun hr2 => hbad ⟨hh, hw0, hr0, hw1, hr1, hw2, hr2⟩
-  exact decodeBytesRoutine_rev (by simp) hr2 r9
+  swap; · rd_run h using [hw2]; exact h
+  rd_run h to 2110 using [hw2]
+  exact decodeBytesRoutine_rev (by simp) (fun hr2 => hbad ⟨hh, hw0, hr0, hw1, hr1, hw2, hr2⟩) h
 
 end FeProofs.Deposit

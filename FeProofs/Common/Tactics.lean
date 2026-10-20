@@ -15,8 +15,8 @@ bytecode constant: for `…feXBytecode` the block at `pc` is `feXBlocks.feX_bloc
   block applies or the run ends in `RDrev`/`RDret`/`RDstatic`).
 
 Side conditions are discharged automatically: stack bounds by `simp`/`omega`, jump destinations by
-`jump_dest`, and branch conditions and other hypotheses by a `using [t, …]` term (as a proof, or as
-equations to rewrite with, one or all in order, before `decide`), `assumption`, `decide`, `simp` or `omega`. At a conditional jump the taken branch is tried first; when neither
+`jump_dest`, and branch conditions and other hypotheses by a `using [t, …]` term (as a proof, up to
+`≠`/`¬¬`, or as equations to rewrite with, one or all in order, before `decide`), `assumption`, `decide`, `simp` or `omega`. At a conditional jump the taken branch is tried first; when neither
 condition can be discharged the step fails (`rd_step`) or the run stops there (`rd_run`). A
 program counter written as a closed sum, such as `UInt256.ofNat 891 + ⟨1⟩`, is normalized first.
 `as h'` names the result instead of reusing `h`.
@@ -64,8 +64,21 @@ def rdView? (ty : Expr) : MetaM (Option (Expr × Expr)) := do
     return some (ty.getArg! 0, ty.getArg! 4)
   return none
 
-/-- Close a side goal of a block summary. -/
-def discharge (g : MVarId) (hints : Array Term) : TacticM Bool := do
+/-- `decide`, only on a goal without local variables (a symbolic goal could take long to fail). -/
+elab "decide_closed" : tactic => do
+  let ty ← instantiateMVars (← (← getMainGoal).getType)
+  if ty.hasFVar || ty.hasMVar then throwError "decide_closed: goal is not closed"
+  evalTactic (← `(tactic| decide))
+
+/-- Whether `e` mentions a constant whose last name component is `n`. -/
+def mentions (e : Expr) (n : String) : Bool :=
+  (e.find? fun x => x.isConst && x.constName!.lastComponentAsString == n).isSome
+
+/-- Close a side goal of a block summary. Candidate proofs (hints and hypotheses) are compared with
+the goal at reducible transparency, and only with goals of their own kind: comparing a
+jump-destination goal with anything else makes Lean unfold the bytecode's jump-destination table,
+which takes very long to fail. -/
+def discharge (g : MVarId) (hints : Array (Term × Expr × Expr)) : TacticM Bool := do
   let ty ← instantiateMVars (← g.getType)
   let gs ← getGoals
   let tryTac (tac : TacticM Unit) : TacticM Bool := do
@@ -76,23 +89,55 @@ def discharge (g : MVarId) (hints : Array Term) : TacticM Bool := do
       if (← getUnsolvedGoals).isEmpty then setGoals gs; return true
       s.restore; return false
     catch _ => s.restore; return false
-  if (ty.find? fun e => e.isConst && e.constName!.lastComponentAsString == "D_J").isSome then
-    return ← tryTac (evalTactic (← `(tactic| jump_dest)))
-  for t in hints do
-    if ← tryTac (evalTactic (← `(tactic| exact $t))) then return true
-  for t in hints do
-    if ← tryTac (evalTactic (← `(tactic| (rw [$t:term]; decide)))) then return true
-  if hints.size > 1 then
-    let rws ← hints.mapM fun t => `(Lean.Parser.Tactic.rwRule| $t:term)
-    if ← tryTac (evalTactic (← `(tactic| (rw [$rws,*]; decide)))) then return true
-  for tac in [← `(tactic| assumption), ← `(tactic| (simp; done)), ← `(tactic| omega),
-      ← `(tactic| (simp; omega)), ← `(tactic| decide)] do
-    if ← tryTac (evalTactic tac) then return true
+  let isJump := mentions ty "D_J"
+  let fits (t : Expr) : Bool :=
+    mentions t "D_J" == isJump && !(t.isAppOf ``RD || t.isAppOf ``RDrev || t.isAppOf ``RDret)
+  -- hints and hypotheses as proofs
+  let mut cands : Array Expr := hints.filterMap fun (_, e, t) => if fits t then some e else none
+  for d in (← g.getDecl).lctx do
+    if !d.isImplementationDetail && fits (← instantiateMVars d.type) then cands := cands.push d.toExpr
+  -- reducible transparency: at default transparency a mismatch can unfold word arithmetic for long
+  for e in cands do
+    let s ← saveState
+    if ← withReducible (isDefEq (← inferType e) ty) then
+      g.assign e; return true
+    s.restore
+  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest)))
+  -- stack bounds
+  if mentions ty "length" then
+    for tac in [← `(tactic| (simp; done)), ← `(tactic| omega), ← `(tactic| (simp; omega))] do
+      if ← tryTac (evalTactic tac) then return true
+    return false
+  -- branch conditions: decide, or rewrite with the hints first
+  if ← tryTac (evalTactic (← `(tactic| decide_closed))) then return true
+  let eqs := hints.filter fun (_, _, t) => t.isAppOf ``Eq && fits t
+  for (stx, _, _) in eqs do
+    if ← tryTac (evalTactic (← `(tactic| (rw [$stx:term]; decide_closed)))) then return true
+  if eqs.size > 1 then
+    let rws ← eqs.mapM fun (stx, _, _) => `(Lean.Parser.Tactic.rwRule| $stx:term)
+    if ← tryTac (evalTactic (← `(tactic| (rw [$rws,*]; decide_closed)))) then return true
+  for (stx, _, t) in hints do
+    if fits t then
+      if ← tryTac (evalTactic (← `(tactic|
+          set_option linter.unnecessarySimpa false in simpa only [ne_eq, not_not] using $stx)))
+      then return true
   return false
+
+/-- Elaborate the `using` terms once per step: each with its proof and type. -/
+def elabHints (hints : Array Term) : TacticM (Array (Term × Expr × Expr)) :=
+  hints.filterMapM fun (stx : Term) => do
+    try
+      let e ← Term.elabTerm stx none
+      Term.synthesizeSyntheticMVarsNoPostponing
+      let e ← instantiateMVars e
+      if e.hasExprMVar then return none
+      let t ← instantiateMVars (← inferType e)
+      return some ((stx, e, t) : Term × Expr × Expr)
+    catch _ => return none
 
 /-- Apply the block summary `blk` to the hypothesis `h`; on success return the new proof and
 its type. -/
-def applyBlock (h : FVarId) (blk : Name) (hints : Array Term) :
+def applyBlock (h : FVarId) (blk : Name) (hints : Array (Term × Expr × Expr)) :
     TacticM (Option (Expr × Expr)) := do
   let s ← saveState
   try
@@ -151,7 +196,7 @@ def step (h : FVarId) (name : Name) (hints : Array Term) : TacticM (Option FVarI
   let base := pre.appendAfter s!"_{n}"
   for blk in [base, base.appendAfter "_taken", base.appendAfter "_fallthrough"] do
     if (← getEnv).contains blk then
-      if let some (val, vty) ← withMainContext (applyBlock h blk hints) then
+      if let some (val, vty) ← withMainContext (do applyBlock h blk (← elabHints hints)) then
         return some (← install h name blk val vty)
   return none
 
