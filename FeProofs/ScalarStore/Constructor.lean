@@ -67,29 +67,17 @@ theorem feScalarStoreCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : Executi
     RDret (feScalarStoreCreationBytecode ++ ctorTail w) g (initState σ σ₀ g A I)
       (sstoreAccountMap I.codeOwner σ ⟨0⟩ w) feScalarStoreBytecode := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_0_taken (by simp)
-    (by rw [hwv]; decide) (by jump_dest) rd0
-  have rd2 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_9_fallthrough (by simp)
-    (by rw [ctorCode_size]; decide) rd1
-  have rd3 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_19_fallthrough (by simp)
-    (by native_decide) rd2
-  have rd4 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_32 (by simp) rd3
-  have rd5 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_35_fallthrough (by simp)
-    (by rw [ctorCode_size]; decide) rd4
-  have rret := feScalarStoreCreationBlocks.feScalarStoreCreation_block_47 (by simp) hperm rd5
-  simp only [feScalarStoreCreationBlocks.feScalarStoreCreation_block_35_fallthrough_memory,
-    ctorCode_size] at rret
-  rw [ctorArgMem_load, ctorRuntime_read] at rret
-  exact rret
+  rd_run rd0 using [hwv, ctorCode_size w, (by native_decide)]
+  simp only [ctorCode_size] at rd0
+  rwa [ctorArgMem_load, ctorRuntime_read] at rd0
 
 theorem feScalarStoreCtorRev {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     {tail : ByteArray} (hcode : I.code = feScalarStoreCreationBytecode ++ tail)
     (hwv : I.weiValue ≠ ⟨0⟩) :
     RDrev (feScalarStoreCreationBytecode ++ tail) g (initState σ σ₀ g A I) := by
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feScalarStoreCreationBlocks.feScalarStoreCreation_block_0_fallthrough (by simp)
-    (isZero_eq_zero_of_ne hwv) rd0
-  exact feScalarStoreCreationBlocks.feScalarStoreCreation_block_5 (by simp) rd1
+  rd_run rd0 using [isZero_eq_zero_of_ne hwv]
+  exact rd0
 
 /-- The constructor's argument store. -/
 abbrev ctorLocals (i : Int) : Store :=

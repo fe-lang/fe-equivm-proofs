@@ -33,21 +33,16 @@ theorem feScalarStoreGetBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨k, C, rd⟩ := feScalarStoreReachGetBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
-  · have rd1 := feScalarStoreBlocks.feScalarStore_block_67_fallthrough (by simp) hwv rd
-    have rret := feScalarStoreBlocks.feScalarStore_block_72 (by simp) rd1
-    have hout : ((σ.get? I.codeOwner |>.option (⟨0⟩ : UInt256)
-          (fun ac => ac.storage.getD (⟨0⟩ : UInt256) (⟨0⟩ : UInt256))).toByteArray.write 0
-          ByteArray.empty (⟨0⟩ : UInt256).toNat 32).readWithPadding (⟨0⟩ : UInt256).toNat
-          (UInt256.ofNat 32).toNat = (solcSlotWordAt ⟨0⟩ σ I).toByteArray :=
-      toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)
-    rw [hout] at rret
-    have hread := stored_read (L := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (by simp)
-    rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
-    exact rret.reEquivExecution hcode hd (feScalarStoreGetDecode hsz)
-      (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
-      (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨0⟩ σ I)))
-  · have rd1 := feScalarStoreBlocks.feScalarStore_block_67_taken (by simp) hwv (by jump_dest) rd
-    exact RDrev.reEquivDispatchedRevert hcode (feScalarStoreBlocks.feScalarStore_block_42 (by simp) rd1)
-      hd fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  swap
+  · rd_run rd using [hwv]
+    exact RDrev.reEquivDispatchedRevert hcode rd hd
+      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  rd_run rd using [hwv]
+  u256_lits at rd
+  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)] at rd
+  have hread := stored_read (L := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (by simp)
+  exact rd.reEquivExecution hcode hd (feScalarStoreGetDecode hsz)
+    (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
+    (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨0⟩ σ I)))
 
 end FeProofs.ScalarStore
