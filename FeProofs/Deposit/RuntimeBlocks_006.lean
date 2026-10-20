@@ -432,20 +432,4 @@ theorem feDeposit_block_1491_static {ee : ExecutionEnv} {g : Sat256} {s0 : State
   have r10 := r9.swap6 (by native_decide) (by evm_ov)
   exact RD.log1Static r10 hperm (by native_decide) (by evm_ov)
 
-/-- Static-mode twin of `feDeposit_block_1592`: its steps up to the state change, which halts when
-    `ee.perm = false`. -/
-theorem feDeposit_block_1592_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 : UInt256} {R : List UInt256}
-    (hstack : R.length + 5 ≤ 1024)
-    (hperm : ee.perm = false)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1592) (x0 :: x1 :: x2 :: R) mem aw rdata σ k C)
-    : RDstatic FeProofs.Deposit.feDepositBytecode g s0 := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.swap1 (by native_decide) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 1) (by native_decide) (by evm_ov)
-  have r4 := r3.add (by native_decide) (by evm_ov)
-  have r5 := r4.dup1 (by native_decide) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-  exact RD.sstoreStatic r6 hperm (by native_decide) (by evm_ov)
-
 end feDepositBlocks

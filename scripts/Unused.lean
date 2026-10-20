@@ -31,6 +31,7 @@ def closureOf (env : Environment) (roots : Array Name) : NameSet := Id.run do
     let some idx := env.getModuleIdxFor? n | continue
     let mod := env.header.moduleNames[idx.toNat]!
     unless (`FeProofs).isPrefixOf mod do continue
+    if (`FeProofs.RDTactic).isPrefixOf n then continue
     if used.contains n || n.isInternalDetail || isAuxRecursor env n || isNoConfusion env n then continue
     if (← isMatcher n) || isPrivateName n && n.isInternal then continue
     let line := (← findDeclarationRanges? n).map (·.range.pos.line) |>.getD 0
