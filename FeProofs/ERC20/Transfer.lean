@@ -119,7 +119,7 @@ theorem transfer_event (evm : EVM.State) :
       .ok [.address evm.executionEnv.source,
         .address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat),
         .int (Int.ofNat (calldataWord I.calldata 36).toNat)] := by
-  simp [evalExprs?, transfer_to, transfer_value, Reasoning.VyperDispatch.evalExpr_caller,
+  simp only [evalExprs?, transfer_to, transfer_value, Reasoning.VyperDispatch.evalExpr_caller,
     EvalResult.bind, bind, pure]
 
 theorem transferBody_insufficient (hwv : I.weiValue = ⟨0⟩)

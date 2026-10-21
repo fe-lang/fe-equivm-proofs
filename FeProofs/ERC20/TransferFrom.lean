@@ -211,8 +211,8 @@ theorem transferFrom_event (evm : EVM.State) :
       .ok [.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat),
         .address (AccountAddress.ofNat (calldataWord I.calldata 36).toNat),
         .int (Int.ofNat (calldataWord I.calldata 68).toNat)] := by
-  simp [evalExprs?, transferFrom_fromVar, transferFrom_toVar, transferFrom_value, EvalResult.bind,
-    bind, pure]
+  simp only [evalExprs?, transferFrom_fromVar, transferFrom_toVar, transferFrom_value,
+    EvalResult.bind, bind, pure]
 
 end
 
