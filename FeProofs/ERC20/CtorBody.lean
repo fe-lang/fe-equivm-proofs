@@ -1,5 +1,6 @@
 import FeProofs.ERC20.CtorTrace
 import FeProofs.ERC20.Storage
+import FeProofs.ERC20.MapStorage
 
 /-!
 # FeERC20 constructor body (Stele side)
@@ -24,24 +25,6 @@ theorem ctorLocals_balanceOf (i : Int) : (ctorLocals i).get? "balanceOf" = none 
 
 theorem ctorLocals_totalSupply (i : Int) : (ctorLocals i).get? "totalSupply" = none := by
   simp [ctorLocals, contract, Syntax.contractSyntax]
-
-abbrev balanceOfSenderRef : StorageRef := { base := "balanceOf", steps := [.mindex (.env .caller)] }
-
-theorem balanceOfSender_write {L : Store} {evm : EVM.State} (hL : L.get? "balanceOf" = none)
-    (w : UInt256) :
-    assignStorageRef? config { contract := contract, locals := L } evm .storage balanceOfSenderRef
-        (.int (Int.ofNat w.toNat)) =
-      .ok ({ contract := contract, locals := L },
-        Stele.EVM.storageStore evm evm.executionEnv.codeOwner
-          (solcMappingSlot ⟨0⟩ (keyValueToWord (.address evm.executionEnv.source))) w) :=
-  assignStorageRef_storage_scalar_value (layout := solidityLayout! [contract.structs] [contract.storage])
-    (er := { base := "balanceOf", steps := [.mindex (.address evm.executionEnv.source)] })
-    (ty := .elem (.int (.uint ⟨256, by decide⟩)))
-    (loc := uint256Loc (solcMappingSlot ⟨0⟩ (keyValueToWord (.address evm.executionEnv.source)))) hL
-    (by simp [evalStorageRef, evalStorageRefStep, evalStorageRefSteps, envValue, valueToKey?,
-      EvalResult.bind, EvalResult.ofOption, bind, pure, evalExpr?])
-    (by simp [storageTypeAt?, storageTypeStep?, contract, Syntax.contractSyntax]) rfl rfl
-    (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256 evm _ w)
 
 theorem totalSupply_write {L : Store} {evm : EVM.State} (hL : L.get? "totalSupply" = none)
     (w : UInt256) :
@@ -75,7 +58,7 @@ theorem feERC20CtorBody_ok (evm : EVM.State) (i : Int) (h0 : 0 ≤ i)
     change EvalResult.ofOption EvalError.unboundVariable ((ctorLocals i).get? "initialSupply") = _
     rw [ctorLocals_initialSupply, constructorUInt256Word_toNat i h0 hlt]
     simp [EvalResult.ofOption, Int.toNat_of_nonneg h0]
-  have hb := balanceOfSender_write (L := ctorLocals i) (evm := evm) (ctorLocals_balanceOf i)
+  have hb := balanceOf_assign (ctorLocals_balanceOf i) (Reasoning.VyperDispatch.evalExpr_caller evm)
     (EVM.word i.toNat)
   have ht := totalSupply_write (L := ctorLocals i)
     (evm := Stele.EVM.storageStore evm evm.executionEnv.codeOwner
