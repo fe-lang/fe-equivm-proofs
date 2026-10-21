@@ -175,7 +175,6 @@ theorem transferBody_returns (hwv : I.weiValue = ⟨0⟩)
 
 end
 
-set_option maxHeartbeats 800000 in
 /-- `transfer(address,uint256)`: the theorem `Correct.lean` routes selector 4 to. -/
 theorem feERC20TransferBody {σ σ₀ A I} {g : UInt256}
     (hcode : I.code = feERC20Bytecode) (hsize : I.calldata.size < UInt256.size)

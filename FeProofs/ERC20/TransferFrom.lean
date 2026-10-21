@@ -330,7 +330,6 @@ theorem transferFromBody_returns
 
 end
 
-set_option maxHeartbeats 1500000 in
 /-- `transferFrom(address,address,uint256)`: the theorem `Correct.lean` routes selector 2 to. -/
 theorem feERC20TransferFromBody {σ σ₀ A I} {g : UInt256}
     (hcode : I.code = feERC20Bytecode) (hsize : I.calldata.size < UInt256.size)
