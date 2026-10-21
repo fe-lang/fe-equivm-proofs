@@ -24,7 +24,6 @@ abbrev setTwoStore (I : ExecutionEnv) : Store :=
     (.int (Int.ofNat (calldataWord I.calldata 68).toNat))).insert "second_value"
     (.int (Int.ofNat (calldataWord I.calldata 100).toNat))
 
-set_option maxHeartbeats 1000000 in
 theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     (hcode : I.code = feIndexedPackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feIndexedPackedStoreSelBytes 1)) :
@@ -79,7 +78,8 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     (stele := { contract := contract, locals := setTwoStore I }) (evm := evm)
     (by rw [evalIndexLt hx1, decide_eq_true hin1])
   have hval1 := evalCastU8 (evm := evm) (L := setTwoStore I) hv1
-  have hasg1 := assignElem (evm := evm) hin1 hx1 (by simp) (calldataWord I.calldata 36)
+  have hbase : (setTwoStore I).get? "pack" = none := by store_get
+  have hasg1 := assignElem (evm := evm) hin1 hx1 hbase (calldataWord I.calldata 36)
   set evm1 := Stele.EVM.storageStore evm evm.executionEnv.codeOwner (elemSlot i1)
     (setPackedByte (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner (elemSlot i1))
       (calldataWord I.calldata 36) (elemByte i1)) with hevm1
@@ -107,7 +107,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     (stele := { contract := contract, locals := setTwoStore I }) (evm := evm1)
     (by rw [evalIndexLt hx2, decide_eq_true hin2])
   have hval2 := evalCastU8 (evm := evm1) (L := setTwoStore I) hv2
-  have hasg2 := assignElem (evm := evm1) hin2 hx2 (by simp) (calldataWord I.calldata 100)
+  have hasg2 := assignElem (evm := evm1) hin2 hx2 hbase (calldataWord I.calldata 100)
   refine (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _)).reEquivExecutionGen hcode hd
     hdec (ExecFuncBody.execBlockOK (ExecBlock.consNormal hreq (ExecBlock.consNormal hreq1
       (ExecBlock.consNormal hassign1 (ExecBlock.consNormal hreq2 (ExecBlock.consNormal
