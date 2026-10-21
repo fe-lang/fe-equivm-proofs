@@ -169,13 +169,12 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
     if ← withReducible (isDefEq (← inferType e) ty) then
       g.assign e; return true
     s.restore
-  -- Stack bounds should not be compared with symbolic word equations, even explicit hints.
+  -- stack bounds, before any default-transparency comparison
   let isStack := mentions ty "length"
   if isStack then
     for tac in [← `(tactic| (simp; done)), ← `(tactic| omega), ← `(tactic| (simp; omega))] do
       if ← tryTac (evalTactic tac) then return true
-  -- Explicit hints may unfold ordinary definitions without the context filter. Finish the
-  -- cheap context search and stack solvers before even these bounded, expensive comparisons.
+  -- explicit hints at default transparency, unfiltered: they may need definitions unfolded
   for (_, e, t) in elabd do
     if fits t then
       let s ← saveState

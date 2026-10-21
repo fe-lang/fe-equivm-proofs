@@ -77,7 +77,8 @@ summaries are pruned (`scripts/prune_blocks.py`).
   constructor shapes, and byte lanes of packed storage.
 
 `scripts/` has `Audit.lean` (axioms of every capstone), `Unused.lean` (declarations no capstone
-uses), `Dups.lean` (theorems duplicating another, in this project or its dependencies), and the
+uses), `Dups.lean` (theorems duplicating another, in this project or its dependencies),
+`Tactics.lean` (regressions for the side-goal search of the block-stepping tactics), and the
 cleanup helpers used to shrink the proofs.
 
 ## Checking the proofs
