@@ -25,6 +25,9 @@ abbrev mapSlot (key base : UInt256) : UInt256 :=
 abbrev balanceWord (σ : AccountMap) (I : ExecutionEnv) (key : UInt256) : UInt256 :=
   solcSlotWord σ I (mapSlot key ⟨0⟩)
 
+/-- `balanceOf[to]`. -/
+abbrev balanceOfTo : StorageRef := { base := "balanceOf", steps := [.mindex (.var "to")] }
+
 /-- `KECCAK256(0, 64)` over `MSTORE(0, key); MSTORE(32, base)`. -/
 theorem keccakWord_mapSlot (key base : UInt256) (mem : ByteArray) :
     keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64)
@@ -34,6 +37,10 @@ theorem keccakWord_mapSlot (key base : UInt256) (mem : ByteArray) :
       (KEC ((twoWordHashMem key base mem).readWithPadding 0 64))) = _
   rw [twoWordHashMem_read0_64_any]
   exact mappingSlot_single key base
+
+/-- A branch-condition hint for `rd_run` whose words are read from slots hashed in scratch memory:
+rewrites the hashes to `mapSlot`, then closes the condition with `h`. -/
+macro "slot_hint " h:term:max : term => `(by simp only [keccakWord_mapSlot]; exact $h)
 
 section
 variable {L : Store} {evm : EVM.State} {e f : Expr} {a b : AccountAddress}

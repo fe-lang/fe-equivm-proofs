@@ -9,7 +9,8 @@ selector with non-zero call value therefore reverts whether or not its calldata 
 Stele either reports a decoding failure or runs the body into its non-payable guard.
 
 Fe's checked `u256` addition `a + b` panics when the wrapped sum is below `a`
-(`addCarry_eq_zero`, `addCarry_ne_zero`).
+(`addCarry_eq_zero`, `addCarry_ne_zero`); `assert!(a >= b)` branches on `ISZERO(LT(a, b))`
+(`isZero_lt_ne_zero`, `isZero_lt_eq_zero`).
 
 -- LIBRARY CANDIDATE: `Reasoning/Dispatch.lean`, beside `RDrev.reEquivExecutionRevert`
 -- (the decode-agnostic form of a dispatched revert).
@@ -54,5 +55,15 @@ theorem addCarry_ne_zero {a b : UInt256} (h : UInt256.size ≤ a.toNat + b.toNat
     rw [uadd_toNat, Nat.mod_eq_sub_mod h, Nat.mod_eq_of_lt (by omega)]
   rw [ult_one (by omega)]
   decide
+
+/-- `ISZERO(LT(a, b))` when `b ≤ a`. -/
+theorem isZero_lt_ne_zero {a b : UInt256} (h : b.toNat ≤ a.toNat) :
+    UInt256.isZero (UInt256.lt a b) ≠ ⟨0⟩ := by
+  rw [ult_zero h]; decide
+
+/-- `ISZERO(LT(a, b))` when `a < b`. -/
+theorem isZero_lt_eq_zero {a b : UInt256} (h : a.toNat < b.toNat) :
+    UInt256.isZero (UInt256.lt a b) = ⟨0⟩ :=
+  isZero_eq_zero_of_ne (by rw [ult_one h]; decide)
 
 end FeProofs

@@ -45,9 +45,6 @@ abbrev transferFrame (I : ExecutionEnv) : Frame := { contract := contract, local
 /-- `balanceOf[msg.sender]`. -/
 abbrev balanceOfCaller : StorageRef := { base := "balanceOf", steps := [.mindex (.env .caller)] }
 
-/-- `balanceOf[to]`. -/
-abbrev balanceOfTo : StorageRef := { base := "balanceOf", steps := [.mindex (.var "to")] }
-
 /-- The Stele state after the caller's debit. -/
 abbrev transferDebitState (σ σ₀ : AccountMap) (g : Sat256) (A : Substate) (I : ExecutionEnv) :
     EVM.State :=
@@ -76,14 +73,13 @@ theorem transfer_bal : evalExpr? config (transferFrame I) (initState σ σ₀ g 
 theorem transfer_check : evalExpr? config (transferFrame I) (initState σ σ₀ g A I)
     (.binary .ge (.storage balanceOfCaller) (.var "value")) =
       .ok (.bool (decide ((calldataWord I.calldata 36).toNat ≤ (transferBal σ I).toNat))) :=
-  evalBin (by decide) (by decide) transfer_bal (transfer_value _) (by simp [evalBinaryOp?])
+  evalBin (by decide) (by decide) transfer_bal (transfer_value _) (evalBinaryOp_ge_word _ _)
 
 theorem transfer_debitEval (henough : (calldataWord I.calldata 36).toNat ≤ (transferBal σ I).toNat) :
     evalExpr? config (transferFrame I) (initState σ σ₀ g A I)
       (.binary .sub (.storage balanceOfCaller) (.var "value")) =
       .ok (.int (Int.ofNat (UInt256.sub (transferBal σ I) (calldataWord I.calldata 36)).toNat)) :=
-  evalBin (by decide) (by decide) transfer_bal (transfer_value _)
-    (by simp [evalBinaryOp?, usub_toNat henough]; omega)
+  evalBin (by decide) (by decide) transfer_bal (transfer_value _) (evalBinaryOp_sub_word henough)
 
 theorem transfer_debitAssign (w : UInt256) :
     assignStorageRef? config (transferFrame I) (initState σ σ₀ g A I) .storage balanceOfCaller
@@ -105,7 +101,8 @@ theorem transfer_credit (hcanon : (calldataWord I.calldata 4).toNat < EVM.addres
     evalExpr? config (transferFrame I) (transferDebitState σ σ₀ g A I)
       (.binary .add (.storage balanceOfTo) (.var "value")) =
       .ok (.int (Int.ofNat ((transferToBal σ I).toNat + (calldataWord I.calldata 36).toNat))) :=
-  evalBin (by decide) (by decide) (transfer_toBal hcanon) (transfer_value _) (by simp [evalBinaryOp?])
+  evalBin (by decide) (by decide) (transfer_toBal hcanon) (transfer_value _)
+    (evalBinaryOp_add_word _ _)
 
 theorem transfer_creditAssign (hcanon : (calldataWord I.calldata 4).toNat < EVM.addressModulus)
     (w : UInt256) :
@@ -152,8 +149,7 @@ theorem transferBody_overflow (hwv : I.weiValue = ⟨0⟩)
       (ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm) (transfer_debitEval henough)
         (transfer_debitAssign _))
         (ExecBlock.consRevert (ExecStmt.assignExprRevert
-          (evalInRangeUint_revert (transfer_credit hcanon)
-            (by have h := hover; simp [UInt256.size] at h ⊢; omega)))))))
+          (evalInRange256_add_revert (transfer_credit hcanon) hover))))))
 
 theorem transferBody_returns (hwv : I.weiValue = ⟨0⟩)
     (henough : (calldataWord I.calldata 36).toNat ≤ (transferBal σ I).toNat) (hperm : I.perm = true)
@@ -164,11 +160,6 @@ theorem transferBody_returns (hwv : I.weiValue = ⟨0⟩)
       (.returned (transferFrame I) (Stele.EVM.storageStore (transferDebitState σ σ₀ g A I)
         I.codeOwner (mapSlot (calldataWord I.calldata 4) ⟨0⟩)
         (transferToBal σ I + calldataWord I.calldata 36)) (some [.bool true])) := by
-  have hcredit : assignStorageRef? config (transferFrame I) (transferDebitState σ σ₀ g A I) .storage
-      balanceOfTo (.int (Int.ofNat ((transferToBal σ I).toNat + (calldataWord I.calldata 36).toNat))) =
-      .ok (transferFrame I, Stele.EVM.storageStore (transferDebitState σ σ₀ g A I) I.codeOwner
-        (mapSlot (calldataWord I.calldata 4) ⟨0⟩) (transferToBal σ I + calldataWord I.calldata 36)) := by
-    rw [← transfer_creditAssign hcanon, uadd_toNat, Nat.mod_eq_of_lt hfit]
   have hperm1 : (transferDebitState σ σ₀ g A I).executionEnv.perm = true := by
     rw [storageStore_executionEnv]; exact hperm
   refine ExecFuncBody.execBlockRet (ExecBlock.consNormal
@@ -177,8 +168,7 @@ theorem transferBody_returns (hwv : I.weiValue = ⟨0⟩)
   refine ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm) (transfer_debitEval henough)
     (transfer_debitAssign _)) ?_
   refine ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm1)
-    (evalInRangeUint (transfer_credit hcanon) (Int.natCast_nonneg _)
-      (by have h := hfit; simp [UInt256.size] at h ⊢; omega)) hcredit) ?_
+    (evalInRange256_add (transfer_credit hcanon) hfit) (transfer_creditAssign hcanon _)) ?_
   refine ExecBlock.consNormal (ExecStmt.emit (by rw [storageStore_executionEnv]; exact hperm1)
     (transfer_event _)) ?_
   exact ExecBlock.consReturn (ExecStmt.return (by simp [evalExprs?, evalExpr?, EvalResult.bind, bind, pure]))
@@ -223,25 +213,23 @@ theorem feERC20TransferBody {σ σ₀ A I} {g : UInt256}
   swap
   · -- short balance: `Error(string)` revert
     have hlt := Nat.lt_of_not_le henough
-    rd_run rd using [by simp only [keccakWord_mapSlot]; exact ne_of_eq_of_ne (ult_one hlt) (by decide)]
+    rd_run rd using [slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec (transferBody_insufficient hwv hlt)
   have hge := ult_zero henough
   by_cases hperm : I.perm = true
   swap
   · -- static mode: the debit's `SSTORE` halts
     have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [by simp only [keccakWord_mapSlot]; exact hge]
+    rd_run rd using [slot_hint hge]
     exact RDstatic.reEquivStaticHalt hcode rd hd hdec (transferBody_static hwv henough hpf)
   by_cases hfit : (transferToBal σ I).toNat + (calldataWord I.calldata 36).toNat < UInt256.size
   swap
   · -- `balanceOf[to] + value` overflows: Fe's panic
     have hover := Nat.le_of_not_lt hfit
-    rd_run rd using [by simp only [keccakWord_mapSlot]; exact hge,
-      by simp only [keccakWord_mapSlot]; exact addCarry_ne_zero hover]
+    rd_run rd using [slot_hint hge, slot_hint (addCarry_ne_zero hover)]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (transferBody_overflow hwv henough hperm hcanon hover)
-  rd_run rd using [by simp only [keccakWord_mapSlot]; exact hge,
-    by simp only [keccakWord_mapSlot]; exact addCarry_eq_zero hfit]
+  rd_run rd using [slot_hint hge, slot_hint (addCarry_eq_zero hfit)]
   simp only [keccakWord_mapSlot] at rd
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd

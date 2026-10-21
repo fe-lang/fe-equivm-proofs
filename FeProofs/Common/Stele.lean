@@ -7,8 +7,8 @@ import Reasoning.VyperDispatch -- `evalExpr_caller`
 
 Reading locals through a chain of inserts (`get_ins_ne` and the `store_get` tactic), and the
 evaluation of variables, integer literals, non-short-circuit binary operators, integer casts and
-local assignments (`…F` for any frame, the plain forms for a frame built from its locals), and the range check
-`inRange (uint n) e`.
+local assignments (`…F` for any frame, the plain forms for a frame built from its locals), `≥`, `-` and `+` on
+words, and the range check `inRange (uint n) e` (for `uint256`, of word sums and differences).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
@@ -42,6 +42,24 @@ theorem evalBin {cfg : Config} {stele : Frame} {evm : EVM.State} {op : BinaryOp}
   simp only [hl, hr, EvalResult.bind, bind]
   exact hop
 
+/-- `≥` on two words. -/
+theorem evalBinaryOp_ge_word (a b : UInt256) :
+    evalBinaryOp? .ge (.int (Int.ofNat a.toNat)) (.int (Int.ofNat b.toNat)) =
+      .ok (.bool (decide (b.toNat ≤ a.toNat))) := by
+  simp [evalBinaryOp?]
+
+/-- `-` on two words, without underflow. -/
+theorem evalBinaryOp_sub_word {a b : UInt256} (h : b.toNat ≤ a.toNat) :
+    evalBinaryOp? .sub (.int (Int.ofNat a.toNat)) (.int (Int.ofNat b.toNat)) =
+      .ok (.int (Int.ofNat (UInt256.sub a b).toNat)) := by
+  simp [evalBinaryOp?, usub_toNat h]; omega
+
+/-- `+` on two words. -/
+theorem evalBinaryOp_add_word (a b : UInt256) :
+    evalBinaryOp? .add (.int (Int.ofNat a.toNat)) (.int (Int.ofNat b.toNat)) =
+      .ok (.int (Int.ofNat (a.toNat + b.toNat))) := by
+  simp [evalBinaryOp?]
+
 theorem evalCastInt {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr} {i : Int}
     (t : IntType) (he : evalExpr? cfg stele evm e = .ok (.int i)) :
     evalExpr? cfg stele evm (.cast e (.elem (.int t))) = .ok (.int (normalizeInt t i)) := by
@@ -65,10 +83,45 @@ theorem evalInRangeUint {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Ex
   simp [he, EvalResult.bind, bind, pure, not_lt.mpr h0, hlt]
 
 theorem evalInRangeUint_revert {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
-    {w : BitWidth} {i : Int} (he : evalExpr? cfg stele evm e = .ok (.int i)) (hge : 2 ^ w.val ≤ i) :
+    {w : BitWidth} {i : Int} (he : evalExpr? cfg stele evm e = .ok (.int i))
+    (h : i < 0 ∨ 2 ^ w.val ≤ i) :
     evalExpr? cfg stele evm (.inRange (.uint w) e) = .revert := by
   rw [evalExpr?]
-  simp [he, EvalResult.bind, bind, pure, hge]
+  rcases h with h | h <;> simp [he, EvalResult.bind, bind, pure, h]
+
+/-- `inRange (uint 256)` of a word difference without underflow. -/
+theorem evalInRange256_sub {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
+    {a b : UInt256} (he : evalExpr? cfg stele evm e = .ok (.int (Int.ofNat a.toNat - Int.ofNat b.toNat)))
+    (h : b.toNat ≤ a.toNat) :
+    evalExpr? cfg stele evm (.inRange (.uint ⟨256, by decide⟩) e) =
+      .ok (.int (Int.ofNat (UInt256.sub a b).toNat)) := by
+  have ha : a.toNat < UInt256.size := a.val.isLt
+  rw [evalInRangeUint he (by simp only [Int.ofNat_eq_natCast]; omega)
+    (by simp only [Int.ofNat_eq_natCast]; simp [UInt256.size] at ha ⊢; omega), usub_toNat h]
+  simp only [Int.ofNat_eq_natCast]; congr 2; omega
+
+/-- `inRange (uint 256)` of a word difference that underflows. -/
+theorem evalInRange256_sub_revert {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
+    {a b : UInt256} (he : evalExpr? cfg stele evm e = .ok (.int (Int.ofNat a.toNat - Int.ofNat b.toNat)))
+    (h : a.toNat < b.toNat) :
+    evalExpr? cfg stele evm (.inRange (.uint ⟨256, by decide⟩) e) = .revert :=
+  evalInRangeUint_revert he (Or.inl (by simp only [Int.ofNat_eq_natCast]; omega))
+
+/-- `inRange (uint 256)` of a word sum below `2^256`. -/
+theorem evalInRange256_add {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
+    {a b : UInt256} (he : evalExpr? cfg stele evm e = .ok (.int (Int.ofNat (a.toNat + b.toNat))))
+    (h : a.toNat + b.toNat < UInt256.size) :
+    evalExpr? cfg stele evm (.inRange (.uint ⟨256, by decide⟩) e) = .ok (.int (Int.ofNat (a + b).toNat)) := by
+  rw [evalInRangeUint he (Int.natCast_nonneg _)
+    (by simp only [Int.ofNat_eq_natCast]; simp [UInt256.size] at h ⊢; omega), uadd_toNat,
+    Nat.mod_eq_of_lt h]
+
+/-- `inRange (uint 256)` of a word sum of at least `2^256`. -/
+theorem evalInRange256_add_revert {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
+    {a b : UInt256} (he : evalExpr? cfg stele evm e = .ok (.int (Int.ofNat (a.toNat + b.toNat))))
+    (h : UInt256.size ≤ a.toNat + b.toNat) :
+    evalExpr? cfg stele evm (.inRange (.uint ⟨256, by decide⟩) e) = .revert :=
+  evalInRangeUint_revert he (Or.inr (by simp only [Int.ofNat_eq_natCast]; simp [UInt256.size] at h ⊢; omega))
 
 /-- `assignLocalF` for a frame built from its locals, keeping that shape. -/
 theorem assignLocal {cfg : Config} {c : ContractDecl} {L : Store} {evm : EVM.State} {x : Ident}
