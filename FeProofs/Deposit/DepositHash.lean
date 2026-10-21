@@ -90,7 +90,6 @@ theorem depositBody_drop11 :
       .internalCall "sha256_pair" [.var "left", .var "right"] "node" ::
       depositTransition.body.drop 17 := rfl
 
-set_option maxHeartbeats 4000000 in
 /-- **Calls 4–7.**  From the signature pair at `0x260` (holding `signature_left ‖ ·`, with
     `signature_right` at its first word) to the node at pc 1026: the EVM either reverts, or reaches
     pc 1026 with the node pointer `0x2a0` on top while the spec has run statements 11–16. -/

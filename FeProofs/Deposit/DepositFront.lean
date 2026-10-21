@@ -62,7 +62,6 @@ abbrev fStack (I : ExecutionEnv) : List UInt256 :=
   [UInt256.div I.weiValue (UInt256.ofNat 1000000000), rAlloc I (hPos I 2), rAlloc I (hPos I 1),
    rFp ByteArray.empty, rFp (hMem2 I), rAlloc I (hPos I 0), rFp (hMem1 I)]
 
-set_option maxHeartbeats 1000000 in
 /-- `deposit` up to pc 650: either the call is already refined (every rejection), or both sides
     reach pc 650 / the ninth statement with the decoder, check and prefix facts. -/
 theorem depositFront {σ σ₀ A I} {g : UInt256} (hcode : I.code = feDepositBytecode)

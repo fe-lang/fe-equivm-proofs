@@ -41,7 +41,6 @@ abbrev hStack (ee : ExecutionEnv) : List UInt256 :=
    rFp ByteArray.empty, rLen ee (hPos ee 0), rAlloc ee (hPos ee 0),
    rFp (hMem1 ee)]
 
-set_option maxHeartbeats 2000000 in
 theorem depositHead_ok {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : AccountMap} {k C : ℕ}
     {sel : UInt256} (hok : hOk I)
     (h : RD feDepositBytecode I g s0 (UInt256.ofNat 154) [sel] ByteArray.empty (UInt256.ofNat 0)
@@ -57,7 +56,6 @@ theorem depositHead_ok {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : Accoun
   obtain ⟨_, _, _, h⟩ := decodeBytesRoutine_ok' (by simp) hr2 (by jump_dest) h
   exact ⟨_, _, _, h⟩
 
-set_option maxHeartbeats 2000000 in
 /-- Any failing argument check reverts. -/
 theorem depositHead_rev {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : AccountMap} {k C : ℕ}
     {sel : UInt256} (hbad : ¬ hOk I)

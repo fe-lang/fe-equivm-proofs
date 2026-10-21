@@ -22,7 +22,6 @@ def cOk (ee : ExecutionEnv) (len0 len1 len2 : UInt256) : Prop :=
   UInt256.isZero (UInt256.gt (UInt256.div ee.weiValue (UInt256.ofNat 1000000000))
     (UInt256.shiftRight (UInt256.lnot (⟨0⟩ : UInt256)) (UInt256.ofNat 192))) ≠ UInt256.ofNat 0
 
-set_option maxHeartbeats 1000000 in
 theorem depositChecks_ok {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
     {fp2 len2 alloc2 len1 alloc1 fp0 len0 alloc0 fp1 : UInt256}
@@ -36,7 +35,6 @@ theorem depositChecks_ok {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
   rd_run h to 650 using [h0, h1, h2, h3, h4, h5]
   exact ⟨_, _, h⟩
 
-set_option maxHeartbeats 1000000 in
 theorem depositChecks_rev {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
     {fp2 len2 alloc2 len1 alloc1 fp0 len0 alloc0 fp1 : UInt256}

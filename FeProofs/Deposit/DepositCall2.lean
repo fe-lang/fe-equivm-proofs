@@ -11,7 +11,6 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.Deposit
 
-set_option maxHeartbeats 2000000 in
 /-- After block 650's writes: extent, the untouched signature window, and the bumped free
     pointer `0x260`. -/
 theorem c1Mem_facts {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
@@ -52,7 +51,6 @@ abbrev c2Base (I : ExecutionEnv) (out1 : ByteArray) : ByteArray :=
 abbrev c2Mem (I : ExecutionEnv) (out1 : ByteArray) : ByteArray :=
   feDepositBlocks.feDeposit_block_715_memory (mem := c2Base I out1)
 
-set_option maxHeartbeats 2000000 in
 theorem c2_facts {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
     (hl0 : dLen I.calldata 0 = 48) (hl1 : dLen I.calldata 1 = 32) (hl2 : dLen I.calldata 2 = 96)
     {out1 : ByteArray} (hob : out1.size < UInt256.size) (hsz : 32 ≤ out1.size) :
@@ -120,7 +118,6 @@ theorem c2Chunk_eq (x : UInt256) : c2Chunk x = u64ChunkWord x := by
     (UInt256.ofNat 8))]
   exact evmChunk_eq x
 
-set_option maxHeartbeats 2000000 in
 /-- The 64 bytes block 715 hands to call 2 are the signature's first two words. -/
 theorem c2Payload {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
     (hl0 : dLen I.calldata 0 = 48) (hl1 : dLen I.calldata 1 = 32) (hl2 : dLen I.calldata 2 = 96)
@@ -135,7 +132,6 @@ theorem c2Payload {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
     show 448 + 64 = 512 from rfl, mx 448 512 (by decide) (by decide) (by decide), ← hsig, extract_extract_BA]
   rfl
 
-set_option maxHeartbeats 4000000 in
 /-- **Call 2.**  From pc 715 (after call 1), both sides revert or the EVM reaches pc 838 with the
     digest at the scratch pair while `signature_left` binds it. -/
 theorem call2 {σ σ₀ A I} {g : UInt256} {σ1 : AccountMap} {evm : EVM.State} {L : Store}

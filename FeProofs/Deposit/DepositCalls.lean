@@ -25,7 +25,6 @@ abbrev c3Locals (cd : ByteArray) (evm : EVM.State) (o1 o2 o3 : ByteArray) : Stor
   (((pLocals cd evm).insert "pubkey_root" (shaDigest o1)).insert "signature_left"
     (shaDigest o2)).insert "signature_right" (shaDigest o3)
 
-set_option maxHeartbeats 4000000 in
 /-- **Calls 1–3.**  From pc 650, both sides revert or the EVM reaches the `depositHash_874` entry
     state while statements 8–10 bind `pubkey_root`, `signature_left` and `signature_right`. -/
 theorem calls123 {σ σ₀ A I} {g : UInt256} {aw : UInt256} {k C : Nat}

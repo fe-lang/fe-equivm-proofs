@@ -60,7 +60,6 @@ theorem ctorRuntime_read (w : UInt256) :
     extract_append_left _ _ _ _ (by rw [feScalarStoreCreation_size])]
   native_decide
 
-set_option maxHeartbeats 1000000 in
 theorem feScalarStoreCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
     (w : UInt256) (hcode : I.code = feScalarStoreCreationBytecode ++ ctorTail w)
     (hwv : I.weiValue = ⟨0⟩) (hperm : I.perm = true) :

@@ -19,7 +19,6 @@ namespace FeProofs.Deposit
 abbrev c1Mem (I : ExecutionEnv) : ByteArray :=
   feDepositBlocks.feDeposit_block_650_memory (mem := hMem3 I) (x3 := rFp ByteArray.empty)
 
-set_option maxHeartbeats 1000000 in
 /-- The 64 bytes block 650 hands to the `STATICCALL` are the pubkey followed by 16 zero bytes. -/
 theorem c1Payload {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
     (hl0 : dLen I.calldata 0 = 48) (hl1 : dLen I.calldata 1 = 32) (hl2 : dLen I.calldata 2 = 96) :
@@ -39,7 +38,6 @@ abbrev c1Stmt : Stmt :=
   .internalCall "sha256_64" [.abiEncodePacked [(.bytes, .var "pubkey"),
     (.elem (.bytes 15), .fixedBytesLit 15 (List.replicate 16 0))]] "pubkey_root"
 
-set_option maxHeartbeats 2000000 in
 /-- **Call 1.**  From pc 650, either both sides revert (failed call or short return data) or the
     EVM reaches pc 715 with the digest at the free pointer while `pubkey_root` binds it. -/
 theorem call1 {σ σ₀ A I} {g : UInt256} {σ1 : AccountMap} {evm : EVM.State} {L : Store}

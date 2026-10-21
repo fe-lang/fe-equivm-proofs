@@ -114,7 +114,6 @@ section Layout
 variable {I : ExecutionEnv} (hok : hOk I) (hargs : dArgsOk I.calldata)
   (hl0 : dLen I.calldata 0 = 48) (hl1 : dLen I.calldata 1 = 32) (hl2 : dLen I.calldata 2 = 96)
 
-set_option maxHeartbeats 2000000 in
 include hok hargs hl0 hl1 hl2 in
 /-- The memory at pc 650: the free pointers, the allocations' extent, and the three payloads. -/
 theorem hMem3_layout :

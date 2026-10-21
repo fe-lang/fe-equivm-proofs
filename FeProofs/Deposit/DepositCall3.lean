@@ -40,7 +40,6 @@ theorem depositBody_drop10 :
           (.elem (.bytes 31), .fixedBytesLit 31 (List.replicate 32 0))]] "signature_right" ::
       depositTransition.body.drop 11 := rfl
 
-set_option maxHeartbeats 4000000 in
 /-- **Call 3.**  From pc 838 (signature payload at `0x1c0`, signature pair at `0x260` holding
     `signature_left ‖ 0`) to the `depositHash_874` entry state. -/
 theorem depositCall3 {I : ExecutionEnv} {g : Sat256} {s0 : State} {σ : AccountMap}

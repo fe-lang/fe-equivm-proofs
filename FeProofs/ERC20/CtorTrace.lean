@@ -108,7 +108,6 @@ theorem ctorRuntime_read (w : UInt256) (mem : ByteArray) :
     extract_append_left _ _ _ _ (by rw [feERC20Creation_size])]
   native_decide
 
-set_option maxHeartbeats 1000000 in
 /-- Zero call value: the initcode stores the argument at `balanceOf[caller]` and in slot 2 and
     returns the runtime. -/
 theorem feERC20CtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
