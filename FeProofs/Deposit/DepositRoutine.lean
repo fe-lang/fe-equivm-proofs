@@ -47,7 +47,6 @@ def rOk (ee : ExecutionEnv) (p cds : UInt256) : Prop :=
   UInt256.gt (rLen ee p) (UInt256.ofNat 18446744073709551552) = UInt256.ofNat 0 ∧
   UInt256.isZero (UInt256.lt (rAlloc ee p) (UInt256.ofNat 32)) ≠ UInt256.ofNat 0
 
-set_option maxHeartbeats 1000000 in
 theorem decodeBytesRoutine_ok {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {p cds ret : UInt256}
     {R : List UInt256} (hR : R.length + 9 ≤ 1024)
@@ -70,7 +69,6 @@ theorem decodeBytesRoutine_ok {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem
     rw [show rFp mem = memLoad (UInt256.ofNat 64) mem from if_neg hfp]
     exact ⟨_, _, _, h⟩
 
-set_option maxHeartbeats 1000000 in
 /-- Any failing check of the `bytes` decoder reverts (the overflow and allocation checks panic). -/
 theorem decodeBytesRoutine_rev {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {p cds ret : UInt256}

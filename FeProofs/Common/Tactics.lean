@@ -160,15 +160,30 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
     mentions t "D_J" == isJump && !(t.isAppOf ``RD || t.isAppOf ``RDrev || t.isAppOf ``RDret)
   -- hints and hypotheses as proofs
   let elabd := hints.filterMap fun (stx, et) => et.map fun (e, t) => (stx, e, t)
-  let mut cands : Array Expr := elabd.filterMap fun (_, e, t) => if fits t then some e else none
+  let mut cands : Array (Expr × Expr) :=
+    elabd.filterMap fun (_, e, t) => if fits t then some (e, t) else none
   for d in (← g.getDecl).lctx do
-    if !d.isImplementationDetail && fits (← instantiateMVars d.type) then cands := cands.push d.toExpr
+    let t ← instantiateMVars d.type
+    if !d.isImplementationDetail && fits t then cands := cands.push (d.toExpr, t)
   -- reducible transparency: at default transparency a mismatch can unfold word arithmetic for long
-  for e in cands do
+  for (e, t) in cands do
     let s ← saveState
-    if ← withReducible (isDefEq (← inferType e) ty) then
+    if ← withReducible (isDefEq t ty) then
       g.assign e; return true
     s.restore
+  -- A known opposite condition rules out this block. Do not exhaust the hint solvers trying
+  -- to prove it. Only compare fully determined propositions, without assigning goal parameters.
+  if !ty.hasMVar then
+    let negTy ← withReducible (matchNot? ty)
+    for (_, t) in cands do
+      if !t.hasMVar then
+        let s ← saveState
+        let opposite ← withReducible do
+          if let some p := negTy then
+            if ← isDefEq t p then return true
+          if let some p ← matchNot? t then isDefEq ty p else pure false
+        s.restore
+        if opposite then return false
   -- stack bounds, before any default-transparency comparison
   let isStack := mentions ty "length"
   if isStack then
