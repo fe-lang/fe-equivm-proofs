@@ -60,9 +60,10 @@ theorem feERC20AllowanceBody {σ σ₀ A I} {g : UInt256}
     (L := ((∅ : Store).insert "owner"
       (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat))).insert "spender"
       (.address (AccountAddress.ofNat (calldataWord I.calldata 36).toNat)))
-    hc0 hc1 (by simp) ((store_get_ne _ _ (by decide)).trans (store_get_self _ _ _))
-    (store_get_self _ _ _)
-  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
+    (by simp) (evalVarF ((store_get_ne _ _ (by decide)).trans (store_get_self _ _ _)))
+    (evalVarF (store_get_self _ _ _))
+  rw [keyValueToWord_address_of_canonical _ hc0, keyValueToWord_address_of_canonical _ hc1,
+    storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
   exact rd.reEquivExecution hcode hd (decodeCalldata_address_address_ok hlen hhi hc0 hc1)
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
     (returnEquiv_of_encode (uint256ReturnEncoding _))

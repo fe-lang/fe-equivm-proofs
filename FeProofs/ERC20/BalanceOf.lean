@@ -50,9 +50,10 @@ theorem feERC20BalanceOfBody {σ σ₀ A I} {g : UInt256}
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
   have hread := balanceOf_read (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I)
     (L := (∅ : Store).insert "owner"
-      (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat))) hcanon
-    (by simp) (store_get_self _ _ _)
-  rw [storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
+      (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat)))
+    (by simp) (evalVarF (store_get_self _ _ _))
+  rw [keyValueToWord_address_of_canonical _ hcanon,
+    storageLoad_initState_ofUInt256_solcSlotWordAt] at hread
   exact rd.reEquivExecution hcode hd (decodeCalldata_address_ok hlen hhi hcanon)
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
     (returnEquiv_of_encode (uint256ReturnEncoding _))

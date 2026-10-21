@@ -1,5 +1,5 @@
 import FeProofs.ERC20.Dispatch
-import FeProofs.ERC20.ApproveStorage
+import FeProofs.ERC20.MapStorage
 import FeProofs.Common.Basic
 
 /-!
@@ -25,7 +25,7 @@ abbrev approveLocals (I : ExecutionEnv) : Store :=
 
 /-- The Stele slot of `allowance[msg.sender][spender]`. -/
 abbrev approveSlot (I : ExecutionEnv) : UInt256 :=
-  approveMapSlot (calldataWord I.calldata 4) (approveMapSlot (UInt256.ofNat I.source.val) (UInt256.ofNat 1))
+  mapSlot (calldataWord I.calldata 4) (mapSlot (UInt256.ofNat I.source.val) ⟨1⟩)
 
 theorem feERC20ApproveDecode_ok {I : ExecutionEnv} (hsz68 : 68 ≤ I.calldata.size)
     (hbig : I.calldata.size < 2 ^ 255 + 4)
@@ -68,14 +68,6 @@ theorem approveEval_value (evm : EVM.State) (I : ExecutionEnv) :
   simp only [evalExpr?, EvalResult.ofOption]
   rw [approveLocals_value]
 
-theorem approveRef_eval (evm : EVM.State) (I : ExecutionEnv) :
-    evalStorageRef config { contract := contract, locals := approveLocals I } evm
-      { base := "allowance", steps := [.mindex (.env .caller), .mindex (.var "spender")] } =
-      .ok { base := "allowance", steps := [.mindex (.address evm.executionEnv.source),
-        .mindex (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat))] } := by
-  simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, envValue, valueToKey?,
-    approveEval_spender, EvalResult.bind, EvalResult.ofOption, bind, pure, evalExpr?]
-
 theorem approveAssign (evm : EVM.State) (I : ExecutionEnv) (hsrc : evm.executionEnv.source = I.source)
     (hcanon : (calldataWord I.calldata 4).toNat < EVM.addressModulus) :
     assignStorageRef? config { contract := contract, locals := approveLocals I } evm .storage
@@ -84,12 +76,11 @@ theorem approveAssign (evm : EVM.State) (I : ExecutionEnv) (hsrc : evm.execution
       .ok ({ contract := contract, locals := approveLocals I },
         Stele.EVM.storageStore evm evm.executionEnv.codeOwner (approveSlot I)
           (calldataWord I.calldata 36)) := by
-  refine assignStorageRef_storage_scalar (ty := .elem (.int (.uint ⟨256, by decide⟩)))
-    (hbase := by simp [approveLocals]) (her := approveRef_eval evm I)
-    (hty := rfl) (hbackend := approveConfig_storageBackend)
-    (hloc := approveAllowanceLoc _ _) (hleaf := Or.inl ⟨_, rfl⟩) ?_
-  rw [keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address, hsrc]
-  exact storageLocStore_uint256 evm _ _
+  have h := allowance_assign (by simp [approveLocals])
+    (Reasoning.VyperDispatch.evalExpr_caller evm)
+    (approveEval_spender evm I) (calldataWord I.calldata 36)
+  rw [keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address, hsrc] at h
+  exact h
 
 /-- `approve(address,uint256)`: the theorem `Correct.lean` routes selector 0 to. -/
 theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
@@ -126,7 +117,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
   have hassign := approveAssign evmS I (by simp only [evmS, initState]) hcanon
   by_cases hperm : I.perm = true
   · rd_step rd
-    rw [approvePair_keccak, approvePair_keccak, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+    rw [keccakWord_mapSlot, keccakWord_mapSlot, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
       show (UInt256.ofNat 32).toNat = 32 from rfl,
       toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
     have hbody : ExecTransitionBody config contract evmS (approveLocals I) approveTransition.body

@@ -1,12 +1,14 @@
 import Reasoning.SteleBody
 import Reasoning.SteleArithmetic
+import Reasoning.VyperDispatch -- `evalExpr_caller`
 
 /-!
 # Stele locals and expression evaluation
 
 Reading locals through a chain of inserts (`get_ins_ne` and the `store_get` tactic), and the
 evaluation of variables, integer literals, non-short-circuit binary operators, integer casts and
-local assignments (`…F` for any frame, the plain forms for a frame built from its locals).
+local assignments (`…F` for any frame, the plain forms for a frame built from its locals), and the range check
+`inRange (uint n) e`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
@@ -55,6 +57,18 @@ theorem assignLocalF {cfg : Config} {stele : Frame} {evm : EVM.State} {name : Id
     | some _ => EvalResult.ok (({ stele with locals := stele.locals.insert name value } : Frame), evm)
     | none => EvalResult.error EvalError.unboundVariable) = _
   rw [hget]
+
+theorem evalInRangeUint {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr} {w : BitWidth}
+    {i : Int} (he : evalExpr? cfg stele evm e = .ok (.int i)) (h0 : 0 ≤ i) (hlt : i < 2 ^ w.val) :
+    evalExpr? cfg stele evm (.inRange (.uint w) e) = .ok (.int i) := by
+  rw [evalExpr?]
+  simp [he, EvalResult.bind, bind, pure, not_lt.mpr h0, hlt]
+
+theorem evalInRangeUint_revert {cfg : Config} {stele : Frame} {evm : EVM.State} {e : Expr}
+    {w : BitWidth} {i : Int} (he : evalExpr? cfg stele evm e = .ok (.int i)) (hge : 2 ^ w.val ≤ i) :
+    evalExpr? cfg stele evm (.inRange (.uint w) e) = .revert := by
+  rw [evalExpr?]
+  simp [he, EvalResult.bind, bind, pure, hge]
 
 /-- `assignLocalF` for a frame built from its locals, keeping that shape. -/
 theorem assignLocal {cfg : Config} {c : ContractDecl} {L : Store} {evm : EVM.State} {x : Ident}
