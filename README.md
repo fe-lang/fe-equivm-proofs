@@ -18,11 +18,12 @@ All compiled with Fe 26.4.0 (`822e80878`), Sonatina backend, `-O 1`, Osaka.
 | `FeProofs.PackedStore` | `StoragePackedArray<8>` lanes 0 and 1 | `fePackedStoreContractCorrect` |
 | `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
 | `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/822e80878/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
-| `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | in progress: `transfer` and `transferFrom` are `sorry` |
+| `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | `feERC20ContractCorrect` |
 
 Each theorem covers the constructor and the whole runtime: for every input, the deployed
-bytecode returns, reverts, writes storage and emits events exactly as the contract's Stele
-specification (`SpecSyntax.lean`) does.
+bytecode returns the same data, reverts in the same cases and leaves the same accounts as the
+contract's Stele specification (`SpecSyntax.lean`), unless it runs out of gas. EquiVM's refinement
+relation does not compare event logs or revert payloads.
 
 ### The deposit contract
 
@@ -44,6 +45,14 @@ specification (`SpecSyntax.lean`) does.
   `runtime.hex`. A compiler change that alters that bytecode needs the affected
   proof steps redone.
 
+### The ERC20 token
+
+`FeERC20.fe` is EquiVM's `ERC20` example token written in Fe, and its specification is EquiVM's
+example specification statement for statement. `feERC20ContractCorrect` covers the constructor and
+all six entry points, including the reverts for a short balance or allowance and Fe's overflow
+panics. The bytecode and the specification both read each balance after the writes that precede
+it, so the proof does not assume that distinct mapping keys hash to distinct slots.
+
 ## Layout
 
 Each contract directory (`FeProofs/<Contract>/`) holds the Fe source, the pinned bytecode, the
@@ -58,12 +67,14 @@ summaries are pruned (`scripts/prune_blocks.py`).
   (discharging stack bounds, jump destinations and branch conditions from `using [...]` hints),
   `rd_checked` handles Fe's success and return-size checks after an external call, and
   `u256_lits` normalizes word literals inside memory terms.
-- `Stele.lean`: evaluation of locals, literals, binary operators and casts, local assignment, and
-  the `store_get` tactic for reading a local through a chain of inserts.
+- `Stele.lean`: evaluation of locals, literals, binary operators (with `≥`, `-` and `+` on words),
+  casts and `uint256` range checks, local assignment, and the `store_get` tactic for reading a
+  local through a chain of inserts.
 - `Abi.lean`, `Memory.lean`, `Calls.lean`: ABI decoding facts (selector word, canonical
   `address`, two `uint256` arguments), memory facts (adjacent word writes), and call-result checks.
 - `Basic.lean`, `Glue.lean`, `Constructor.lean`, `CtorUInt256.lean`, `PackedByte.lean`: dispatcher
-  revert paths, small refinement glue, constructor shapes, and byte lanes of packed storage.
+  revert paths and Fe's checked arithmetic and `assert!` branches, small refinement glue,
+  constructor shapes, and byte lanes of packed storage.
 
 `scripts/` has `Audit.lean` (axioms of every capstone), `Unused.lean` (declarations no capstone
 uses), `Dups.lean` (theorems duplicating another, in this project or its dependencies), and the
@@ -83,7 +94,7 @@ lake env lean scripts/Audit.lean
 ```
 
 Expect `propext`, `Classical.choice`, `Quot.sound` and a count of `native_decide`
-evaluations of concrete bytecode facts, and no `sorryAx` (except in unfinished proofs).
+evaluations of concrete bytecode facts, and no `sorryAx`.
 
 ## Reproducing the bytecode
 
