@@ -31,9 +31,6 @@ namespace FeProofs.ERC20
 
 set_option maxRecDepth 2000000
 
-@[simp] theorem feERC20Bytecode_size : feERC20Bytecode.size = 838 := by
-  native_decide +revert
-
 /-- The transition list as its handles. -/
 theorem transitions_eq : contract.transitions = [approveTransition, totalSupplyTransition, transferFromTransition, balanceOfTransition, transferTransition, allowanceTransition] := by
   rfl
