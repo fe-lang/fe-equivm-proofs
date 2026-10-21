@@ -18,9 +18,12 @@ bytecode constant: for `…feXBytecode` the block at `pc` is `feXBlocks.feX_bloc
 
 Side conditions are discharged automatically: stack bounds by `simp`/`omega`, jump destinations by
 `jump_dest`, and branch conditions and other hypotheses by a `using [t, …]` term (as a proof, up to
-`¬¬`, or as equations to rewrite with, one or all in order, before `decide`), `assumption`, `decide`, `simp` or `omega`. At a conditional jump the taken branch is tried first; when neither
-condition can be discharged the step fails (`rd_step`) or the run stops there (`rd_run`). A
-program counter written as a closed sum, such as `UInt256.ofNat 891 + ⟨1⟩`, is normalized first.
+`¬¬`, or as equations to rewrite with, one or all in order, before `decide`), local hypotheses,
+`decide`, `simp` or `omega`. Local hypotheses are tried at reducible transparency first, with
+filtered default-transparency search after the other solvers. At a conditional jump the taken
+branch is tried first; when neither condition can be discharged the step fails (`rd_step`) or the
+run stops there (`rd_run`). A program counter written as a closed sum, such as
+`UInt256.ofNat 891 + ⟨1⟩`, is normalized first.
 `as h'` names the result instead of reusing `h`.
 -/
 
@@ -115,18 +118,29 @@ def withBudgetT? (budget : Nat) (x : TacticM α) : TacticM (Option α) := do
 /-- Heartbeat budget of one side-goal attempt. -/
 def attemptBudget : Nat := 3000000
 
-/-- Whether a proof of `t` proves `ty`: at reducible transparency, or at default transparency within
-`attemptBudget`. -/
-def provesGoal (t ty : Expr) : MetaM Bool := do
-  if ← withReducible (isDefEq t ty) then return true
-  return (← withBudgetM? attemptBudget (isDefEq t ty)).getD false
-
 /-- Whether `e` mentions a constant whose last name component is `n`. -/
 def mentions (e : Expr) (n : String) : Bool :=
   (e.find? fun x => x.isConst && x.constName!.lastComponentAsString == n).isSome
 
-/-- Close a side goal of a block summary. Every attempt runs within `attemptBudget`, and candidate
-proofs (hints and hypotheses) are only compared with goals of their own kind. -/
+/-- A cheap filter for default-transparency context search: the same relation, and for equality
+the same carrier type. Compare negations by their propositions, without unfolding word arithmetic.
+Other unfoldings can be requested explicitly with a `using` hint. -/
+partial def sameGoalKind (t ty : Expr) : MetaM Bool := withReducible do
+  let t ← whnf t
+  let ty ← whnf ty
+  match t, ty with
+  | .forallE _ a b _, .forallE _ c d _ =>
+    return b.isConstOf ``False && d.isConstOf ``False && (← sameGoalKind a c)
+  | _, _ =>
+    if t.isAppOfArity ``Eq 3 && ty.isAppOfArity ``Eq 3 then
+      isDefEq (t.getArg! 0) (ty.getArg! 0)
+    else
+      return t.getAppFn == ty.getAppFn
+
+/-- Close a side goal of a block summary. Search hints and local hypotheses at reducible
+transparency first, then try explicit hints and the specialized solvers. Default-transparency
+context search is a last resort, restricted to facts of the same kind, within `attemptBudget`.
+Unrelated facts must not exhaust budgets before a trivial goal or a useful hint is reached. -/
 def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : TacticM Bool := do
   let ty ← instantiateMVars (← g.getType)
   let gs ← getGoals
@@ -152,15 +166,24 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
   -- reducible transparency: at default transparency a mismatch can unfold word arithmetic for long
   for e in cands do
     let s ← saveState
-    if ← provesGoal (← inferType e) ty then
+    if ← withReducible (isDefEq (← inferType e) ty) then
       g.assign e; return true
     s.restore
-  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest))) (budget := 0)
-  -- stack bounds
-  if mentions ty "length" then
+  -- Stack bounds should not be compared with symbolic word equations, even explicit hints.
+  let isStack := mentions ty "length"
+  if isStack then
     for tac in [← `(tactic| (simp; done)), ← `(tactic| omega), ← `(tactic| (simp; omega))] do
       if ← tryTac (evalTactic tac) then return true
-    return false
+  -- Explicit hints may unfold ordinary definitions without the context filter. Finish the
+  -- cheap context search and stack solvers before even these bounded, expensive comparisons.
+  for (_, e, t) in elabd do
+    if fits t then
+      let s ← saveState
+      if (← withBudgetM? attemptBudget (isDefEq t ty)).getD false then
+        g.assign e; return true
+      s.restore
+  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest))) (budget := 0)
+  if isStack then return false
   -- branch conditions: hints that need the goal to elaborate, decide, or rewrite with the hints first
   for (stx, et) in hints do
     if et.isNone then
@@ -195,6 +218,16 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
     if fits t then
       if ← tryTac (evalTactic (← `(tactic| exact Classical.not_not.mp $stx))) then
         return true
+  -- A local fact can still need ordinary definitions unfolded, e.g. `w ≠ ⟨0⟩` against
+  -- `w ≠ UInt256.ofNat 0`. Do this only after the cheap solvers and goal-dependent hints.
+  for d in (← g.getDecl).lctx do
+    if !d.isImplementationDetail then
+      let t ← instantiateMVars d.type
+      let s ← saveState
+      if fits t && (← sameGoalKind t ty) &&
+          (← withBudgetM? attemptBudget (isDefEq t ty)).getD false then
+        g.assign d.toExpr; return true
+      s.restore
   return false
 
 /-- Elaborate the `using` terms once per step, each with its proof and type; a term that needs
