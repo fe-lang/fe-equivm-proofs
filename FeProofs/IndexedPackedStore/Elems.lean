@@ -138,7 +138,6 @@ theorem evalIndexLt {L : Store} {evm : EVM.State} {x : Ident} {i : Nat}
   simp only [Int.ofNat_eq_natCast, decide_eq_decide]
   omega
 
-set_option maxHeartbeats 2000000 in
 theorem decodeCalldata_four_uint256_ok {cd : ByteArray} {a b c d : Ident}
     (hsz : 132 ≤ cd.size) (hbig : cd.size < 2 ^ 255 + 4) :
     decodeCalldata [a, b, c, d] [abiUInt256, abiUInt256, abiUInt256, abiUInt256] cd =
@@ -170,14 +169,13 @@ theorem decodeCalldata_four_uint256_ok {cd : ByteArray} {a b c d : Ident}
   rw [decodeCalldata_scalarWords_eq (by decide)]
   rw [if_neg (by rw [htlen]; omega : ¬ cd.toList.length < 4)]
   rw [if_neg (by rintro ⟨_, hc⟩; rw [List.length_drop, htlen] at hc; omega)]
-  simp only [decodeScalarWords?, decodeScalarWord?, readWord?, readBytes?, List.drop_zero,
-    Nat.zero_add, Nat.reduceAdd, hd1, hd2, hd3, ht4, ht36, ht68, ht100, ↓reduceIte, hw4, hw36,
-    hw68, hw100, bind, Option.bind]
-  have hb4 : ((calldataWord cd 4).val : Nat) < EVM.twoPow 256 := (calldataWord cd 4).val.isLt
-  have hb36 : ((calldataWord cd 36).val : Nat) < EVM.twoPow 256 := (calldataWord cd 36).val.isLt
-  have hb68 : ((calldataWord cd 68).val : Nat) < EVM.twoPow 256 := (calldataWord cd 68).val.isLt
-  have hb100 : ((calldataWord cd 100).val : Nat) < EVM.twoPow 256 := (calldataWord cd 100).val.isLt
-  simp [decodeABIWord?, decodeCalldata.insertValues, hb4, hb36, hb68, hb100]
+  simp only [decodeScalarWords?, Nat.zero_add, Nat.reduceAdd]
+  rw [decodeScalarWord_uint256_ok (start := 0) (by simpa only [List.drop_zero] using ht4)]
+  simp only [bind, Option.bind]
+  rw [decodeScalarWord_uint256_ok (start := 32) (by simpa only [hd1] using ht36),
+    decodeScalarWord_uint256_ok (start := 64) (by simpa only [hd2] using ht68),
+    decodeScalarWord_uint256_ok (start := 96) (by simpa only [hd3] using ht100)]
+  simp only [List.drop_zero, hd1, hd2, hd3, hw4, hw36, hw68, hw100]
   rfl
 
 theorem decodeCalldata_four_uint256_none_short {cd : ByteArray} {a b c d : Ident}
