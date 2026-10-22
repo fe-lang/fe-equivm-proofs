@@ -27,8 +27,8 @@ set_option maxRecDepth 2000000
 
 theorem feWETH9Dispatch_name {I : ExecutionEnv} 
     (hsel : selIs I (feWETH9SelBytes 0)) :
-    dispatchMsg contract I.calldata = some nameTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some nameTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := []) (post := [approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := nameTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -38,8 +38,8 @@ theorem feWETH9Dispatch_name {I : ExecutionEnv}
 
 theorem feWETH9Dispatch_approve {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0))
     (hsel : selIs I (feWETH9SelBytes 1)) :
-    dispatchMsg contract I.calldata = some approveTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some approveTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition]) (post := [totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := approveTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -51,8 +51,8 @@ theorem feWETH9Dispatch_approve {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelB
 
 theorem feWETH9Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1))
     (hsel : selIs I (feWETH9SelBytes 2)) :
-    dispatchMsg contract I.calldata = some totalSupplyTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some totalSupplyTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition]) (post := [transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := totalSupplyTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -65,8 +65,8 @@ theorem feWETH9Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9
 
 theorem feWETH9Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2))
     (hsel : selIs I (feWETH9SelBytes 3)) :
-    dispatchMsg contract I.calldata = some transferFromTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some transferFromTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition]) (post := [withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := transferFromTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -80,8 +80,8 @@ theorem feWETH9Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH
 
 theorem feWETH9Dispatch_withdraw {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3))
     (hsel : selIs I (feWETH9SelBytes 4)) :
-    dispatchMsg contract I.calldata = some withdrawTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some withdrawTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition]) (post := [decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := withdrawTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -96,8 +96,8 @@ theorem feWETH9Dispatch_withdraw {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
 
 theorem feWETH9Dispatch_decimals {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4))
     (hsel : selIs I (feWETH9SelBytes 5)) :
-    dispatchMsg contract I.calldata = some decimalsTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some decimalsTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition]) (post := [balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := decimalsTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -113,8 +113,8 @@ theorem feWETH9Dispatch_decimals {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
 
 theorem feWETH9Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5))
     (hsel : selIs I (feWETH9SelBytes 6)) :
-    dispatchMsg contract I.calldata = some balanceOfTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some balanceOfTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition]) (post := [symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := balanceOfTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -131,8 +131,8 @@ theorem feWETH9Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Se
 
 theorem feWETH9Dispatch_symbol {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6))
     (hsel : selIs I (feWETH9SelBytes 7)) :
-    dispatchMsg contract I.calldata = some symbolTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some symbolTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition]) (post := [transferTransition, depositTransition, allowanceTransition])
     (ti := symbolTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -150,8 +150,8 @@ theorem feWETH9Dispatch_symbol {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBy
 
 theorem feWETH9Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7))
     (hsel : selIs I (feWETH9SelBytes 8)) :
-    dispatchMsg contract I.calldata = some transferTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some transferTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition]) (post := [depositTransition, allowanceTransition])
     (ti := transferTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -170,8 +170,8 @@ theorem feWETH9Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
 
 theorem feWETH9Dispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7)) (h8 : ¬ selIs I (feWETH9SelBytes 8))
     (hsel : selIs I (feWETH9SelBytes 9)) :
-    dispatchMsg contract I.calldata = some depositTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some depositTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition]) (post := [allowanceTransition])
     (ti := depositTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq
@@ -191,8 +191,8 @@ theorem feWETH9Dispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelB
 
 theorem feWETH9Dispatch_allowance {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7)) (h8 : ¬ selIs I (feWETH9SelBytes 8)) (h9 : ¬ selIs I (feWETH9SelBytes 9))
     (hsel : selIs I (feWETH9SelBytes 10)) :
-    dispatchMsg contract I.calldata = some allowanceTransition := by
-  refine dispatchMsg_eq_some_of_selector_split (contract := contract)
+    selectorDispatchMsg contract I.calldata = some allowanceTransition := by
+  refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition]) (post := [])
     (ti := allowanceTransition) (cd := I.calldata) ?_ ?_ ?_
   · exact transitions_eq

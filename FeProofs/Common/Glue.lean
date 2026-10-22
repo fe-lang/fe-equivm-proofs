@@ -1,5 +1,4 @@
 import Reasoning.Reach
-import Reasoning.Dispatch
 import Stele.Semantics
 
 /-!
@@ -24,24 +23,5 @@ theorem not_selIs_of_selIs {I : ExecutionEnv} {a b : ByteArray}
 theorem RDret.of_output_eq {code : ByteArray} {g : Sat256} {s0 : State} {acc : AccountMap}
     {o o' : ByteArray} (h : RDret code g s0 acc o) (e : o = o') : RDret code g s0 acc o' :=
   e ▸ h
-
-/-- `dispatchMsg_eq_some_of_split` for a contract that may have a fallback or receive: a selector
-    match dispatches before either is consulted. -/
-theorem dispatchMsg_eq_some_of_selector_split {contract : ContractDecl}
-    {pre post : List TransitionDecl} {ti : TransitionDecl} {cd : ByteArray}
-    (htr : contract.transitions = pre ++ ti :: post)
-    (hpre : ∀ t ∈ pre, (selectorOf t == cd.extract 0 4) = false)
-    (hhit : (selectorOf ti == cd.extract 0 4) = true) :
-    dispatchMsg contract cd = some ti := by
-  rw [dispatchMsg, selectorDispatchMsg_eq_dispatchList contract cd, htr,
-    dispatchList_eq_some_of_split hpre hhit]
-
-/-- Calldata that matches no selector dispatches to the fallback, when there is no receive. -/
-theorem dispatchMsg_eq_fallback {contract : ContractDecl} {cd : ByteArray}
-    (hnone : dispatchList contract.transitions cd = none)
-    (hreceive : contract.receive = none := by rfl) :
-    dispatchMsg contract cd = contract.fallback := by
-  rw [dispatchMsg, selectorDispatchMsg_eq_dispatchList contract cd, hnone]
-  simp [receiveDispatchMsg, hreceive]
 
 end FeProofs
