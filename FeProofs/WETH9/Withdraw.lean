@@ -56,14 +56,6 @@ abbrev withdrawDebitState (σ σ₀ : AccountMap) (g : Sat256) (A : Substate) (I
   Stele.EVM.storageStore (initState σ σ₀ g A I) I.codeOwner (callerBalanceSlot I)
     (UInt256.sub (withdrawBal σ I) (withdrawWad I))
 
-/-- The slot hash of `balanceOf[key]` as the arm computes it, over `0xa0..0xe0`. -/
-theorem withdraw_slotHash (key : UInt256) (mem : ByteArray) :
-    keccakWord (UInt256.ofNat 160) (UInt256.ofNat 64)
-      ((UInt256.ofNat 3).toByteArray.write 0
-        (key.toByteArray.write 0 mem (UInt256.ofNat 160).toNat 32) (UInt256.ofNat 192).toNat 32) =
-      mapSlot key ⟨3⟩ :=
-  keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide)
-
 /-- `balanceOf[msg.sender]`. -/
 abbrev withdrawBalRef : StorageRef := { base := "balanceOf", steps := [.mindex (.env .caller)] }
 
@@ -249,16 +241,16 @@ theorem feWETH9WithdrawBody {σ σ₀ A I} {g : UInt256}
   swap
   · -- `balanceOf[caller] < wad`: `assert!` panics
     have hlt := Nat.lt_of_not_le henough
-    rd_run rd using [(by rw [withdraw_slotHash]; exact ne_of_eq_of_ne (ult_one hlt) (by decide))]
+    rd_run rd using [slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact RDrev.reEquivExecutionRevertSel hcode rd hd hdec (withdrawBody_insufficient hwv hlt)
   have hge := ult_zero henough
   by_cases hperm : I.perm = true
   swap
   · -- static mode: the debit's `SSTORE` halts
     have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [(by rw [withdraw_slotHash]; exact hge)]
+    rd_run rd using [slot_hint hge]
     exact RDstatic.reEquivStaticHaltSel hcode rd hd hdec (withdrawBody_static hwv henough hpf)
-  rd_run rd to 384 using [(by rw [withdraw_slotHash]; exact hge)]
+  rd_run rd to 384 using [slot_hint hge]
   -- the gas stipend: `2300` when `wad == 0`, else `0`
   by_cases hz : UInt256.isZero (withdrawWad I) = UInt256.ofNat 0 <;>
   · rd_run rd to 420 using [hz]
