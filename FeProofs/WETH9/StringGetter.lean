@@ -30,68 +30,6 @@ namespace FeProofs.WETH9.Strings
 
 set_option maxRecDepth 2000000
 
-/-! ## Stele: reading a string field -/
-
-theorem solidityStorageBackend_read_string (layout : StorageLayout) (er : EvaledStorageRef)
-    (evm : EVM.State) :
-    (solidityStorageBackend layout).read er .string evm =
-      solidityValueResultToEval (solidityReadBytesValue? layout er evm) := by
-  simp only [solidityStorageBackend, solidityReadStorage?]
-
-section
-variable {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256} {field : Ident}
-  {slot : UInt256}
-
-theorem stringField_read
-    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string) :
-    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
-        (.storage { base := field, steps := [] }) =
-      solidityValueResultToEval (solidityReadBytesValue? config.storageBackend.locate?
-        { base := field, steps := [] } (initState σ σ₀ g A I)) := by
-  rw [evalExpr?, resolveStorageRef?_ok (er := { base := field, steps := [] }) (ty := .string)
-    (by simp) (by simp [evalStorageRef, evalStorageRefSteps, EvalResult.bind, pure, bind]) hty]
-  exact solidityStorageBackend_read_string _ _ _
-
-/-- A well-formed header: Stele returns the string's bytes. -/
-theorem stringField_eval_ok {L : ℕ}
-    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
-    (hloc : config.storageBackend.locate? { base := field, steps := [] } = some (.anchor slot))
-    (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) = .ok L) :
-    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
-      (.storage { base := field, steps := [] }) = .ok (.bytes (strBytes σ I slot L)) := by
-  rw [stringField_read hty, solidityReadBytesValue?,
-    solidityBytesBaseSlotAndLength?_ok_of_layout hloc (storageLoad_initState_solcSlotWord _) hdec]
-  simp only [(storageLoad_initState_solcSlotWord _), strBytes, solidityBytesDataWordCount,
-    readSolidityBytesDataWordsFrom_eq, Nat.zero_add]
-  split <;> rfl
-
-/-- A malformed header: Stele reverts. -/
-theorem stringField_eval_revert
-    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
-    (hloc : config.storageBackend.locate? { base := field, steps := [] } = some (.anchor slot))
-    (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) = .revert) :
-    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
-      (.storage { base := field, steps := [] }) = .revert := by
-  rw [stringField_read hty, solidityReadBytesValue?,
-    solidityBytesBaseSlotAndLength?_revert_of_layout hloc (storageLoad_initState_solcSlotWord _) hdec]
-  rfl
-
-end
-
-/-- The non-payable `return e;` body reverts when `e` does.
-
-LIBRARY CANDIDATE: `Reasoning/SteleBody.lean`, beside `nonpayableReturnExprBodyReturns`. -/
-theorem nonpayableReturnExprBodyReverts {cfg : Config} {imms : Store} {contract : ContractDecl}
-    {evm : EVM.State} {locals : Store} {expr : Expr} (h : evm.executionEnv.weiValue = ⟨0⟩)
-    (heval : evalExpr? cfg { contract := contract, locals := locals, immutables := imms } evm expr =
-      .revert) :
-    ExecTransitionBody cfg contract evm locals
-      [.require (.binary .eq (.env .callvalue) (.intLit 0)), .return [expr]] .reverted imms :=
-  ExecFuncBody.execBlockRevert <|
-    ExecBlock.consNormal (ExecStmt.requireTrue (evalCallvalueEq_true h)) <|
-      ExecBlock.consRevert
-        (ExecStmt.returnRevert (by simp only [evalExprs?, heval, bind, EvalResult.bind]))
-
 end FeProofs.WETH9.Strings
 
 namespace FeProofs.WETH9
@@ -101,11 +39,6 @@ open Strings
 set_option maxRecDepth 2000000
 
 /-! ## The storage precondition -/
-
-/-- The ABI encoding of the string a header word decodes to (an offset word, a length word and
-the padded bytes) is shorter than `2^64` bytes. -/
-def stringReturnFits (head : UInt256) : Prop :=
-  ∀ L, solidityDecodeBytesLengthHeader head = .ok L → 64 + ABI.paddedSize L < 2 ^ 64
 
 /-- Storage well-formedness for FeWETH9: a zero-value `name()` (slot 0) or `symbol()` (slot 1)
 call returns a string whose ABI encoding is shorter than `2^64` bytes.  Every other call is
@@ -154,7 +87,7 @@ theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : 
       (by rw [hM64]; congr 1; omega) (by omega) (by omega) hsize (by omega) rd
     rw [show 224 + (32 + 32 * ((L + 31) / 32)) = 256 + 32 * ((L + 31) / 32) by omega, hMx] at rd
     have hbody' := nonpayableReturnExprBodyReturns (imms := ∅) (locals := ∅) hwv'
-      (stringField_eval_ok (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) hty hloc hd)
+      (stringField_eval_ok (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) rfl hty hloc hd)
     rw [← hbody] at hbody'
     refine RDret.reEquivExecutionSel hcode rd hsd hdec hbody' ?_
     rw [hrt]
@@ -163,7 +96,7 @@ theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : 
     rfl
   | revert =>
     have hbody' := nonpayableReturnExprBodyReverts (imms := ∅) (locals := ∅) hwv'
-      (stringField_eval_revert (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) hty hloc hd)
+      (stringField_eval_revert (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) rfl hty hloc hd)
     rw [← hbody] at hbody'
     exact RDrev.reEquivExecutionRevertSel hcode (loadString_revert hd hR rd) hsd hdec hbody'
   | error =>

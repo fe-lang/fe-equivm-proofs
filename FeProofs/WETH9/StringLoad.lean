@@ -1,4 +1,5 @@
-import FeProofs.WETH9.StringBytes
+import FeProofs.WETH9.Common
+import FeProofs.Common.SolString
 import FeProofs.WETH9.Dispatch
 
 /-!
@@ -142,15 +143,6 @@ theorem HdrMem.write160 {X : ByteArray} {fmp len : UInt256} (h : HdrMem X fmp le
       h.len]
 
 /-- `KECCAK256(0xa0, 32)` over the slot: the string's first data slot. -/
-theorem keccakWord_dataSlot {X : ByteArray} {fmp len : UInt256} (h : HdrMem X fmp len)
-    (slot : UInt256) :
-    keccakWord (UInt256.ofNat 160) (UInt256.ofNat 32) (slot.toByteArray.write 0 X 160 32) =
-      solidityBytesDataBaseSlot slot := by
-  unfold keccakWord
-  rw [show (UInt256.ofNat 160).toNat = 160 from rfl, show (UInt256.ofNat 32).toNat = 32 from rfl,
-    toByteArray_write32_read_back _ _ 160 (by rw [h.size]; omega)]
-  exact keccakSlot_eq _
-
 theorem HdrMem.memLoad64 {X : ByteArray} {fmp len : UInt256} (h : HdrMem X fmp len)
     (D : ByteArray) : memLoad (UInt256.ofNat 64) (X ++ D) = fmp := by
   have hs : (X ++ D).size = 256 + D.size := by rw [ByteArray.size_append, h.size]
@@ -382,7 +374,7 @@ theorem loadBody {slot ret : UInt256} {L : ℕ}
       rw [headFlag_odd ho]; decide
     rd_run rd to 963 using [hc]
     u256_lits at rd
-    rw [allocFmp_eq (by omega), keccakWord_dataSlot hX] at rd
+    rw [allocFmp_eq (by omega), keccakWord_dataSlot _ _ 160 (by decide)] at rd
     obtain ⟨aw', k', C', rd⟩ := loadLoop (base := solidityBytesDataBaseSlot slot)
       (hX.write160 slot).size hL (by simp; omega) ((L + 31) / 32) 0 _ _ _ (by omega)
       (RD.appendEmpty rd)

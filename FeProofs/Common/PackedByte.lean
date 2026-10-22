@@ -214,4 +214,18 @@ theorem storageLocLoad_packedByte (evm : EVM.State) (slot : UInt256) (offset : F
       exact Nat.pow_lt_pow_right (by decide) offset.isLt)]
   exact nat_land_mask_eq_mod _ 8
 
+
+/-- Writing a byte `v` at offset 0 keeps the other 31 bytes: `(w & ~0xff) | v`. -/
+theorem setPackedByte_low (w v : UInt256) (hv : v.toNat < 2 ^ 8) :
+    setPackedByte w v 0 = UInt256.lor v (UInt256.land (UInt256.lnot (UInt256.ofNat 255)) w) := by
+  have hw : w.toNat < 2 ^ 256 := w.val.isLt
+  apply u256_inj
+  rw [setPackedByte_toNat, u256_lor_toNat, uland_toNat,
+    show (UInt256.lnot (UInt256.ofNat 255)).toNat = 2 ^ 256 - 2 ^ 8 by decide, Nat.and_comm]
+  change _ = Nat.lor v.toNat (Nat.land w.toNat (2 ^ 256 - 2 ^ 8)) % UInt256.size
+  rw [natLandClearLow8 w.toNat hw, nat_lor_shift_add v.toNat (w.toNat / 2 ^ 8) 8 hv]
+  have hlt : v.toNat + w.toNat / 2 ^ 8 * 2 ^ 8 < UInt256.size := by change _ < 2 ^ 256; omega
+  rw [show ((0 : Fin 32) : ℕ) = 0 from rfl, Nat.mod_eq_of_lt hlt]
+  omega
+
 end FeProofs

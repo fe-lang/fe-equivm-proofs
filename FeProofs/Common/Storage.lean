@@ -1,6 +1,7 @@
 import Reasoning.SteleBody
 import Reasoning.Storage
 import Reasoning.MemCascade
+import Reasoning.VyperDispatch
 import FeProofs.Common.Memory
 
 /-!
@@ -19,6 +20,26 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 namespace FeProofs
 
 set_option maxRecDepth 2000000
+
+/-! ## Address words -/
+
+/-- The word of an address. -/
+abbrev addrWord (a : AccountAddress) : UInt256 := UInt256.ofNat a.val
+
+/-- A canonical address word is the word of its address. -/
+theorem addrWord_ofNat {x : UInt256} (h : x.toNat < EVM.addressModulus) :
+    addrWord (AccountAddress.ofNat x.toNat) = x := by
+  have hw := keyValueToWord_address_of_canonical x h
+  rwa [keyValueToWord_address] at hw
+
+/-- A canonical address word names the caller exactly when it is the caller's word. -/
+theorem ofNat_eq_iff {x : UInt256} {a : AccountAddress} (h : x.toNat < EVM.addressModulus) :
+    AccountAddress.ofNat x.toNat = a ↔ x = addrWord a := by
+  constructor
+  · intro he; rw [← he, addrWord_ofNat h]
+  · intro he; apply Reasoning.VyperDispatch.ofNat_addr_inj; rw [← addrWord, addrWord_ofNat h]; exact he
+
+/-! ## Mapping slots -/
 
 /-- The slot of entry `key` of a mapping at slot `base`. -/
 abbrev mapSlot (key base : UInt256) : UInt256 :=

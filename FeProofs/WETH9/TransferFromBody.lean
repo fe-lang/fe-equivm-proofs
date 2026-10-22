@@ -18,9 +18,6 @@ namespace FeProofs.WETH9
 
 set_option maxRecDepth 2000000
 
-/-- The word of an address. -/
-abbrev addrWord (a : AccountAddress) : UInt256 := UInt256.ofNat a.val
-
 /-- The slot of `balanceOf[a]`. -/
 abbrev balSlot (a : AccountAddress) : UInt256 := mapSlot (addrWord a) ⟨3⟩
 
@@ -52,19 +49,6 @@ def tfMove (e : EVM.State) (s d : AccountAddress) (w : UInt256) : EVM.State :=
 def tfSpend (e : EVM.State) (s : AccountAddress) (w : UInt256) : EVM.State :=
   Stele.EVM.storageStore e e.executionEnv.codeOwner (allowSlot s e.executionEnv.source)
     (UInt256.sub (loadAt e (allowSlot s e.executionEnv.source)) w)
-
-/-- A canonical address word is the word of its address. -/
-theorem addrWord_ofNat {x : UInt256} (h : x.toNat < EVM.addressModulus) :
-    addrWord (AccountAddress.ofNat x.toNat) = x := by
-  have hw := keyValueToWord_address_of_canonical x h
-  rwa [keyValueToWord_address] at hw
-
-/-- A canonical address word names the caller exactly when it is the caller's word. -/
-theorem ofNat_eq_iff {x : UInt256} {a : AccountAddress} (h : x.toNat < EVM.addressModulus) :
-    AccountAddress.ofNat x.toNat = a ↔ x = addrWord a := by
-  constructor
-  · intro he; rw [← he, addrWord_ofNat h]
-  · intro he; apply Reasoning.VyperDispatch.ofNat_addr_inj; rw [← addrWord, addrWord_ofNat h]; exact he
 
 /-- A storage read in the initial state. -/
 theorem loadAt_initState {σ σ₀ : AccountMap} {g : Sat256} {A : Substate} {I : ExecutionEnv}

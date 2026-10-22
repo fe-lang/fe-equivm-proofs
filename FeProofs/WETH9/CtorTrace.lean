@@ -4,6 +4,7 @@ import FeProofs.WETH9.CreationBlocks_002
 import FeProofs.WETH9.CreationBlocks_003
 import FeProofs.Common.Memory
 import FeProofs.Common.PackedByte
+import FeProofs.Common.SolString
 import Reasoning.StorageLoops
 
 /-!
@@ -28,91 +29,6 @@ set_option maxRecDepth 2000000
 
 /-- The initcode as the creation summaries see it (the constructor has no arguments). -/
 abbrev ctorCode : ByteArray := feWETH9CreationBytecode ++ ByteArray.empty
-
-/-! ## String heads -/
-
-/-- The length a string head encodes, as Stele and Fe's `stored_len` decode it. -/
-def strHeadLen (S : UInt256) : UInt256 :=
-  if UInt256.land S ⟨1⟩ = ⟨0⟩ then UInt256.land (UInt256.div S ⟨2⟩) ⟨127⟩ else UInt256.div S ⟨2⟩
-
-/-- A head whose length contradicts its short/long flag: both sides revert. -/
-def strHeadBad (S : UInt256) : Prop :=
-  UInt256.sub (UInt256.land S ⟨1⟩) (UInt256.lt (strHeadLen S) ⟨32⟩) = ⟨0⟩
-
-/-- The data words a string with head `S` occupies: none for a short one. -/
-def strOldWords (S : UInt256) : ℕ :=
-  if UInt256.land S ⟨1⟩ = ⟨0⟩ then 0 else ((strHeadLen S).toNat + 31) / 32
-
-/-- The mask of `leading_bytes(_, len)`: the first `len` bytes of a word. -/
-abbrev leadMask (len : UInt256) : UInt256 :=
-  UInt256.lnot (UInt256.shiftRight (UInt256.lnot ⟨0⟩) (UInt256.shiftLeft len (UInt256.ofNat 3)))
-
-/-- The head `store` writes for a short value of `len` bytes whose first word is `w`. -/
-def strHeadWord (w len : UInt256) : UInt256 :=
-  UInt256.lor (UInt256.land (leadMask len) (UInt256.land w (leadMask len)))
-    (UInt256.shiftLeft len (UInt256.ofNat 1))
-
-theorem land_one_cases (S : UInt256) : UInt256.land S ⟨1⟩ = ⟨0⟩ ∨ UInt256.land S ⟨1⟩ = ⟨1⟩ := by
-  have h := uInt256_land_one_toNat S
-  rcases Nat.mod_two_eq_zero_or_one S.toNat with h2 | h2
-  · exact Or.inl (u256_inj (by rw [h, h2]; rfl))
-  · exact Or.inr (u256_inj (by rw [h, h2]; rfl))
-
-/-- A short head's length: `(S & 0xff) >> 1`. -/
-theorem shortLen_eq (S : UInt256) :
-    UInt256.shiftRight (UInt256.land (UInt256.ofNat 255) S) (UInt256.ofNat 1) =
-      UInt256.land (UInt256.div S ⟨2⟩) ⟨127⟩ := by
-  apply u256_inj
-  rw [shiftRight_toNat_of_lt _ 1 (by decide), uland_toNat, uland_toNat, udiv_toNat,
-    show (UInt256.ofNat 255).toNat = 255 from rfl, show (⟨2⟩ : UInt256).toNat = 2 from rfl,
-    show (⟨127⟩ : UInt256).toNat = 127 from rfl, Nat.land_comm,
-    show (255 : ℕ) = 2 ^ 8 - 1 from rfl, show (127 : ℕ) = 2 ^ 7 - 1 from rfl,
-    Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-  omega
-
-/-- A long head's length: `S >> 1`. -/
-theorem longLen_eq (S : UInt256) :
-    UInt256.shiftRight S (UInt256.ofNat 1) = UInt256.div S ⟨2⟩ := by
-  apply u256_inj
-  rw [shiftRight_toNat_of_lt _ 1 (by decide), udiv_toNat]
-  rfl
-
-theorem strHeadLen_long_lt (S : UInt256) : (UInt256.div S ⟨2⟩).toNat < 2 ^ 255 := by
-  rw [udiv_toNat, show (⟨2⟩ : UInt256).toNat = 2 from rfl]
-  have hS : S.toNat < 2 ^ 256 := S.val.isLt
-  omega
-
-/-- A long head's data word count: `(31 + (S >> 1)) >> 5`. -/
-theorem longWords_eq (S : UInt256) :
-    UInt256.shiftRight (UInt256.ofNat 31 + UInt256.shiftRight S (UInt256.ofNat 1))
-        (UInt256.ofNat 5) =
-      UInt256.ofNat (((UInt256.div S ⟨2⟩).toNat + 31) / 32) := by
-  have hlt := strHeadLen_long_lt S
-  apply u256_inj
-  rw [shiftRight_toNat_of_lt _ 5 (by decide), uadd_toNat, longLen_eq,
-    show (UInt256.ofNat 31).toNat = 31 from rfl,
-    Nat.mod_eq_of_lt (show 31 + (UInt256.div S ⟨2⟩).toNat < UInt256.size by
-      change _ < 2 ^ 256; omega),
-    ulit_toNat' _ (show ((UInt256.div S ⟨2⟩).toNat + 31) / 32 < UInt256.size by
-      change _ < 2 ^ 256; omega)]
-  omega
-
-theorem strOldWords_lt (S : UInt256) : strOldWords S < 2 ^ 251 := by
-  unfold strOldWords strHeadLen
-  split
-  · decide
-  · have := strHeadLen_long_lt S
-    omega
-
-/-- `KECCAK256(0xa0, 32)` over the slot stored at `0xa0`: the slot's string data base. -/
-theorem keccakWord_dataSlot (slot : UInt256) (mem : ByteArray) :
-    keccakWord (UInt256.ofNat 160) (UInt256.ofNat 32)
-        (slot.toByteArray.write 0 mem (UInt256.ofNat 160).toNat 32) =
-      solidityBytesDataBaseSlot slot := by
-  unfold keccakWord
-  rw [show (UInt256.ofNat 160).toNat = 160 from rfl, show (UInt256.ofNat 32).toNat = 32 from rfl,
-    toByteArray_write_read_back_of_gap slot mem 160 (small_gap mem 160 (by decide))]
-  exact keccakSlot_eq _
 
 /-! ## The clearing loop (pc 288) -/
 
@@ -195,7 +111,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
       refine ⟨fun hbad => absurd hbad ?_, fun _ => ?_⟩
       · rw [strHeadBad, hf, ult_one (by exact hlt)]; decide
       rd_run h to 288 using [c388, c418, c144, c165, c314, c328, hperm]
-      rw [hsub, keccakWord_dataSlot] at h
+      rw [hsub, keccakWord_dataSlotWord _ _ 160 (by decide)] at h
       have hw : strOldWords S = 0 := by rw [strOldWords, if_pos hf]
       rw [hw]
       exact clearLoop _ _ ret 0 (by decide) hperm hret 0 0 rfl h
@@ -237,7 +153,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
       refine ⟨fun hbad => absurd hbad ?_, fun _ => ?_⟩
       · rw [strHeadBad, hf, ult_zero (by exact Nat.le_of_not_lt hlt)]; decide
       rd_run h to 288 using [c388, c418, c144, c165, c314, c328, hperm]
-      rw [hsub, keccakWord_dataSlot, longWords_eq] at h
+      rw [hsub, keccakWord_dataSlotWord _ _ 160 (by decide), longWords_eq] at h
       have hw : ((UInt256.div S ⟨2⟩).toNat + 31) / 32 = strOldWords S := by
         rw [strOldWords, if_neg hne, hL]
       rw [hw] at h
@@ -249,14 +165,6 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
 /-- The bytes of `"Wrapped Ether"` and `"WETH"`, as the Stele constructor writes them. -/
 def nameBytes : ByteArray := ⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩
 def symbolBytes : ByteArray := ⟨#[87, 69, 84, 72]⟩
-
-/-- The account map after `store` writes the short string `bytes` at `slot`: the head first, then
-    the old data words zeroed. -/
-abbrev strWriteMap (I : ExecutionEnv) (σ : AccountMap) (slot : UInt256) (bytes : ByteArray) :
-    AccountMap :=
-  clearDataWordsForwardFrom I.codeOwner
-    (sstoreAccountMap I.codeOwner σ slot (solidityShortBytesWord bytes))
-    (solidityBytesDataBaseSlot slot) ⟨0⟩ (strOldWords (solcSlotWord σ I slot))
 
 abbrev nameMap (σ : AccountMap) (I : ExecutionEnv) : AccountMap := strWriteMap I σ ⟨0⟩ nameBytes
 

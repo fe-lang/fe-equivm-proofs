@@ -131,4 +131,18 @@ theorem assignLocal {cfg : Config} {c : ContractDecl} {L : Store} {evm : EVM.Sta
   have hx' : L[x]? = some old := by simpa using hx
   simp [assignStorageRef?, hx', updateLocalPath?, bind, EvalResult.bind, pure]
 
+/-- The non-payable `return e;` body reverts when `e` does.
+
+LIBRARY CANDIDATE: `Reasoning/SteleBody.lean`, beside `nonpayableReturnExprBodyReturns`. -/
+theorem nonpayableReturnExprBodyReverts {cfg : Config} {imms : Store} {contract : ContractDecl}
+    {evm : EVM.State} {locals : Store} {expr : Expr} (h : evm.executionEnv.weiValue = ⟨0⟩)
+    (heval : evalExpr? cfg { contract := contract, locals := locals, immutables := imms } evm expr =
+      .revert) :
+    ExecTransitionBody cfg contract evm locals
+      [.require (.binary .eq (.env .callvalue) (.intLit 0)), .return [expr]] .reverted imms :=
+  ExecFuncBody.execBlockRevert <|
+    ExecBlock.consNormal (ExecStmt.requireTrue (evalCallvalueEq_true h)) <|
+      ExecBlock.consRevert
+        (ExecStmt.returnRevert (by simp only [evalExprs?, heval, bind, EvalResult.bind]))
+
 end FeProofs

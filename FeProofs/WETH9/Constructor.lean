@@ -34,7 +34,7 @@ theorem feWETH9ConstructorCorrect :
     have hS1 : Stele.EVM.storageLoad (steleName (initState σ σ₀ (Sat256.ofUInt256 g) A I))
         (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.codeOwner ⟨1⟩ =
           solcSlotWord (nameMap σ I) I ⟨1⟩ := by
-      rw [storageLoad_eq_solcSlotWord, steleName, steleStrWrite_accountMap _ _ (Or.inl rfl)]
+      rw [storageLoad_eq_solcSlotWord, steleName, steleStrWrite_accountMap _ _ _ (dataSlot_ne _ (Or.inl rfl) _)]
       rfl
     by_cases hb1 : strHeadBad (solcSlotWord (nameMap σ I) I ⟨1⟩)
     · exact RDrev.constructorRefinementEmptyParams (hbad1 hb1) hcode' rfl
