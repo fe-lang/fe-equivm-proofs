@@ -1,0 +1,309 @@
+{
+  "compiler": {
+    "commit": "bfc795bb4",
+    "version": "26.4.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [],
+        "name": "name",
+        "outputs": [
+          {
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "guy",
+            "type": "address"
+          },
+          {
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "approve",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "totalSupply",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "src",
+            "type": "address"
+          },
+          {
+            "name": "dst",
+            "type": "address"
+          },
+          {
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "transferFrom",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "withdraw",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint8"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ],
+        "name": "balanceOf",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "symbol",
+        "outputs": [
+          {
+            "name": "",
+            "type": "string"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "dst",
+            "type": "address"
+          },
+          {
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "transfer",
+        "outputs": [
+          {
+            "name": "",
+            "type": "bool"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+      },
+      {
+        "inputs": [],
+        "name": "deposit",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+      },
+      {
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          },
+          {
+            "name": "guy",
+            "type": "address"
+          }
+        ],
+        "name": "allowance",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      },
+      {
+        "stateMutability": "payable",
+        "type": "fallback"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "src",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "guy",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "Approval",
+        "type": "event"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "src",
+            "type": "address"
+          },
+          {
+            "indexed": true,
+            "name": "dst",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "Transfer",
+        "type": "event"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "src",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "Withdrawal",
+        "type": "event"
+      },
+      {
+        "anonymous": false,
+        "inputs": [
+          {
+            "indexed": true,
+            "name": "dst",
+            "type": "address"
+          },
+          {
+            "indexed": false,
+            "name": "wad",
+            "type": "uint256"
+          }
+        ],
+        "name": "Deposit",
+        "type": "event"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "unchecked",
+    "compilationTarget": {
+      "src/lib.fe": "WETH9"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "unchecked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "weth9",
+        "namespace": "",
+        "version": "0.1.0"
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "src/lib.fe": {
+      "content": "// Canonical WETH9 (`gnosis/canonical-weth`, `contracts/WETH9.sol`) written in Fe, with the same\n// storage layout: `name` and `symbol` (Solidity strings) at slots 0 and 1, `decimals` at slot 2,\n// `balanceOf` at slot 3 and `allowance` (a map of maps, so a Solidity nested mapping) at slot 4.\n// Arithmetic is unchecked (`fe.toml`), as in Solidity 0.5.\nuse std::abi::{DynString, sol}\nuse std::evm::{Call, Ctx, Log, SolSlot, wei}\nuse ingot::sol_string::SolString\n\nmsg Weth9Msg {\n    #[selector = sol(\"name()\")]\n    Name -> DynString,\n    #[selector = sol(\"approve(address,uint256)\")]\n    Approve { guy: Address, wad: u256 } -> bool,\n    #[selector = sol(\"totalSupply()\")]\n    TotalSupply -> u256,\n    #[selector = sol(\"transferFrom(address,address,uint256)\")]\n    TransferFrom { src: Address, dst: Address, wad: u256 } -> bool,\n    #[selector = sol(\"withdraw(uint256)\")]\n    Withdraw { wad: u256 },\n    #[selector = sol(\"decimals()\")]\n    Decimals -> u8,\n    #[selector = sol(\"balanceOf(address)\")]\n    BalanceOf { owner: Address } -> u256,\n    #[selector = sol(\"symbol()\")]\n    Symbol -> DynString,\n    #[selector = sol(\"transfer(address,uint256)\")]\n    Transfer { dst: Address, wad: u256 } -> bool,\n    #[selector = sol(\"deposit()\")]\n    Deposit,\n    #[selector = sol(\"allowance(address,address)\")]\n    Allowance { owner: Address, guy: Address } -> u256,\n}\n\n#[event]\nstruct Approval {\n    #[indexed]\n    src: Address,\n    #[indexed]\n    guy: Address,\n    wad: u256,\n}\n\n#[event]\nstruct Transfer {\n    #[indexed]\n    src: Address,\n    #[indexed]\n    dst: Address,\n    wad: u256,\n}\n\n#[event]\nstruct Deposit {\n    #[indexed]\n    dst: Address,\n    wad: u256,\n}\n\n#[event]\nstruct Withdrawal {\n    #[indexed]\n    src: Address,\n    wad: u256,\n}\n\nstruct Weth9Store {\n    name: SolString,\n    symbol: SolString,\n    // `uint8 decimals;`: written in place, keeping the slot's other bytes, as Solidity does.\n    decimals: SolSlot,\n    balance_of: StorageMap<Address, u256>,\n    allowance: StorageMap<Address, StorageMap<Address, u256>>,\n}\n\npub contract WETH9 uses (ctx: Ctx, call: mut Call, log: mut Log) {\n    mut store: Weth9Store\n\n    init() uses (mut store) {\n        store.name.store(\"Wrapped Ether\")\n        store.symbol.store(\"WETH\")\n        store.decimals.write(offset: 0, value: 18 as u8)\n    }\n\n    recv Weth9Msg {\n        Name -> DynString uses (store) {\n            store.name.load()\n        }\n\n        Approve { guy, wad } -> bool uses (mut store, ctx, mut log) {\n            let src = ctx.caller()\n            store.allowance[src][guy] = wad\n            log.emit(Approval { src, guy, wad })\n            true\n        }\n\n        TotalSupply -> u256 uses (ctx) {\n            ctx.selfbalance().as_wei()\n        }\n\n        TransferFrom { src, dst, wad } -> bool uses (mut store, ctx, mut log) {\n            transfer_from(src, dst, wad)\n        }\n\n        Withdraw { wad } uses (mut store, ctx, mut call, mut log) {\n            let src = ctx.caller()\n            assert!(store.balance_of[src] >= wad)\n            store.balance_of[src] -= wad\n            // `msg.sender.transfer(wad)`: the callee gets the 2300-gas stipend, and a failed\n            // transfer reverts.\n            let gas: u256 = if wad == 0 { 2300 } else { 0 }\n            assert!(call.send_value(addr: src, gas, value: wei(wad)).success())\n            log.emit(Withdrawal { src, wad })\n        }\n\n        Decimals -> u8 uses (store) {\n            store.decimals.read<u8>(offset: 0)\n        }\n\n        BalanceOf { owner } -> u256 uses (store) {\n            store.balance_of[owner]\n        }\n\n        Symbol -> DynString uses (store) {\n            store.symbol.load()\n        }\n\n        Transfer { dst, wad } -> bool uses (mut store, ctx, mut log) {\n            transfer_from(src: ctx.caller(), dst, wad)\n        }\n\n        #[payable]\n        Deposit uses (mut store, ctx, mut log) {\n            deposit()\n        }\n\n        Allowance { owner, guy } -> u256 uses (store) {\n            store.allowance[owner][guy]\n        }\n    }\n\n    // `function() external payable { deposit(); }`\n    recv {\n        #[payable]\n        _ uses (mut store, ctx, mut log) {\n            deposit()\n        }\n    }\n}\n\nfn deposit() uses (store: mut Weth9Store, ctx: Ctx, log: mut Log) {\n    let dst = ctx.caller()\n    let wad = ctx.value().as_wei()\n    store.balance_of[dst] += wad\n    log.emit(Deposit { dst, wad })\n}\n\nfn transfer_from(src: Address, dst: Address, wad: u256) -> bool\n    uses (store: mut Weth9Store, ctx: Ctx, log: mut Log)\n{\n    assert!(store.balance_of[src] >= wad)\n    let sender = ctx.caller()\n    if src != sender && store.allowance[src][sender] != u256::max() {\n        assert!(store.allowance[src][sender] >= wad)\n        store.allowance[src][sender] -= wad\n    }\n    store.balance_of[src] -= wad\n    store.balance_of[dst] += wad\n    log.emit(Transfer { src, dst, wad })\n    true\n}\n",
+      "keccak256": "0xbc25ece41aa373563aaffd9a3442e7ac2edbb484ef21df3d9487d0dc7ad7da1e"
+    },
+    "src/sol_string.fe": {
+      "content": "//! A Solidity `string` state variable, as a storage field type.\n//!\n//! A string of fewer than 32 bytes lives in the high bytes of its slot, with\n//! twice its length in the low byte. A longer one stores `2 * len + 1` in the\n//! slot and its bytes in the words from `keccak256(slot)` on, the last one\n//! zero-padded. Like Solidity 0.8, reads and writes revert with `Panic(0x22)`\n//! when the slot's length contradicts its short/long flag, and a write zeroes\n//! the words a previous, longer value left behind.\n//!\n//! ```fe\n//! pub contract Token {\n//!     mut name: SolString,   // `string name;` at slot 0\n//!\n//!     init() uses (mut name) {\n//!         name.store(\"Wrapped Ether\")\n//!     }\n//! }\n//! ```\n//!\n//! Meant to move into std as `std::evm::SolString`, replacing\n//! `SolSlot::read_string`/`write_string`.\nuse core::abi::{DynString, store_word}\nuse core::marker::{Pinned, Storage}\nuse core::ops::{Location, StateIndex, WrappingAdd}\nuse core::ptr::{self, MemSpan}\nuse std::evm::{Evm, PANIC_STORAGE_ENCODING, Panic, RawStorage, array_data_slot, revert_error, storage_at_mut}\n\npub struct SolString {\n    payload: Payload,\n}\n\n/// The words of a long string, from `keccak256(slot)` on; the slot itself\n/// holds the head.\nstruct Payload {\n    head: u256,\n}\n\nimpl Pinned for Payload {\n    type Space = Storage\n}\n\nunsafe impl StateIndex for Payload {\n    type Key = u256\n    type Entry = u256\n\n    fn locate(self, _ root: u256, _ word: u256) -> Location {\n        Location { slot: array_data_slot(root).wrapping_add(word), offset: 0 }\n    }\n}\n\nimpl SolString {\n    /// The string whose head is at `slot`, for a layout the compiler does\n    /// not allocate, such as another contract's.\n    ///\n    /// The caller must ensure that nothing the compiler allocates, such as a\n    /// contract field, uses `slot` or the slots its bytes derive.\n    #[raw_place]\n    pub unsafe fn at(_ slot: u256) -> mut Self uses (storage: mut RawStorage) {\n        unsafe { storage_at_mut(slot) }\n    }\n\n    /// The length in bytes.\n    pub fn len(self) -> u256 {\n        stored_len(self.payload.head)\n    }\n\n    /// A copy of the string in memory.\n    pub fn load(self) -> DynString {\n        let head = self.payload.head\n        let len = stored_len(head)\n        let size = 32 + word_count(len) * 32\n        let data = ptr::alloc_bytes(size)\n        unsafe {\n            store_word(ptr: data, value: len)\n            // Only the `len` data bytes are kept, so the ABI padding is zero.\n            if head & 1 == 0 {\n                if len != 0 {\n                    store_word(ptr: ptr::offset_bytes(data, 32), value: leading_bytes(head, count: len))\n                }\n            } else {\n                var i: u256 = 0\n                while i < word_count(len) {\n                    let word = leading_bytes(self.payload[i], count: len - i * 32)\n                    store_word(ptr: ptr::offset_bytes(data, 32 + i * 32), value: word)\n                    i += 1\n                }\n            }\n            DynString::from_abi_tail(data, len: len as usize, size)\n        }\n    }\n\n    /// Replaces the string, zeroing the words a previous, longer value left\n    /// behind.\n    pub fn store(mut self, _ value: DynString) {\n        let payload = value.payload_span()\n        let old = self.payload.head\n        let old_len = stored_len(old)\n        let old_words = if old & 1 == 0 { 0 } else { word_count(old_len) }\n        let len = payload.len() as u256\n        var words: u256 = 0\n        if len < 32 {\n            self.payload.head = payload_word(payload, 0) | (len * 2)\n        } else {\n            self.payload.head = len * 2 + 1\n            words = word_count(len)\n            var i: u256 = 0\n            while i < words {\n                self.payload[i] = payload_word(payload, i * 32)\n                i += 1\n            }\n        }\n        var i = words\n        while i < old_words {\n            self.payload[i] = 0\n            i += 1\n        }\n    }\n\n    /// Empties the string and zeroes its words, like Solidity's `delete`.\n    pub fn clear(mut self) {\n        self.store(DynString::empty())\n    }\n}\n\n// The length a head encodes. Panics like Solidity (0x22) when it contradicts\n// the head's short/long flag.\nfn stored_len(_ head: u256) -> u256 {\n    let long = head & 1 == 1\n    let len = if long { head / 2 } else { (head & 0xff) / 2 }\n    if long == (len < 32) {\n        revert_error(Panic::from(PANIC_STORAGE_ENCODING))\n    }\n    len\n}\n\nfn word_count(_ len: u256) -> u256 {\n    (len + 31) / 32\n}\n\n// The payload word at `offset`, with bytes past the end of `payload` zeroed.\nfn payload_word(_ payload: MemSpan, _ offset: u256) -> u256 {\n    let len = payload.len() as u256\n    if offset >= len {\n        return 0\n    }\n    leading_bytes(payload.word_at(offset), count: len - offset)\n}\n\n// The first `count` bytes of `word`, with the rest zeroed.\nfn leading_bytes(_ word: u256, count: u256) -> u256 {\n    if count >= 32 { word } else { word & !(u256::max() >> (count * 8)) }\n}\n\n// Slot contents as Solidity 0.8 leaves them for `string s;` at slot 0 after\n// `s = \"Wrapped Ether\"`, a 33-byte string, and so on.\nconst WRAPPED_ETHER: u256 = 0x577261707065642045746865720000000000000000000000000000000000001a\nconst LONG_TEXT: DynString = \"abcdefghijklmnopqrstuvwxyz0123456\"\nconst LONG_WORD_0: u256 = 0x6162636465666768696a6b6c6d6e6f707172737475767778797a303132333435\nconst LONG_WORD_1: u256 = 0x3600000000000000000000000000000000000000000000000000000000000000\n\nfn sload(_ slot: u256) -> u256 uses (storage: RawStorage) {\n    unsafe { storage.sload(slot) }\n}\n\n#[test]\nfn short_string_layout() uses (evm: mut Evm) {\n    with (RawStorage = evm) {\n        unsafe { SolString::at(0) }.store(\"Wrapped Ether\")\n        assert!(sload(0) == WRAPPED_ETHER)\n        assert!(unsafe { SolString::at(0) }.len() == 13)\n        assert!(unsafe { SolString::at(0) }.load() == \"Wrapped Ether\")\n    }\n}\n\n#[test]\nfn long_string_layout_and_shrink() uses (evm: mut Evm) {\n    with (RawStorage = evm) {\n        unsafe { SolString::at(0) }.store(LONG_TEXT)\n        assert!(sload(0) == 33 * 2 + 1)\n        assert!(sload(array_data_slot(0)) == LONG_WORD_0)\n        assert!(sload(array_data_slot(0) + 1) == LONG_WORD_1)\n        assert!(unsafe { SolString::at(0) }.load() == LONG_TEXT)\n\n        // Shrinking to a short string zeroes both data words.\n        unsafe { SolString::at(0) }.store(\"WETH\")\n        assert!(sload(0) == 0x5745544800000000000000000000000000000000000000000000000000000008)\n        assert!(sload(array_data_slot(0)) == 0)\n        assert!(sload(array_data_slot(0) + 1) == 0)\n        assert!(unsafe { SolString::at(0) }.load() == \"WETH\")\n\n        unsafe { SolString::at(0) }.store(LONG_TEXT)\n        unsafe { SolString::at(0) }.clear()\n        assert!(sload(0) == 0)\n        assert!(sload(array_data_slot(0)) == 0)\n        assert!(unsafe { SolString::at(0) }.len() == 0)\n    }\n}\n\n#[test]\nfn exactly_32_bytes_is_long() uses (evm: mut Evm) {\n    with (RawStorage = evm) {\n        unsafe { SolString::at(0) }.store(\"abcdefghijklmnopqrstuvwxyz012345\")\n        assert!(sload(0) == 65)\n        assert!(sload(array_data_slot(0)) == LONG_WORD_0)\n        assert!(unsafe { SolString::at(0) }.len() == 32)\n    }\n}\n\n// A short head whose length is 32: Solidity reverts with `Panic(0x22)`.\n#[test(should_revert)]\nfn malformed_head_reverts() uses (evm: mut Evm) {\n    unsafe { evm.sstore(slot: 0, value: 64) }\n    with (RawStorage = evm) {\n        let _ = unsafe { SolString::at(0) }.load()\n    }\n}\n",
+      "keccak256": "0x674985e8e05512194d2186f241a5cddafc7002c07e1cedc1f29e1d3d1aeea950"
+    },
+    "src/tests.fe": {
+      "content": "use core::abi::store_word\nuse core::ptr\nuse std::abi::DynString\nuse std::evm::{Address, Call, Ctx, Evm, wei}\nuse ingot::{WETH9, Weth9Msg}\n\nconst GAS: u256 = 1000000\nconst MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\n\nmsg HolderMsg {\n    #[selector = 0x01]\n    Cycle { weth: Address, wad: u256 } -> u256,\n}\n\n// Deposits `wad` and withdraws it again; its payable fallback takes the ether back.\npub contract Holder uses (ctx: Ctx, call: mut Call) {\n    #[payable]\n    init() {}\n\n    recv HolderMsg {\n        Cycle { weth, wad } -> u256 uses (ctx, mut call) {\n            call.call(addr: weth, gas: GAS, value: wei(wad), message: Weth9Msg::Deposit {})\n            call.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Withdraw { wad })\n            ctx.selfbalance().as_wei()\n        }\n    }\n\n    recv {\n        #[payable]\n        _ {}\n    }\n}\n\nfn deploy() -> Address uses (evm: mut Evm) {\n    evm.create2<WETH9>(value: Wei::zero(), args: (), salt: 0)\n}\n\nfn balance_of(_ weth: Address, _ owner: Address) -> u256 uses (evm: mut Evm) {\n    evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::BalanceOf { owner })\n}\n\n#[test]\nfn metadata() uses (evm: mut Evm) {\n    let weth = deploy()\n    let name: DynString = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Name {})\n    let symbol: DynString = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Symbol {})\n    let decimals: u8 = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Decimals {})\n    assert!(name == \"Wrapped Ether\")\n    assert!(symbol == \"WETH\")\n    assert!(decimals == 18)\n}\n\n#[test(balance = 1000)]\nfn deposit_and_fallback_credit_the_caller() uses (evm: mut Evm) {\n    let weth = deploy()\n    let me = evm.address()\n    evm.call(addr: weth, gas: GAS, value: wei(300), message: Weth9Msg::Deposit {})\n    assert!(balance_of(weth, me) == 300)\n\n    // Empty calldata and an unknown selector both reach the payable fallback.\n    assert!(evm.send_value(addr: weth, gas: GAS, value: wei(200)).success())\n    let unknown = ptr::alloc_bytes(4)\n    unsafe { store_word(ptr: unknown, value: 0xdeadbeef << 224) }\n    let args = unsafe { ptr::MemSpan::from_raw_parts(ptr: unknown, len: 4) }\n    assert!(evm.try_call_raw(addr: weth, gas: GAS, value: wei(100), args).success())\n\n    assert!(balance_of(weth, me) == 600)\n    let supply: u256 = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::TotalSupply {})\n    assert!(supply == 600)\n}\n\n#[test(balance = 1000)]\nfn withdraw_returns_the_ether() uses (evm: mut Evm) {\n    let weth = deploy()\n    let holder = evm.create2<Holder>(value: wei(500), args: (), salt: 0)\n    let held: u256 = evm.call(addr: holder, gas: GAS, value: Wei::zero(), message: HolderMsg::Cycle { weth, wad: 300 })\n    assert!(held == 500)\n    assert!(balance_of(weth, holder) == 0)\n    assert!(evm.balance(weth).as_wei() == 0)\n}\n\n// The test contract takes no ether, so the transfer fails and `withdraw` reverts.\n#[test(should_revert, balance = 1000)]\nfn withdraw_to_a_refusing_caller_reverts() uses (evm: mut Evm) {\n    let weth = deploy()\n    evm.call(addr: weth, gas: GAS, value: wei(500), message: Weth9Msg::Deposit {})\n    evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Withdraw { wad: 200 })\n}\n\n#[test(should_revert, balance = 1000)]\nfn withdraw_more_than_the_balance_reverts() uses (evm: mut Evm) {\n    let weth = deploy()\n    evm.call(addr: weth, gas: GAS, value: wei(500), message: Weth9Msg::Deposit {})\n    evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Withdraw { wad: 501 })\n}\n\n#[test(should_revert, balance = 1000)]\nfn non_payable_entry_rejects_value() uses (evm: mut Evm) {\n    let weth = deploy()\n    evm.call(addr: weth, gas: GAS, value: wei(1), message: Weth9Msg::TotalSupply {})\n}\n\n#[test(balance = 1000)]\nfn transfer_and_allowances() uses (evm: mut Evm) {\n    let weth = deploy()\n    let me = evm.address()\n    let other = Address::new(0xbeef)\n    evm.call(addr: weth, gas: GAS, value: wei(500), message: Weth9Msg::Deposit {})\n\n    let ok: bool = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Transfer { dst: other, wad: 100 })\n    assert!(ok)\n    assert!(balance_of(weth, me) == 400)\n    assert!(balance_of(weth, other) == 100)\n\n    // Moving one's own tokens needs no allowance.\n    let ok: bool = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::TransferFrom { src: me, dst: other, wad: 50 })\n    assert!(ok)\n    assert!(balance_of(weth, other) == 150)\n\n    let ok: bool = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Approve { guy: other, wad: MAX })\n    assert!(ok)\n    let allowance: u256 = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Allowance { owner: me, guy: other })\n    assert!(allowance == MAX)\n}\n\n#[test(should_revert, balance = 1000)]\nfn transfer_from_without_allowance_reverts() uses (evm: mut Evm) {\n    let weth = deploy()\n    let other = Address::new(0xbeef)\n    evm.call(addr: weth, gas: GAS, value: wei(500), message: Weth9Msg::Deposit {})\n    let _: bool = evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::Transfer { dst: other, wad: 100 })\n    evm.call(addr: weth, gas: GAS, value: Wei::zero(), message: Weth9Msg::TransferFrom { src: other, dst: evm.address(), wad: 1 })\n}\n",
+      "keccak256": "0x4ff227987b6bf93934ca35bcdf23fbd667533ca7b91fdb9fdc72274405ab8c9d"
+    }
+  },
+  "version": 1
+}
