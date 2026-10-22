@@ -7,7 +7,8 @@ specification written in EquiVM's specification language, Stele.
 
 ## Contracts
 
-All compiled with Fe 26.4.0 (`822e80878`), Sonatina backend, `-O 1`, Osaka.
+Compiled with the Sonatina backend, `-O 1`, Osaka: WETH9 with Fe `bfc795bb4`, the others with Fe
+26.4.0 (`822e80878`).
 
 | Module | Contract | Theorem |
 | --- | --- | --- |
@@ -19,6 +20,7 @@ All compiled with Fe 26.4.0 (`822e80878`), Sonatina backend, `-O 1`, Osaka.
 | `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
 | `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/822e80878/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
 | `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | `feERC20ContractCorrect` |
+| `FeProofs.WETH9` | [canonical WETH9](https://github.com/gnosis/canonical-weth/blob/master/contracts/WETH9.sol) written in Fe | `feWETH9ContractCorrect` (string getters under a string-size precondition) |
 
 Each theorem covers the constructor and the whole runtime: for every input, the deployed
 bytecode returns the same data, reverts in the same cases and leaves the same accounts as the
@@ -53,6 +55,26 @@ all six entry points, including the reverts for a short balance or allowance and
 panics. The bytecode and the specification both read each balance after the writes that precede
 it, so the proof does not assume that distinct mapping keys hash to distinct slots.
 
+### WETH9
+
+`FeProofs/WETH9` is an ingot (`fe.toml`, `src/`): canonical WETH9 written in Fe, with WETH9's storage
+layout (`name` and `symbol` as Solidity strings in slots 0 and 1, `decimals` in slot 2,
+`balanceOf` and `allowance` in slots 3 and 4) and unchecked arithmetic, as in Solidity 0.5.
+`src/sol_string.fe` has `SolString`, a storage field type with Solidity's string layout. Its
+specification is EquiVM's WETH9 specification statement for statement; only the configuration
+differs from EquiVM's solc proof:
+
+- Strings use Solidity 0.8's storage semantics: a length header whose short/long flag contradicts
+  the length reverts, where solc 0.5.16 reads any header.
+- Calldata is decoded strictly: a non-canonical `address` argument reverts, where solc 0.5.16
+  masks it.
+
+`feWETH9ContractCorrect` covers the constructor (for any initial storage), all eleven entry points,
+including `withdraw`'s value transfer to a caller that may re-enter, and the payable fallback. The
+runtime theorem assumes `feWETH9StorageWF`: on a `name()` or `symbol()` call, the stored string's ABI
+encoding is shorter than 2^64 bytes. Fe reverts above that size while the specification returns the
+string. Only the constructor writes those slots, so a deployed contract satisfies it.
+
 ## Layout
 
 Each contract directory (`FeProofs/<Contract>/`) holds the Fe source, the pinned bytecode, the
@@ -70,6 +92,9 @@ summaries are pruned (`scripts/prune_blocks.py`).
 - `Stele.lean`: evaluation of locals, literals, binary operators (with `≥`, `-` and `+` on words),
   casts and `uint256` range checks, local assignment, and the `store_get` tactic for reading a
   local through a chain of inserts.
+- `Storage.lean`: mapping slots (`keccak256(key ‖ slot)`, the hashes as Fe computes them) and
+  reads and writes of `m[k]` and `m[k][k']` for any contract's Solidity layout.
+- `Fallback.lean`: refinement glue for contracts with a fallback (EquiVM's assumes none).
 - `Abi.lean`, `Memory.lean`, `Calls.lean`: ABI decoding facts (selector word, canonical
   `address`, two `uint256` arguments), memory facts (adjacent word writes), and call-result checks.
 - `Basic.lean`, `Glue.lean`, `Constructor.lean`, `CtorUInt256.lean`, `PackedByte.lean`: dispatcher
@@ -108,4 +133,8 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 ```
 
 `out/DepositContract.bin` and `out/DepositContract.runtime.bin` must match
-`creation.hex` and `runtime.hex`, ignoring a trailing newline.
+`creation.hex` and `runtime.hex`, ignoring a trailing newline. WETH9 is built as an ingot:
+
+```sh
+fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
+```
