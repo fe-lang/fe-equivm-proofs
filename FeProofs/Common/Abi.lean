@@ -89,7 +89,8 @@ theorem decodeCalldata_uint256_uint256_ok {cd : ByteArray} {x y : Ident}
     Nat.zero_add, hdrop, htake4, htake36, ↓reduceIte, hword4, hword36, bind, Option.bind]
   have hb4 : ((calldataWord cd 4).val : Nat) < EVM.twoPow 256 := (calldataWord cd 4).val.isLt
   have hb36 : ((calldataWord cd 36).val : Nat) < EVM.twoPow 256 := (calldataWord cd 36).val.isLt
-  simp [decodeABIWord?, decodeCalldata.insertValues, hb4, hb36]
+  simp only [decodeABIWord?, OfNat.ofNat_ne_zero, ↓reduceIte, hb4, Int.ofNat_eq_natCast, hb36,
+    Nat.reduceAdd, decodeCalldata.insertValues, Option.some.injEq]
   rfl
 
 theorem decodeCalldata_uint256_uint256_none_short {cd : ByteArray} {x y : Ident}

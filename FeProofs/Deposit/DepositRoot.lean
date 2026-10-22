@@ -21,7 +21,7 @@ theorem dRootBytes_value (cd : ByteArray) (hn : 132 ≤ cd.size) :
   have hl := dRootBytes_length cd hn
   have hword : ABI.bytesToWord (dRootBytes cd) = calldataWord cd 100 := by
     have h' := decode_word_at_eq_any cd 100 (by omega)
-    simpa [dRootBytes, dArgs, List.drop_drop, List.take_take] using h'
+    simpa only [dRootBytes, dArgs, List.drop_drop, Nat.reduceAdd, List.take_take, min_self] using h'
   rw [← hword]
   exact (bytesToWord_toNat_of_len _ hl).symm
 
@@ -38,6 +38,8 @@ theorem evalRootCast {cfg : Config} {stele : Frame} {evm : EVM.State} (cd : Byte
   have hr' : stele.locals[("deposit_data_root" : Ident)]? =
       some (.fixedBytes ⟨31, by decide⟩ (dRootBytes cd)) := by
     simpa [Std.HashMap.get?_eq_getElem?] using hr
-  simp [evalExpr?, hr', castValue?, hv, EvalResult.ofOption, EvalResult.bind, bind]
+  simp only [evalExpr?, bind, EvalResult.bind, EvalResult.ofOption, Std.HashMap.get?_eq_getElem?, hr',
+    Fin.reduceFinMk, Fin.isValue, castValue?, Nat.reduceSubDiff, Fin.toNat_eq_val, Int.ofNat_eq_natCast,
+    Fin.coe_ofNat_eq_mod, Nat.mod_succ, Nat.reduceAdd, Nat.reduceMul, ↓reduceIte, hv]
 
 end FeProofs.Deposit
