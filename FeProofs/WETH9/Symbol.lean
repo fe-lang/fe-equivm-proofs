@@ -25,9 +25,7 @@ theorem feWETH9SymbolBody {σ σ₀ A I} {g : UInt256}
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · rd_run rd using [hwv]
-    exact RDrev.reEquivDispatchedRevertSel hcode rd hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   rd_run rd to 800 using [hwv]
   exact stringGetter (field := "symbol") hcode hsize hd
     (show decodeCalldata [] [] I.calldata = some ∅ from decodeCalldata_empty_ok hsz)

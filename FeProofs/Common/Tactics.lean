@@ -1,6 +1,8 @@
 import Reasoning.Reach
 import Reasoning.JumpDest
 import FeProofs.Common.Calls
+import FeProofs.Common.Basic
+import FeProofs.Common.Fallback
 
 /-!
 # Chaining generated block summaries
@@ -409,5 +411,19 @@ elab_rules : tactic
     | some n => evalTactic (← `(tactic| rd_run $rd to $n using [lt32_size_word $hout ‹_›]))
     | none => evalTactic (← `(tactic| rd_run $rd using [lt32_size_word $hout ‹_›]))
     setGoals (negGoals ++ (← getGoals) ++ rest)
+
+
+/-- Closes a selector arm reached with nonzero call value: Fe checks the call value at the arm's
+entry and reverts, and the Stele body's non-payable guard reverts too.  `hd` is the dispatch fact:
+`selectorDispatchMsg … = some t` for a contract with a fallback, `dispatchMsg … = some t` otherwise. -/
+macro "nonpayable_revert " rd:ident hcode:term:max hd:term:max hwv:term:max : tactic =>
+  `(tactic| (rd_run $rd using [$hwv, Reasoning.Theory.isZero_eq_zero_of_ne $hwv]
+             first
+               | exact Reasoning.Reach.RDrev.reEquivDispatchedRevertSel $hcode $rd $hd
+                   fun _ => Reasoning.Theory.bodyReverts_nonPayable
+                     (by simp only [Reasoning.Theory.initState]; exact $hwv)
+               | exact Reasoning.Reach.RDrev.reEquivDispatchedRevert $hcode $rd $hd
+                   fun _ => Reasoning.Theory.bodyReverts_nonPayable
+                     (by simp only [Reasoning.Theory.initState]; exact $hwv)))
 
 end FeProofs.RDTactic

@@ -25,10 +25,7 @@ theorem feWETH9NameBody {σ σ₀ A I} {g : UInt256}
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · have hz : UInt256.isZero I.weiValue = UInt256.ofNat 0 := isZero_eq_zero_of_ne hwv
-    rd_run rd using [hz]
-    exact RDrev.reEquivDispatchedRevertSel hcode rd hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   rd_run rd to 800 using [hwv]
   exact stringGetter (field := "name") hcode hsize hd
     (show decodeCalldata [] [] I.calldata = some ∅ from decodeCalldata_empty_ok hsz)

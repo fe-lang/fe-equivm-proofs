@@ -47,9 +47,7 @@ theorem feIdentityIdentityBody {σ σ₀ A I} {g : UInt256}
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · rd_run rd using [isZero_eq_zero_of_ne hwv]
-    exact rd.reEquivDispatchedRevert hcode hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   by_cases hlen : 36 ≤ I.calldata.size
   swap
   · rd_run rd using [hwv, (solcDecodeLenCheckShort_4_32 hsz (by omega) hsize).trans_ne (by decide)]

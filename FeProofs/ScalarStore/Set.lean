@@ -49,9 +49,7 @@ theorem feScalarStoreSetBody {σ σ₀ A I} {g : UInt256}
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · rd_run rd using [isZero_eq_zero_of_ne hwv]
-    exact RDrev.reEquivDispatchedRevert hcode rd hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   by_cases hok : 36 ≤ I.calldata.size ∧ I.calldata.size < 2 ^ 255 + 4
   swap
   · have hbad : I.calldata.size < 36 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega

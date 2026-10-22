@@ -29,9 +29,7 @@ theorem fePackedStoreGet0Body {σ σ₀ A I} {g : UInt256}
     exact decodeCalldata_empty_ok hsz
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · rd_run rd using [hwv]
-    exact RDrev.reEquivDispatchedRevert hcode rd hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   rd_run rd using [hwv]
   u256_lits at rd
   rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), packedByte_lane0] at rd

@@ -26,9 +26,7 @@ theorem feWETH9TotalSupplyBody {σ σ₀ A I} {g : UInt256}
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · rd_run rd using [hwv]
-    exact RDrev.reEquivDispatchedRevertSel hcode rd hd
-      fun _ => bodyReverts_nonPayable (by simp only [initState]; exact hwv)
+  · nonpayable_revert rd hcode hd hwv
   rd_run rd using [hwv]
   have rd := rd.selfbalance (by native_decide) (by simp)
   rd_run rd
