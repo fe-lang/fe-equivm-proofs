@@ -32,9 +32,6 @@ namespace FeProofs.WETH9
 
 set_option maxRecDepth 2000000
 
-@[simp] theorem feWETH9Bytecode_size : feWETH9Bytecode.size = 1590 := by
-  native_decide +revert
-
 /-- The transition list as its handles. -/
 theorem transitions_eq : contract.transitions = [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition] := by
   rfl
