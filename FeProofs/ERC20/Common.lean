@@ -29,6 +29,10 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.ERC20
 
+/-- The 4-byte selector of `I`'s calldata equals `sel`. -/
+abbrev selIs (I : ExecutionEnv) (sel : ByteArray) : Prop :=
+  (sel == I.calldata.extract 0 4) = true
+
 set_option maxRecDepth 2000000
 
 /-- The transition list as its handles. -/
