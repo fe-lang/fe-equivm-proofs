@@ -76,6 +76,25 @@ theorem map_read (hbackend : cfg.storageBackend = solidityStorageBackend layout)
       EvalResult.bind, EvalResult.ofOption, bind, pure, he])
     (hty a) hbackend (hloc a) (storageLocLoad_uint256 evm _)
 
+/-- Writing the integer `n` to `m[e]` stores its wrapped word at `mapSlot a base`. -/
+theorem map_assign_int (hbackend : cfg.storageBackend = solidityStorageBackend layout)
+    (hty : ∀ a : AccountAddress, storageTypeAt? c.storage
+      { base := name, steps := [.mindex (.address a)] } = some (.elem uint256Elem))
+    (hloc : ∀ a : AccountAddress, layout { base := name, steps := [.mindex (.address a)] } =
+      some (.leaf (uint256Loc (mapSlot (keyValueToWord (.address a)) base))))
+    (hL : L.get? name = none)
+    (he : evalExpr? cfg { contract := c, locals := L } evm e = .ok (.address a)) (n : Int) :
+    assignStorageRef? cfg { contract := c, locals := L } evm .storage
+        { base := name, steps := [.mindex e] } (.int n) =
+      .ok ({ contract := c, locals := L }, Stele.EVM.storageStore evm
+        evm.executionEnv.codeOwner (mapSlot (keyValueToWord (.address a)) base) (EVM.wordOfInt n)) :=
+  assignStorageRef_storage_scalar_value (layout := layout)
+    (er := { base := name, steps := [.mindex (.address a)] }) (ty := .elem uint256Elem)
+    (loc := uint256Loc (mapSlot (keyValueToWord (.address a)) base)) hL
+    (by simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, valueToKey?,
+      EvalResult.bind, EvalResult.ofOption, bind, pure, he])
+    (hty a) hbackend (hloc a) (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256_int evm _ n)
+
 /-- Writing `w` to `m[e]` stores it at `mapSlot a base`. -/
 theorem map_assign (hbackend : cfg.storageBackend = solidityStorageBackend layout)
     (hty : ∀ a : AccountAddress, storageTypeAt? c.storage
@@ -87,13 +106,8 @@ theorem map_assign (hbackend : cfg.storageBackend = solidityStorageBackend layou
     assignStorageRef? cfg { contract := c, locals := L } evm .storage
         { base := name, steps := [.mindex e] } (.int (Int.ofNat w.toNat)) =
       .ok ({ contract := c, locals := L }, Stele.EVM.storageStore evm
-        evm.executionEnv.codeOwner (mapSlot (keyValueToWord (.address a)) base) w) :=
-  assignStorageRef_storage_scalar_value (layout := layout)
-    (er := { base := name, steps := [.mindex (.address a)] }) (ty := .elem uint256Elem)
-    (loc := uint256Loc (mapSlot (keyValueToWord (.address a)) base)) hL
-    (by simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, valueToKey?,
-      EvalResult.bind, EvalResult.ofOption, bind, pure, he])
-    (hty a) hbackend (hloc a) (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256 evm _ w)
+        evm.executionEnv.codeOwner (mapSlot (keyValueToWord (.address a)) base) w) := by
+  rw [map_assign_int hbackend hty hloc hL he, wordOfInt_ofNat_toNat]
 
 /-- `m[e][f]` of a `mapping(address => mapping(address => uint256))` named `name` at slot `base`,
 for keys evaluating to the addresses `a` and `b`, reads the word at
@@ -120,6 +134,34 @@ theorem map2_read (hbackend : cfg.storageBackend = solidityStorageBackend layout
       EvalResult.bind, EvalResult.ofOption, bind, pure, he, hf])
     (hty a b) hbackend (hloc a b) (storageLocLoad_uint256 evm _)
 
+/-- Writing the integer `n` to `m[e][f]` stores its wrapped word at
+`mapSlot b (mapSlot a base)`. -/
+theorem map2_assign_int (hbackend : cfg.storageBackend = solidityStorageBackend layout)
+    (hty : ∀ a b : AccountAddress, storageTypeAt? c.storage
+      { base := name, steps := [.mindex (.address a), .mindex (.address b)] } =
+        some (.elem uint256Elem))
+    (hloc : ∀ a b : AccountAddress,
+      layout { base := name, steps := [.mindex (.address a), .mindex (.address b)] } =
+        some (.leaf (uint256Loc (mapSlot (keyValueToWord (.address b))
+          (mapSlot (keyValueToWord (.address a)) base)))))
+    (hL : L.get? name = none)
+    (he : evalExpr? cfg { contract := c, locals := L } evm e = .ok (.address a))
+    (hf : evalExpr? cfg { contract := c, locals := L } evm f = .ok (.address b)) (n : Int) :
+    assignStorageRef? cfg { contract := c, locals := L } evm .storage
+        { base := name, steps := [.mindex e, .mindex f] } (.int n) =
+      .ok ({ contract := c, locals := L }, Stele.EVM.storageStore evm
+        evm.executionEnv.codeOwner
+        (mapSlot (keyValueToWord (.address b)) (mapSlot (keyValueToWord (.address a)) base))
+        (EVM.wordOfInt n)) :=
+  assignStorageRef_storage_scalar_value (layout := layout)
+    (er := { base := name, steps := [.mindex (.address a), .mindex (.address b)] })
+    (ty := .elem uint256Elem)
+    (loc := uint256Loc (mapSlot (keyValueToWord (.address b))
+      (mapSlot (keyValueToWord (.address a)) base))) hL
+    (by simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, valueToKey?,
+      EvalResult.bind, EvalResult.ofOption, bind, pure, he, hf])
+    (hty a b) hbackend (hloc a b) (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256_int evm _ n)
+
 /-- Writing `w` to `m[e][f]` stores it at `mapSlot b (mapSlot a base)`. -/
 theorem map2_assign (hbackend : cfg.storageBackend = solidityStorageBackend layout)
     (hty : ∀ a b : AccountAddress, storageTypeAt? c.storage
@@ -136,15 +178,8 @@ theorem map2_assign (hbackend : cfg.storageBackend = solidityStorageBackend layo
         { base := name, steps := [.mindex e, .mindex f] } (.int (Int.ofNat w.toNat)) =
       .ok ({ contract := c, locals := L }, Stele.EVM.storageStore evm
         evm.executionEnv.codeOwner
-        (mapSlot (keyValueToWord (.address b)) (mapSlot (keyValueToWord (.address a)) base)) w) :=
-  assignStorageRef_storage_scalar_value (layout := layout)
-    (er := { base := name, steps := [.mindex (.address a), .mindex (.address b)] })
-    (ty := .elem uint256Elem)
-    (loc := uint256Loc (mapSlot (keyValueToWord (.address b))
-      (mapSlot (keyValueToWord (.address a)) base))) hL
-    (by simp [evalStorageRef, evalStorageRefSteps, evalStorageRefStep, valueToKey?,
-      EvalResult.bind, EvalResult.ofOption, bind, pure, he, hf])
-    (hty a b) hbackend (hloc a b) (Or.inl ⟨_, rfl⟩) (storageLocStore_uint256 evm _ w)
+        (mapSlot (keyValueToWord (.address b)) (mapSlot (keyValueToWord (.address a)) base)) w) := by
+  rw [map2_assign_int hbackend hty hloc hL he hf, wordOfInt_ofNat_toNat]
 
 end
 
