@@ -6,3 +6,4 @@ import FeProofs.PackedStore.Correct
 import FeProofs.IndexedPackedStore.Correct
 import FeProofs.Deposit.Correct
 import FeProofs.ERC20.Correct
+import FeProofs.WETH9.Correct

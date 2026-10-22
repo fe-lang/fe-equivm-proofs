@@ -8,7 +8,8 @@ open Lean
       ``FeProofs.ScalarStore.feScalarStoreContractCorrect, ``FeProofs.NarrowAbi.feNarrowAbiContractCorrect,
       ``FeProofs.PackedStore.fePackedStoreContractCorrect,
       ``FeProofs.IndexedPackedStore.feIndexedPackedStoreContractCorrect,
-      ``FeProofs.Deposit.feDepositContractCorrect, ``FeProofs.ERC20.feERC20ContractCorrect] do
+      ``FeProofs.Deposit.feDepositContractCorrect, ``FeProofs.ERC20.feERC20ContractCorrect,
+      ``FeProofs.WETH9.feWETH9ContractCorrect] do
     let axs ← collectAxioms n
     let (nd, other) := axs.partition (fun a => (`_nativeDecide).isPrefixOf a || a.toString.endsWith "_native_decide" ||
       (a.toString.splitOn "native").length > 1)
