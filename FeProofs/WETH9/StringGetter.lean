@@ -38,16 +38,6 @@ theorem solidityStorageBackend_read_string (layout : StorageLayout) (er : Evaled
       solidityValueResultToEval (solidityReadBytesValue? layout er evm) := by
   simp only [solidityStorageBackend, solidityReadStorage?]
 
-theorem solidityBytesBaseSlotAndLength?_revert_of_layout {layout : StorageLayout}
-    {er : EvaledStorageRef} {evm : EVM.State} {baseSlot header : UInt256}
-    (hbase : layout er = some (.anchor baseSlot))
-    (hload : Stele.EVM.storageLoad evm evm.executionEnv.codeOwner baseSlot = header)
-    (hdecode : solidityDecodeBytesLengthHeader header = .revert) :
-    solidityBytesBaseSlotAndLength? layout er evm = .revert := by
-  unfold solidityBytesBaseSlotAndLength?
-  rw [solidityAnchor?_of_anchor hbase]
-  simp [hload, hdecode]
-
 section
 variable {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256} {field : Ident}
   {slot : UInt256}
@@ -62,12 +52,6 @@ theorem stringField_read
     (by simp) (by simp [evalStorageRef, evalStorageRefSteps, EvalResult.bind, pure, bind]) hty]
   exact solidityStorageBackend_read_string _ _ _
 
-theorem stringField_load :
-    Stele.EVM.storageLoad (initState σ σ₀ g A I)
-      (initState σ σ₀ g A I).executionEnv.codeOwner slot = solcSlotWord σ I slot := by
-  rw [show (initState σ σ₀ g A I).executionEnv.codeOwner = I.codeOwner from rfl,
-    codeOwnerStorageWord_initState]
-
 /-- A well-formed header: Stele returns the string's bytes. -/
 theorem stringField_eval_ok {L : ℕ}
     (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
@@ -76,8 +60,8 @@ theorem stringField_eval_ok {L : ℕ}
     evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
       (.storage { base := field, steps := [] }) = .ok (.bytes (strBytes σ I slot L)) := by
   rw [stringField_read hty, solidityReadBytesValue?,
-    solidityBytesBaseSlotAndLength?_ok_of_layout hloc stringField_load hdec]
-  simp only [stringField_load, strBytes, solidityBytesDataWordCount,
+    solidityBytesBaseSlotAndLength?_ok_of_layout hloc (storageLoad_initState_solcSlotWord _) hdec]
+  simp only [(storageLoad_initState_solcSlotWord _), strBytes, solidityBytesDataWordCount,
     readSolidityBytesDataWordsFrom_eq, Nat.zero_add]
   split <;> rfl
 
@@ -89,7 +73,7 @@ theorem stringField_eval_revert
     evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
       (.storage { base := field, steps := [] }) = .revert := by
   rw [stringField_read hty, solidityReadBytesValue?,
-    solidityBytesBaseSlotAndLength?_revert_of_layout hloc stringField_load hdec]
+    solidityBytesBaseSlotAndLength?_revert_of_layout hloc (storageLoad_initState_solcSlotWord _) hdec]
   rfl
 
 end

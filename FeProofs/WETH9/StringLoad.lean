@@ -112,18 +112,15 @@ structure HdrMem (X : ByteArray) (fmp len : UInt256) : Prop where
   fmp : X.extract 64 96 = fmp.toByteArray
   len : X.extract 224 256 = len.toByteArray
 
-theorem usize_gap {n : ℕ} (h : n < 2 ^ 32) : n < USize.size :=
-  Nat.lt_of_lt_of_le h USize.le_size
-
 /-- `SolString::load`'s allocation: the free memory pointer, then the length word. -/
 theorem hdrMem_alloc (fmp len : UInt256) :
     HdrMem (len.toByteArray.write 0 (fmp.toByteArray.write 0 ByteArray.empty 64 32) 224 32)
       fmp len := by
-  have h1 := toByteArray_write_eq fmp ByteArray.empty 64 (by simp) (usize_gap (by simp))
+  have h1 := toByteArray_write_eq fmp ByteArray.empty 64 (by simp) (lt_usize _ (by simp))
   have hs1 : (fmp.toByteArray.write 0 ByteArray.empty 64 32).size = 96 := by
     rw [h1]; simp [ByteArray_zeroes_size]
   have h2 := toByteArray_write_eq len (fmp.toByteArray.write 0 ByteArray.empty 64 32) 224
-    (by omega) (usize_gap (by omega))
+    (by omega) (lt_usize _ (by omega))
   rw [hs1] at h2
   refine ⟨?_, ?_, ?_⟩
   · rw [h2]; simp [ByteArray_zeroes_size, hs1]
