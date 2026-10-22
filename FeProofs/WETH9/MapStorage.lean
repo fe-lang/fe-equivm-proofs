@@ -78,6 +78,21 @@ theorem allowance_assign (hL : L.get? "allowance" = none)
   map2_assign (layout := solidityLayout! [contract.structs] [contract.storage]) rfl
     (fun _ _ => rfl) (fun _ _ => rfl) hL he hf w
 
+/-- Writing the integer `n` to `allowance[e][f]` stores its wrapped word at
+`mapSlot b (mapSlot a 4)`. -/
+theorem allowance_assign_int (hL : L.get? "allowance" = none)
+    (he : evalExpr? config { contract := contract, locals := L } evm e = .ok (.address a))
+    (hf : evalExpr? config { contract := contract, locals := L } evm f = .ok (.address b))
+    (n : Int) :
+    assignStorageRef? config { contract := contract, locals := L } evm .storage
+        { base := "allowance", steps := [.mindex e, .mindex f] } (.int n) =
+      .ok ({ contract := contract, locals := L }, Stele.EVM.storageStore evm
+        evm.executionEnv.codeOwner
+        (mapSlot (keyValueToWord (.address b)) (mapSlot (keyValueToWord (.address a)) ⟨4⟩))
+        (EVM.wordOfInt n)) :=
+  map2_assign_int (layout := solidityLayout! [contract.structs] [contract.storage]) rfl
+    (fun _ _ => rfl) (fun _ _ => rfl) hL he hf n
+
 end
 
 end FeProofs.WETH9
