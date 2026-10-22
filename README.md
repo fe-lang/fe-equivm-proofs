@@ -110,8 +110,13 @@ cleanup helpers used to shrink the proofs.
 
 ```sh
 lake exe cache get   # Mathlib's prebuilt files
+python3 scripts/apply_fast_keccak.py  # verified, isolated Keccak performance patch
 lake build
 ```
+
+The optional Keccak patch speeds up kernel-checked hashes while preserving the pinned EVM
+semantics. See [proof-checking performance](docs/proof-performance.md) for provenance,
+measurements, shared selector lemmas, and reproduction commands.
 
 The build fails on any error. To list the axioms each capstone theorem depends on:
 
