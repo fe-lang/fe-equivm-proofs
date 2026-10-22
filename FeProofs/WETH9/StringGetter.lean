@@ -1,0 +1,189 @@
+import FeProofs.WETH9.StringLoad
+
+/-!
+# FeWETH9 string getters: the storage precondition and the refinement
+
+`name()` and `symbol()` are `function f() external returns (string) { return f; }` for a string
+field.  `stringGetter` proves the refinement for either, from the EVM state at the call of
+`SolString::load` (pc 800): Stele reads the field with `solidityReadBytesValue?` (Solidity 0.8),
+and the bytecode returns the ABI encoding of the same bytes, or both revert on a header whose
+length contradicts its short/long flag.
+
+## The storage precondition
+
+For arbitrary storage a header word can claim a length up to `2^255 - 1` bytes.  Fe reverts with
+`Panic(0x41)` when the allocation (`32 + 32 * ceil(len / 32)` bytes, checked by
+`ptr::alloc_bytes` before any memory is touched) or the ABI encoding (`64 + 32 * ceil(len / 32)`
+bytes, checked by the return encoder) exceeds `2^64 - 1` bytes, while Stele returns the string
+whatever its length.  Even the larger case needs only about `2^109` gas of memory expansion, within
+the gas the refinement quantifies over, so the refinement is false for a string whose ABI encoding
+has `2^64` bytes or more (argued, not proved here).  `feWETH9StorageWF` excludes exactly that
+case, and only for the calls that reach the encoder: `name()` and `symbol()` with zero call
+value.  It is EquiVM's `weth9StorageWF` (`Benchmarks/WETH9/StringReturnBound.lean`) for Fe's
+encoder.  WETH9's constructor stores `"Wrapped Ether"` and `"WETH"`, and no function writes
+slots 0 and 1, so a deployed FeWETH9 satisfies it.
+-/
+
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
+
+namespace FeProofs.WETH9.Strings
+
+set_option maxRecDepth 2000000
+
+/-! ## Stele: reading a string field -/
+
+theorem solidityStorageBackend_read_string (layout : StorageLayout) (er : EvaledStorageRef)
+    (evm : EVM.State) :
+    (solidityStorageBackend layout).read er .string evm =
+      solidityValueResultToEval (solidityReadBytesValue? layout er evm) := by
+  simp only [solidityStorageBackend, solidityReadStorage?]
+
+theorem solidityBytesBaseSlotAndLength?_revert_of_layout {layout : StorageLayout}
+    {er : EvaledStorageRef} {evm : EVM.State} {baseSlot header : UInt256}
+    (hbase : layout er = some (.anchor baseSlot))
+    (hload : Stele.EVM.storageLoad evm evm.executionEnv.codeOwner baseSlot = header)
+    (hdecode : solidityDecodeBytesLengthHeader header = .revert) :
+    solidityBytesBaseSlotAndLength? layout er evm = .revert := by
+  unfold solidityBytesBaseSlotAndLength?
+  rw [solidityAnchor?_of_anchor hbase]
+  simp [hload, hdecode]
+
+section
+variable {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256} {field : Ident}
+  {slot : UInt256}
+
+theorem stringField_read
+    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string) :
+    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
+        (.storage { base := field, steps := [] }) =
+      solidityValueResultToEval (solidityReadBytesValue? config.storageBackend.locate?
+        { base := field, steps := [] } (initState σ σ₀ g A I)) := by
+  rw [evalExpr?, resolveStorageRef?_ok (er := { base := field, steps := [] }) (ty := .string)
+    (by simp) (by simp [evalStorageRef, evalStorageRefSteps, EvalResult.bind, pure, bind]) hty]
+  exact solidityStorageBackend_read_string _ _ _
+
+theorem stringField_load :
+    Stele.EVM.storageLoad (initState σ σ₀ g A I)
+      (initState σ σ₀ g A I).executionEnv.codeOwner slot = solcSlotWord σ I slot := by
+  rw [show (initState σ σ₀ g A I).executionEnv.codeOwner = I.codeOwner from rfl,
+    codeOwnerStorageWord_initState]
+
+/-- A well-formed header: Stele returns the string's bytes. -/
+theorem stringField_eval_ok {L : ℕ}
+    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
+    (hloc : config.storageBackend.locate? { base := field, steps := [] } = some (.anchor slot))
+    (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) = .ok L) :
+    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
+      (.storage { base := field, steps := [] }) = .ok (.bytes (strBytes σ I slot L)) := by
+  rw [stringField_read hty, solidityReadBytesValue?,
+    solidityBytesBaseSlotAndLength?_ok_of_layout hloc stringField_load hdec]
+  simp only [stringField_load, strBytes, solidityBytesDataWordCount,
+    readSolidityBytesDataWordsFrom_eq, Nat.zero_add]
+  split <;> rfl
+
+/-- A malformed header: Stele reverts. -/
+theorem stringField_eval_revert
+    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
+    (hloc : config.storageBackend.locate? { base := field, steps := [] } = some (.anchor slot))
+    (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) = .revert) :
+    evalExpr? config { contract := contract, locals := ∅ } (initState σ σ₀ g A I)
+      (.storage { base := field, steps := [] }) = .revert := by
+  rw [stringField_read hty, solidityReadBytesValue?,
+    solidityBytesBaseSlotAndLength?_revert_of_layout hloc stringField_load hdec]
+  rfl
+
+end
+
+/-- The non-payable `return e;` body reverts when `e` does.
+
+LIBRARY CANDIDATE: `Reasoning/SteleBody.lean`, beside `nonpayableReturnExprBodyReturns`. -/
+theorem nonpayableReturnExprBodyReverts {cfg : Config} {imms : Store} {contract : ContractDecl}
+    {evm : EVM.State} {locals : Store} {expr : Expr} (h : evm.executionEnv.weiValue = ⟨0⟩)
+    (heval : evalExpr? cfg { contract := contract, locals := locals, immutables := imms } evm expr =
+      .revert) :
+    ExecTransitionBody cfg contract evm locals
+      [.require (.binary .eq (.env .callvalue) (.intLit 0)), .return [expr]] .reverted imms :=
+  ExecFuncBody.execBlockRevert <|
+    ExecBlock.consNormal (ExecStmt.requireTrue (evalCallvalueEq_true h)) <|
+      ExecBlock.consRevert
+        (ExecStmt.returnRevert (by simp only [evalExprs?, heval, bind, EvalResult.bind]))
+
+end FeProofs.WETH9.Strings
+
+namespace FeProofs.WETH9
+
+open Strings
+
+set_option maxRecDepth 2000000
+
+/-! ## The storage precondition -/
+
+/-- The ABI encoding of the string a header word decodes to (an offset word, a length word and
+the padded bytes) is shorter than `2^64` bytes. -/
+def stringReturnFits (head : UInt256) : Prop :=
+  ∀ L, solidityDecodeBytesLengthHeader head = .ok L → 64 + ABI.paddedSize L < 2 ^ 64
+
+/-- Storage well-formedness for FeWETH9: a zero-value `name()` (slot 0) or `symbol()` (slot 1)
+call returns a string whose ABI encoding is shorter than `2^64` bytes.  Every other call is
+unconstrained. -/
+def feWETH9StorageWF : StorageWF := fun σ I =>
+  (selIs I (feWETH9SelBytes 0) → I.weiValue = ⟨0⟩ →
+    stringReturnFits (solcSlotWord σ I ⟨0⟩)) ∧
+  (selIs I (feWETH9SelBytes 7) → I.weiValue = ⟨0⟩ →
+    stringReturnFits (solcSlotWord σ I ⟨1⟩))
+
+/-! ## The getter -/
+
+/-- A `string` getter of the field `field` at `slot`, whose dispatcher arm (zero call value) has
+called `SolString::load` (pc 800) with return address `ret`, from where it jumps to the return
+encoder (pc 1236, `hjump`). -/
+theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : Ident}
+    {slot ret : UInt256} {R : List UInt256} {aw : UInt256} {rdata : ByteArray} {k C : ℕ}
+    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
+    (hsd : selectorDispatchMsg contract I.calldata = some t)
+    (hdec : config.externalABI.decodeCalldata? (t.params.map Param.name)
+      (transitionSignature t).paramTypes I.calldata = some ∅)
+    (hbody : t.body = [.require (.binary .eq (.env .callvalue) (.intLit 0)),
+      .return [.storage { base := field, steps := [] }]])
+    (hrt : t.returnType = [.string])
+    (hty : storageTypeAt? contract.storage { base := field, steps := [] } = some .string)
+    (hloc : config.storageBackend.locate? { base := field, steps := [] } = some (.anchor slot))
+    (hwv : I.weiValue = ⟨0⟩) (hfits : stringReturnFits (solcSlotWord σ I slot))
+    (hret : (D_J feWETH9Bytecode 0).contains ret = true) (hR : R.length ≤ 990)
+    (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
+      (UInt256.ofNat 800) (slot :: ret :: R) ByteArray.empty aw rdata σ k C)
+    (hjump : ∀ M aw k C n, RD feWETH9Bytecode I (Sat256.ofUInt256 g)
+        (initState σ σ₀ (Sat256.ofUInt256 g) A I) ret
+        (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw rdata σ k C →
+      ∃ aw' k' C', RD feWETH9Bytecode I (Sat256.ofUInt256 g)
+        (initState σ σ₀ (Sat256.ofUInt256 g) A I) (UInt256.ofNat 1236)
+        (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw' rdata σ k' C') :
+    runtimeRefinementFor config contract σ σ₀ g A I := by
+  have hwv' : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.weiValue = ⟨0⟩ := by
+    simp only [initState]; exact hwv
+  cases hd : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) with
+  | ok L =>
+    have hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64 := hfits L hd
+    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd hfit hret hR rd
+    obtain ⟨_, _, _, rd⟩ := hjump _ _ _ _ _ rd
+    have rd := encodeReturn (n := 32 + 32 * ((L + 31) / 32)) (by rw [hMs]; omega)
+      (by rw [hM64]; congr 1; omega) (by omega) (by omega) hsize (by omega) rd
+    rw [show 224 + (32 + 32 * ((L + 31) / 32)) = 256 + 32 * ((L + 31) / 32) by omega, hMx] at rd
+    have hbody' := nonpayableReturnExprBodyReturns (imms := ∅) (locals := ∅) hwv'
+      (stringField_eval_ok (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) hty hloc hd)
+    rw [← hbody] at hbody'
+    refine RDret.reEquivExecutionSel hcode rd hsd hdec hbody' ?_
+    rw [hrt]
+    refine returnEquiv_of_encode ?_
+    rw [encodeReturnValue_eq_singleton, encodeString_eq, strBytes_size]
+    rfl
+  | revert =>
+    have hbody' := nonpayableReturnExprBodyReverts (imms := ∅) (locals := ∅) hwv'
+      (stringField_eval_revert (g := Sat256.ofUInt256 g) (σ₀ := σ₀) (A := A) hty hloc hd)
+    rw [← hbody] at hbody'
+    exact RDrev.reEquivExecutionRevertSel hcode (loadString_revert hd hR rd) hsd hdec hbody'
+  | error =>
+    rcases decodeHeader_cases (solcSlotWord σ I slot) with
+      ⟨_, _, h⟩ | ⟨_, _, h⟩ | ⟨_, h⟩ <;> rw [h] at hd <;> cases hd
+
+end FeProofs.WETH9
