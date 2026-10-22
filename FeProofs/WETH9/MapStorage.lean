@@ -41,6 +41,17 @@ theorem balanceOf_assign (hL : L.get? "balanceOf" = none)
   map_assign (layout := solidityLayout! [contract.structs] [contract.storage]) rfl
     (fun _ => rfl) (fun _ => rfl) hL he w
 
+/-- Writing the integer `n` to `balanceOf[e]` stores its wrapped word at `mapSlot a 3`. -/
+theorem balanceOf_assign_int (hL : L.get? "balanceOf" = none)
+    (he : evalExpr? config { contract := contract, locals := L } evm e = .ok (.address a))
+    (n : Int) :
+    assignStorageRef? config { contract := contract, locals := L } evm .storage
+        { base := "balanceOf", steps := [.mindex e] } (.int n) =
+      .ok ({ contract := contract, locals := L }, Stele.EVM.storageStore evm
+        evm.executionEnv.codeOwner (mapSlot (keyValueToWord (.address a)) ⟨3⟩) (EVM.wordOfInt n)) :=
+  map_assign_int (layout := solidityLayout! [contract.structs] [contract.storage]) rfl
+    (fun _ => rfl) (fun _ => rfl) hL he n
+
 /-- `allowance[e][f]`, for keys evaluating to the addresses `a` and `b`, reads the word at
 `mapSlot b (mapSlot a 4)`. -/
 theorem allowance_read (hL : L.get? "allowance" = none)

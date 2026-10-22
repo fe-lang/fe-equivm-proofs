@@ -26,12 +26,6 @@ namespace FeProofs.WETH9
 
 set_option maxRecDepth 2000000
 
-theorem feWETH9NoDispatch {σ σ₀ A I} {g : UInt256}
-    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hnm : ∀ i, i < 11 → (feWETH9SelBytes i == I.calldata.extract 0 4) = false) :
-    runtimeRefinementFor config contract σ σ₀ g A I := by
-  sorry  -- TODO: refine the fallback/receive execution for unmatched calldata
-
 theorem feWETH9NoSelectorMatches {I : ExecutionEnv}
     (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7)) (h8 : ¬ selIs I (feWETH9SelBytes 8)) (h9 : ¬ selIs I (feWETH9SelBytes 9)) (h10 : ¬ selIs I (feWETH9SelBytes 10)) :
     ∀ i, i < 11 → (feWETH9SelBytes i == I.calldata.extract 0 4) = false := by
@@ -74,7 +68,7 @@ theorem feWETH9Correct :
                     · exact feWETH9DepositBody hcode hsize h9
                     · by_cases h10 : selIs I (feWETH9SelBytes 10)
                       · exact feWETH9AllowanceBody hcode hsize h10
-                      · exact feWETH9NoDispatch hcode hsize (feWETH9NoSelectorMatches h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)
+                      · exact feWETH9FallbackBody hcode hsize (feWETH9NoSelectorMatches h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10)
 
 theorem feWETH9ContractCorrect :
     contractRefinement config feWETH9CreationBytecode contract :=
