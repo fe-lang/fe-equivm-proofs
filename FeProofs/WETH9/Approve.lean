@@ -63,11 +63,9 @@ theorem approveAssign (evm : EVM.State) (I : ExecutionEnv) (hsrc : evm.execution
       .ok ({ contract := contract, locals := approveLocals I },
         Stele.EVM.storageStore evm evm.executionEnv.codeOwner (approveSlot I)
           (calldataWord I.calldata 36)) := by
-  have h := allowance_assign (by simp [approveLocals])
-    (Reasoning.VyperDispatch.evalExpr_caller evm)
-    (approveEval_guy evm I) (calldataWord I.calldata 36)
-  rw [keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address, hsrc] at h
-  exact h
+  rw [allowance_assign (by store_get) (Reasoning.VyperDispatch.evalExpr_caller evm)
+    (approveEval_guy evm I), keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address,
+    hsrc]
 
 /-- `approve(address,uint256)`: the theorem `Correct.lean` routes selector 1 to. -/
 theorem feWETH9ApproveBody {σ σ₀ A I} {g : UInt256}

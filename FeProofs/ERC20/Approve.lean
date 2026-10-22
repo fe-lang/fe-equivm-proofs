@@ -76,11 +76,9 @@ theorem approveAssign (evm : EVM.State) (I : ExecutionEnv) (hsrc : evm.execution
       .ok ({ contract := contract, locals := approveLocals I },
         Stele.EVM.storageStore evm evm.executionEnv.codeOwner (approveSlot I)
           (calldataWord I.calldata 36)) := by
-  have h := allowance_assign (by simp [approveLocals])
-    (Reasoning.VyperDispatch.evalExpr_caller evm)
-    (approveEval_spender evm I) (calldataWord I.calldata 36)
-  rw [keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address, hsrc] at h
-  exact h
+  rw [allowance_assign (by store_get) (Reasoning.VyperDispatch.evalExpr_caller evm)
+    (approveEval_spender evm I), keyValueToWord_address_of_canonical _ hcanon, keyValueToWord_address,
+    hsrc]
 
 /-- `approve(address,uint256)`: the theorem `Correct.lean` routes selector 0 to. -/
 theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
@@ -126,7 +124,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
       refine ExecBlock.consNormal (ExecStmt.requireTrue hcv) ?_
       refine ExecBlock.consNormal (ExecStmt.assign (Or.inr hperm) hval hassign) ?_
       refine ExecBlock.consNormal (ExecStmt.emit (by simpa [evmS, initState] using hperm)
-        (by simp [evalExprs?, approveEval_spender, approveEval_value, evalExpr?, envValue,
+        (by simp only [evalExprs?, approveEval_spender, approveEval_value, evalExpr?, envValue,
           EvalResult.bind, bind, pure]; rfl)) ?_
       exact ExecBlock.consReturn
         (ExecStmt.return (by simp [evalExprs?, evalExpr?, EvalResult.bind, bind, pure]))
