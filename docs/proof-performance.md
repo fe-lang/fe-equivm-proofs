@@ -124,9 +124,35 @@ both measurements, so elapsed times should be treated as local observations.
 
 The whole-project baseline is incomplete (2101 s, 3528/3703 build jobs, no proof failures).
 There is no whole-project before/after speedup claim or completed baseline capstone axiom
-audit. The final integrated build and nine-contract axiom audit are pending. All 17 selector theorem axiom reports were compared and match exactly:
+audit. All 17 selector theorem axiom reports were compared and match exactly:
 `propext` and `Quot.sound`. The final Keccak vectors and equivalence/shared-fact audits pass,
 and generated C confirms that `KEC` calls `referenceHash`.
+
+## Validation
+
+The integrated `lake build` passed all 3704 jobs on official Lean 4.29.0, including all nine
+whole-contract correctness theorems. It took 3059.33 s with six Lean worker threads; this is
+a validation run, not a paired whole-project performance measurement.
+
+`scripts/Audit.lean` passed for all nine contract theorems. Each reports only `propext`,
+`Quot.sound`, and `Classical.choice` outside the existing `native_decide` dependencies:
+
+| Contract | `native_decide` dependencies |
+| --- | ---: |
+| Constant | 135 |
+| Identity | 161 |
+| ScalarStore | 305 |
+| NarrowAbi | 518 |
+| PackedStore | 422 |
+| IndexedPackedStore | 541 |
+| Deposit | 2247 |
+| ERC20 | 1259 |
+| WETH9 | 2800 |
+
+These are final audit counts, not a comparison with a completed baseline capstone audit.
+The changes add no native evaluation, axioms, admitted proofs, or unchecked termination.
+`scripts/Tactics.lean` also passed, and `lake --no-build build` confirmed that all build
+outputs were current.
 
 ## Scope
 
