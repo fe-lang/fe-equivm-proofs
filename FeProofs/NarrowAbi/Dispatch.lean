@@ -29,9 +29,10 @@ theorem feNarrowAbiDispatch_echo_i8 {I : ExecutionEnv}
     simp at hu
   · rw [echo_i8SelectorOf]; exact hsel
 
-theorem feNarrowAbiDispatch_echo_u8 {I : ExecutionEnv} (h0 : ¬ selIs I (feNarrowAbiSelBytes 0))
+theorem feNarrowAbiDispatch_echo_u8 {I : ExecutionEnv}
     (hsel : selIs I (feNarrowAbiSelBytes 1)) :
     dispatchMsg contract I.calldata = some echo_u8Transition := by
+  have h0 : ¬ selIs I (feNarrowAbiSelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [echo_i8Transition]) (post := [echo_boolTransition, echo_addressTransition])
     (ti := echo_u8Transition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -42,9 +43,11 @@ theorem feNarrowAbiDispatch_echo_u8 {I : ExecutionEnv} (h0 : ¬ selIs I (feNarro
     · rw [echo_i8SelectorOf]; exact Bool.eq_false_of_not_eq_true h0
   · rw [echo_u8SelectorOf]; exact hsel
 
-theorem feNarrowAbiDispatch_echo_bool {I : ExecutionEnv} (h0 : ¬ selIs I (feNarrowAbiSelBytes 0)) (h1 : ¬ selIs I (feNarrowAbiSelBytes 1))
+theorem feNarrowAbiDispatch_echo_bool {I : ExecutionEnv}
     (hsel : selIs I (feNarrowAbiSelBytes 2)) :
     dispatchMsg contract I.calldata = some echo_boolTransition := by
+  have h0 : ¬ selIs I (feNarrowAbiSelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feNarrowAbiSelBytes 1) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [echo_i8Transition, echo_u8Transition]) (post := [echo_addressTransition])
     (ti := echo_boolTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -56,9 +59,12 @@ theorem feNarrowAbiDispatch_echo_bool {I : ExecutionEnv} (h0 : ¬ selIs I (feNar
     · rw [echo_u8SelectorOf]; exact Bool.eq_false_of_not_eq_true h1
   · rw [echo_boolSelectorOf]; exact hsel
 
-theorem feNarrowAbiDispatch_echo_address {I : ExecutionEnv} (h0 : ¬ selIs I (feNarrowAbiSelBytes 0)) (h1 : ¬ selIs I (feNarrowAbiSelBytes 1)) (h2 : ¬ selIs I (feNarrowAbiSelBytes 2))
+theorem feNarrowAbiDispatch_echo_address {I : ExecutionEnv}
     (hsel : selIs I (feNarrowAbiSelBytes 3)) :
     dispatchMsg contract I.calldata = some echo_addressTransition := by
+  have h0 : ¬ selIs I (feNarrowAbiSelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feNarrowAbiSelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feNarrowAbiSelBytes 2) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [echo_i8Transition, echo_u8Transition, echo_boolTransition]) (post := [])
     (ti := echo_addressTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)

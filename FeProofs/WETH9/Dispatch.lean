@@ -36,9 +36,10 @@ theorem feWETH9Dispatch_name {I : ExecutionEnv}
     simp at hu
   · rw [nameSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_approve {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0))
+theorem feWETH9Dispatch_approve {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 1)) :
     selectorDispatchMsg contract I.calldata = some approveTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition]) (post := [totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := approveTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -49,9 +50,11 @@ theorem feWETH9Dispatch_approve {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelB
     · rw [nameSelectorOf]; exact Bool.eq_false_of_not_eq_true h0
   · rw [approveSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1))
+theorem feWETH9Dispatch_totalSupply {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 2)) :
     selectorDispatchMsg contract I.calldata = some totalSupplyTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition]) (post := [transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := totalSupplyTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -63,9 +66,12 @@ theorem feWETH9Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9
     · rw [approveSelectorOf]; exact Bool.eq_false_of_not_eq_true h1
   · rw [totalSupplySelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2))
+theorem feWETH9Dispatch_transferFrom {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 3)) :
     selectorDispatchMsg contract I.calldata = some transferFromTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition]) (post := [withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := transferFromTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -78,9 +84,13 @@ theorem feWETH9Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH
     · rw [totalSupplySelectorOf]; exact Bool.eq_false_of_not_eq_true h2
   · rw [transferFromSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_withdraw {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3))
+theorem feWETH9Dispatch_withdraw {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 4)) :
     selectorDispatchMsg contract I.calldata = some withdrawTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition]) (post := [decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := withdrawTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -94,9 +104,14 @@ theorem feWETH9Dispatch_withdraw {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
     · rw [transferFromSelectorOf]; exact Bool.eq_false_of_not_eq_true h3
   · rw [withdrawSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_decimals {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4))
+theorem feWETH9Dispatch_decimals {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 5)) :
     selectorDispatchMsg contract I.calldata = some decimalsTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition]) (post := [balanceOfTransition, symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := decimalsTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -111,9 +126,15 @@ theorem feWETH9Dispatch_decimals {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
     · rw [withdrawSelectorOf]; exact Bool.eq_false_of_not_eq_true h4
   · rw [decimalsSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5))
+theorem feWETH9Dispatch_balanceOf {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 6)) :
     selectorDispatchMsg contract I.calldata = some balanceOfTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
+  have h5 : ¬ selIs I (feWETH9SelBytes 5) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition]) (post := [symbolTransition, transferTransition, depositTransition, allowanceTransition])
     (ti := balanceOfTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -129,9 +150,16 @@ theorem feWETH9Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Se
     · rw [decimalsSelectorOf]; exact Bool.eq_false_of_not_eq_true h5
   · rw [balanceOfSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_symbol {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6))
+theorem feWETH9Dispatch_symbol {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 7)) :
     selectorDispatchMsg contract I.calldata = some symbolTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
+  have h5 : ¬ selIs I (feWETH9SelBytes 5) := not_selIs_of_selIs hsel (by decide)
+  have h6 : ¬ selIs I (feWETH9SelBytes 6) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition]) (post := [transferTransition, depositTransition, allowanceTransition])
     (ti := symbolTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -148,9 +176,17 @@ theorem feWETH9Dispatch_symbol {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBy
     · rw [balanceOfSelectorOf]; exact Bool.eq_false_of_not_eq_true h6
   · rw [symbolSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7))
+theorem feWETH9Dispatch_transfer {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 8)) :
     selectorDispatchMsg contract I.calldata = some transferTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
+  have h5 : ¬ selIs I (feWETH9SelBytes 5) := not_selIs_of_selIs hsel (by decide)
+  have h6 : ¬ selIs I (feWETH9SelBytes 6) := not_selIs_of_selIs hsel (by decide)
+  have h7 : ¬ selIs I (feWETH9SelBytes 7) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition]) (post := [depositTransition, allowanceTransition])
     (ti := transferTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -168,9 +204,18 @@ theorem feWETH9Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9Sel
     · rw [symbolSelectorOf]; exact Bool.eq_false_of_not_eq_true h7
   · rw [transferSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7)) (h8 : ¬ selIs I (feWETH9SelBytes 8))
+theorem feWETH9Dispatch_deposit {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 9)) :
     selectorDispatchMsg contract I.calldata = some depositTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
+  have h5 : ¬ selIs I (feWETH9SelBytes 5) := not_selIs_of_selIs hsel (by decide)
+  have h6 : ¬ selIs I (feWETH9SelBytes 6) := not_selIs_of_selIs hsel (by decide)
+  have h7 : ¬ selIs I (feWETH9SelBytes 7) := not_selIs_of_selIs hsel (by decide)
+  have h8 : ¬ selIs I (feWETH9SelBytes 8) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition]) (post := [allowanceTransition])
     (ti := depositTransition) (cd := I.calldata) ?_ ?_ ?_
@@ -189,9 +234,19 @@ theorem feWETH9Dispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelB
     · rw [transferSelectorOf]; exact Bool.eq_false_of_not_eq_true h8
   · rw [depositSelectorOf]; exact hsel
 
-theorem feWETH9Dispatch_allowance {I : ExecutionEnv} (h0 : ¬ selIs I (feWETH9SelBytes 0)) (h1 : ¬ selIs I (feWETH9SelBytes 1)) (h2 : ¬ selIs I (feWETH9SelBytes 2)) (h3 : ¬ selIs I (feWETH9SelBytes 3)) (h4 : ¬ selIs I (feWETH9SelBytes 4)) (h5 : ¬ selIs I (feWETH9SelBytes 5)) (h6 : ¬ selIs I (feWETH9SelBytes 6)) (h7 : ¬ selIs I (feWETH9SelBytes 7)) (h8 : ¬ selIs I (feWETH9SelBytes 8)) (h9 : ¬ selIs I (feWETH9SelBytes 9))
+theorem feWETH9Dispatch_allowance {I : ExecutionEnv}
     (hsel : selIs I (feWETH9SelBytes 10)) :
     selectorDispatchMsg contract I.calldata = some allowanceTransition := by
+  have h0 : ¬ selIs I (feWETH9SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feWETH9SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feWETH9SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feWETH9SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feWETH9SelBytes 4) := not_selIs_of_selIs hsel (by decide)
+  have h5 : ¬ selIs I (feWETH9SelBytes 5) := not_selIs_of_selIs hsel (by decide)
+  have h6 : ¬ selIs I (feWETH9SelBytes 6) := not_selIs_of_selIs hsel (by decide)
+  have h7 : ¬ selIs I (feWETH9SelBytes 7) := not_selIs_of_selIs hsel (by decide)
+  have h8 : ¬ selIs I (feWETH9SelBytes 8) := not_selIs_of_selIs hsel (by decide)
+  have h9 : ¬ selIs I (feWETH9SelBytes 9) := not_selIs_of_selIs hsel (by decide)
   refine selectorDispatchMsg_eq_some_of_split (contract := contract)
     (pre := [nameTransition, approveTransition, totalSupplyTransition, transferFromTransition, withdrawTransition, decimalsTransition, balanceOfTransition, symbolTransition, transferTransition, depositTransition]) (post := [])
     (ti := allowanceTransition) (cd := I.calldata) ?_ ?_ ?_

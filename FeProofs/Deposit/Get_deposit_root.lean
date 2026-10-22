@@ -44,14 +44,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feDepositSelBytes 3)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 3) rfl hsel
-  have hne : ∀ j, j < 3 → ¬ selIs I (feDepositSelBytes j) := fun j hj hj' => by
-    have heq := (byteArray_eq_of_beq hsel).trans (byteArray_eq_of_beq hj').symm
-    interval_cases j
-    · exact absurd heq (by decide)
-    · exact absurd heq (by decide)
-    · exact absurd heq (by decide)
-  have hd := feDepositDispatch_get_deposit_root (hne 0 (by omega)) (hne 1 (by omega))
-    (hne 2 (by omega)) hsel
+  have hd := feDepositDispatch_get_deposit_root hsel
   have hdec : config.externalABI.decodeCalldata? (get_deposit_rootTransition.params.map Param.name)
       (transitionSignature get_deposit_rootTransition).paramTypes I.calldata = some ∅ := by
     show decodeCalldata [] [] I.calldata = some ∅

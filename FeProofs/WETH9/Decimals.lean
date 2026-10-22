@@ -34,10 +34,7 @@ theorem feWETH9DecimalsBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feWETH9SelBytes 5)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 5) rfl hsel
-  have hd := feWETH9Dispatch_decimals
-    (not_selIs_of_selIs hsel (by decide)) (not_selIs_of_selIs hsel (by decide))
-    (not_selIs_of_selIs hsel (by decide)) (not_selIs_of_selIs hsel (by decide))
-    (not_selIs_of_selIs hsel (by decide)) hsel
+  have hd := feWETH9Dispatch_decimals hsel
   obtain ⟨k, C, rd⟩ := feWETH9ReachDecimalsBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩

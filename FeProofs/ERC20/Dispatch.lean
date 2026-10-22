@@ -30,9 +30,10 @@ theorem feERC20Dispatch_approve {I : ExecutionEnv}
     simp at hu
   · rw [approveSelectorOf]; exact hsel
 
-theorem feERC20Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20SelBytes 0))
+theorem feERC20Dispatch_totalSupply {I : ExecutionEnv}
     (hsel : selIs I (feERC20SelBytes 1)) :
     dispatchMsg contract I.calldata = some totalSupplyTransition := by
+  have h0 : ¬ selIs I (feERC20SelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [approveTransition]) (post := [transferFromTransition, balanceOfTransition, transferTransition, allowanceTransition])
     (ti := totalSupplyTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -43,9 +44,11 @@ theorem feERC20Dispatch_totalSupply {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20
     · rw [approveSelectorOf]; exact Bool.eq_false_of_not_eq_true h0
   · rw [totalSupplySelectorOf]; exact hsel
 
-theorem feERC20Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20SelBytes 0)) (h1 : ¬ selIs I (feERC20SelBytes 1))
+theorem feERC20Dispatch_transferFrom {I : ExecutionEnv}
     (hsel : selIs I (feERC20SelBytes 2)) :
     dispatchMsg contract I.calldata = some transferFromTransition := by
+  have h0 : ¬ selIs I (feERC20SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feERC20SelBytes 1) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [approveTransition, totalSupplyTransition]) (post := [balanceOfTransition, transferTransition, allowanceTransition])
     (ti := transferFromTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -57,9 +60,12 @@ theorem feERC20Dispatch_transferFrom {I : ExecutionEnv} (h0 : ¬ selIs I (feERC2
     · rw [totalSupplySelectorOf]; exact Bool.eq_false_of_not_eq_true h1
   · rw [transferFromSelectorOf]; exact hsel
 
-theorem feERC20Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20SelBytes 0)) (h1 : ¬ selIs I (feERC20SelBytes 1)) (h2 : ¬ selIs I (feERC20SelBytes 2))
+theorem feERC20Dispatch_balanceOf {I : ExecutionEnv}
     (hsel : selIs I (feERC20SelBytes 3)) :
     dispatchMsg contract I.calldata = some balanceOfTransition := by
+  have h0 : ¬ selIs I (feERC20SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feERC20SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feERC20SelBytes 2) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [approveTransition, totalSupplyTransition, transferFromTransition]) (post := [transferTransition, allowanceTransition])
     (ti := balanceOfTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -72,9 +78,13 @@ theorem feERC20Dispatch_balanceOf {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20Se
     · rw [transferFromSelectorOf]; exact Bool.eq_false_of_not_eq_true h2
   · rw [balanceOfSelectorOf]; exact hsel
 
-theorem feERC20Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20SelBytes 0)) (h1 : ¬ selIs I (feERC20SelBytes 1)) (h2 : ¬ selIs I (feERC20SelBytes 2)) (h3 : ¬ selIs I (feERC20SelBytes 3))
+theorem feERC20Dispatch_transfer {I : ExecutionEnv}
     (hsel : selIs I (feERC20SelBytes 4)) :
     dispatchMsg contract I.calldata = some transferTransition := by
+  have h0 : ¬ selIs I (feERC20SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feERC20SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feERC20SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feERC20SelBytes 3) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [approveTransition, totalSupplyTransition, transferFromTransition, balanceOfTransition]) (post := [allowanceTransition])
     (ti := transferTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -88,9 +98,14 @@ theorem feERC20Dispatch_transfer {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20Sel
     · rw [balanceOfSelectorOf]; exact Bool.eq_false_of_not_eq_true h3
   · rw [transferSelectorOf]; exact hsel
 
-theorem feERC20Dispatch_allowance {I : ExecutionEnv} (h0 : ¬ selIs I (feERC20SelBytes 0)) (h1 : ¬ selIs I (feERC20SelBytes 1)) (h2 : ¬ selIs I (feERC20SelBytes 2)) (h3 : ¬ selIs I (feERC20SelBytes 3)) (h4 : ¬ selIs I (feERC20SelBytes 4))
+theorem feERC20Dispatch_allowance {I : ExecutionEnv}
     (hsel : selIs I (feERC20SelBytes 5)) :
     dispatchMsg contract I.calldata = some allowanceTransition := by
+  have h0 : ¬ selIs I (feERC20SelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feERC20SelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feERC20SelBytes 2) := not_selIs_of_selIs hsel (by decide)
+  have h3 : ¬ selIs I (feERC20SelBytes 3) := not_selIs_of_selIs hsel (by decide)
+  have h4 : ¬ selIs I (feERC20SelBytes 4) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [approveTransition, totalSupplyTransition, transferFromTransition, balanceOfTransition, transferTransition]) (post := [])
     (ti := allowanceTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)

@@ -27,9 +27,7 @@ theorem feScalarStoreGetBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feScalarStoreSelBytes 1)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feScalarStoreSelBytes 1) rfl hsel
-  have h0 : ¬ selIs I (feScalarStoreSelBytes 0) := fun h =>
-    absurd ((byteArray_eq_of_beq h).trans (byteArray_eq_of_beq hsel).symm) (by decide)
-  have hd := feScalarStoreDispatch_get h0 hsel
+  have hd := feScalarStoreDispatch_get hsel
   obtain ⟨k, C, rd⟩ := feScalarStoreReachGetBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩

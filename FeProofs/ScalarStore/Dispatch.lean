@@ -27,9 +27,10 @@ theorem feScalarStoreDispatch_set {I : ExecutionEnv}
     simp at hu
   · rw [setSelectorOf]; exact hsel
 
-theorem feScalarStoreDispatch_get {I : ExecutionEnv} (h0 : ¬ selIs I (feScalarStoreSelBytes 0))
+theorem feScalarStoreDispatch_get {I : ExecutionEnv}
     (hsel : selIs I (feScalarStoreSelBytes 1)) :
     dispatchMsg contract I.calldata = some getTransition := by
+  have h0 : ¬ selIs I (feScalarStoreSelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [setTransition]) (post := [])
     (ti := getTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)

@@ -20,9 +20,7 @@ theorem feNarrowAbiEcho_addressBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feNarrowAbiSelBytes 3)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feNarrowAbiSelBytes 3) rfl hsel
-  have hd := feNarrowAbiDispatch_echo_address
-    (not_selIs_of_selIs hsel (by decide)) (not_selIs_of_selIs hsel (by decide))
-    (not_selIs_of_selIs hsel (by decide)) hsel
+  have hd := feNarrowAbiDispatch_echo_address hsel
   obtain ⟨k, C, rd⟩ := feNarrowAbiReachEcho_addressBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩

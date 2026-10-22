@@ -27,9 +27,7 @@ theorem feERC20TotalSupplyBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feERC20SelBytes 1)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feERC20SelBytes 1) rfl hsel
-  have h0 : ¬ selIs I (feERC20SelBytes 0) := fun h =>
-    absurd ((byteArray_eq_of_beq h).trans (byteArray_eq_of_beq hsel).symm) (by decide)
-  have hd := feERC20Dispatch_totalSupply h0 hsel
+  have hd := feERC20Dispatch_totalSupply hsel
   obtain ⟨k, C, rd⟩ := feERC20ReachTotalSupplyBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩

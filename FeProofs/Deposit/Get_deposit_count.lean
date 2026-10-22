@@ -30,11 +30,7 @@ theorem feDepositGet_deposit_countBody {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (feDepositSelBytes 2)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 2) rfl hsel
-  have h0 : ¬ selIs I (feDepositSelBytes 0) := fun h =>
-    absurd ((byteArray_eq_of_beq h).trans (byteArray_eq_of_beq hsel).symm) (by decide)
-  have h1 : ¬ selIs I (feDepositSelBytes 1) := fun h =>
-    absurd ((byteArray_eq_of_beq h).trans (byteArray_eq_of_beq hsel).symm) (by decide)
-  have hd := feDepositDispatch_get_deposit_count h0 h1 hsel
+  have hd := feDepositDispatch_get_deposit_count hsel
   obtain ⟨k, C, rd⟩ := feDepositReachGet_deposit_countBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩

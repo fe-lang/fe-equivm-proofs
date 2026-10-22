@@ -28,9 +28,10 @@ theorem feIndexedPackedStoreDispatch_set {I : ExecutionEnv}
     simp at hu
   · rw [setSelectorOf]; exact hsel
 
-theorem feIndexedPackedStoreDispatch_setTwo {I : ExecutionEnv} (h0 : ¬ selIs I (feIndexedPackedStoreSelBytes 0))
+theorem feIndexedPackedStoreDispatch_setTwo {I : ExecutionEnv}
     (hsel : selIs I (feIndexedPackedStoreSelBytes 1)) :
     dispatchMsg contract I.calldata = some setTwoTransition := by
+  have h0 : ¬ selIs I (feIndexedPackedStoreSelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [setTransition]) (post := [getTransition])
     (ti := setTwoTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -41,9 +42,11 @@ theorem feIndexedPackedStoreDispatch_setTwo {I : ExecutionEnv} (h0 : ¬ selIs I 
     · rw [setSelectorOf]; exact Bool.eq_false_of_not_eq_true h0
   · rw [setTwoSelectorOf]; exact hsel
 
-theorem feIndexedPackedStoreDispatch_get {I : ExecutionEnv} (h0 : ¬ selIs I (feIndexedPackedStoreSelBytes 0)) (h1 : ¬ selIs I (feIndexedPackedStoreSelBytes 1))
+theorem feIndexedPackedStoreDispatch_get {I : ExecutionEnv}
     (hsel : selIs I (feIndexedPackedStoreSelBytes 2)) :
     dispatchMsg contract I.calldata = some getTransition := by
+  have h0 : ¬ selIs I (feIndexedPackedStoreSelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feIndexedPackedStoreSelBytes 1) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [setTransition, setTwoTransition]) (post := [])
     (ti := getTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)

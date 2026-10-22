@@ -73,9 +73,7 @@ theorem depositFront {σ σ₀ A I} {g : UInt256} (hcode : I.code = feDepositByt
       ∃ aw k C, RD feDepositBytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
         (UInt256.ofNat 650) (fStack I) (hMem3 I) aw ByteArray.empty σ k C) := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 1) rfl hsel
-  have h0 : ¬ selIs I (feDepositSelBytes 0) := fun h =>
-    absurd ((byteArray_eq_of_beq h).trans (byteArray_eq_of_beq hsel).symm) (by decide)
-  have hd := feDepositDispatch_deposit h0 hsel
+  have hd := feDepositDispatch_deposit hsel
   obtain ⟨k, C, rd⟩ := feDepositReachDepositBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   have hee : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv = I := rfl

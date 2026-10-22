@@ -20,7 +20,7 @@ theorem fePackedStoreGet1Body {σ σ₀ A I} {g : UInt256}
     (hsel : selIs I (fePackedStoreSelBytes 0)) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (fePackedStoreSelBytes 0) rfl hsel
-  have hd := fePackedStoreDispatch_get1  hsel
+  have hd := fePackedStoreDispatch_get1 hsel
   obtain ⟨k, C, rd⟩ := fePackedStoreReachGet1Body (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   have hdec : config.externalABI.decodeCalldata? (get1Transition.params.map Param.name)

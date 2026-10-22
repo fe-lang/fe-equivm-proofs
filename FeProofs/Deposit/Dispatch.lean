@@ -36,9 +36,10 @@ theorem feDepositDispatch_supportsInterface {I : ExecutionEnv}
     simp at hu
   · rw [supportsInterfaceSelectorOf]; exact hsel
 
-theorem feDepositDispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feDepositSelBytes 0))
+theorem feDepositDispatch_deposit {I : ExecutionEnv}
     (hsel : selIs I (feDepositSelBytes 1)) :
     dispatchMsg contract I.calldata = some depositTransition := by
+  have h0 : ¬ selIs I (feDepositSelBytes 0) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [supportsInterfaceTransition]) (post := [get_deposit_countTransition, get_deposit_rootTransition])
     (ti := depositTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -49,9 +50,11 @@ theorem feDepositDispatch_deposit {I : ExecutionEnv} (h0 : ¬ selIs I (feDeposit
     · rw [supportsInterfaceSelectorOf]; exact Bool.eq_false_of_not_eq_true h0
   · rw [depositSelectorOf]; exact hsel
 
-theorem feDepositDispatch_get_deposit_count {I : ExecutionEnv} (h0 : ¬ selIs I (feDepositSelBytes 0)) (h1 : ¬ selIs I (feDepositSelBytes 1))
+theorem feDepositDispatch_get_deposit_count {I : ExecutionEnv}
     (hsel : selIs I (feDepositSelBytes 2)) :
     dispatchMsg contract I.calldata = some get_deposit_countTransition := by
+  have h0 : ¬ selIs I (feDepositSelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feDepositSelBytes 1) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [supportsInterfaceTransition, depositTransition]) (post := [get_deposit_rootTransition])
     (ti := get_deposit_countTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
@@ -63,9 +66,12 @@ theorem feDepositDispatch_get_deposit_count {I : ExecutionEnv} (h0 : ¬ selIs I 
     · rw [depositSelectorOf]; exact Bool.eq_false_of_not_eq_true h1
   · rw [get_deposit_countSelectorOf]; exact hsel
 
-theorem feDepositDispatch_get_deposit_root {I : ExecutionEnv} (h0 : ¬ selIs I (feDepositSelBytes 0)) (h1 : ¬ selIs I (feDepositSelBytes 1)) (h2 : ¬ selIs I (feDepositSelBytes 2))
+theorem feDepositDispatch_get_deposit_root {I : ExecutionEnv}
     (hsel : selIs I (feDepositSelBytes 3)) :
     dispatchMsg contract I.calldata = some get_deposit_rootTransition := by
+  have h0 : ¬ selIs I (feDepositSelBytes 0) := not_selIs_of_selIs hsel (by decide)
+  have h1 : ¬ selIs I (feDepositSelBytes 1) := not_selIs_of_selIs hsel (by decide)
+  have h2 : ¬ selIs I (feDepositSelBytes 2) := not_selIs_of_selIs hsel (by decide)
   refine dispatchMsg_eq_some_of_split (contract := contract)
     (pre := [supportsInterfaceTransition, depositTransition, get_deposit_countTransition]) (post := [])
     (ti := get_deposit_rootTransition) (cd := I.calldata) (by rfl) ?_ ?_ ?_ (by rfl)
