@@ -53,6 +53,46 @@ def tfSpend (e : EVM.State) (s : AccountAddress) (w : UInt256) : EVM.State :=
   Stele.EVM.storageStore e e.executionEnv.codeOwner (allowSlot s e.executionEnv.source)
     (UInt256.sub (loadAt e (allowSlot s e.executionEnv.source)) w)
 
+/-- A canonical address word is the word of its address. -/
+theorem addrWord_ofNat {x : UInt256} (h : x.toNat < EVM.addressModulus) :
+    addrWord (AccountAddress.ofNat x.toNat) = x := by
+  have hw := keyValueToWord_address_of_canonical x h
+  rwa [keyValueToWord_address] at hw
+
+/-- A canonical address word names the caller exactly when it is the caller's word. -/
+theorem ofNat_eq_iff {x : UInt256} {a : AccountAddress} (h : x.toNat < EVM.addressModulus) :
+    AccountAddress.ofNat x.toNat = a ↔ x = addrWord a := by
+  constructor
+  · intro he; rw [← he, addrWord_ofNat h]
+  · intro he; apply Reasoning.VyperDispatch.ofNat_addr_inj; rw [← addrWord, addrWord_ofNat h]; exact he
+
+/-- A storage read in the initial state. -/
+theorem loadAt_initState {σ σ₀ : AccountMap} {g : Sat256} {A : Substate} {I : ExecutionEnv}
+    (slot : UInt256) : loadAt (initState σ σ₀ g A I) slot = solcSlotWord σ I slot :=
+  storageLoad_eq_solcSlotWord (initState σ σ₀ g A I) I slot
+
+/-- The accounts after the debit `balanceOf[sw] -= w` and the credit `balanceOf[dw] += w`, each read
+after the write before it, as the bytecode computes them. -/
+abbrev tfMoveMap (σ1 : AccountMap) (I : ExecutionEnv) (sw dw w : UInt256) : AccountMap :=
+  let σ2 := sstoreAccountMap I.codeOwner σ1 (mapSlot sw ⟨3⟩)
+    (UInt256.sub (solcSlotWord σ1 I (mapSlot sw ⟨3⟩)) w)
+  sstoreAccountMap I.codeOwner σ2 (mapSlot dw ⟨3⟩) (UInt256.add (solcSlotWord σ2 I (mapSlot dw ⟨3⟩)) w)
+
+theorem tfMove_accountMap {e : EVM.State} {I : ExecutionEnv} (he : e.executionEnv = I)
+    (s d : AccountAddress) (w : UInt256) :
+    (tfMove e s d w).accountMap = tfMoveMap e.accountMap I (addrWord s) (addrWord d) w := by
+  simp only [tfMove, loadAt, storageStore_accountMap, storageStore_executionEnv, he,
+    storageLoad_eq_solcSlotWord]
+
+theorem tfSpend_accountMap {e : EVM.State} {I : ExecutionEnv} (he : e.executionEnv = I)
+    (s : AccountAddress) (w : UInt256) :
+    (tfSpend e s w).accountMap = sstoreAccountMap I.codeOwner e.accountMap (allowSlot s I.source)
+      (UInt256.sub (solcSlotWord e.accountMap I (allowSlot s I.source)) w) := by
+  simp only [tfSpend, loadAt, storageStore_accountMap, he, storageLoad_eq_solcSlotWord]
+
+theorem tfSpend_executionEnv (e : EVM.State) (s : AccountAddress) (w : UInt256) :
+    (tfSpend e s w).executionEnv = e.executionEnv := storageStore_executionEnv _ _ _ _
+
 section
 variable {L : Store} {s d : AccountAddress} {w : UInt256} {e : EVM.State}
 

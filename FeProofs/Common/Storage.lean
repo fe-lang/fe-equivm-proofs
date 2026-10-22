@@ -45,11 +45,24 @@ theorem keccakWord_mapSlotAt (key base : UInt256) (mem : ByteArray) (s t : Nat) 
   rw [hs', show (UInt256.ofNat 64).toNat = 64 from rfl, pairWords_read mem key base s t 64 ht rfl hs]
   exact mappingSlot_single key base
 
+/-- `keccakWord_mapSlotAt` with the offsets as words, as they appear inside a trace. -/
+theorem keccakWord_mapSlotAtWord (key base : UInt256) (mem : ByteArray) (s t : Nat)
+    (ht : t = s + 32) (hs : s + 32 < 2 ^ 32) :
+    keccakWord (UInt256.ofNat s) (UInt256.ofNat 64)
+        (base.toByteArray.write 0 (key.toByteArray.write 0 mem (UInt256.ofNat s).toNat 32)
+          (UInt256.ofNat t).toNat 32) = mapSlot key base := by
+  have hs' : (UInt256.ofNat s).toNat = s := by
+    simp only [UInt256.toNat, UInt256.ofNat]; exact Nat.mod_eq_of_lt (by unfold UInt256.size; omega)
+  have ht' : (UInt256.ofNat t).toNat = t := by
+    simp only [UInt256.toNat, UInt256.ofNat]; exact Nat.mod_eq_of_lt (by unfold UInt256.size; omega)
+  rw [hs', ht']
+  exact keccakWord_mapSlotAt key base mem s t ht hs
+
 /-- A branch-condition hint for `rd_run` whose words are read from slots hashed in memory: rewrites
 the hashes to `mapSlot`, then closes the condition with `h`. -/
 macro "slot_hint " h:term:max : term =>
   `(by simp (disch := (first | rfl | decide | omega)) only [keccakWord_mapSlot,
-    keccakWord_mapSlotAt]; exact $h)
+    keccakWord_mapSlotAt, keccakWord_mapSlotAtWord]; exact $h)
 
 /-- The element type of a `uint256` value. -/
 abbrev uint256Elem : ABI.ElemType := .int (.uint ⟨256, by decide⟩)
