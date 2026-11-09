@@ -57,6 +57,9 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
 @[simp] theorem exec_set (env : ρ) (w w' : σ) :
     (set w' : M ρ σ PUnit).exec env w = some (.ok (⟨⟩, w')) := rfl
 
+@[simp] theorem exec_modify (f : σ → σ) (env : ρ) (w : σ) :
+    (modify f : M ρ σ PUnit).exec env w = some (.ok (⟨⟩, f w)) := rfl
+
 /-- A bind runs its first part, and continues only from a result. -/
 @[simp] theorem exec_bind (m : M ρ σ α) (k : α → M ρ σ β) (env : ρ) (w : σ) :
     (m >>= k).exec env w =
@@ -71,6 +74,16 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
   | some r => cases r with
     | error f => rfl
     | ok p => rfl
+
+/-- A map runs its computation and applies the function to a result. -/
+@[simp] theorem exec_map (f : α → β) (m : M ρ σ α) (env : ρ) (w : σ) :
+    (f <$> m).exec env w =
+      match m.exec env w with
+      | none => none
+      | some (.error e) => some (.error e)
+      | some (.ok (a, w')) => some (.ok (f a, w')) := by
+  rw [map_eq_pure_bind, exec_bind]
+  rfl
 
 end M
 

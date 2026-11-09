@@ -32,4 +32,34 @@ def calldata : FeM ByteArray := do return (← read).calldata
 def nonPayable : FeM Unit := do
   if (← read).weiValue ≠ ⟨0⟩ then Fe.M.revert ByteArray.empty
 
+/-- Calldata is too short to hold `words` argument words after the selector, or so long that
+    Solidity's signed length check rejects it. -/
+def BadHead (cd : ByteArray) (words : Nat) : Prop :=
+  cd.size < 4 + 32 * words ∨ 2 ^ 255 + 4 ≤ cd.size
+
+instance (cd : ByteArray) (words : Nat) : Decidable (BadHead cd words) := by
+  unfold BadHead; infer_instance
+
+/-- The word at `slot` of the current contract's storage. -/
+def sload (slot : UInt256) : FeM UInt256 := do
+  let env ← read
+  let w ← get
+  return w.accounts.get? env.codeOwner |>.option ⟨0⟩ (fun acc => acc.storage.getD slot ⟨0⟩)
+
+/-- The account map after the contract at `owner` stores `val` at `slot`.  A zero erases the
+    slot, as the EVM does. -/
+def storeWord (owner : AccountAddress) (σ : AccountMap) (slot val : UInt256) : AccountMap :=
+  σ.get? owner |>.option σ fun acc =>
+    σ.insert owner
+      (if val == default then { acc with storage := acc.storage.erase slot }
+       else { acc with storage := acc.storage.insert slot val })
+
+/-- Store `val` at `slot` of the current contract's storage.  Under a static call it fails. -/
+def sstore (slot val : UInt256) : FeM Unit := do
+  let env ← read
+  if env.perm then
+    modify fun w => { w with accounts := storeWord env.codeOwner w.accounts slot val }
+  else
+    Fe.M.fail .static
+
 end Fe.EVM

@@ -37,8 +37,10 @@ def Agrees (p : Profile) (evm : EvmResult) : Option (Except Fail (ByteArray × W
       ∃ g' o, evm = .ok (.revert g' o) ∧ (p = .P1 → o = panicData code)
   | some (.error .static) => evm = .error .StaticModeViolation
 
-/-- A contract's model: its runtime entry, from calldata to return data. -/
+/-- A contract's model: its constructor, from the argument bytes that follow the creation code,
+    and its runtime entry, from calldata to return data. -/
 structure ContractModel where
+  init : ByteArray → FeM Unit
   runtime : FeM ByteArray
 
 /-- Refinement at fixed inputs. -/
@@ -51,5 +53,13 @@ def RefinesFor (p : Profile) (m : ContractModel) (σ σ₀ : AccountMap) (g : UI
 def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
   ∀ σ σ₀ g A I, I.code = bytecode → I.calldata.size < UInt256.size →
     RefinesFor p m σ σ₀ g A I
+
+/-- Deployment: run with any valid argument bytes after it, the creation bytecode does what the
+    model's constructor does and returns the runtime bytecode. -/
+def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
+    (validArgs : ByteArray → Prop) : Prop :=
+  ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+    Ξ σ σ₀ g A I = .error .OutOfGass
+      ∨ Agrees p (Ξ σ σ₀ g A I) ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A))
 
 end Fe.EVM

@@ -73,15 +73,29 @@ theorem feConstantRefinesModel : Refines .P0 feConstantBytecode Model.contract :
   intro σ σ₀ g A I hcode hsize
   by_cases hsel : selIs I (feConstantSelBytes 0)
   · by_cases hwv : I.weiValue = ⟨0⟩
-    · exact refinesFor_of_ret (g := Sat256.ofUInt256 g) hcode
+    · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode
         (feConstantAnswerRet hcode hsize hsel hwv) (runtime_answer hsel hwv) rfl
-    · exact refinesFor_of_rev (g := Sat256.ofUInt256 g) hcode
+    · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode
         (feConstantAnswerRev hcode hsize hsel hwv) (runtime_answer_value hsel hwv) (by simp)
   · by_cases hsz : 4 ≤ I.calldata.size
-    · exact refinesFor_of_rev (g := Sat256.ofUInt256 g) hcode
+    · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode
         (feConstantX_noMatch hcode hsz hsize (feConstantNoSelectorMatches hsel))
         (runtime_noMatch hsz hsel) (by simp)
-    · exact refinesFor_of_rev (g := Sat256.ofUInt256 g) hcode
+    · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode
         (feConstantX_short hcode (by omega)) (runtime_short (by omega)) (by simp)
+
+/-- Deployment with no constructor arguments. -/
+theorem feConstantDeployRefinesModel :
+    RefinesDeploy .P0 feConstantCreationBytecode feConstantBytecode Model.contract
+      (· = ByteArray.empty) := by
+  intro σ σ₀ g A I args hargs hcode _
+  subst hargs
+  rw [ByteArray.append_empty] at hcode
+  by_cases hwv : I.weiValue = ⟨0⟩
+  · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feConstantCtorRet hcode hwv)
+      (w' := World.init σ A) (by simp [Model.contract, Model.init, nonPayable, hwv]) rfl
+  · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feConstantCtorRev hcode hwv)
+      (f := .revert ByteArray.empty) (by simp [Model.contract, Model.init, nonPayable, hwv])
+      (by simp)
 
 end FeProofs.Constant
