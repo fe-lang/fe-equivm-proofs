@@ -4,7 +4,7 @@ import FeProofs.ScalarStore.Model
 # FeScalarStore: exported arms
 
 The three definitions below are the output of `fe-lean-export` on `FeScalarStore.fe`, pasted
-unchanged (Fe branch `lean-export`, test `scalar_store_arms_export`).  The theorems show each
+unchanged (Fe branch `lean-export`, golden file `tests/golden/scalar_store.lean`).  The theorems show each
 equals the hand-written model arm, so the certificate for the model covers the exported code.
 -/
 
@@ -13,9 +13,9 @@ open Ethereum Ethereum.EVM Fe Fe.EVM
 namespace FeProofs.ScalarStore.Exported
 
 def init (v0 : UInt256) : FeM Unit := do
-  let v1 ← pure v0
+  let v1 := v0
   sstore (UInt256.ofNat 0) v1
-  let v2 ← pure ()
+  let v2 := ()
   return ()
 
 def recv0_arm0 : FeM UInt256 := do
@@ -24,7 +24,7 @@ def recv0_arm0 : FeM UInt256 := do
 
 def recv0_arm1 (v0 : UInt256) : FeM Unit := do
   sstore (UInt256.ofNat 0) v0
-  let v1 ← pure ()
+  let v1 := ()
   return ()
 
 theorem init_eq (initial : UInt256) : init initial = Model.initBody initial := by

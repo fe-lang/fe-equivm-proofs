@@ -75,6 +75,11 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
     | error f => rfl
     | ok p => rfl
 
+/-- Running a conditional runs the branch taken. -/
+theorem exec_ite (c : Prop) [Decidable c] (a b : M ρ σ α) (env : ρ) (w : σ) :
+    (if c then a else b).exec env w = if c then a.exec env w else b.exec env w := by
+  split <;> rfl
+
 /-- A map runs its computation and applies the function to a result. -/
 @[simp] theorem exec_map (f : α → β) (m : M ρ σ α) (env : ρ) (w : σ) :
     (f <$> m).exec env w =
