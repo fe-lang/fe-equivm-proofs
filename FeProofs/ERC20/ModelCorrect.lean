@@ -439,4 +439,40 @@ theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
     (f := .revert ByteArray.empty)
     (by simp [Model.contract, Model.runtime, hn4, n0, n1, n2, n3, n4, n5]) (by simp)
 
+/-! ## Deployment -/
+
+/-- Reading all 32 bytes of a 32-byte array returns it. -/
+theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b := by
+  apply ByteArray.ext
+  apply Array.ext'
+  rw [readBytes_at_toList_any b 0 (by omega), List.drop_zero]
+  exact List.take_of_length_le (by rw [Array.length_toList]; exact Nat.le_of_eq h)
+
+/-- Deployment with one ABI-encoded `uint256` argument, the initial supply. -/
+theorem feERC20DeployRefinesModel :
+    RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode Model.contract
+      (fun args => ∃ v : UInt256, args = ctorTail v) := by
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feERC20CtorRev hcode hwv)
+      (f := .revert ByteArray.empty)
+      (by simp [Model.contract, Model.init, exec_nonPayable, hwv]) (by simp)
+  have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
+  have hword : word (ctorTail v) 0 = v := by
+    show uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v
+    rw [readBytes_all32 _ hsz, ctorTail, word_toBytesBE_toByteArray_eq_toByteArray,
+      uInt256OfByteArray_toByteArray]
+  have hslot : Model.balanceSlot (UInt256.ofNat I.source.val)
+      = keccakWord (UInt256.ofNat 96) (UInt256.ofNat 64) (ctorKeyMem v I.source) :=
+    (ctorKey_slot v I.source).symm
+  exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feERC20CtorRet v hcode hwv hperm)
+    (w' := { accounts := storeWord I.codeOwner (storeWord I.codeOwner σ
+               (Model.balanceSlot (UInt256.ofNat I.source.val)) v) Model.totalSupplySlot v,
+             logs := A.logSeries.push ⟨I.codeOwner,
+               #[Model.transferTopic, ⟨0⟩, UInt256.ofNat I.source.val], v.toByteArray⟩ })
+    (by simp [Model.contract, Model.init, Model.initBody, World.init, exec_nonPayable,
+      exec_sstore, exec_emit, hwv, hperm, hsz, hword])
+    (by rw [hslot]; rfl)
+
 end FeProofs.ERC20
