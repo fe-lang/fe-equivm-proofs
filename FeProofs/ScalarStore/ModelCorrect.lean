@@ -156,7 +156,7 @@ theorem runtime_get (hsz : 4 ≤ I.calldata.size)
     (hwv : I.weiValue = ⟨0⟩) :
     Model.runtime.exec I w
       = some (.ok (UInt256.toByteArray (solcSlotWordAt ⟨0⟩ w.accounts I), w)) := by
-  simp [Model.runtime, Model.get, Model.storedSlot, calldata, nonPayable, sload,
+  simp [Model.runtime, Model.get, Model.storedSlot, calldata, nonPayable, slotWord,
     Nat.not_lt.mpr hsz, sel0_not h0, sel1 hsel, hwv, solcSlotWordAt, solcSlotWord]
 
 end Model
