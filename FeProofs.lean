@@ -14,3 +14,4 @@ import FeProofs.PackedStore.Exported
 import FeProofs.ERC20.ExportedCorrect
 import FeProofs.ERC20.ConservationBytecode
 import FeProofs.Fixtures.Exported
+import FeProofs.Fixtures.Decode
