@@ -302,4 +302,79 @@ macro "no_stop" : tactic =>
     | with_reducible apply NoStop.bind
     | intro (_ : _))
 
+/-! ## The operations leave memory alone -/
+
+/-- The computation leaves memory as it found it whenever it returns.  Storage, logs and the
+    environment's reads do; allocation and writes through pointers do not. -/
+def KeepsMemory {α : Type} (m : FeM α) : Prop :=
+  ∀ I w a w', m.exec I w = some (.ok (a, w')) → w'.memory = w.memory
+
+theorem KeepsMemory.pure {α : Type} (a : α) : KeepsMemory (pure a : FeM α) := by
+  intro I w a' w' h; simp at h; rw [h.2]
+
+theorem KeepsMemory.revert {α : Type} (data : ByteArray) :
+    KeepsMemory (Fe.M.revert data : FeM α) := by
+  intro I w a w' h; simp at h
+
+theorem KeepsMemory.panic {α : Type} (code : Nat) : KeepsMemory (Fe.M.panic code : FeM α) := by
+  intro I w a w' h; simp at h
+
+theorem KeepsMemory.bind {α β : Type} {m : FeM α} {k : α → FeM β} (hm : KeepsMemory m)
+    (hk : ∀ a, KeepsMemory (k a)) : KeepsMemory (m >>= k) := by
+  intro I w b w' h
+  rw [M.exec_bind] at h
+  cases hr : m.exec I w with
+  | none => rw [hr] at h; cases h
+  | some r =>
+    cases r with
+    | error f => rw [hr] at h; cases h
+    | ok p => rw [hr] at h; rw [hk p.1 I p.2 b w' h, hm I w p.1 p.2 hr]
+
+theorem KeepsMemory.ite {α : Type} (c : Prop) [Decidable c] {a b : FeM α} (ha : KeepsMemory a)
+    (hb : KeepsMemory b) : KeepsMemory (if c then a else b) := by
+  split <;> assumption
+
+theorem keepsMemory_sload (slot : UInt256) : KeepsMemory (sload slot) := by
+  intro I w a w' h; simp at h; rw [h.2]
+
+theorem keepsMemory_sstore (slot val : UInt256) : KeepsMemory (sstore slot val) := by
+  intro I w a w' h
+  rw [exec_sstore] at h
+  split at h <;> simp at h
+  rw [← h]
+
+theorem keepsMemory_emit (topics : Array UInt256) (data : ByteArray) :
+    KeepsMemory (emit topics data) := by
+  intro I w a w' h
+  rw [exec_emit] at h
+  split at h <;> simp at h
+  rw [← h]
+
+theorem keepsMemory_caller : KeepsMemory caller := by
+  intro I w a w' h; simp at h; rw [h.2]
+
+theorem keepsMemory_checkedAdd (a b : UInt256) : KeepsMemory (checkedAdd a b) := by
+  unfold checkedAdd; exact KeepsMemory.ite _ (KeepsMemory.panic _) (KeepsMemory.pure _)
+
+theorem keepsMemory_checkedSub (a b : UInt256) : KeepsMemory (checkedSub a b) := by
+  unfold checkedSub; exact KeepsMemory.ite _ (KeepsMemory.panic _) (KeepsMemory.pure _)
+
+/-- Prove `KeepsMemory` for a computation built from binds, conditionals and the storage, log
+    and arithmetic operations.  Unfold the definitions it should look into first. -/
+macro "keeps_memory" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact keepsMemory_sload _
+    | with_reducible exact keepsMemory_sstore _ _
+    | with_reducible exact keepsMemory_emit _ _
+    | with_reducible exact keepsMemory_caller
+    | with_reducible exact keepsMemory_checkedAdd _ _
+    | with_reducible exact keepsMemory_checkedSub _ _
+    | with_reducible exact KeepsMemory.pure _
+    | with_reducible exact KeepsMemory.revert _
+    | with_reducible exact KeepsMemory.panic _
+    | assumption
+    | with_reducible apply KeepsMemory.ite
+    | with_reducible apply KeepsMemory.bind
+    | intro (_ : _))
+
 end Fe.EVM

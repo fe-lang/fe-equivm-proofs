@@ -1,5 +1,5 @@
 import FeProofs.PackedStore.ExportedCorrect
-import Reasoning.Memory
+import Fe.EVM.Entry
 
 /-!
 # FePackedStore: the bytecode refines the exported contract
@@ -44,55 +44,6 @@ attribute [local simp]
   decode_from_CallData_4 decode_from_prechecked_head_SetBoth_Sol_CallData 
   decode_runtime_args_Evm_Sol_SetBoth
   u256Mask checkedAdd checkedSub alloc mstore zeroMem returnData panicCode
-
-/-! ## Words -/
-
-theorem toNat0 : (UInt256.ofNat 0).toNat = 0 := rfl
-theorem toNat4 : (UInt256.ofNat 4).toNat = 4 := rfl
-theorem toNat32 : (UInt256.ofNat 32).toNat = 32 := rfl
-theorem toNat64 : (UInt256.ofNat 64).toNat = 64 := rfl
-theorem add0_32 : UInt256.ofNat 0 + UInt256.ofNat 32 = UInt256.ofNat 32 := rfl
-theorem ne32 : UInt256.ofNat 32 ≠ UInt256.ofNat 0 := by decide
-theorem at4 : (UInt256.ofNat 0 + UInt256.ofNat 4).toNat = 4 := rfl
-theorem add32_32 : UInt256.ofNat 32 + UInt256.ofNat 32 = UInt256.ofNat 64 := rfl
-theorem ne64 : UInt256.ofNat 64 ≠ UInt256.ofNat 0 := by decide
-theorem at36 : (UInt256.ofNat 0 + (UInt256.ofNat 4 + UInt256.ofNat 32)).toNat = 36 := rfl
-theorem toNatMax : (~~~UInt256.ofNat 0).toNat = UInt256.size - 1 := by decide
-theorem toNatU64 : (UInt256.ofNat 18446744073709551615).toNat = 18446744073709551615 := rfl
-theorem sub32_0 : (UInt256.ofNat 32 - UInt256.ofNat 0).toNat = 32 := rfl
-
-theorem add_zero (a : UInt256) : a + UInt256.ofNat 0 = a := by
-  apply u256_inj
-  rw [uadd_toNat, toNat0, Nat.add_zero]
-  exact Nat.mod_eq_of_lt a.val.isLt
-
-/-- A length below `2 ^ 64` survives std's cast to `u64`: minus the view's base 0, masked, then
-    cut to 64 bits. -/
-theorem truncate_size (n : Nat) (h : n < 2 ^ 64) :
-    truncate 64 ((UInt256.ofNat n).sub (UInt256.ofNat 0) &&& UInt256.ofNat 18446744073709551615) =
-      UInt256.ofNat n := by
-  have hn : (UInt256.ofNat n).toNat = n := ulit_toNat' n (by unfold UInt256.size; omega)
-  have hsub : (UInt256.ofNat n).sub (UInt256.ofNat 0) = UInt256.ofNat n := by
-    apply u256_inj
-    exact (usub_toNat (a := UInt256.ofNat n) (b := UInt256.ofNat 0) (Nat.zero_le _)).trans
-      (Nat.sub_zero _)
-  have hmask : (UInt256.ofNat 18446744073709551615).toNat = 2 ^ 64 - 1 := rfl
-  have hand : (UInt256.ofNat n &&& UInt256.ofNat 18446744073709551615).toNat = n := by
-    change (UInt256.land _ _).toNat = n
-    rw [uland_toNat, hn, hmask]
-    change Nat.land n (2 ^ 64 - 1) = n
-    rw [nat_land_mask_eq_mod, Nat.mod_eq_of_lt h]
-  rw [hsub]
-  apply u256_inj
-  unfold truncate
-  rw [hand, Nat.mod_eq_of_lt h]
-
-/-- Signed comparison of two words below `2 ^ 255` is comparison of their values. -/
-theorem sltBool_small {a b : UInt256} (ha : a.toNat < 2 ^ 255) (hb : b.toNat < 2 ^ 255) :
-    a.sltBool b = decide (a.toNat < b.toNat) := by
-  unfold UInt256.sltBool
-  rw [if_neg (by omega), if_neg (by omega)]
-  rfl
 
 /-! ## The decoders -/
 
@@ -175,12 +126,6 @@ end Decode
 
 /-! ## The return -/
 
-/-- Memory after `return_value` encodes `v` into a fresh 32-byte buffer. -/
-def returned (memory : ByteArray) (v : UInt256) : ByteArray :=
-  v.toByteArray.write 0
-    ((⟨Array.replicate 32 0⟩ : ByteArray).write 0 (memory ++ ⟨Array.replicate 32 0⟩) memory.size 32)
-    memory.size 32
-
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
 /-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
@@ -190,52 +135,11 @@ theorem returnU256_exec (I : ExecutionEnv) (w : World) (v : UInt256)
       some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
   have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size := ulit_toNat' _ hmem
   simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, add_zero, hsize, UInt256.size, returned]
-  have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl
-  apply toByteArray_write32_read_back
-  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
-    (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
-  omega
-
-/-- An empty return ends the call with no data and changes nothing. -/
-theorem returnNone_exec (I : ExecutionEnv) (w : World) :
-    (returnData (UInt256.ofNat 0) (UInt256.ofNat 0)).exec I w =
-      some (.error (.stop ByteArray.empty w)) := by
-  simp [toNat0, byteArray_readWithPadding_zero]
+  exact returned_read _ _
 
 end Std
 
-/-! ## The selector -/
-
-/-- The selector word: the first four bytes of calldata as a number. -/
-abbrev selWord (cd : ByteArray) : UInt256 :=
-  UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩
-
-theorem selector_exec (I : ExecutionEnv) (w : World) :
-    calldataSelector.exec I w = some (.ok (selWord I.calldata, w)) := rfl
-
-theorem selWord_eq {cd sel : ByteArray} {word : UInt256}
-    (h : UInt256.eq word (selWord cd) = if (sel == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩)
-    (hsel : (sel == cd.extract 0 4) = true) : selWord cd = word := by
-  rw [hsel, if_pos rfl] at h
-  by_contra hne
-  rw [u256_eq_of_ne (fun e => hne e.symm)] at h
-  exact absurd h (by decide)
-
-theorem selWord_ne {cd sel : ByteArray} {word : UInt256}
-    (h : UInt256.eq word (selWord cd) = if (sel == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩)
-    (hsel : (sel == cd.extract 0 4) = false) : selWord cd ≠ word := by
-  intro e
-  rw [hsel, e, u256_eq_refl] at h
-  exact absurd h (by decide)
-
 /-! ## The arms' entries -/
-
-/-- An entry as a computation of return data: it never returns, so it has none to give. -/
-def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
-
-theorem entry_exec {m : FeM Empty} {I : ExecutionEnv} {w : World} {f : Exit World}
-    (h : m.exec I w = some (.error f)) : (entry m).exec I w = some (.error f) := by
-  simp [entry, h]
 
 section Entries
 
@@ -269,19 +173,9 @@ theorem get1_endsAs (hmem : w.memory.size < UInt256.size) :
     simp [get1Arm, exec_nonPayable, hwv]
     exact .exit _
 
-/-- With calldata below `2 ^ 64` bytes, std's head check is the hand-written one. -/
-theorem badHead_iff (words : Nat) (hfits : I.calldata.size < 2 ^ 64) :
-    BadHead I.calldata words ↔ I.calldata.size < 4 + 32 * words := by
-  unfold BadHead
-  constructor
-  · rintro (h | h)
-    · exact h
-    · omega
-  · exact Or.inl
-
 theorem set0_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm2_entry).exec I w) ((set0Arm I.calldata).exec I w) := by
-  have hbad := badHead_iff I 1 hfits
+  have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
@@ -309,7 +203,7 @@ theorem set0_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^
 
 theorem set1_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm3_entry).exec I w) ((set1Arm I.calldata).exec I w) := by
-  have hbad := badHead_iff I 1 hfits
+  have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
@@ -337,7 +231,7 @@ theorem set1_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^
 
 theorem setBoth_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm4_entry).exec I w) ((setBothArm I.calldata).exec I w) := by
-  have hbad := badHead_iff I 2 hfits
+  have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
@@ -383,7 +277,7 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     exact .exit _
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h1 : selIs I (fePackedStoreSelBytes 1)
-  · have hw := selWord_eq (get0EvmSelector hsz) h1
+  · have hw := selWord_hit (get0EvmSelector hsz) h1
     have eg : (entry runtime).exec I w = (entry recv0_arm0_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = get0Arm.exec I w := by
@@ -391,9 +285,9 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     rw [eg, eh]
     exact get0_endsAs I w hmem
   have n1 := miss 1 h1
-  have w1 : selWord I.calldata ≠ UInt256.ofNat 0x90bb7b44 := selWord_ne (get0EvmSelector hsz) n1
+  have w1 : selWord I.calldata ≠ UInt256.ofNat 0x90bb7b44 := selWord_miss (get0EvmSelector hsz) n1
   by_cases h0 : selIs I (fePackedStoreSelBytes 0)
-  · have hw := selWord_eq (get1EvmSelector hsz) h0
+  · have hw := selWord_hit (get1EvmSelector hsz) h0
     have eg : (entry runtime).exec I w = (entry recv0_arm1_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = get1Arm.exec I w := by
@@ -402,9 +296,9 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     rw [eg, eh]
     exact get1_endsAs I w hmem
   have n0 := miss 0 h0
-  have w0 : selWord I.calldata ≠ UInt256.ofNat 0x054c1a75 := selWord_ne (get1EvmSelector hsz) n0
+  have w0 : selWord I.calldata ≠ UInt256.ofNat 0x054c1a75 := selWord_miss (get1EvmSelector hsz) n0
   by_cases h4 : selIs I (fePackedStoreSelBytes 4)
-  · have hw := selWord_eq (set0EvmSelector hsz) h4
+  · have hw := selWord_hit (set0EvmSelector hsz) h4
     have eg : (entry runtime).exec I w = (entry recv0_arm2_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (set0Arm I.calldata).exec I w := by
@@ -414,9 +308,9 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     rw [eg, eh]
     exact set0_endsAs I w hsz hfits
   have n4 := miss 4 h4
-  have w4 : selWord I.calldata ≠ UInt256.ofNat 0xf26feec9 := selWord_ne (set0EvmSelector hsz) n4
+  have w4 : selWord I.calldata ≠ UInt256.ofNat 0xf26feec9 := selWord_miss (set0EvmSelector hsz) n4
   by_cases h3 : selIs I (fePackedStoreSelBytes 3)
-  · have hw := selWord_eq (set1EvmSelector hsz) h3
+  · have hw := selWord_hit (set1EvmSelector hsz) h3
     have eg : (entry runtime).exec I w = (entry recv0_arm3_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (set1Arm I.calldata).exec I w := by
@@ -427,9 +321,9 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     rw [eg, eh]
     exact set1_endsAs I w hsz hfits
   have n3 := miss 3 h3
-  have w3 : selWord I.calldata ≠ UInt256.ofNat 0x9bc39d3c := selWord_ne (set1EvmSelector hsz) n3
+  have w3 : selWord I.calldata ≠ UInt256.ofNat 0x9bc39d3c := selWord_miss (set1EvmSelector hsz) n3
   by_cases h2 : selIs I (fePackedStoreSelBytes 2)
-  · have hw := selWord_eq (setBothEvmSelector hsz) h2
+  · have hw := selWord_hit (setBothEvmSelector hsz) h2
     have eg : (entry runtime).exec I w = (entry recv0_arm4_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (setBothArm I.calldata).exec I w := by
@@ -442,7 +336,7 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
     exact setBoth_endsAs I w hsz hfits
   have n2 := miss 2 h2
   have w2 : selWord I.calldata ≠ UInt256.ofNat 0x92cf1ef5 :=
-    selWord_ne (setBothEvmSelector hsz) n2
+    selWord_miss (setBothEvmSelector hsz) n2
   rw [entry_exec (f := .revert ByteArray.empty) (by
     simp [runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4])]
   simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,

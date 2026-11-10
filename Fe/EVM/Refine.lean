@@ -46,6 +46,7 @@ inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
   | stop_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
       (hl : w'.logs = w.logs) : EndsAs (some (.error (.stop out w'))) (some (.ok (out, w)))
   | exit (f : Exit World) : EndsAs (some (.error f)) (some (.error f))
+  | diverge : EndsAs none none
 
 /-- A result that agrees with a run agrees with any run that ends as it does. -/
 theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
@@ -54,6 +55,7 @@ theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
   cases h with
   | stop_ok ha hl => simpa only [Agrees, ha, hl] using hb
   | exit f => exact hb
+  | diverge => exact hb
 
 /-- A contract's model: its constructor, from the argument bytes that follow the creation code,
     and its runtime entry, from calldata to return data. -/

@@ -395,7 +395,7 @@ theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
   swap
   · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feERC20X_short hcode (by omega))
       (f := .revert ByteArray.empty)
-      (by simp [Model.contract, Model.runtime, show I.calldata.size < 4 by omega]) (by simp)
+      (by simp [Model.runtime, show I.calldata.size < 4 by omega]) (by simp)
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h0 : selIs I (feERC20SelBytes 0)
   · have e : Model.runtime.exec I (World.init σ A)
@@ -440,7 +440,7 @@ theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
   exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode
     (feERC20X_noMatch hcode hsz hsize (feERC20NoSelectorMatches h0 h1 h2 h3 h4 h5))
     (f := .revert ByteArray.empty)
-    (by simp [Model.contract, Model.runtime, hn4, n0, n1, n2, n3, n4, n5]) (by simp)
+    (by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5]) (by simp)
 
 /-! ## Deployment -/
 
