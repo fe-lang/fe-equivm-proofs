@@ -68,6 +68,16 @@ def zeroMem (ptr len : UInt256) : FeM Unit :=
 def revertData (ptr len : UInt256) : FeM Empty := do
   Fe.M.revert ((← get).memory.readWithPadding ptr.toNat len.toNat)
 
+/-- `return_data(ptr, len)`: end the call successfully with the `len` bytes of memory at `ptr`.
+    It never returns. -/
+def returnData (ptr len : UInt256) : FeM Empty := do
+  Fe.M.stop ((← get).memory.readWithPadding ptr.toNat len.toNat)
+
+/-- The selector of the call: the first four bytes of calldata, as the entry reads them,
+    `calldataload(0) >> 224`. -/
+def calldataSelector : FeM UInt256 := do
+  return (← calldataload (UInt256.ofNat 0)) >>> UInt256.ofNat 224
+
 /-- The low `bits` bits of `v`: a cast to a narrower unsigned integer type. -/
 def truncate (bits : Nat) (v : UInt256) : UInt256 := UInt256.ofNat (v.toNat % 2 ^ bits)
 

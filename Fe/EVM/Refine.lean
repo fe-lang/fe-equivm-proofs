@@ -51,10 +51,19 @@ def RefinesFor (p : Profile) (m : ContractModel) (σ σ₀ : AccountMap) (g : UI
   Ξ σ σ₀ g A I = .error .OutOfGass
     ∨ Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A))
 
+/-- The runtime bytecode refines the model on every message call that `admits` holds of. -/
+def RefinesOn (p : Profile) (bytecode : ByteArray) (m : ContractModel)
+    (admits : ExecutionEnv → Prop) : Prop :=
+  ∀ σ σ₀ g A I, I.code = bytecode → admits I → RefinesFor p m σ σ₀ g A I
+
 /-- The runtime bytecode refines the model on every message call. -/
 def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
-  ∀ σ σ₀ g A I, I.code = bytecode → I.calldata.size < UInt256.size →
-    RefinesFor p m σ σ₀ g A I
+  RefinesOn p bytecode m fun I => I.calldata.size < UInt256.size
+
+/-- Calldata shorter than `2 ^ 64` bytes.  Fe's std reads a calldata length as a `u64`, and its
+    backend assumes the length fits, so a model exported from std and the bytecode agree only on
+    such calls.  No transaction comes near the bound. -/
+def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
 /-- Deployment: run with any valid argument bytes after it, the creation bytecode does what the
     model's constructor does and returns the runtime bytecode. -/
