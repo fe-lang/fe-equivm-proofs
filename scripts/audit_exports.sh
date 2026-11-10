@@ -13,7 +13,10 @@ out=$root/.lake/export-corpus/$(date +%Y%m%d-%H%M%S)
 mkdir -p $out
 ln -sfn $out $root/.lake/export-corpus/latest
 files=$(ls $fe/crates/fe/tests/fixtures/fe_test/*.fe $root/FeProofs/*/*.fe | grep -E "${2:-.}" | tr '\n' ':' | sed 's/:$//')
-(cd $fe && LEAN_EXPORT_CORPUS_OUT=$out LEAN_EXPORT_CORPUS="$files" \
+# The prelude modules an export may name: the call model too where this checkout has it.
+imports="Fe.EVM.Storage"
+[[ -f $root/Fe/EVM/Calls.lean ]] && imports="$imports Fe.EVM.Calls"
+(cd $fe && LEAN_EXPORT_CORPUS_OUT=$out LEAN_EXPORT_CORPUS="$files" LEAN_EXPORT_CORPUS_IMPORTS="$imports" \
   cargo test --release -p fe-lean-export --test corpus export_corpus -- --ignored --nocapture \
   2>$out/cargo.err >$out/blockers.txt)
 grep "^contracts:" $out/blockers.txt || tail -5 $out/cargo.err
