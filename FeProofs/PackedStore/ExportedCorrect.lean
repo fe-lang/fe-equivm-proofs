@@ -92,10 +92,6 @@ abbrev ArmAgrees (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : Execu
     (arm : FeM ByteArray) : Prop :=
   Ξ σ σ₀ g A I = .error .OutOfGass ∨ Agrees .P0 (Ξ σ σ₀ g A I) (arm.exec I (World.init σ A))
 
-theorem not_badHead_of {cd : ByteArray} {n : ℕ} (hlen : 4 + 32 * n ≤ cd.size)
-    (hhi : cd.size < 2 ^ 255 + 4) : ¬ BadHead cd n := by
-  unfold BadHead; omega
-
 theorem get0Arm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 1)) :
@@ -153,7 +149,7 @@ theorem set0Arm_refines {g : UInt256}
     exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
       (by simp [set0Arm, exec_nonPayable, hwv, show BadHead I.calldata 1 from hbad]) (by simp)
   obtain ⟨hlen, hhi⟩ := hok
-  have hhead := not_badHead_of (n := 1) hlen hhi
+  have hhead : ¬ BadHead I.calldata 1 := by unfold BadHead; omega
   rd_run rd to 205 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
   by_cases hperm : I.perm = true
   · rd_step rd
@@ -164,7 +160,8 @@ theorem set0Arm_refines {g : UInt256}
       (by simp only [setLane, setPackedByte_lane0]; rfl)
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
-    exact agrees_of_static hcode rd (by simp [set0Arm, exec_nonPayable, hwv, hhead, set0_exec, hpf])
+    exact agrees_of_static hcode rd
+      (by simp [set0Arm, exec_nonPayable, hwv, hhead, set0_exec, hpf])
 
 theorem set1Arm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -185,7 +182,7 @@ theorem set1Arm_refines {g : UInt256}
     exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
       (by simp [set1Arm, exec_nonPayable, hwv, show BadHead I.calldata 1 from hbad]) (by simp)
   obtain ⟨hlen, hhi⟩ := hok
-  have hhead := not_badHead_of (n := 1) hlen hhi
+  have hhead : ¬ BadHead I.calldata 1 := by unfold BadHead; omega
   rd_run rd to 155 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
   by_cases hperm : I.perm = true
   · rd_step rd
@@ -196,7 +193,8 @@ theorem set1Arm_refines {g : UInt256}
       (by simp only [setLane, setPackedByte_lane1]; rfl)
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
-    exact agrees_of_static hcode rd (by simp [set1Arm, exec_nonPayable, hwv, hhead, set1_exec, hpf])
+    exact agrees_of_static hcode rd
+      (by simp [set1Arm, exec_nonPayable, hwv, hhead, set1_exec, hpf])
 
 theorem setBothArm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -217,7 +215,7 @@ theorem setBothArm_refines {g : UInt256}
     exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
       (by simp [setBothArm, exec_nonPayable, hwv, show BadHead I.calldata 2 from hbad]) (by simp)
   obtain ⟨hlen, hhi⟩ := hok
-  have hhead := not_badHead_of (n := 2) hlen hhi
+  have hhead : ¬ BadHead I.calldata 2 := by unfold BadHead; omega
   rd_run rd to 79 using [hwv, solcDecodeLenCheckOk_4_64 hlen hhi hsize]
   by_cases hperm : I.perm = true
   · rd_step rd
