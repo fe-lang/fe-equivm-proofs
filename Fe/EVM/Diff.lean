@@ -1,0 +1,423 @@
+import Fe.EVM.Calls
+import Fe.EVM.Refine
+
+/-!
+# Differential tests of exported models
+
+A Fe `#[test]` function compiles to bytecode that deploys contracts and calls them.  `runTest`
+runs that bytecode in EVMLean.  At each creation and message call the test makes on a contract
+with an exported model, it runs the model on the inputs EVMLean gives the callee and compares
+the two results at profile `P1`: outcome kind, return data, account map, event logs and revert
+payload.  Each comparison is an instance of `RefinesFor`, or of `RefinesDeploy` for a creation.
+
+The model's feed is read off the EVM run: the word of each `GAS`, and the gas and substate of
+each call or creation the contract makes.
+
+Only the calls the test code itself makes are compared.  What a contract calls in turn runs
+inside EVMLean's `Θ` on both sides.
+-/
+
+namespace Fe.EVM.Diff
+
+open Ethereum Ethereum.EVM
+
+/-- The bytes a string of hex digits spells, empty if it is not one. -/
+def hex (digits : String) : ByteArray :=
+  (ByteArray.ofBlob digits).toOption.getD ByteArray.empty
+
+/-! ## Running a frame step by step -/
+
+/-- What a frame did that its model cannot compute. -/
+inductive Event where
+  /-- `GAS` pushed this word. -/
+  | gas (word : UInt256)
+  /-- A call or creation: the instruction, the state it ran in after its memory expansion was
+      paid for, the rest of its cost, and the state after it. -/
+  | boundary (op : Operation) (before : State) (cost : Nat) (after : State)
+
+structure Run where
+  result : Except ExecutionException (ExecutionResult State)
+  events : Array Event
+
+def isBoundary : Operation → Bool
+  | .CALL | .CALLCODE | .DELEGATECALL | .STATICCALL | .CREATE | .CREATE2 => true
+  | _ => false
+
+/-- Run `initial` to its end as `X` does, recording the frame's events. -/
+def run (initial : State) (fuel : Nat) : Run := Id.run do
+  let jumps := D_J initial.executionEnv.code 0
+  let mut state := initial
+  let mut events : Array Event := #[]
+  for _ in [:fuel] do
+    let op := (decode state.executionEnv.code state.machineState.pc).map Prod.fst |>.getD .STOP
+    match Xstep jumps state with
+    | .error e => return ⟨.error e, events⟩
+    | .ok (next, halt) =>
+      let next := { next with executionEnv.depth := state.executionEnv.depth }
+      if op == .GAS then
+        events := events.push (.gas (next.machineState.stack.getD 0 ⟨0⟩))
+      if isBoundary op then
+        if let .ok (paid, cost) := Z jumps op state then
+          events := events.push (.boundary op paid cost next)
+      match halt with
+      | some (.success, out) => return ⟨.ok (.success next out), events⟩
+      | some (.revert, out) =>
+        return ⟨.ok (.revert next.machineState.gasAvailable.toUInt256 out), events⟩
+      | none => state := next
+  return ⟨.error .OutOfFuel, events⟩
+
+/-- The state `Ξ` starts a frame in. -/
+def fresh (σ σ₀ : AccountMap) (g : Nat) (A : Substate) (I : ExecutionEnv) : State :=
+  let s : State := default
+  { s with
+      accountMap := σ
+      σ₀ := σ₀
+      executionEnv := I
+      substate := A
+      machineState.gasAvailable := .ofUInt256 (.ofNat g) }
+
+/-! ## What the EVM hands a callee -/
+
+/-- A message call as `EVM.call` makes it: the gas, the code's address, the recipient, the
+    value moved and the value shown, the input, and the permission. -/
+structure Message where
+  gasArg : UInt256
+  t : AccountAddress
+  recipient : AccountAddress
+  source : AccountAddress
+  value : UInt256
+  value' : UInt256
+  input : ByteArray
+  perm : Bool
+
+/-- The message call of a boundary, `none` for a creation. -/
+def message? (op : Operation) (s : State) : Option Message :=
+  let st := s.machineState.stack
+  let at' (i : Nat) := st.getD i ⟨0⟩
+  let I := s.executionEnv
+  let slice (off len : UInt256) := s.machineState.memory.readWithPadding off.toNat len.toNat
+  let addr (w : UInt256) := AccountAddress.ofUInt256 w
+  match op with
+  | .CALL => some ⟨at' 0, addr (at' 1), addr (at' 1), I.codeOwner, at' 2, at' 2,
+      slice (at' 3) (at' 4), I.perm⟩
+  | .CALLCODE => some ⟨at' 0, addr (at' 1), I.codeOwner, I.codeOwner, at' 2, at' 2,
+      slice (at' 3) (at' 4), I.perm⟩
+  | .DELEGATECALL => some ⟨at' 0, addr (at' 1), I.codeOwner, I.source, ⟨0⟩, I.weiValue,
+      slice (at' 2) (at' 3), I.perm⟩
+  | .STATICCALL => some ⟨at' 0, addr (at' 1), addr (at' 1), I.codeOwner, ⟨0⟩, ⟨0⟩,
+      slice (at' 2) (at' 3), false⟩
+  | _ => none
+
+/-- What the feed must hold for the model to make the call or creation the EVM made. -/
+def supply : Event → Supply
+  | .gas word => { gas := word, substate := default, orig := ∅ }
+  | .boundary op s cost _ =>
+    match message? op s with
+    | some m =>
+      { gas := .ofNat (Cgascap m.t m.recipient m.value m.gasArg s.accountMap s.machineState
+          s.substate)
+        substate := (s.addAccessedAccount m.t).substate
+        orig := s.σ₀ }
+    | none =>
+      { gas := .ofNat (L (s.machineState.gasAvailable.toNat - cost))
+        substate := s.substate
+        orig := s.σ₀ }
+
+def balanceOf (σ : AccountMap) (a : AccountAddress) : UInt256 :=
+  σ.get? a |>.option ⟨0⟩ (·.balance)
+
+/-- The frame `Θ` runs for a message call that is made: its accounts, gas, substate and
+    environment.  `none` when the call is not made, or runs a precompile. -/
+def messageFrame (s : State) (m : Message) : Option (AccountMap × Nat × Substate × ExecutionEnv) :=
+  let σ := s.accountMap
+  let I := s.executionEnv
+  if ¬ (m.value ≤ balanceOf σ I.codeOwner ∧ I.depth < 1024) then none
+  else
+    match toExecute σ m.t with
+    | .Precompiled _ => none
+    | .Code code =>
+      let credited :=
+        match σ.get? m.recipient with
+        | none =>
+          if m.value != UInt256.ofNat 0 then
+            σ.insert m.recipient { (default : Account) with balance := m.value }
+          else σ
+        | some acc => σ.insert m.recipient { acc with balance := acc.balance + m.value }
+      let σ₁ :=
+        match credited.get? m.source with
+        | none => credited
+        | some acc => credited.insert m.source { acc with balance := acc.balance - m.value }
+      let callee : ExecutionEnv :=
+        { codeOwner := m.recipient
+          sender := I.sender
+          gasPrice := I.gasPrice
+          calldata := m.input
+          source := m.source
+          weiValue := m.value'
+          depth := I.depth + 1
+          perm := m.perm
+          code := code
+          header := I.header
+          blobVersionedHashes := I.blobVersionedHashes
+          blocks := I.blocks }
+      some (σ₁, Ccallgas m.t m.recipient m.value m.gasArg σ s.machineState s.substate,
+        (s.addAccessedAccount m.t).substate, callee)
+
+/-- A creation: the address, and the frame `Lambda` runs for the init code.  `none` when the
+    creation is not made or the address is taken. -/
+def creationFrame (op : Operation) (s : State) (cost : Nat) :
+    Option (AccountAddress × ByteArray × AccountMap × Nat × Substate × ExecutionEnv) :=
+  let st := s.machineState.stack
+  let at' (i : Nat) := st.getD i ⟨0⟩
+  let value := at' 0
+  let init := s.machineState.memory.readWithPadding (at' 1).toNat (at' 2).toNat
+  let salt : Option ByteArray := if op == .CREATE2 then some (at' 3).toByteArray else none
+  let I := s.executionEnv
+  let σ := s.accountMap
+  let self : Account := σ.get? I.codeOwner |>.getD default
+  if ¬ (self.nonce.toNat < 2 ^ 64 - 1 ∧ value ≤ balanceOf σ I.codeOwner ∧ I.depth < 1024
+      ∧ init.size ≤ 49152) then none
+  else
+    let σ := σ.insert I.codeOwner { self with nonce := self.nonce + ⟨1⟩ }
+    let a : AccountAddress :=
+      (KEC (Lambda.L_A I.codeOwner self.nonce salt init)).extract 12 32
+        |> fromByteArrayBigEndian |> Fin.ofNat _
+    let existing := σ.getD a default
+    if existing.nonce ≠ ⟨0⟩ || existing.code.size ≠ 0 || existing.storage != default then none
+    else
+      let A := s.substate.addAccessedAccount a
+      let A := { A with createdAccounts := s.substate.createdAccounts.insert a }
+      let created : Account :=
+        { existing with nonce := existing.nonce + ⟨1⟩, balance := value + existing.balance }
+      let creator : Account := σ.getD I.codeOwner default
+      let σ := σ.insert I.codeOwner { creator with balance := creator.balance - value }
+        |>.insert a created
+      let callee : ExecutionEnv :=
+        { codeOwner := a
+          sender := I.sender
+          source := I.codeOwner
+          weiValue := value
+          calldata := default
+          code := init
+          gasPrice := I.gasPrice
+          header := I.header
+          depth := I.depth + 1
+          perm := I.perm
+          blobVersionedHashes := I.blobVersionedHashes
+          blocks := I.blocks }
+      some (a, init, σ, L (s.machineState.gasAvailable.toNat - cost), A, callee)
+
+/-! ## Comparing -/
+
+inductive Verdict where
+  | agree (how : String)
+  /-- The EVM ran out of gas: nothing is required of the model. -/
+  | outOfGas
+  | disagree (why : String)
+
+/-- Where two account maps differ, in a few words. -/
+def accountsDiff (evm model : AccountMap) : String := Id.run do
+  let mut notes : Array String := #[]
+  for a in (evm.keys ++ model.keys).eraseDups do
+    let e := evm.getD a default
+    let m := model.getD a default
+    if evm.contains a != model.contains a then
+      notes := notes.push s!"account {a.val} exists on one side only"
+    if e.balance != m.balance then
+      notes := notes.push s!"balance of {a.val}: EVM {e.balance.toNat}, model {m.balance.toNat}"
+    if e.nonce != m.nonce then
+      notes := notes.push s!"nonce of {a.val}: EVM {e.nonce.toNat}, model {m.nonce.toNat}"
+    if e.code != m.code then
+      notes := notes.push s!"code of {a.val}"
+    for (label, es, ms) in [("slot", e.storage, m.storage), ("transient slot", e.tstorage, m.tstorage)] do
+      for k in (es.keys ++ ms.keys).eraseDups do
+        let ev := es.getD k ⟨0⟩
+        let mv := ms.getD k ⟨0⟩
+        if ev != mv then
+          notes := notes.push
+            s!"{label} {Ethereum.toHex k.toByteArray} of {a.val}: EVM {Ethereum.toHex ev.toByteArray}, model {Ethereum.toHex mv.toByteArray}"
+  let shown := notes.toList.take 4
+  return ", ".intercalate shown ++ (if notes.size > 4 then s!", and {notes.size - 4} more" else "")
+
+def describeExit : Exit World → String
+  | .revert data => s!"reverts with {Ethereum.toHex data}"
+  | .panic code => s!"panics with code {code}"
+  | .static => "fails on a write under a static call"
+  | .trap => "traps"
+  | .oob => "reads past the return data"
+  | .stop data _ => s!"stops with {Ethereum.toHex data}"
+
+def describeEvm : Except ExecutionException (ExecutionResult State) → String
+  | .error e => s!"halts with {repr e}"
+  | .ok (.success _ out) => s!"returns {Ethereum.toHex out}"
+  | .ok (.revert _ out) => s!"reverts with {Ethereum.toHex out}"
+
+/-- `Agrees .P1`, decided. -/
+def compare (evm : Except ExecutionException (ExecutionResult State))
+    (model : Option (Except (Exit World) (ByteArray × World))) : Verdict :=
+  let differ (m : String) := Verdict.disagree s!"EVM {describeEvm evm}, model {m}"
+  let success (out : ByteArray) (w : World) (m : String) : Verdict :=
+    match evm with
+    | .ok (.success s o) =>
+      if o != out then differ m
+      else if s.accountMap != w.accounts then
+        .disagree s!"accounts differ: {accountsDiff s.accountMap w.accounts}"
+      else if s.substate.logSeries != w.logs then
+        .disagree s!"logs differ: EVM {repr s.substate.logSeries}, model {repr w.logs}"
+      else .agree "success"
+    | _ => differ m
+  match evm with
+  | .error .OutOfGass | .error .OutOfFuel => .outOfGas
+  | _ =>
+    match model with
+    | none => differ "does not terminate"
+    | some (.ok (out, w)) => success out w s!"returns {Ethereum.toHex out}"
+    | some (.error (.stop out w)) => success out w s!"stops with {Ethereum.toHex out}"
+    | some (.error (.revert data)) =>
+      match evm with
+      | .ok (.revert _ o) => if o == data then .agree "revert" else differ s!"reverts with {Ethereum.toHex data}"
+      | _ => differ s!"reverts with {Ethereum.toHex data}"
+    | some (.error (.panic code)) =>
+      match evm with
+      | .ok (.revert _ o) =>
+        if o == panicData code then .agree "panic" else differ s!"panics with code {code}"
+      | _ => differ s!"panics with code {code}"
+    | some (.error .static) =>
+      match evm with
+      | .error .StaticModeViolation => .agree "static"
+      | _ => differ (describeExit .static)
+    | some (.error .trap) =>
+      match evm with
+      | .error .InvalidInstruction => .agree "trap"
+      | _ => differ (describeExit .trap)
+    | some (.error .oob) =>
+      match evm with
+      | .error .InvalidMemoryAccess => .agree "oob"
+      | _ => differ (describeExit .oob)
+
+/-! ## Tests -/
+
+/-- A contract with an exported model: its creation code without arguments, and the model. -/
+structure Target where
+  name : String
+  creation : ByteArray
+  model : ContractModel
+
+/-- A Fe test: the init code that returns the test's bytecode, and the balance it starts with. -/
+structure Test where
+  name : String
+  code : ByteArray
+  balance : Nat := 0
+
+/-- One comparison. -/
+structure Report where
+  test : String
+  target : String
+  /-- `init`, or the calldata of the call. -/
+  input : String
+  verdict : Verdict
+
+def isPrefix (p b : ByteArray) : Bool := p.size ≤ b.size && b.extract 0 p.size == p
+
+/-- The gas a test runs with, as `fe test` gives it, and the bound on the steps of a frame. -/
+def testGas : Nat := 1000000000
+def stepBound : Nat := 100000000
+
+/-- Compare the model with what the EVM did at one event of the test's frame.  Returns the
+    report, if the event concerns a target, and the contract a creation deployed. -/
+def check (test : String) (targets : List Target) (deployed : List (AccountAddress × Target)) :
+    Event → Option Report × Option (AccountAddress × Target)
+  | .gas _ => (none, none)
+  | .boundary op s cost after =>
+    let x := after.machineState.stack.getD 0 ⟨0⟩
+    match message? op s with
+    | some m =>
+      if op != .CALL && op != .STATICCALL then (none, none) else
+      match deployed.find? (·.1 == m.t), messageFrame s m with
+      | some (_, target), some (σ, g, A, I) =>
+        let r := run (fresh σ s.σ₀ g A I) stepBound
+        let feed := r.events.toList.map supply
+        let model := target.model.runtime.exec I (World.init σ A feed)
+        -- The frame as rebuilt here must end as the one `Θ` ran inside the test.
+        let made : Bool := match r.result with
+          | .ok (.success s' _) => x == ⟨1⟩ && after.accountMap == s'.accountMap
+          | _ => x == ⟨0⟩
+        let verdict :=
+          if made then compare r.result model
+          else .disagree s!"harness: the rebuilt frame {describeEvm r.result}, the test's call gave {x.toNat}"
+        (some ⟨test, target.name, Ethereum.toHex m.input, verdict⟩, none)
+      | _, _ => (none, none)
+    | none =>
+      match creationFrame op s cost with
+      | none => (none, none)
+      | some (a, init, σ, g, A, I) =>
+        match targets.find? (isPrefix ·.creation init) with
+        | none => (none, none)
+        | some target =>
+          let args := init.extract target.creation.size init.size
+          let r := run (fresh σ s.σ₀ g A I) stepBound
+          let feed := r.events.toList.map supply
+          let code := match r.result with
+            | .ok (.success _ out) => out
+            | _ => ByteArray.empty
+          let model := (target.model.init args >>= fun _ => pure code).exec I (World.init σ A feed)
+          let made : Bool := match r.result with
+            | .ok (.success _ _) => x == ⟨0⟩ || x == .ofNat a.val
+            | _ => x == ⟨0⟩
+          let verdict :=
+            if made then compare r.result model
+            else .disagree s!"harness: the rebuilt creation {describeEvm r.result}, the test's gave {x.toNat}"
+          (some ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict⟩,
+            if x == ⟨0⟩ then none else some (AccountAddress.ofUInt256 x, target))
+
+/-- Deploy the test's bytecode and run it, comparing at every call on a target.  Returns the
+    reports and how the test ended. -/
+def runTest (targets : List Target) (t : Test) : Array Report × String := Id.run do
+  let caller : AccountAddress := Fin.ofNat _ 0xca11e7
+  let self : AccountAddress := Fin.ofNat _ 0x7e57
+  let σ : AccountMap := (∅ : AccountMap)
+    |>.insert caller { (default : Account) with balance := .ofNat 1000000000 }
+    |>.insert self { (default : Account) with nonce := ⟨1⟩, balance := .ofNat t.balance }
+  let I : ExecutionEnv :=
+    { (default : ExecutionEnv) with
+        codeOwner := self, sender := caller, source := caller, code := t.code, perm := true }
+  match Ξ σ σ (.ofNat testGas) default I with
+  | .ok (.success (σ, _, _) code) =>
+    let σ := σ.insert self { σ.getD self default with code := code }
+    let r := run (fresh σ σ testGas default { I with code := code }) stepBound
+    let mut deployed : List (AccountAddress × Target) := []
+    let mut reports : Array Report := #[]
+    for event in r.events do
+      let (report, created) := check t.name targets deployed event
+      if let some report := report then reports := reports.push report
+      if let some created := created then deployed := created :: deployed
+    return (reports, describeEvm r.result)
+  | other =>
+    let ended := match other with
+      | .error e => s!"halts with {repr e}"
+      | .ok (.revert _ out) => s!"reverts with {Ethereum.toHex out}"
+      | .ok (.success _ _) => ""
+    return (#[], s!"is not deployed: its init code {ended}")
+
+/-- Run every test of a fixture and print one line per comparison that does not agree, one per
+    test, and a total. -/
+def main (fixture : String) (targets : List Target) (tests : List Test) : IO Unit := do
+  let mut agree := 0
+  let mut disagree := 0
+  let mut outOfGas := 0
+  let mut covered : List String := []
+  for t in tests do
+    let (reports, ended) := runTest targets t
+    IO.println s!"TEST {fixture}::{t.name} {ended}; {reports.size} compared"
+    for r in reports do
+      match r.verdict with
+      | .agree _ =>
+        agree := agree + 1
+        if !covered.contains r.target then covered := r.target :: covered
+      | .outOfGas => outOfGas := outOfGas + 1
+      | .disagree why =>
+        disagree := disagree + 1
+        IO.println s!"DISAGREE {fixture}::{r.test} {r.target} {r.input}: {why}"
+  IO.println s!"DIFF {fixture} tests={tests.length} agree={agree} disagree={disagree} outOfGas={outOfGas} targets={targets.length} covered={covered.length}"
+
+end Fe.EVM.Diff

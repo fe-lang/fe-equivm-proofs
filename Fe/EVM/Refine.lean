@@ -70,6 +70,9 @@ structure ContractModel where
   init : ByteArray → FeM Unit
   runtime : FeM ByteArray
 
+/-- An entry as a computation of return data: it never returns, so it has none to give. -/
+def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
+
 /-- Refinement at fixed inputs: the bytecode runs out of gas, or some feed makes the model end
     as the bytecode does.  The feed is what the model cannot compute: the gas and the substate
     of each call it makes. -/

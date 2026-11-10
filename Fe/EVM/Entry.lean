@@ -146,9 +146,6 @@ theorem selWord_miss {cd sel : ByteArray} {word : UInt256}
 
 /-! ## Entries -/
 
-/-- An entry as a computation of return data: it never returns, so it has none to give. -/
-def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
-
 theorem entry_exec {m : FeM Empty} {I : ExecutionEnv} {w : World} {f : Exit World}
     (h : m.exec I w = some (.error f)) : (entry m).exec I w = some (.error f) := by
   simp [entry, h]

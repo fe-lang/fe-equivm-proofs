@@ -1,11 +1,13 @@
 #!/bin/zsh
 # Runs `fe-lean-export` over the Fe test contracts and this repository's, tallies the construct
-# each unexported contract stopped at, and elaborates every export with Lean.
+# each unexported contract stopped at, and elaborates every export with Lean.  Elaborating a
+# file also runs its Fe tests in EVMLean and compares each call they make on an exported
+# contract with the contract's model (`Fe/EVM/Diff.lean`).
 #
 # Usage: scripts/audit_exports.sh <fe checkout> [regex over file paths]
 #   NO_LEAN=1 skips elaboration.
 # Output goes to a new directory .lake/export-corpus/<time>/, which `latest` then points at:
-# one .lean file per exported contract with its .log, `blockers.txt` and `leanfail.txt`.
+# one .lean file per Fe file with its .log, `blockers.txt`, `leanfail.txt` and `diff.txt`.
 set -u
 root=${0:A:h:h}
 fe=${1:A}
@@ -14,8 +16,7 @@ mkdir -p $out
 ln -sfn $out $root/.lake/export-corpus/latest
 files=$(ls $fe/crates/fe/tests/fixtures/fe_test/*.fe $root/FeProofs/*/*.fe | grep -E "${2:-.}" | tr '\n' ':' | sed 's/:$//')
 # The prelude modules an export may name: the call model too where this checkout has it.
-imports="Fe.EVM.Storage"
-[[ -f $root/Fe/EVM/Calls.lean ]] && imports="$imports Fe.EVM.Calls"
+imports="Fe.EVM.Storage Fe.EVM.Calls Fe.EVM.Diff"
 (cd $fe && LEAN_EXPORT_CORPUS_OUT=$out LEAN_EXPORT_CORPUS="$files" LEAN_EXPORT_CORPUS_IMPORTS="$imports" \
   cargo test --release -p fe-lean-export --test corpus export_corpus -- --ignored --nocapture \
   2>$out/cargo.err >$out/blockers.txt)
@@ -26,3 +27,5 @@ cd $root
 ls $out/*.lean | xargs -n 1 -P 8 scripts/lean_check_one.sh | sort > $out/leanfail.txt
 echo "lean failures: $(wc -l < $out/leanfail.txt | tr -d ' ')"
 head -40 $out/leanfail.txt
+cat $out/*.lean.log | grep -E "^(DIFF|DISAGREE|TEST) " > $out/diff.txt
+python3 $root/scripts/tally_diff.py $out/diff.txt
