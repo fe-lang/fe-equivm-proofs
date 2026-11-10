@@ -388,6 +388,7 @@ theorem transferFromArm_refines {g : UInt256}
 
 theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
   intro σ σ₀ g A I hcode hsize
+  refine RefinesFor.closed ?_
   show ArmAgrees σ σ₀ g A I Model.runtime
   have sel : ∀ i, (¬ selIs I (feERC20SelBytes i)) →
       (feERC20SelBytes i == I.calldata.extract 0 4) = false := fun i h => by simpa [selIs] using h
@@ -455,6 +456,7 @@ theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b
 theorem feERC20DeployRefinesModel :
     RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
+  refine RefinesDeploy.closed ?_
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
   by_cases hwv : I.weiValue = ⟨0⟩
   swap

@@ -396,19 +396,19 @@ theorem feERC20RefinesExported : RefinesOn .P0 feERC20Bytecode contract Calldata
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feERC20RefinesModel σ σ₀ g A I hcode hsize with h | h
+  rcases feERC20RefinesModel σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr (Agrees.of_endsAs
-      (runtime_endsAs I (World.init σ A) (by simp [World.init, UInt256.size]) hfits) h)
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
 
 /-- Deployment with one ABI-encoded `uint256` argument refines the exported deployment entry. -/
 theorem feERC20DeployRefinesExported :
     RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
-  rcases feERC20DeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | h
+  rcases feERC20DeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr (Agrees.of_endsAs
-      (init_endsAs v _ I (World.init σ A) (by simp [World.init, UInt256.size])) h)
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (init_endsAs v _ I (World.init σ A feed) (by simp [World.init, UInt256.size])) h⟩
 
 end FeProofs.ERC20.Exported

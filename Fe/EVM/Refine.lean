@@ -4,7 +4,8 @@ import Fe.EVM.World
 # Refinement of a Fe contract model by EVM bytecode
 
 `Refines p bytecode model`: on every message call the bytecode either runs out of gas, or does
-what the model does, as far as profile `p` observes.
+what the model does, as far as profile `p` observes.  A model that calls other contracts or
+reads its gas takes those inputs from a feed, and does what the bytecode does under some feed.
 -/
 
 namespace Fe.EVM
@@ -69,11 +70,21 @@ structure ContractModel where
   init : ByteArray → FeM Unit
   runtime : FeM ByteArray
 
-/-- Refinement at fixed inputs. -/
+/-- Refinement at fixed inputs: the bytecode runs out of gas, or some feed makes the model end
+    as the bytecode does.  The feed is what the model cannot compute: the gas and the substate
+    of each call it makes. -/
 def RefinesFor (p : Profile) (m : ContractModel) (σ σ₀ : AccountMap) (g : UInt256)
     (A : Substate) (I : ExecutionEnv) : Prop :=
   Ξ σ σ₀ g A I = .error .OutOfGass
-    ∨ Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A))
+    ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A feed))
+
+/-- A certificate of a model that never consults the context, stated without a feed, is one. -/
+theorem RefinesFor.closed {p : Profile} {m : ContractModel} {σ σ₀ : AccountMap} {g : UInt256}
+    {A : Substate} {I : ExecutionEnv}
+    (h : Ξ σ σ₀ g A I = .error .OutOfGass
+      ∨ Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A))) :
+    RefinesFor p m σ σ₀ g A I :=
+  h.imp id fun h => ⟨[], h⟩
 
 /-- The runtime bytecode refines the model on every message call that `admits` holds of. -/
 def RefinesOn (p : Profile) (bytecode : ByteArray) (m : ContractModel)
@@ -90,11 +101,58 @@ def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
 def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
 /-- Deployment: run with any valid argument bytes after it, the creation bytecode does what the
-    model's constructor does and returns the runtime bytecode. -/
+    model's constructor does, under some feed, and returns the runtime bytecode. -/
 def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
     (validArgs : ByteArray → Prop) : Prop :=
   ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
     Ξ σ σ₀ g A I = .error .OutOfGass
-      ∨ Agrees p (Ξ σ σ₀ g A I) ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A))
+      ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
+          ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A feed))
+
+/-- A deployment certificate of a constructor that never consults the context, stated without a
+    feed, is one. -/
+theorem RefinesDeploy.closed {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
+    {validArgs : ByteArray → Prop}
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+      Ξ σ σ₀ g A I = .error .OutOfGass
+        ∨ Agrees p (Ξ σ σ₀ g A I)
+            ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A))) :
+    RefinesDeploy p creation runtime m validArgs :=
+  fun σ σ₀ g A I args hargs hcode hperm =>
+    (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
+
+/-- How a certificate is used: a property of the accounts the model can end with, shown for
+    every feed, holds of the accounts the bytecode ends with. -/
+theorem RefinesFor.accounts {p : Profile} {m : ContractModel} {σ σ₀ σ' : AccountMap}
+    {g g' : UInt256} {A A' : Substate} {I : ExecutionEnv} {o : ByteArray}
+    {P : AccountMap → Prop} (h : RefinesFor p m σ σ₀ g A I)
+    (hP : ∀ feed out w, m.runtime.exec I (World.init σ A feed) = some (.ok (out, w))
+      ∨ m.runtime.exec I (World.init σ A feed) = some (.error (.stop out w)) → P w.accounts)
+    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' := by
+  rcases h with hoog | ⟨feed, hag⟩
+  · rw [hrun] at hoog; cases hoog
+  cases hm : m.runtime.exec I (World.init σ A feed) with
+  | none => rw [hm] at hag; exact hag.elim
+  | some res =>
+    rw [hm] at hag
+    cases res with
+    | error f =>
+      cases f with
+      | revert data => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
+      | panic code => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
+      | static => rw [hrun] at hag; cases hag
+      | trap => rw [hrun] at hag; cases hag
+      | oob => rw [hrun] at hag; cases hag
+      | stop out w =>
+        obtain ⟨_, _, h, _⟩ := hag
+        rw [hrun] at h
+        have hσ : σ' = w.accounts := by injection h with h; injection h with h; injection h with h
+        exact hσ ▸ hP feed out w (Or.inr hm)
+    | ok pr =>
+      obtain ⟨out, w⟩ := pr
+      obtain ⟨_, _, h, _⟩ := hag
+      rw [hrun] at h
+      have hσ : σ' = w.accounts := by injection h with h; injection h with h; injection h with h
+      exact hσ ▸ hP feed out w (Or.inl hm)
 
 end Fe.EVM

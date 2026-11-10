@@ -365,10 +365,10 @@ theorem fePackedStoreRefinesExported :
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases fePackedStoreRefinesHandEntry σ σ₀ g A I hcode hsize with h | h
+  rcases fePackedStoreRefinesHandEntry σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr (Agrees.of_endsAs
-      (runtime_endsAs I (World.init σ A) (by simp [World.init, UInt256.size]) hfits) h)
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
 
 /-- Deployment: the creation bytecode does what the exported deployment entry does and returns
     the runtime bytecode.  The contract takes no arguments, so that entry is the hand-written
