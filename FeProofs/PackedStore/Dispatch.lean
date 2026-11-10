@@ -123,13 +123,16 @@ theorem fePackedStoreDispatch_none_nomatch {I : ExecutionEnv}
   · rw [set1SelectorOf]; exact hnm 3 (by omega)
   · rw [set0SelectorOf]; exact hnm 4 (by omega)
 
-/-! ## Runtime dispatcher paths -/
+/-! ## Runtime dispatcher paths
 
-/-- Dispatcher path to `get1()` (arm entry pc 68). -/
+The dispatcher is a binary search: selectors below `setBoth`'s (`get1`, `get0`) are compared at
+pc 234, the others from pc 23. -/
+
+/-- Dispatcher path to `get1()` (arm entry pc 260). -/
 theorem fePackedStoreReachGet1Body {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 0)) :
-    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 68)
+    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 260)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -137,14 +140,14 @@ theorem fePackedStoreReachGet1Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x05 0x4c 0x1a 0x75 ⟨88873589⟩ (by native_decide)
       (by simpa [fePackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 68 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 260 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `get0()` (arm entry pc 125). -/
+/-- Dispatcher path to `get0()` (arm entry pc 289). -/
 theorem fePackedStoreReachGet0Body {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 1)) :
-    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 125)
+    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 289)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -152,14 +155,14 @@ theorem fePackedStoreReachGet0Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x90 0xbb 0x7b 0x44 ⟨2428205892⟩ (by native_decide)
       (by simpa [fePackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 125 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 289 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `setBoth(uint256,uint256)` (arm entry pc 173). -/
+/-- Dispatcher path to `setBoth(uint256,uint256)` (arm entry pc 56). -/
 theorem fePackedStoreReachSetBothBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 2)) :
-    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 173)
+    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 56)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -167,14 +170,14 @@ theorem fePackedStoreReachSetBothBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x92 0xcf 0x1e 0xf5 ⟨2463047413⟩ (by native_decide)
       (by simpa [fePackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 173 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 56 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `set1(uint256)` (arm entry pc 287). -/
+/-- Dispatcher path to `set1(uint256)` (arm entry pc 138). -/
 theorem fePackedStoreReachSet1Body {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 3)) :
-    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 287)
+    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 138)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -182,14 +185,14 @@ theorem fePackedStoreReachSet1Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x9b 0xc3 0x9d 0x3c ⟨2613288252⟩ (by native_decide)
       (by simpa [fePackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 287 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 138 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `set0(uint256)` (arm entry pc 390). -/
+/-- Dispatcher path to `set0(uint256)` (arm entry pc 188). -/
 theorem fePackedStoreReachSet0Body {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (fePackedStoreSelBytes 4)) :
-    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 390)
+    ∃ k C, RD (fePackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 188)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -197,7 +200,7 @@ theorem fePackedStoreReachSet0Body {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xf2 0x6f 0xee 0xc9 ⟨4067421897⟩ (by native_decide)
       (by simpa [fePackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 390 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 188 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
 /-- Calldata shorter than a selector -/
@@ -209,41 +212,33 @@ theorem fePackedStoreX_short {σ σ₀ A I} {g : Sat256}
   rd_run rd0 using [lt_four_ne_zero_of_lt hshort]
   exact rd0
 
-/-- No selector matches -/
+/-- No selector matches: either side of the pivot at pc 13, every compare falls through. -/
 theorem fePackedStoreX_noMatch {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = fePackedStoreBytecode)
     (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hnm : ∀ i, i < 5 → (fePackedStoreSelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (fePackedStoreBytecode) g (initState σ σ₀ g A I) := by
+  have miss : ∀ (i : ℕ) (sel : UInt256), i < 5 →
+      UInt256.eq sel (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes 0 32)) ⟨224⟩)
+        = (if (fePackedStoreSelBytes i == I.calldata.extract 0 4) then ⟨1⟩ else ⟨0⟩) →
+      UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
+        (UInt256.ofNat 224)) sel = UInt256.ofNat 0 := by
+    intro i sel hi e
+    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    rw [uInt256_eq_comm]
+    exact e
+  have e0 := miss 0 _ (by omega) (get1EvmSelector hsz)
+  have e1 := miss 1 _ (by omega) (get0EvmSelector hsz)
+  have e2 := miss 2 _ (by omega) (setBothEvmSelector hsz)
+  have e3 := miss 3 _ (by omega) (set1EvmSelector hsz)
+  have e4 := miss 4 _ (by omega) (set0EvmSelector hsz)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := fePackedStoreBlocks.fePackedStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := fePackedStoreBlocks.fePackedStore_block_8_fallthrough (by simp) (by
-    have e := get1EvmSelector hsz
-    simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd1
-  have rd3 := fePackedStoreBlocks.fePackedStore_block_23_fallthrough (by simp) (by
-    have e := get0EvmSelector hsz
-    simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd2
-  have rd4 := fePackedStoreBlocks.fePackedStore_block_33_fallthrough (by simp) (by
-    have e := setBothEvmSelector hsz
-    simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd3
-  have rd5 := fePackedStoreBlocks.fePackedStore_block_43_fallthrough (by simp) (by
-    have e := set1EvmSelector hsz
-    simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd4
-  have rd6 := fePackedStoreBlocks.fePackedStore_block_54_fallthrough (by simp) (by
-    have e := set0EvmSelector hsz
-    simp only [hnm 4 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd5
-  have rd7 := fePackedStoreBlocks.fePackedStore_block_65 (by simp) (by jump_dest) rd6
-  have rd8 := fePackedStoreBlocks.fePackedStore_block_74 (by simp) rd7
-  simpa [fePackedStoreBlocks.fePackedStore_block_8_fallthrough_stack] using rd8
+  by_cases hpiv : UInt256.lt (UInt256.shiftRight (uInt256OfByteArray
+      (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))
+        (UInt256.ofNat 2463047413) = UInt256.ofNat 0
+  · rd_run rd0 using [lt_four_eq_zero_of_ge hsz hsize, hpiv, e2, e3, e4]
+    exact rd0
+  · rd_run rd0 using [lt_four_eq_zero_of_ge hsz hsize, hpiv, e0, e1]
+    exact rd0
 
 end FeProofs.PackedStore

@@ -5,7 +5,7 @@ import FeProofs.Common.Basic
 /-!
 # FePackedStore `get0()`
 
-Arm entry pc 125: call-value check, then `SLOAD(packedSlot)` and the lane extraction; the lane is
+Arm entry pc 289: call-value check, then `SLOAD(packedSlot)` and the lane extraction; the lane is
 returned zero-extended to a word.
 -/
 
@@ -31,8 +31,9 @@ theorem fePackedStoreGet0Body {σ σ₀ A I} {g : UInt256}
   swap
   · nonpayable_revert rd hcode hd hwv
   rd_run rd using [hwv]
+  rw [keccak_packedSlot] at rd
   u256_lits at rd
-  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), packedByte_lane0] at rd
+  rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _), packedByte_lane0] at rd
   have hbody := nonpayableReturnExprBodyReturns (cfg := config) (contract := contract)
     (imms := ∅) (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) (locals := ∅)
     (by simp only [initState]; exact hwv)

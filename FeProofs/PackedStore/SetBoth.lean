@@ -1,15 +1,15 @@
 import FeProofs.PackedStore.Dispatch
 import FeProofs.PackedStore.Lanes
 import FeProofs.Common.Basic
+import Reasoning.ExternalCall
 
 /-!
 # FePackedStore `setBoth(uint256,uint256)`
 
-Arm entry pc 173: call-value check, the two-word head check (pc 178), then one read-modify-write of
-word `packedSlot` replacing lane 0 with the first argument's low byte and lane 1 with the second's
-(pc 190).  The compiler merges the spec's two lane writes into one `SSTORE`; `storeLanes_accountMap`
-shows the account maps agree.  Under `STATICCALL` the `SSTORE` halts, matching Stele's static
-violation at the first lane assignment.
+Arm entry pc 56: call-value check, the two-word head check (pc 66), then two read-modify-writes of
+word `packedSlot` (pc 79): lane 0 from the first argument's low byte, then lane 1 from the second's,
+as the spec's two lane assignments do.  Under `STATICCALL` the first `SSTORE` halts, matching
+Stele's static violation at the first lane assignment.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -36,7 +36,7 @@ theorem fePackedStoreSetBothBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailed hcode rd hd (hbad.elim
       decodeCalldata_uint256_uint256_none_short decodeCalldata_uint256_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok
-  rd_run rd to 190 using [hwv, solcDecodeLenCheckOk_4_64 hlen hhi hsize]
+  rd_run rd to 79 using [hwv, solcDecodeLenCheckOk_4_64 hlen hhi hsize]
   have hdec : config.externalABI.decodeCalldata? (setBothTransition.params.map Param.name)
       (transitionSignature setBothTransition).paramTypes I.calldata = some (bothStore I) := by
     show decodeCalldata ["first", "second"] [abiUInt256, abiUInt256] I.calldata = _
@@ -59,6 +59,7 @@ theorem fePackedStoreSetBothBody {σ σ₀ A I} {g : UInt256}
     "lane1" 1 (calldataWord I.calldata 36) (by simp) rfl rfl
   by_cases hperm : I.perm = true
   · rd_step rd
+    simp only [keccak_packedSlot] at rd
     have hp1 : evm1.executionEnv.perm = true := by
       rw [hevm1, storageStore_executionEnv]; simp only [hevm, initState]; exact hperm
     refine (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _)).reEquivExecutionGen hcode
@@ -66,12 +67,22 @@ theorem fePackedStoreSetBothBody {σ σ₀ A I} {g : UInt256}
         (ExecStmt.assign (Or.inr (by simp only [hevm, initState]; exact hperm)) hv0 ha0)
         (ExecBlock.consNormal (ExecStmt.assign (Or.inr hp1) hv1 ha1) ExecBlock.nil))))
       ?_ (returnEquiv.fallthrough rfl rfl (by native_decide))
-    have h1 : evm.executionEnv.codeOwner = I.codeOwner := rfl
-    have h2 : evm.accountMap = σ := rfl
-    have h3 : Stele.EVM.storageLoad evm I.codeOwner packedSlot =
-        codeOwnerStorageWord I σ packedSlot := codeOwnerStorageWord_initState packedSlot
-    rw [storeLanes_accountMap (evm := evm), setPackedByte_lane0, setPackedByte_lane1, h1, h2, h3]
-    rfl
+    have hs0 : SourceState evm I σ evm := ⟨rfl, rfl, rfl⟩
+    set v0 := setPackedByte (solcSlotWord σ I packedSlot) (calldataWord I.calldata 4) 0
+    have hs1 := hs0.storageWrite packedSlot v0
+    have hevm1' : evm1 = Stele.EVM.storageStore evm I.codeOwner packedSlot v0 := by
+      rw [hevm1, hs0.storageRead]
+      rfl
+    have hs2 := hs1.storageWrite packedSlot (setPackedByte
+      (solcSlotWord (sstoreAccountMap I.codeOwner σ packedSlot v0) I packedSlot)
+      (calldataWord I.calldata 36) 1)
+    rw [← setPackedByte_lane0, ← setPackedByte_lane1]
+    refine hs2.accounts.trans ?_
+    have hload : Stele.EVM.storageLoad evm1 evm1.executionEnv.codeOwner packedSlot =
+        solcSlotWord (sstoreAccountMap I.codeOwner σ packedSlot v0) I packedSlot := by
+      rw [hevm1']; exact hs1.storageRead packedSlot
+    have hco : evm1.executionEnv.codeOwner = I.codeOwner := by rw [hevm1', hs1.env]
+    rw [hload, hco, ← hevm1']
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
     exact RDstatic.reEquivStaticHalt hcode rd hd hdec
