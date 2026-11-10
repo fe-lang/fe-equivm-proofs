@@ -16,9 +16,12 @@ open Ethereum
 structure World where
   accounts : AccountMap
   logs : LogSeries
+  /-- The call's memory.  Its size is the address the next allocation gets.  It is the model's
+      own: a certificate compares return data, never memory. -/
+  memory : ByteArray := ByteArray.empty
 
 /-- The world a message call starts in. -/
-def World.init (σ : AccountMap) (A : Substate) : World := ⟨σ, A.logSeries⟩
+def World.init (σ : AccountMap) (A : Substate) : World := { accounts := σ, logs := A.logSeries }
 
 abbrev Env := ExecutionEnv
 
@@ -37,6 +40,33 @@ def calldatasize : FeM UInt256 := do return UInt256.ofNat (← read).calldata.si
 
 /-- `revert_empty()`: revert with no data.  It never returns. -/
 def revertEmpty : FeM Empty := Fe.M.revert ByteArray.empty
+
+/-- `panic_code(code)`: fail with `Panic(code)`.  It never returns. -/
+def panicCode (code : UInt256) : FeM Empty := Fe.M.panic code.toNat
+
+/-- `alloc_raw(size)`: `size` fresh zero bytes at the end of memory.  Returns their address. -/
+def alloc (size : UInt256) : FeM UInt256 := do
+  let w ← get
+  set { w with memory := w.memory ++ (⟨Array.replicate size.toNat 0⟩ : ByteArray) }
+  return UInt256.ofNat w.memory.size
+
+/-- Write `value` as the 32-byte big-endian word at `ptr`. -/
+def mstore (ptr value : UInt256) : FeM Unit :=
+  modify fun w => { w with memory := value.toByteArray.write 0 w.memory ptr.toNat 32 }
+
+/-- The 32-byte big-endian word at `ptr`, reading zero past the end of memory. -/
+def mload (ptr : UInt256) : FeM UInt256 := do
+  return uInt256OfByteArray ((← get).memory.readWithPadding ptr.toNat 32)
+
+/-- `zero_mem(ptr, len)`: write `len` zero bytes at `ptr`. -/
+def zeroMem (ptr len : UInt256) : FeM Unit :=
+  modify fun w =>
+    { w with memory :=
+        (⟨Array.replicate len.toNat 0⟩ : ByteArray).write 0 w.memory ptr.toNat len.toNat }
+
+/-- `revert(ptr, len)`: revert with the `len` bytes of memory at `ptr`.  It never returns. -/
+def revertData (ptr len : UInt256) : FeM Empty := do
+  Fe.M.revert ((← get).memory.readWithPadding ptr.toNat len.toNat)
 
 /-- The low `bits` bits of `v`: a cast to a narrower unsigned integer type. -/
 def truncate (bits : Nat) (v : UInt256) : UInt256 := UInt256.ofNat (v.toNat % 2 ^ bits)
