@@ -2,6 +2,7 @@ import Fe.Core
 import Fe.EVM.World
 import Fe.EVM.Calls
 import Fe.EVM.Int
+import Fe.EVM.Storage
 import Fe.EVM.Refine
 import Fe.EVM.Reach
 import Fe.EVM.Entry

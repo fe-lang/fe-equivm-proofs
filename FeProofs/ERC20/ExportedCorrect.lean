@@ -316,7 +316,7 @@ theorem init_exec (initialSupply : UInt256) (hmem : w.memory.size + 32 < UInt256
     (init initialSupply).exec I w =
       withMemory (returned w.memory initialSupply) ((Model.initBody initialSupply).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [ofNat0, balancesPlace, totalSupplyPlace, init, Model.initBody, Model.balanceSlot,
+    simp [ofNat0, balancesPlace, totalSupplyPlace, caller_1, zero, init, Model.initBody, Model.balanceSlot,
       Model.balancesRoot, Model.totalSupplySlot, emitTransfer_exec, hmem, hp, exec_sstore,
       exec_emit]
 
@@ -325,7 +325,7 @@ theorem transfer_exec (dst value : UInt256) (hmem : w.memory.size + 32 < UInt256
     (recv0_arm0 dst value).exec I w =
       withMemory (returned w.memory value) ((Model.transfer dst value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [balancesPlace, recv0_arm0, Model.transfer, Model.balanceSlot, Model.balancesRoot,
+    simp [balancesPlace, caller_1, recv0_arm0, Model.transfer, Model.balanceSlot, Model.balancesRoot,
       emitTransfer_exec, hmem, hp, checkedSub, checkedAdd, exec_sstore, exec_emit,
       M.ite_bind, M.exec_ite, apply_ite (withMemory _)] <;>
     agree
@@ -335,7 +335,7 @@ theorem approve_exec (spender value : UInt256) (hmem : w.memory.size + 32 < UInt
     (recv0_arm1 spender value).exec I w =
       withMemory (returned w.memory value) ((Model.approve spender value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [allowancesPlace, recv0_arm1, Model.approve, Model.allowanceSlot, Model.allowancesRoot,
+    simp [allowancesPlace, caller_1, recv0_arm1, Model.approve, Model.allowanceSlot, Model.allowancesRoot,
       emitApproval_exec, hmem, hp, exec_sstore, exec_emit]
 
 set_option maxHeartbeats 4000000 in
@@ -344,7 +344,7 @@ theorem transferFrom_exec (src dst value : UInt256)
     (recv0_arm2 src dst value).exec I w =
       withMemory (returned w.memory value) ((Model.transferFrom src dst value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [balancesPlace, allowancesPlace, recv0_arm2, Model.transferFrom, Model.balanceSlot,
+    simp [balancesPlace, allowancesPlace, caller_1, recv0_arm2, Model.transferFrom, Model.balanceSlot,
       Model.balancesRoot, Model.allowanceSlot, Model.allowancesRoot, emitTransfer_exec, hmem, hp,
       checkedSub, checkedAdd, exec_sstore, exec_emit, M.ite_bind, M.exec_ite,
       apply_ite (withMemory _)] <;>

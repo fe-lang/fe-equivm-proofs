@@ -18,4 +18,6 @@ import FeProofs.Fixtures.Exported
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
+import FeProofs.Fixtures.State
 import FeProofs.Fixtures.Calls
+
