@@ -28,6 +28,19 @@ abbrev FeM := Fe.M Env World
 /-- The calldata of the current call. -/
 def calldata : FeM ByteArray := do return (← read).calldata
 
+/-- `calldataload(offset)`: the 32 bytes of calldata from `offset`, zero-padded. -/
+def calldataload (offset : UInt256) : FeM UInt256 := do
+  return uInt256OfByteArray ((← read).calldata.readBytes offset.toNat 32)
+
+/-- `calldatasize()` -/
+def calldatasize : FeM UInt256 := do return UInt256.ofNat (← read).calldata.size
+
+/-- `revert_empty()`: revert with no data.  It never returns. -/
+def revertEmpty : FeM Empty := Fe.M.revert ByteArray.empty
+
+/-- The low `bits` bits of `v`: a cast to a narrower unsigned integer type. -/
+def truncate (bits : Nat) (v : UInt256) : UInt256 := UInt256.ofNat (v.toNat % 2 ^ bits)
+
 /-- An entry point that takes no value reverts when sent some. -/
 def nonPayable : FeM Unit := do
   if (← read).weiValue ≠ ⟨0⟩ then Fe.M.revert ByteArray.empty
@@ -162,6 +175,16 @@ def assertData (msg : String) : ByteArray :=
 
 @[simp] theorem exec_caller (I : Env) (w : World) :
     caller.exec I w = some (.ok (UInt256.ofNat I.source.val, w)) := rfl
+
+@[simp] theorem exec_calldataload (offset : UInt256) (I : Env) (w : World) :
+    (calldataload offset).exec I w =
+      some (.ok (uInt256OfByteArray (I.calldata.readBytes offset.toNat 32), w)) := rfl
+
+@[simp] theorem exec_calldatasize (I : Env) (w : World) :
+    calldatasize.exec I w = some (.ok (UInt256.ofNat I.calldata.size, w)) := rfl
+
+@[simp] theorem exec_revertEmpty (I : Env) (w : World) :
+    revertEmpty.exec I w = some (.error (.revert ByteArray.empty)) := rfl
 
 @[simp] theorem exec_calldata (I : Env) (w : World) :
     calldata.exec I w = some (.ok (I.calldata, w)) := rfl
