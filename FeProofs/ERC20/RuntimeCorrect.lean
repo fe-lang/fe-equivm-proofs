@@ -62,8 +62,11 @@ attribute [local simp]
   return_value_Sol_u256 HEAD_SIZE_4 decode_from_CallData_4 
   decode_from_prechecked_head_Allowance_Sol_CallData decode_runtime_args_Evm_Sol_Allowance 
   HEAD_SIZE_5 decode_from_CallData_5 decode_from_prechecked_head_TotalSupply_Sol_CallData 
-  decode_runtime_args_Evm_Sol_TotalSupply
-  checkedAdd checkedSub alloc mstore zeroMem returnData panicCode
+  decode_runtime_args_Evm_Sol_TotalSupply with_base decoder_new downcast_truncate_usize_u64 
+  size_1 len_MemSlice_u8 word_at_1 read_word_MemSlice_u8 base pos set_base set_pos 
+  decode_payload_Sol_SolDecoder_MemSlice_u8 decode_field_Sol_u256_SolDecoder_MemSlice_u8 
+  decode_payload_Sol_u256_SolDecoder_MemSlice_u8
+  checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
 
 variable (I : ExecutionEnv) (w : World)
 
@@ -171,6 +174,36 @@ theorem returnU256_exec (v : UInt256) (hmem : w.memory.size < UInt256.size) :
   simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
     returned]
   exact returned_read _ _
+
+/-! ### The constructor argument -/
+
+theorem ctorTail_eq (v : UInt256) : ctorTail v = v.toByteArray := by
+  rw [ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
+
+/-- Memory after the deployment entry copies the one argument word into a fresh buffer. -/
+def withArg (memory : ByteArray) (v : UInt256) : ByteArray :=
+  v.toByteArray.write 0 (memory ++ ⟨Array.replicate 32 0⟩) memory.size 32
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- The deployment entry on one argument word: reject call value, then run `init` on the word.
+    It changes memory only. -/
+theorem initEntry_exec (v : UInt256) (hmem : w.memory.size < UInt256.size) :
+    (init_entry (ctorTail v)).exec I w =
+      if I.weiValue = ⟨0⟩ then (init v).exec I { w with memory := withArg w.memory v }
+      else some (.error (.revert ByteArray.empty)) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size := ulit_toNat' _ hmem
+  have hlen : v.toByteArray.size = 32 := toByteArray_size v
+  have hcut : truncate 64 (UInt256.ofNat 32 &&& UInt256.ofNat 18446744073709551615) =
+      UInt256.ofNat 32 := by decide
+  rw [ctorTail_eq]
+  by_cases hwv : I.weiValue = ⟨0⟩
+  · simp [init_entry, exec_nonPayable, hwv, toNat0, toNat32, hlen, hsize, Fe.EVM.add_zero,
+      UInt256.size, hcut, add0_32, sub32_0, withArg]
+    rw [toByteArray_write32_read_back _ _ _ (by rw [ByteArray.size_append]; omega),
+      readWithPadding_eq_extract _ 0 (by rw [hlen]), Nat.zero_add, toByteArray_extract_all,
+      uInt256OfByteArray_toByteArray]
+  · simp [init_entry, exec_nonPayable, hwv]
 
 end Std
 
@@ -507,11 +540,35 @@ theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata
 
 end Entries
 
+/-! ## Deployment -/
+
+/-- The exported deployment entry ends as the hand-written one does, on one argument word. -/
+theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
+    (hmem : w.memory.size < UInt256.size) :
+    EndsAs ((init_entry (ctorTail v) >>= fun _ => pure out).exec I w)
+      ((initEntry (ctorTail v) >>= fun _ => pure out).exec I w) := by
+  have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
+  have hword : word (ctorTail v) 0 = v := by
+    show uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v
+    rw [readBytes_all32 _ hsz, ctorTail, word_toBytesBE_toByteArray_eq_toByteArray,
+      uInt256OfByteArray_toByteArray]
+  rw [M.exec_bind, initEntry_exec I w v hmem]
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · simp [initEntry, exec_nonPayable, hwv]
+    exact .exit _
+  by_cases hperm : I.perm = true
+  · simp [initEntry, exec_nonPayable, hwv, hsz, hword, init_exec, Model.initBody, exec_sstore,
+      exec_emit, hperm]
+    exact .ok_ok rfl rfl
+  · simp [initEntry, exec_nonPayable, hwv, hsz, hword, init_exec, Model.initBody, exec_sstore,
+      hperm]
+    exact .exit _
+
 /-! ## The certificate -/
 
-/-- The contract as exported: `init` behind the checks deployment makes, and the exported
-    runtime entry. -/
-def contract : ContractModel := ⟨initEntry, entry runtime⟩
+/-- The contract as exported: the deployment entry and the runtime entry. -/
+def contract : ContractModel := ⟨init_entry, entry runtime⟩
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feERC20RefinesExported : RefinesOn .P0 feERC20Bytecode contract CalldataFits := by
@@ -525,11 +582,14 @@ theorem feERC20RefinesExported : RefinesOn .P0 feERC20Bytecode contract Calldata
   · exact Or.inr (Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A) (by simp [World.init, UInt256.size]) hfits) h)
 
-/-- Deployment refines the exported `init`. -/
+/-- Deployment with one ABI-encoded `uint256` argument refines the exported deployment entry. -/
 theorem feERC20DeployRefinesExported :
     RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode contract
-      (fun args => ∃ v : UInt256, args = ctorTail v) :=
-  feERC20DeployRefinesHandEntry
-
+      (fun args => ∃ v : UInt256, args = ctorTail v) := by
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
+  rcases feERC20DeployRefinesHandEntry σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | h
+  · exact Or.inl h
+  · exact Or.inr (Agrees.of_endsAs
+      (init_endsAs v _ I (World.init σ A) (by simp [World.init, UInt256.size])) h)
 
 end FeProofs.ERC20.Exported

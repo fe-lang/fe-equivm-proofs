@@ -25,7 +25,7 @@ theorem transferArm_ok {I : ExecutionEnv} {w w' : World} {cd out : ByteArray}
   by_cases haddr : NotAddress (word cd 4)
   · simp [Model.transferArm, exec_nonPayable, hwv, hhead, haddr] at h
   simp only [Model.transferArm, M.exec_bind, exec_nonPayable, hwv, if_true, hhead, haddr,
-    if_false, M.exec_pure, M.exec_map] at h
+    if_false, M.exec_pure] at h
   cases ht : (Model.transfer (word cd 4) (word cd 36)).exec I w with
   | none => simp [ht] at h
   | some res =>

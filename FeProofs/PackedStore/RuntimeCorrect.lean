@@ -350,9 +350,8 @@ end Entries
 
 /-! ## The certificate -/
 
-/-- The contract as exported: `init` behind the call-value check deployment makes, and the
-    exported runtime entry. -/
-def contract : ContractModel := ⟨initEntry, entry runtime⟩
+/-- The contract as exported: the deployment entry and the runtime entry. -/
+def contract : ContractModel := ⟨init_entry, entry runtime⟩
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem fePackedStoreRefinesExported :
@@ -367,7 +366,9 @@ theorem fePackedStoreRefinesExported :
   · exact Or.inr (Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A) (by simp [World.init, UInt256.size]) hfits) h)
 
-/-- Deployment: the creation bytecode does what `init` does and returns the runtime bytecode. -/
+/-- Deployment: the creation bytecode does what the exported deployment entry does and returns
+    the runtime bytecode.  The contract takes no arguments, so that entry is the hand-written
+    one: the call-value check, then `init`. -/
 theorem fePackedStoreDeployRefinesExported :
     RefinesDeploy .P0 fePackedStoreCreationBytecode fePackedStoreBytecode contract
       (· = ByteArray.empty) :=

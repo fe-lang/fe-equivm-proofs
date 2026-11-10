@@ -58,6 +58,17 @@ def mstore (ptr value : UInt256) : FeM Unit :=
 def mload (ptr : UInt256) : FeM UInt256 := do
   return uInt256OfByteArray ((← get).memory.readWithPadding ptr.toNat 32)
 
+/-- Write `bytes` at `ptr`: the copy of the constructor arguments, the code after the creation
+    code, into memory. -/
+def mstoreBytes (ptr : UInt256) (bytes : ByteArray) : FeM Unit :=
+  modify fun w => { w with memory := bytes.write 0 w.memory ptr.toNat bytes.size }
+
+/-- `read_padded_word(ptr, len)`: the big-endian word whose first `min len 32` bytes are
+    memory's at `ptr` and whose other bytes are zero. -/
+def readPaddedWord (ptr len : UInt256) : FeM UInt256 := do
+  let bytes := (← get).memory.readWithPadding ptr.toNat (min len.toNat 32)
+  return uInt256OfByteArray (bytes.readWithPadding 0 32)
+
 /-- `zero_mem(ptr, len)`: write `len` zero bytes at `ptr`. -/
 def zeroMem (ptr len : UInt256) : FeM Unit :=
   modify fun w =>
