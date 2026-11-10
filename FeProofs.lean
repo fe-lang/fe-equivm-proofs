@@ -10,6 +10,6 @@ import FeProofs.WETH9.Correct
 import FeProofs.Constant.ModelCorrect
 import FeProofs.ScalarStore.ModelCorrect
 import FeProofs.ScalarStore.Exported
-import FeProofs.PackedStore.Exported
+import FeProofs.PackedStore.ExportedCorrect
 import FeProofs.ERC20.ExportedCorrect
 import FeProofs.ERC20.ConservationBytecode
