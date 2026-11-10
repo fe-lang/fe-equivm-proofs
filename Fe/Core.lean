@@ -18,6 +18,8 @@ inductive Exit (σ : Type) where
   | static
   /-- An invalid instruction: `panic()` and `todo()`, which trap. -/
   | trap
+  /-- A read past the end of the return data, where the EVM halts. -/
+  | oob
   /-- The whole run ends successfully from inside a callee, with return data and the world as
       it then is. -/
   | stop (data : ByteArray) (world : σ)
@@ -25,7 +27,7 @@ inductive Exit (σ : Type) where
 /-- Whether an exit is a failure that discards the run's changes: a revert or a panic. -/
 @[simp] def Exit.reverts {σ : Type} : Exit σ → Bool
   | .revert _ | .panic _ => true
-  | .static | .trap | .stop _ _ => false
+  | .static | .trap | .oob | .stop _ _ => false
 
 /-- The model monad over an environment `ρ` and a world `σ`.  A run that does not terminate is
     `none`, the bottom of `Option`, so recursive definitions can use `partial_fixpoint`. -/
@@ -134,6 +136,9 @@ theorem NoStop.panic (code : Nat) : NoStop (panic code : M ρ σ α) := by
   intro env w data w' h; simp at h
 
 theorem NoStop.fail_static : NoStop (fail .static : M ρ σ α) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.fail_oob : NoStop (fail .oob : M ρ σ α) := by
   intro env w data w' h; simp at h
 
 theorem NoStop.read : NoStop (read : M ρ σ ρ) := by

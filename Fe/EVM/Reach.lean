@@ -64,6 +64,7 @@ theorem agrees_of_rev {f : Exit World}
     | panic code => exact ⟨g', o, hxi, fun h => by cases h⟩
     | static => cases hf
     | trap => cases hf
+    | oob => cases hf
     | stop o w => cases hf
 
 /-- The bytecode halts on a static-mode violation, and the model fails the same way. -/

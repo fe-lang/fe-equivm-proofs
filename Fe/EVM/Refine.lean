@@ -27,7 +27,8 @@ abbrev EvmResult :=
 
 /-- The EVM result agrees with the model's run.  A model run that diverges agrees with nothing,
     so only running out of gas can match it.  A run that stops from inside a callee is a success,
-    like one that returns. -/
+    like one that returns.  A read past the end of the return data is the EVM's invalid memory
+    access. -/
 def Agrees (p : Profile) (evm : EvmResult) :
     Option (Except (Exit World) (ByteArray × World)) → Prop
   | none => False
@@ -39,6 +40,7 @@ def Agrees (p : Profile) (evm : EvmResult) :
       ∃ g' o, evm = .ok (.revert g' o) ∧ (p = .P1 → o = panicData code)
   | some (.error .static) => evm = .error .StaticModeViolation
   | some (.error .trap) => evm = .error .InvalidInstruction
+  | some (.error .oob) => evm = .error .InvalidMemoryAccess
 
 /-- One model run ends as another does: with the same exit, or successfully with the same return
     data, accounts and logs, whether each returns or stops.  Memory may differ. -/
