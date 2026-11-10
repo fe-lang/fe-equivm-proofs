@@ -104,6 +104,16 @@ theorem returned_read (memory : ByteArray) (v : UInt256) :
     (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
   omega
 
+theorem returned_size (memory : ByteArray) (v : UInt256) :
+    (returned memory v).size = memory.size + 32 := by
+  have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl
+  unfold returned
+  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
+      (by rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
+        (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]),
+    byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
+      (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
+
 /-- An empty return ends the call with no data and changes nothing. -/
 theorem returnNone_exec (I : ExecutionEnv) (w : World) :
     (returnData (UInt256.ofNat 0) (UInt256.ofNat 0)).exec I w =
@@ -158,9 +168,9 @@ theorem badHead_iff (cd : ByteArray) (words : Nat) (hfits : cd.size < 2 ^ 64) :
     memory only, and `arm` leaves memory alone. -/
 theorem endsAs_arm {α : Type} {arm : FeM α} {ret : α → FeM Empty} {enc : α → ByteArray}
     {I : ExecutionEnv} {w : World}
-    (hret : ∀ r w', w'.memory.size < UInt256.size →
+    (hret : ∀ r w', w'.memory.size + 32 < UInt256.size →
       ∃ memory, (ret r).exec I w' = some (.error (.stop (enc r) { w' with memory := memory })))
-    (hkeep : KeepsMemory arm) (hmem : w.memory.size < UInt256.size) :
+    (hkeep : KeepsMemory arm) (hmem : w.memory.size + 32 < UInt256.size) :
     EndsAs ((entry (arm >>= ret)).exec I w) ((arm >>= fun r => pure (enc r)).exec I w) := by
   cases h : arm.exec I w with
   | none => simp [entry, h]; exact .diverge
@@ -172,5 +182,75 @@ theorem endsAs_arm {α : Type} {arm : FeM α} {ret : α → FeM Empty} {enc : α
       obtain ⟨memory, hr⟩ := hret r w' (by rw [hkeep I w r w' h]; exact hmem)
       simp [entry, h, hr]
       exact .stop_ok rfl rfl
+
+/-! ## Runs alike up to memory -/
+
+/-- Two runs from the world `w` end alike up to memory: both diverge, both exit the same way,
+    or both return the same result with the same accounts and logs, the first having grown
+    memory by at most `grow` bytes.  An exported arm that allocates relates this way to a
+    hand-written one that does not. -/
+inductive Alike {α : Type} (grow : Nat) (w : World) :
+    Option (Except (Exit World) (α × World)) → Option (Except (Exit World) (α × World)) → Prop
+  | ok {a : α} {v v' : World} (ha : v.accounts = v'.accounts) (hl : v.logs = v'.logs)
+      (hm : v.memory.size ≤ w.memory.size + grow) :
+      Alike grow w (some (.ok (a, v))) (some (.ok (a, v')))
+  | exit (f : Exit World) : Alike grow w (some (.error f)) (some (.error f))
+  | diverge : Alike grow w none none
+
+/-- An outcome with the memory of the world it returns replaced by `memory`. -/
+def withMemory {α : Type} (memory : ByteArray) :
+    Option (Except (Exit World) (α × World)) → Option (Except (Exit World) (α × World))
+  | some (.ok (a, v)) => some (.ok (a, { v with memory := memory }))
+  | outcome => outcome
+
+@[simp] theorem withMemory_ok {α : Type} (memory : ByteArray) (a : α) (v : World) :
+    withMemory memory (some (.ok (a, v))) = some (.ok (a, { v with memory := memory })) := rfl
+
+@[simp] theorem withMemory_error {α : Type} (memory : ByteArray) (f : Exit World) :
+    withMemory (α := α) memory (some (.error f)) = some (.error f) := rfl
+
+@[simp] theorem withMemory_none {α : Type} (memory : ByteArray) :
+    withMemory (α := α) memory none = none := rfl
+
+/-- A run that is another's with its memory replaced ends alike up to memory. -/
+theorem alike_withMemory {α : Type} {grow : Nat} {w : World} {memory : ByteArray}
+    {x y : Option (Except (Exit World) (α × World))} (h : x = withMemory memory y)
+    (hm : memory.size ≤ w.memory.size + grow) : Alike grow w x y := by
+  subst h
+  match y with
+  | none => exact .diverge
+  | some (.error f) => exact .exit f
+  | some (.ok (a, v)) => exact .ok rfl rfl hm
+
+/-- A run equal to another ends alike with no growth, if a result leaves memory alone. -/
+theorem alike_of_eq {α : Type} {w : World} {x y : Option (Except (Exit World) (α × World))}
+    (h : x = y) (hkeep : ∀ a v, y = some (.ok (a, v)) → v.memory = w.memory) :
+    Alike 0 w x y := by
+  subst h
+  match x, hkeep with
+  | none, _ => exact .diverge
+  | some (.error f), _ => exact .exit f
+  | some (.ok (a, v)), hkeep => exact .ok rfl rfl (by rw [hkeep a v rfl]; omega)
+
+/-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm'` that
+    returns the encoding `enc` of its result, when the two arms end alike up to memory and `ret`
+    stops with that encoding, changing memory only. -/
+theorem endsAs_alike {α : Type} {arm arm' : FeM α} {ret : α → FeM Empty} {enc : α → ByteArray}
+    {I : ExecutionEnv} {w : World} {grow : Nat}
+    (hret : ∀ r w', w'.memory.size + 32 < UInt256.size →
+      ∃ memory, (ret r).exec I w' = some (.error (.stop (enc r) { w' with memory := memory })))
+    (halike : Alike grow w (arm.exec I w) (arm'.exec I w))
+    (hmem : w.memory.size + grow + 32 < UInt256.size) :
+    EndsAs ((entry (arm >>= ret)).exec I w) ((arm' >>= fun r => pure (enc r)).exec I w) := by
+  generalize ha : arm.exec I w = x at halike
+  generalize hb : arm'.exec I w = y at halike
+  cases halike with
+  | ok hacc hlogs hm =>
+    rename_i a v v'
+    obtain ⟨memory, hr⟩ := hret a v (by omega)
+    simp [entry, ha, hb, hr]
+    exact .stop_ok hacc hlogs
+  | exit f => simp [entry, ha, hb]; exact .exit f
+  | diverge => simp [entry, ha, hb]; exact .diverge
 
 end Fe.EVM

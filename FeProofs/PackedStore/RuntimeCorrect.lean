@@ -130,11 +130,15 @@ set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
 /-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
 theorem returnU256_exec (I : ExecutionEnv) (w : World) (v : UInt256)
-    (hmem : w.memory.size < UInt256.size) :
+    (hmem : w.memory.size + 32 < UInt256.size) :
     (return_value_Sol_u256 v).exec I w =
       some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size := ulit_toNat' _ hmem
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, add_zero, hsize, UInt256.size, returned]
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, add_zero, hsize, UInt256.size, hroom,
+    returned]
   exact returned_read _ _
 
 end Std
@@ -145,7 +149,7 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-theorem get0_endsAs (hmem : w.memory.size < UInt256.size) :
+theorem get0_endsAs (hmem : w.memory.size + 32 < UInt256.size) :
     EndsAs ((entry recv0_arm0_entry).exec I w) (get0Arm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
@@ -159,7 +163,7 @@ theorem get0_endsAs (hmem : w.memory.size < UInt256.size) :
     simp [get0Arm, exec_nonPayable, hwv]
     exact .exit _
 
-theorem get1_endsAs (hmem : w.memory.size < UInt256.size) :
+theorem get1_endsAs (hmem : w.memory.size + 32 < UInt256.size) :
     EndsAs ((entry recv0_arm1_entry).exec I w) (get1Arm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
@@ -262,7 +266,7 @@ theorem setBoth_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 
 
 /-- The exported runtime entry ends as the hand-written one does, on calldata below `2 ^ 64`
     bytes. -/
-theorem runtime_endsAs (hmem : w.memory.size < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry runtime).exec I w) (handRuntime.exec I w) := by
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
     ulit_toNat' _ (by unfold UInt256.size; omega)

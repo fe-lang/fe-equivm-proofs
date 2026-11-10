@@ -40,6 +40,9 @@ def exec (m : M ρ σ α) (env : ρ) (world : σ) : Option (Except (Exit σ) (α
 
 def fail (f : Exit σ) : M ρ σ α := throw f
 
+/-- A run that does not terminate. -/
+def diverge : M ρ σ α := fun _ _ => (none : Option (Except (Exit σ) (α × σ)))
+
 /-- End the whole run successfully with `data`. -/
 def stop (data : ByteArray) : M ρ σ α := do fail (.stop data (← get))
 
@@ -58,6 +61,14 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
 
 @[simp] theorem exec_panic (code : Nat) (env : ρ) (w : σ) :
     (panic code : M ρ σ α).exec env w = some (.error (.panic code)) := rfl
+
+/-- What follows a branch follows each side of it. -/
+theorem ite_bind (c : Prop) [Decidable c] (x y : M ρ σ α) (f : α → M ρ σ β) :
+    (if c then x else y) >>= f = if c then x >>= f else y >>= f := by
+  split <;> rfl
+
+@[simp] theorem exec_diverge (env : ρ) (w : σ) :
+    (diverge : M ρ σ α).exec env w = none := rfl
 
 @[simp] theorem exec_stop (data : ByteArray) (env : ρ) (w : σ) :
     (stop data : M ρ σ α).exec env w = some (.error (.stop data w)) := rfl

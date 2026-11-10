@@ -44,11 +44,16 @@ def revertEmpty : FeM Empty := Fe.M.revert ByteArray.empty
 /-- `panic_code(code)`: fail with `Panic(code)`.  It never returns. -/
 def panicCode (code : UInt256) : FeM Empty := Fe.M.panic code.toNat
 
-/-- `alloc_raw(size)`: `size` fresh zero bytes at the end of memory.  Returns their address. -/
+/-- `alloc_raw(size)`: `size` fresh zero bytes at the end of memory.  Returns their address.
+    Memory cannot reach `2 ^ 256` bytes: the EVM runs out of gas long before, so a run that
+    would get there does not terminate. -/
 def alloc (size : UInt256) : FeM UInt256 := do
   let w ← get
-  set { w with memory := w.memory ++ (⟨Array.replicate size.toNat 0⟩ : ByteArray) }
-  return UInt256.ofNat w.memory.size
+  if w.memory.size + size.toNat < UInt256.size then
+    set { w with memory := w.memory ++ (⟨Array.replicate size.toNat 0⟩ : ByteArray) }
+    return UInt256.ofNat w.memory.size
+  else
+    Fe.M.diverge
 
 /-- Write `value` as the 32-byte big-endian word at `ptr`. -/
 def mstore (ptr value : UInt256) : FeM Unit :=
@@ -135,6 +140,11 @@ def emit (topics : Array UInt256) (data : ByteArray) : FeM Unit := do
     modify fun w => { w with logs := w.logs.push ⟨env.codeOwner, topics, data⟩ }
   else
     Fe.M.fail .static
+
+/-- `log<n>(ptr, len, topics…)`: append a log entry whose data is the `len` bytes of memory at
+    `ptr`.  Under a static call it fails. -/
+def logData (ptr len : UInt256) (topics : Array UInt256) : FeM Unit := do
+  emit topics ((← get).memory.readWithPadding ptr.toNat len.toNat)
 
 /-- The slot of entry `key` of a `StorageMap` rooted at `root`: Solidity's mapping layout. -/
 def mapSlot (key root : UInt256) : UInt256 :=
