@@ -319,9 +319,13 @@ structure Report where
 
 def isPrefix (p b : ByteArray) : Bool := p.size ≤ b.size && b.extract 0 p.size == p
 
-/-- The gas a test runs with, as `fe test` gives it, and the bound on the steps of a frame. -/
+/-- The gas a test runs with, and the bound on the steps of a contract's frame. -/
 def testGas : Nat := 1000000000
 def stepBound : Nat := 100000000
+
+/-- The bound on the steps of the test's own frame.  A test that runs longer is cut short: the
+    interpreter takes minutes for it, and the calls it made so far are compared. -/
+def testSteps : Nat := 2000000
 
 /-- Compare the model with what the EVM did at one event of the test's frame.  Returns the
     report, if the event concerns a target, and the contract a creation deployed. -/
@@ -384,7 +388,7 @@ def runTest (targets : List Target) (t : Test) : Array Report × String := Id.ru
   match Ξ σ σ (.ofNat testGas) default I with
   | .ok (.success (σ, _, _) code) =>
     let σ := σ.insert self { σ.getD self default with code := code }
-    let r := run (fresh σ σ testGas default { I with code := code }) stepBound
+    let r := run (fresh σ σ testGas default { I with code := code }) testSteps
     let mut deployed : List (AccountAddress × Target) := []
     let mut reports : Array Report := #[]
     for event in r.events do

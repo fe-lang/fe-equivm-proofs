@@ -26,6 +26,9 @@ python3 $root/scripts/tally_blockers.py $out/blockers.txt
 cd $root
 ls $out/*.lean | xargs -n 1 -P 8 scripts/lean_check_one.sh | sort > $out/leanfail.txt
 echo "lean failures: $(wc -l < $out/leanfail.txt | tr -d ' ')"
-head -40 $out/leanfail.txt
+# A test that reaches a precompile EVMLean implements in C ends the interpreter.
+while read -r _ name; do
+  echo "LEANFAIL $name: $(grep -m1 -o "Could not find native implementation of external declaration '[^']*'" $out/$name.log || echo 'timed out or does not elaborate')"
+done < $out/leanfail.txt | head -40
 cat $out/*.lean.log | grep -E "^(DIFF|DISAGREE|TEST) " > $out/diff.txt
 python3 $root/scripts/tally_diff.py $out/diff.txt
