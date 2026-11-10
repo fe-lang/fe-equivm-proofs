@@ -76,6 +76,36 @@ def emit (topics : Array UInt256) (data : ByteArray) : FeM Unit := do
 def mapSlot (key root : UInt256) : UInt256 :=
   uInt256OfByteArray (KEC (key.toByteArray ++ root.toByteArray))
 
+/-- A place a Fe access reaches.  Storage is the one address space modeled so far. -/
+inductive Place
+  | storage (slot : UInt256)
+
+/-- Where each field of a struct or tuple lies below the first slot of its place. -/
+structure Layout where
+  /-- The slot of each field in storage, counted from the struct's own. -/
+  storage : List Nat
+
+/-- The place of field `index` of the struct at `p`. -/
+def Place.field (p : Place) (layout : Layout) (index : Nat) : Place :=
+  match p with
+  | .storage slot => .storage (slot + UInt256.ofNat (layout.storage.getD index 0))
+
+/-- The place of entry `key` of the `StorageMap` at `p`.  This is `StorageMap`'s `locate`,
+    written by hand until the model has the memory its Fe definition hashes in. -/
+def Place.entry (p : Place) (key : UInt256) : Place :=
+  match p with
+  | .storage slot => .storage (mapSlot key slot)
+
+/-- The word at `p`. -/
+def load (p : Place) : FeM UInt256 :=
+  match p with
+  | .storage slot => sload slot
+
+/-- Store `val` at `p`. -/
+def store (p : Place) (val : UInt256) : FeM Unit :=
+  match p with
+  | .storage slot => sstore slot val
+
 /-- The word of `cd` at byte offset `off`. -/
 def word (cd : ByteArray) (off : Nat) : UInt256 := uInt256OfByteArray (cd.readBytes off 32)
 
@@ -95,6 +125,18 @@ def checkedAdd (a b : UInt256) : FeM UInt256 :=
 def checkedSub (a b : UInt256) : FeM UInt256 :=
   if a.toNat < b.toNat then Fe.M.panic 0x11 else pure (UInt256.sub a b)
 
+/-- Checked `a * b`: `Panic(0x11)` on overflow. -/
+def checkedMul (a b : UInt256) : FeM UInt256 :=
+  if UInt256.size ≤ a.toNat * b.toNat then Fe.M.panic 0x11 else pure (a * b)
+
+/-- `a / b`: `Panic(0x12)` when `b` is zero. -/
+def checkedDiv (a b : UInt256) : FeM UInt256 :=
+  if b = ⟨0⟩ then Fe.M.panic 0x12 else pure (a / b)
+
+/-- `a % b`: `Panic(0x12)` when `b` is zero. -/
+def checkedRem (a b : UInt256) : FeM UInt256 :=
+  if b = ⟨0⟩ then Fe.M.panic 0x12 else pure (a % b)
+
 /-- The return data of a failed `assert!` with a message: Solidity's `Error(string)`.  Not
     observed at profile `P0`; to confirm against Fe's lowering with the first `P1` proof. -/
 def assertData (msg : String) : ByteArray :=
@@ -105,6 +147,18 @@ def assertData (msg : String) : ByteArray :=
 
 @[simp] theorem exec_sload (slot : UInt256) (I : Env) (w : World) :
     (sload slot).exec I w = some (.ok (slotWord I w.accounts slot, w)) := rfl
+
+@[simp] theorem load_storage (slot : UInt256) : load (.storage slot) = sload slot := rfl
+
+@[simp] theorem store_storage (slot val : UInt256) :
+    store (.storage slot) val = sstore slot val := rfl
+
+@[simp] theorem Place.field_storage (slot : UInt256) (layout : Layout) (index : Nat) :
+    (Place.storage slot).field layout index =
+      .storage (slot + UInt256.ofNat (layout.storage.getD index 0)) := rfl
+
+@[simp] theorem Place.entry_storage (slot key : UInt256) :
+    (Place.storage slot).entry key = .storage (mapSlot key slot) := rfl
 
 @[simp] theorem exec_caller (I : Env) (w : World) :
     caller.exec I w = some (.ok (UInt256.ofNat I.source.val, w)) := rfl
