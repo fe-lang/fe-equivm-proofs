@@ -5,9 +5,9 @@ import FeProofs.Common.Basic
 /-!
 # FeNarrowAbi `echo_u8(uint8)`
 
-Arm entry pc 124: call-value check, head-size check (pc 130), the canonical check
-`GT(word, 255)` (pc 142), and `MSTORE(0, word); RETURN(0, 32)` (pc 172).  A dirty word takes the
-`None` path (pc 158), whose tag check at pc 163 reverts.
+Arm entry pc 122: call-value check, head-size check (pc 128), the canonical check
+`GT(word, 255)` (pc 140), which reverts on a dirty word, and `MSTORE(0, word); RETURN(0, 32)`
+(pc 150).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

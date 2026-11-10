@@ -5,7 +5,7 @@ import FeProofs.Common.Constructor
 /-!
 # FeNarrowAbi constructor correctness
 
-Creation-code equivalence: the non-payable guard, then `CODECOPY` of the 276-byte runtime and its
+Creation-code equivalence: the non-payable guard, then `CODECOPY` of the 238-byte runtime and its
 `RETURN`, composed from the creation summaries.
 -/
 
@@ -13,11 +13,11 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.NarrowAbi
 
-/-- The initcode's `CODECOPY(0, 20, 276)` into empty memory reads back as the runtime code. -/
+/-- The initcode's `CODECOPY(0, 19, 238)` into empty memory reads back as the runtime code. -/
 theorem feNarrowAbiCreation_runtime_copy :
-    (feNarrowAbiCreationBytecode.write (UInt256.ofNat 20).toNat ByteArray.empty
-        (⟨0⟩ : UInt256).toNat (UInt256.ofNat 276).toNat).readWithPadding
-      (⟨0⟩ : UInt256).toNat (UInt256.ofNat 276).toNat = feNarrowAbiBytecode := by
+    (feNarrowAbiCreationBytecode.write (UInt256.ofNat 19).toNat ByteArray.empty
+        (⟨0⟩ : UInt256).toNat (UInt256.ofNat 238).toNat).readWithPadding
+      (⟨0⟩ : UInt256).toNat (UInt256.ofNat 238).toNat = feNarrowAbiBytecode := by
   native_decide
 
 theorem feNarrowAbiCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}
