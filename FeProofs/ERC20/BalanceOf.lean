@@ -5,9 +5,9 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `balanceOf(address)`
 
-Arm entry pc 540: call-value check, head-size check (pc 546), the canonical-address check
-`SHR(160, word) = 0` (pc 558), then `MSTORE(0, owner); MSTORE(32, 0); SLOAD(KECCAK256(0, 64))`
-returned as one word (pc 568).  Every failed check jumps to the revert block at pc 86.
+Arm entry pc 58: call-value check, head-size check (pc 69), the canonical-address check
+`SHR(160, word) = 0` (pc 82), then `MSTORE(0, owner); MSTORE(32, 0); SLOAD(KECCAK256(0, 64))`
+returned as one word (pc 92).  Every failed check jumps to the revert block at pc 65.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

@@ -5,13 +5,13 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `transferFrom(address,address,uint256)`
 
-Arm entry pc 203: the call-value check (revert block 86), the three-word head check at pc 209 and
-the canonicality checks of `from` (pc 221) and `to` (pc 231).  Pc 241 compares
-`allowance[from][caller]` with `value` (short: `Error(string)` revert at 276/810) and pc 315
-compares `balanceOf[from]` (short: revert at 336/810).  Pc 372 stores the reduced allowance and
-re-reads `balanceOf[from]` for Fe's checked subtraction (panic at 520); pc 426 stores the debit
-and adds `value` to `balanceOf[to]` (an overflow panics at 520); pc 460 stores the credit, logs
-`Transfer` and returns `true`.  Each read after a store sees that store, as in the Stele body, so
+Arm entry pc 555: the call-value check (revert block 65), the three-word head check at pc 561 and
+the canonicality checks of `from` (pc 573) and `to` (pc 583).  Pc 593 compares
+`allowance[from][caller]` with `value` (short: `Error(string)` revert at 628/833) and pc 667
+compares `balanceOf[from]` (short: the transfer arm's revert at 160/833).  Pc 686 stores the
+reduced allowance and re-reads `balanceOf[from]` for Fe's checked subtraction (panic at 313);
+pc 739 stores the debit and adds `value` to `balanceOf[to]` (an overflow panics at 313); pc 773
+stores the credit, logs `Transfer` and returns `true`.  Each read after a store sees that store, as in the Stele body, so
 the proof needs no disjointness of the slots.  Under `STATICCALL` the allowance `SSTORE` halts,
 as the Stele allowance assignment does.
 -/
@@ -365,7 +365,7 @@ theorem feERC20TransferFromBody {σ σ₀ A I} {g : UInt256}
       (transitionSignature transferFromTransition).paramTypes I.calldata =
         some (transferFromLocals I) :=
     decodeCalldata_address_address_uint256_ok hlen hhi hc0 hc1
-  rd_run rd to 241 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
+  rd_run rd to 593 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
   by_cases hallow : (calldataWord I.calldata 68).toNat ≤ (transferFromAllowance σ I).toNat
   swap
   · -- short allowance: `Error(string)` revert
@@ -376,14 +376,15 @@ theorem feERC20TransferFromBody {σ σ₀ A I} {g : UInt256}
   swap
   · -- short balance: `Error(string)` revert
     have hlt := Nat.lt_of_not_le hbal
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_eq_zero hlt)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow),
+      slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (transferFromBody_balance hwv hc0 hallow hlt)
   by_cases hperm : I.perm = true
   swap
   · -- static mode: the allowance `SSTORE` halts
     have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal)]
     exact RDstatic.reEquivStaticHalt hcode rd hd hdec
       (transferFromBody_static hwv hc0 hallow hbal hpf)
   by_cases hsub : (calldataWord I.calldata 68).toNat ≤
@@ -391,7 +392,7 @@ theorem feERC20TransferFromBody {σ σ₀ A I} {g : UInt256}
   swap
   · -- `balanceOf[from]`, re-read after the allowance store, is short: Fe's panic
     have hlt := Nat.lt_of_not_le hsub
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
       slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (transferFromBody_underflow hwv hc0 hallow hbal hperm hlt)
@@ -399,11 +400,11 @@ theorem feERC20TransferFromBody {σ σ₀ A I} {g : UInt256}
   swap
   · -- `balanceOf[to] + value` overflows: Fe's panic
     have hover := Nat.le_of_not_lt hfit
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
       slot_hint (ult_zero hsub), slot_hint (addCarry_ne_zero hover)]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (transferFromBody_overflow hwv hc0 hallow hbal hperm hc1 hsub hover)
-  rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+  rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
     slot_hint (ult_zero hsub), slot_hint (addCarry_eq_zero hfit)]
   simp only [keccakWord_mapSlot] at rd
   u256_lits at rd

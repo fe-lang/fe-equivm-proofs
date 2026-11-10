@@ -5,12 +5,12 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `transfer(address,uint256)`
 
-Arm entry pc 585: the call-value check (revert block 86), the two-word head check at pc 591 and
-the `to` canonicality check at pc 603.  Pc 613 compares `balanceOf[caller]`
-(`SLOAD(keccak256(caller ‖ 0))`) with `value` and jumps to the `Error(string)` revert at 336/810
-when it is short; pc 636 is Fe's checked subtraction, the same comparison, so its panic is
-unreachable.  Pc 660 stores the debit and adds `value` to `balanceOf[to]`, read after the debit
-(an overflow jumps to the panic at 520), and pc 684 stores the credit, logs `Transfer` and returns
+Arm entry pc 109: the call-value check (revert block 65), the two-word head check at pc 115 and
+the `to` canonicality check at pc 127.  Pc 137 compares `balanceOf[caller]`
+(`SLOAD(keccak256(caller ‖ 0))`) with `value` and falls through to the `Error(string)` revert at
+160/833 when it is short; pc 196 is Fe's checked subtraction, the same comparison, so its panic is
+unreachable.  Pc 220 stores the debit and adds `value` to `balanceOf[to]`, read after the debit
+(an overflow jumps to the panic at 313), and pc 254 stores the credit, logs `Transfer` and returns
 `true`.  Under `STATICCALL` the debit's `SSTORE` halts with a static-mode violation, matching the
 Stele storage assignment.
 -/
@@ -203,28 +203,30 @@ theorem feERC20TransferBody {σ σ₀ A I} {g : UInt256}
   have hdec : config.externalABI.decodeCalldata? (transferTransition.params.map Param.name)
       (transitionSignature transferTransition).paramTypes I.calldata = some (transferLocals I) :=
     decodeCalldata_addr_uint256_ok hlen hhi hcanon
-  rd_run rd to 613 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 137 using [hwv, hc, shiftRight160_eq_zero hcanon]
   by_cases henough : (calldataWord I.calldata 36).toNat ≤ (transferBal σ I).toNat
   swap
   · -- short balance: `Error(string)` revert
     have hlt := Nat.lt_of_not_le henough
-    rd_run rd using [slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
+    rd_run rd using [slot_hint (isZero_lt_eq_zero hlt)]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec (transferBody_insufficient hwv hlt)
   have hge := ult_zero henough
   by_cases hperm : I.perm = true
   swap
   · -- static mode: the debit's `SSTORE` halts
     have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [slot_hint hge]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge]
     exact RDstatic.reEquivStaticHalt hcode rd hd hdec (transferBody_static hwv henough hpf)
   by_cases hfit : (transferToBal σ I).toNat + (calldataWord I.calldata 36).toNat < UInt256.size
   swap
   · -- `balanceOf[to] + value` overflows: Fe's panic
     have hover := Nat.le_of_not_lt hfit
-    rd_run rd using [slot_hint hge, slot_hint (addCarry_ne_zero hover)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge,
+      slot_hint (addCarry_ne_zero hover)]
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (transferBody_overflow hwv henough hperm hcanon hover)
-  rd_run rd using [slot_hint hge, slot_hint (addCarry_eq_zero hfit)]
+  rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge,
+    slot_hint (addCarry_eq_zero hfit)]
   simp only [keccakWord_mapSlot] at rd
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd

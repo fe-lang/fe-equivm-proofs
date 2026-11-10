@@ -151,11 +151,11 @@ theorem feERC20Dispatch_none_nomatch {I : ExecutionEnv}
 
 /-! ## Runtime dispatcher paths -/
 
-/-- Dispatcher path to `approve(address,uint256)` (arm entry pc 79). -/
+/-- Dispatcher path to `approve(address,uint256)` (arm entry pc 437). -/
 theorem feERC20ReachApproveBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 0)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 79)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 437)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -163,14 +163,14 @@ theorem feERC20ReachApproveBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x09 0x5e 0xa7 0xb3 ⟨157198259⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 79 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 437 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `totalSupply()` (arm entry pc 189). -/
+/-- Dispatcher path to `totalSupply()` (arm entry pc 541). -/
 theorem feERC20ReachTotalSupplyBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 1)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 189)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 541)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -178,14 +178,14 @@ theorem feERC20ReachTotalSupplyBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x18 0x16 0x0d 0xdd ⟨404098525⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 189 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 541 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `transferFrom(address,address,uint256)` (arm entry pc 203). -/
+/-- Dispatcher path to `transferFrom(address,address,uint256)` (arm entry pc 555). -/
 theorem feERC20ReachTransferFromBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 2)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 203)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 555)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -193,14 +193,14 @@ theorem feERC20ReachTransferFromBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x23 0xb8 0x72 0xdd ⟨599290589⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 203 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 555 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `balanceOf(address)` (arm entry pc 540). -/
+/-- Dispatcher path to `balanceOf(address)` (arm entry pc 58). -/
 theorem feERC20ReachBalanceOfBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 3)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 540)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 58)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -208,14 +208,14 @@ theorem feERC20ReachBalanceOfBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x70 0xa0 0x82 0x31 ⟨1889567281⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 540 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 58 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `transfer(address,uint256)` (arm entry pc 585). -/
+/-- Dispatcher path to `transfer(address,uint256)` (arm entry pc 109). -/
 theorem feERC20ReachTransferBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 4)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 585)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 109)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -223,14 +223,14 @@ theorem feERC20ReachTransferBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xa9 0x05 0x9c 0xbb ⟨2835717307⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 585 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 109 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `allowance(address,address)` (arm entry pc 743). -/
+/-- Dispatcher path to `allowance(address,address)` (arm entry pc 333). -/
 theorem feERC20ReachAllowanceBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feERC20SelBytes 5)) :
-    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 743)
+    ∃ k C, RD (feERC20Bytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 333)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -238,7 +238,7 @@ theorem feERC20ReachAllowanceBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0xdd 0x62 0xed 0x3e ⟨3714247998⟩ (by native_decide)
       (by simpa [feERC20SelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 743 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 333 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
 /-- Calldata shorter than a selector -/
@@ -250,46 +250,35 @@ theorem feERC20X_short {σ σ₀ A I} {g : Sat256}
   rd_run rd0 using [lt_four_ne_zero_of_lt hshort]
   exact rd0
 
-/-- No selector matches -/
+/-- No selector matches: either side of the pivot at pc 13 (`balanceOf`'s selector), every compare
+falls through. -/
 theorem feERC20X_noMatch {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feERC20Bytecode)
     (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hnm : ∀ i, i < 6 → (feERC20SelBytes i == I.calldata.extract 0 4) = false) :
     RDrev (feERC20Bytecode) g (initState σ σ₀ g A I) := by
+  have miss : ∀ (i : ℕ) (sel : UInt256), i < 6 →
+      UInt256.eq sel (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes 0 32)) ⟨224⟩)
+        = (if (feERC20SelBytes i == I.calldata.extract 0 4) then ⟨1⟩ else ⟨0⟩) →
+      UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
+        (UInt256.ofNat 224)) sel = UInt256.ofNat 0 := by
+    intro i sel hi e
+    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    rw [uInt256_eq_comm]
+    exact e
+  have e0 := miss 0 _ (by omega) (approveEvmSelector hsz)
+  have e1 := miss 1 _ (by omega) (totalSupplyEvmSelector hsz)
+  have e2 := miss 2 _ (by omega) (transferFromEvmSelector hsz)
+  have e3 := miss 3 _ (by omega) (balanceOfEvmSelector hsz)
+  have e4 := miss 4 _ (by omega) (transferEvmSelector hsz)
+  have e5 := miss 5 _ (by omega) (allowanceEvmSelector hsz)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  have rd1 := feERC20Blocks.feERC20_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
-  have rd2 := feERC20Blocks.feERC20_block_8_fallthrough (by simp) (by
-    have e := approveEvmSelector hsz
-    simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd1
-  have rd3 := feERC20Blocks.feERC20_block_23_fallthrough (by simp) (by
-    have e := totalSupplyEvmSelector hsz
-    simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd2
-  have rd4 := feERC20Blocks.feERC20_block_33_fallthrough (by simp) (by
-    have e := transferFromEvmSelector hsz
-    simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd3
-  have rd5 := feERC20Blocks.feERC20_block_43_fallthrough (by simp) (by
-    have e := balanceOfEvmSelector hsz
-    simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd4
-  have rd6 := feERC20Blocks.feERC20_block_54_fallthrough (by simp) (by
-    have e := transferEvmSelector hsz
-    simp only [hnm 4 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd5
-  have rd7 := feERC20Blocks.feERC20_block_65_fallthrough (by simp) (by
-    have e := allowanceEvmSelector hsz
-    simp only [hnm 5 (by omega), Bool.false_eq_true, if_false] at e
-    rw [uInt256_eq_comm] at e
-    exact e) rd6
-  have rd8 := feERC20Blocks.feERC20_block_76 (by simp) (by jump_dest) rd7
-  have rd9 := feERC20Blocks.feERC20_block_86 (by simp) rd8
-  simpa [feERC20Blocks.feERC20_block_8_fallthrough_stack] using rd9
+  by_cases hpiv : UInt256.lt (UInt256.shiftRight (uInt256OfByteArray
+      (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))
+        (UInt256.ofNat 1889567281) = UInt256.ofNat 0
+  · rd_run rd0 using [lt_four_eq_zero_of_ge hsz hsize, hpiv, e3, e4, e5]
+    exact rd0
+  · rd_run rd0 using [lt_four_eq_zero_of_ge hsz hsize, hpiv, e0, e1, e2]
+    exact rd0
 
 end FeProofs.ERC20

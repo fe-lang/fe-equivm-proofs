@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `approve(address,uint256)`
 
-Arm entry pc 79: the call-value check (revert block 86), the two-word head check at pc 90, the
-`spender` canonicality check (`SHR 160`) at pc 103, then block 113: the nested-mapping slot
+Arm entry pc 437: the call-value check (revert block 65), the two-word head check at pc 443, the
+`spender` canonicality check (`SHR 160`) at pc 455, then block 465: the nested-mapping slot
 `keccak256(spender ‖ keccak256(caller ‖ 1))`, the `SSTORE`, `LOG3 Approval` and the 32-byte
 `true` return.  Under `STATICCALL` the `SSTORE` halts with a static-mode violation, matching the
 Stele storage assignment.
@@ -104,7 +104,7 @@ theorem feERC20ApproveBody {σ σ₀ A I} {g : UInt256}
   · rd_run rd using [hwv, hc, shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)]
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (feERC20ApproveDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))
-  rd_run rd to 113 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 465 using [hwv, hc, shiftRight160_eq_zero hcanon]
   let evmS := initState σ σ₀ (Sat256.ofUInt256 g) A I
   have hcv : evalExpr? config { contract := contract, locals := approveLocals I } evmS
       (.binary .eq (.env .callvalue) (.intLit 0)) = .ok (.bool true) :=

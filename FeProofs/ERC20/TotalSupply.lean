@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `totalSupply()`
 
-Arm entry pc 189: the call-value check (revert block 86), then `MSTORE(0, SLOAD(2))` and a
-32-byte `RETURN` at pc 194.  There are no arguments, so no head check.
+Arm entry pc 541: the call-value check (revert block 65), then `MSTORE(0, SLOAD(2))` and a
+32-byte `RETURN` at pc 546.  There are no arguments, so no head check.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
