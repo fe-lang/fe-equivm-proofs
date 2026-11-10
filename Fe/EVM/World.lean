@@ -263,9 +263,21 @@ def extcodesize (addr : UInt256) : FeM UInt256 := do
 def mapSlot (key root : UInt256) : UInt256 :=
   uInt256OfByteArray (KEC (key.toByteArray ++ root.toByteArray))
 
-/-- A place a Fe access reaches.  Storage is the one address space modeled so far. -/
-inductive Place
-  | storage (slot : UInt256)
+/-- A state space of a contract: its storage, or its transient storage. -/
+inductive Space
+  | storage
+  | transient
+  deriving DecidableEq, Inhabited
+
+/-- A place a Fe access reaches in contract state: a slot of a state space.  A value of more than
+    one slot starts there.  This is what a reference to state is at run time: the slot number. -/
+structure Place where
+  space : Space
+  slot : UInt256
+  deriving Inhabited
+
+/-- The place at `slot` of storage. -/
+def Place.storage (slot : UInt256) : Place := ⟨.storage, slot⟩
 
 /-- Where each field of a struct or tuple lies below the first slot of its place. -/
 structure Layout where
@@ -274,24 +286,24 @@ structure Layout where
 
 /-- The place of field `index` of the struct at `p`. -/
 def Place.field (p : Place) (layout : Layout) (index : Nat) : Place :=
-  match p with
-  | .storage slot => .storage (slot + UInt256.ofNat (layout.storage.getD index 0))
+  { p with slot := p.slot + UInt256.ofNat (layout.storage.getD index 0) }
 
 /-- The place of entry `key` of the `StorageMap` at `p`.  This is `StorageMap`'s `locate`,
     written by hand until the model has the memory its Fe definition hashes in. -/
 def Place.entry (p : Place) (key : UInt256) : Place :=
-  match p with
-  | .storage slot => .storage (mapSlot key slot)
+  { p with slot := mapSlot key p.slot }
 
 /-- The word at `p`. -/
 def load (p : Place) : FeM UInt256 :=
-  match p with
-  | .storage slot => sload slot
+  match p.space with
+  | .storage => sload p.slot
+  | .transient => tload p.slot
 
 /-- Store `val` at `p`. -/
 def store (p : Place) (val : UInt256) : FeM Unit :=
-  match p with
-  | .storage slot => sstore slot val
+  match p.space with
+  | .storage => sstore p.slot val
+  | .transient => tstore p.slot val
 
 /-- The word of `cd` at byte offset `off`. -/
 def word (cd : ByteArray) (off : Nat) : UInt256 := uInt256OfByteArray (cd.readBytes off 32)
