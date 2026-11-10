@@ -130,4 +130,50 @@ def storeArray {α : Type} [Inhabited α] {n : Nat} (stride : Nat) (elem : Place
     (p : Place) (v : Vector α n) : FeM Unit :=
   (List.range n).forM fun i => elem (p.offset (i * stride)) v[i]!
 
+/-! ## Memory
+
+Memory is addressed by the byte.  A scalar takes the bytes of its width, big-endian, and the
+parts of an aggregate follow one another. -/
+
+/-- The integer of type `t` at `ptr`: its bytes, big-endian. -/
+def mloadInt (t : IntTy) (ptr : UInt256) : FeM UInt256 := do
+  let bytes := (← get).memory.readWithPadding ptr.toNat (t.bits / 8)
+  return IntTy.cast (.u 256) t (UInt256.ofNat (fromByteArrayBigEndian bytes))
+
+/-- Write the integer `v` of type `t` at `ptr`: the low bytes of its word, big-endian. -/
+def mstoreInt (t : IntTy) (ptr v : UInt256) : FeM Unit :=
+  modify fun w =>
+    { w with memory :=
+        (v.toByteArray.extract (32 - t.bits / 8) 32).write 0 w.memory ptr.toNat (t.bits / 8) }
+
+/-- A `bool` in memory is one byte, true unless it is zero. -/
+def mloadBool (ptr : UInt256) : FeM Bool := do
+  return decide (fromByteArrayBigEndian ((← get).memory.readWithPadding ptr.toNat 1) ≠ 0)
+
+def mstoreBool (ptr : UInt256) (b : Bool) : FeM Unit := mstoreInt (.u 8) ptr (Bool.toUInt256 b)
+
+/-- The array of `n` elements at `ptr`, each of `stride` bytes and read by `elem`, in index
+    order. -/
+def mloadArray {α : Type} (stride : Nat) (elem : UInt256 → FeM α) (ptr : UInt256) :
+    (n : Nat) → FeM (Vector α n)
+  | 0 => pure #v[]
+  | n + 1 => do
+    let init ← mloadArray stride elem ptr n
+    let last ← elem (ptr + UInt256.ofNat (n * stride))
+    pure (init.push last)
+
+/-- Write an array at `ptr` element by element, in index order. -/
+def mstoreArray {α : Type} [Inhabited α] {n : Nat} (stride : Nat) (elem : UInt256 → α → FeM Unit)
+    (ptr : UInt256) (v : Vector α n) : FeM Unit :=
+  (List.range n).forM fun i => elem (ptr + UInt256.ofNat (i * stride)) v[i]!
+
+/-- `clear` of a place of `slots` slots: every word zero. -/
+def clearSlots (p : Place) (slots : Nat) : FeM Unit :=
+  (List.range slots).forM fun i => store (p.offset i) (UInt256.ofNat 0)
+
+/-- `__keccak_words(words)`: the hash of the words, each as 32 big-endian bytes, in order. -/
+def keccakWords {n : Nat} (words : Vector UInt256 n) : UInt256 :=
+  .ofNat (fromByteArrayBigEndian
+    (KEC (words.toList.foldl (fun bytes word => bytes ++ word.toByteArray) ByteArray.empty)))
+
 end Fe.EVM
