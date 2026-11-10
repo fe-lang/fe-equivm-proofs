@@ -39,6 +39,22 @@ def Agrees (p : Profile) (evm : EvmResult) :
       ∃ g' o, evm = .ok (.revert g' o) ∧ (p = .P1 → o = panicData code)
   | some (.error .static) => evm = .error .StaticModeViolation
 
+/-- One model run ends as another does: with the same exit, or successfully with the same return
+    data, accounts and logs where the first stops and the second returns.  Memory may differ. -/
+inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
+    Option (Except (Exit World) (ByteArray × World)) → Prop
+  | stop_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
+      (hl : w'.logs = w.logs) : EndsAs (some (.error (.stop out w'))) (some (.ok (out, w)))
+  | exit (f : Exit World) : EndsAs (some (.error f)) (some (.error f))
+
+/-- A result that agrees with a run agrees with any run that ends as it does. -/
+theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
+    {a b : Option (Except (Exit World) (ByteArray × World))} (h : EndsAs a b)
+    (hb : Agrees p evm b) : Agrees p evm a := by
+  cases h with
+  | stop_ok ha hl => simpa only [Agrees, ha, hl] using hb
+  | exit f => exact hb
+
 /-- A contract's model: its constructor, from the argument bytes that follow the creation code,
     and its runtime entry, from calldata to return data. -/
 structure ContractModel where

@@ -12,9 +12,10 @@ The definitions between the markers are the output of `fe-lean-export` on `FePac
 The theorems evaluate the arms: lanes 0 and 1 are bytes 0 and 1 of the word at `wordSlot`,
 read and written as `packedByte` and `setPackedByte`.
 
-`FeProofs/PackedStore/ExportedCorrect.lean` proves that `fePackedStoreBytecode`, built by the
-same Fe commit the exporter ran on (`22b156fff`), refines a contract whose arms are these
-definitions.
+The file ends with the runtime entry: one `recv0_arm<n>_entry` per arm and `runtime`, with the
+std decoder and encoder they call.  `RuntimeCorrect.lean` proves that `fePackedStoreBytecode`,
+built by the Fe commit the exporter ran on (`22b156fff`), refines the contract whose runtime is
+that entry.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
