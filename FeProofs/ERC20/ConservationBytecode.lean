@@ -36,6 +36,11 @@ theorem transferArm_ok {I : ExecutionEnv} {w w' : World} {cd out : ByteArray}
       simp [ht] at h
       exact ⟨r, by rw [h.2]⟩
 
+/-- The `transfer` entry arm returns or fails; it never stops the run from inside. -/
+theorem transferArm_noStop (cd : ByteArray) : (Model.transferArm cd).NoStop := by
+  unfold Model.transferArm Model.transfer
+  no_stop
+
 /-- On the deployed bytecode: a `transfer` call that succeeds keeps the sum of the balances of
     the holders `S` equal to the supply, when the caller and the recipient are in `S`, the
     balance slots of `S` do not collide, and the contract's account exists. -/
@@ -60,6 +65,7 @@ theorem transfer_conserves_bytecode {σ σ₀ σ' : AccountMap} {A A' : Substate
       | revert data => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
       | panic code => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
       | static => rw [hrun] at hag; cases hag
+      | stop out w' => exact absurd hm (transferArm_noStop _ _ _ _ _)
     | ok p =>
       obtain ⟨out, w'⟩ := p
       obtain ⟨g'', A'', h, _⟩ := hag

@@ -7,8 +7,8 @@ only: the environment and the world are parameters, and each target supplies its
 
 namespace Fe
 
-/-- Why a run stopped without a result. -/
-inductive Fail where
+/-- How a run ends other than by returning to its caller. -/
+inductive Exit (σ : Type) where
   /-- A revert with its return data: an explicit revert, or a failed `assert!` with a message. -/
   | revert (data : ByteArray)
   /-- A trap with its panic code: checked arithmetic, a failed index check, an `assert!` without
@@ -16,21 +16,32 @@ inductive Fail where
   | panic (code : Nat)
   /-- A state change attempted where none is allowed. -/
   | static
+  /-- The whole run ends successfully from inside a callee, with return data and the world as
+      it then is. -/
+  | stop (data : ByteArray) (world : σ)
+
+/-- Whether an exit is a failure that discards the run's changes: a revert or a panic. -/
+@[simp] def Exit.reverts {σ : Type} : Exit σ → Bool
+  | .revert _ | .panic _ => true
+  | .static | .stop _ _ => false
 
 /-- The model monad over an environment `ρ` and a world `σ`.  A run that does not terminate is
     `none`, the bottom of `Option`, so recursive definitions can use `partial_fixpoint`. -/
-abbrev M (ρ σ : Type) := ReaderT ρ (StateT σ (ExceptT Fail Option))
+abbrev M (ρ σ : Type) := ReaderT ρ (StateT σ (ExceptT (Exit σ) Option))
 
 namespace M
 
 variable {ρ σ α β : Type}
 
-/-- Run a computation: `none` if it diverges, otherwise its failure, or its result and the final
-    world. -/
-def exec (m : M ρ σ α) (env : ρ) (world : σ) : Option (Except Fail (α × σ)) :=
+/-- Run a computation: `none` if it diverges, otherwise how it exited, or its result and the
+    final world. -/
+def exec (m : M ρ σ α) (env : ρ) (world : σ) : Option (Except (Exit σ) (α × σ)) :=
   ((m.run env).run world).run
 
-def fail (f : Fail) : M ρ σ α := throw f
+def fail (f : Exit σ) : M ρ σ α := throw f
+
+/-- End the whole run successfully with `data`. -/
+def stop (data : ByteArray) : M ρ σ α := do fail (.stop data (← get))
 
 def revert (data : ByteArray) : M ρ σ α := fail (.revert data)
 
@@ -39,7 +50,7 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
 @[simp] theorem exec_pure (a : α) (env : ρ) (w : σ) :
     (pure a : M ρ σ α).exec env w = some (.ok (a, w)) := rfl
 
-@[simp] theorem exec_fail (f : Fail) (env : ρ) (w : σ) :
+@[simp] theorem exec_fail (f : Exit σ) (env : ρ) (w : σ) :
     (fail f : M ρ σ α).exec env w = some (.error f) := rfl
 
 @[simp] theorem exec_revert (data : ByteArray) (env : ρ) (w : σ) :
@@ -47,6 +58,9 @@ def panic (code : Nat) : M ρ σ α := fail (.panic code)
 
 @[simp] theorem exec_panic (code : Nat) (env : ρ) (w : σ) :
     (panic code : M ρ σ α).exec env w = some (.error (.panic code)) := rfl
+
+@[simp] theorem exec_stop (data : ByteArray) (env : ρ) (w : σ) :
+    (stop data : M ρ σ α).exec env w = some (.error (.stop data w)) := rfl
 
 @[simp] theorem exec_read (env : ρ) (w : σ) :
     (read : M ρ σ ρ).exec env w = some (.ok (env, w)) := rfl
@@ -89,6 +103,49 @@ theorem exec_ite (c : Prop) [Decidable c] (a b : M ρ σ α) (env : ρ) (w : σ)
       | some (.ok (a, w')) => some (.ok (f a, w')) := by
   rw [map_eq_pure_bind, exec_bind]
   rfl
+
+/-! ## Runs that never stop from inside -/
+
+/-- The computation never ends the run from inside: it returns, fails or diverges.  A model
+    written without `stop` has this property, and a proof that inspects its outcomes needs it. -/
+def NoStop (m : M ρ σ α) : Prop :=
+  ∀ env w data w', m.exec env w ≠ some (.error (.stop data w'))
+
+theorem NoStop.pure (a : α) : NoStop (pure a : M ρ σ α) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.revert (data : ByteArray) : NoStop (revert data : M ρ σ α) := by
+  intro env w data' w' h; simp at h
+
+theorem NoStop.panic (code : Nat) : NoStop (panic code : M ρ σ α) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.fail_static : NoStop (fail .static : M ρ σ α) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.read : NoStop (read : M ρ σ ρ) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.get : NoStop (get : M ρ σ σ) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.modify (f : σ → σ) : NoStop (modify f : M ρ σ PUnit) := by
+  intro env w data w' h; simp at h
+
+theorem NoStop.bind {m : M ρ σ α} {k : α → M ρ σ β} (hm : NoStop m) (hk : ∀ a, NoStop (k a)) :
+    NoStop (m >>= k) := by
+  intro env w data w' h
+  rw [exec_bind] at h
+  cases hr : m.exec env w with
+  | none => rw [hr] at h; cases h
+  | some r =>
+    cases r with
+    | error f => rw [hr] at h; injection h with h; injection h with h; exact hm env w data w' (by rw [hr, h])
+    | ok p => rw [hr] at h; exact hk p.1 env p.2 data w' h
+
+theorem NoStop.ite (c : Prop) [Decidable c] {a b : M ρ σ α} (ha : NoStop a) (hb : NoStop b) :
+    NoStop (if c then a else b) := by
+  split <;> assumption
 
 end M
 

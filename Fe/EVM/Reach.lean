@@ -16,7 +16,7 @@ namespace Fe.EVM
 open Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 variable {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256} {code : ByteArray}
-  {r : Option (Except Fail (ByteArray × World))}
+  {r : Option (Except (Exit World) (ByteArray × World))}
 
 /-- The bytecode returns `o` with account map `σ'`, and so does the model. -/
 theorem agrees_of_ret {o : ByteArray} {σ' : AccountMap} {w' : World}
@@ -32,11 +32,25 @@ theorem agrees_of_ret {o : ByteArray} {σ' : AccountMap} {w' : World}
       (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
     exact Or.inr ⟨_, _, by rw [hxi, hw, hacc], fun h => by cases h⟩
 
+/-- The bytecode returns `o` with account map `σ'`, and the model stops with the same. -/
+theorem agrees_of_stop {o : ByteArray} {σ' : AccountMap} {w' : World}
+    (hcode : I.code = code)
+    (h : RDret code g (initState σ σ₀ g A I) σ' o)
+    (hm : r = some (.error (.stop o w'))) (hw : w'.accounts = σ') :
+    Ξ σ σ₀ g.toUInt256 A I = .error .OutOfGass ∨ Agrees .P0 (Ξ σ σ₀ g.toUInt256 A I) r := by
+  subst hcode hm
+  rcases h with hoog | ⟨s, hX, hacc⟩
+  · exact Or.inl (Xi_error_of_X (g := g.toUInt256)
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+  · have hxi := Xi_success_of_X (g := g.toUInt256)
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+    exact Or.inr ⟨_, _, by rw [hxi, hw, hacc], fun h => by cases h⟩
+
 /-- The bytecode reverts, and the model fails with a revert or a panic. -/
-theorem agrees_of_rev {f : Fail}
+theorem agrees_of_rev {f : Exit World}
     (hcode : I.code = code)
     (h : RDrev code g (initState σ σ₀ g A I))
-    (hm : r = some (.error f)) (hf : f ≠ .static) :
+    (hm : r = some (.error f)) (hf : f.reverts = true) :
     Ξ σ σ₀ g.toUInt256 A I = .error .OutOfGass ∨ Agrees .P0 (Ξ σ σ₀ g.toUInt256 A I) r := by
   subst hcode hm
   rcases h with hoog | ⟨g', o, hX⟩
@@ -48,7 +62,8 @@ theorem agrees_of_rev {f : Fail}
     cases f with
     | revert data => exact ⟨g', o, hxi, fun h => by cases h⟩
     | panic code => exact ⟨g', o, hxi, fun h => by cases h⟩
-    | static => exact absurd rfl hf
+    | static => cases hf
+    | stop o w => cases hf
 
 /-- The bytecode halts on a static-mode violation, and the model fails the same way. -/
 theorem agrees_of_static

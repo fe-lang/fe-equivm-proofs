@@ -236,4 +236,60 @@ theorem exec_nonPayable (I : Env) (w : World) :
       if I.weiValue = ⟨0⟩ then some (.ok ((), w)) else some (.error (.revert ByteArray.empty)) := by
   by_cases h : I.weiValue = ⟨0⟩ <;> simp [nonPayable, h]
 
+/-! ## The operations never stop the run from inside -/
+
+open Fe.M in
+/-- Prove `NoStop` for a computation built from binds, conditionals and the core operations. -/
+macro "no_stop_core" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact NoStop.pure _
+    | with_reducible exact NoStop.revert _
+    | with_reducible exact NoStop.panic _
+    | with_reducible exact NoStop.fail_static
+    | with_reducible exact NoStop.read
+    | with_reducible exact NoStop.get
+    | with_reducible exact NoStop.modify _
+    | assumption
+    | with_reducible apply NoStop.ite
+    | with_reducible apply NoStop.bind
+    | intro (_ : _))
+
+theorem noStop_sload (slot : UInt256) : (sload slot).NoStop := by unfold sload; no_stop_core
+
+theorem noStop_sstore (slot val : UInt256) : (sstore slot val).NoStop := by unfold sstore; no_stop_core
+
+theorem noStop_emit (topics : Array UInt256) (data : ByteArray) : (emit topics data).NoStop := by
+  unfold emit; no_stop_core
+
+theorem noStop_caller : caller.NoStop := by unfold caller; no_stop_core
+
+theorem noStop_calldata : calldata.NoStop := by unfold calldata; no_stop_core
+
+theorem noStop_nonPayable : nonPayable.NoStop := by unfold nonPayable; no_stop_core
+
+theorem noStop_checkedAdd (a b : UInt256) : (checkedAdd a b).NoStop := by unfold checkedAdd; no_stop_core
+
+theorem noStop_checkedSub (a b : UInt256) : (checkedSub a b).NoStop := by unfold checkedSub; no_stop_core
+
+open Fe.M in
+/-- Prove `NoStop` for a computation built from binds, conditionals and the operations of this
+    file.  Unfold the definitions it should look into first. -/
+macro "no_stop" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact noStop_sload _
+    | with_reducible exact noStop_sstore _ _
+    | with_reducible exact noStop_emit _ _
+    | with_reducible exact noStop_caller
+    | with_reducible exact noStop_calldata
+    | with_reducible exact noStop_nonPayable
+    | with_reducible exact noStop_checkedAdd _ _
+    | with_reducible exact noStop_checkedSub _ _
+    | with_reducible exact NoStop.pure _
+    | with_reducible exact NoStop.revert _
+    | with_reducible exact NoStop.panic _
+    | assumption
+    | with_reducible apply NoStop.ite
+    | with_reducible apply NoStop.bind
+    | intro (_ : _))
+
 end Fe.EVM

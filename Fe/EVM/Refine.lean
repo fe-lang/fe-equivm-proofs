@@ -26,10 +26,12 @@ abbrev EvmResult :=
   Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate))
 
 /-- The EVM result agrees with the model's run.  A model run that diverges agrees with nothing,
-    so only running out of gas can match it. -/
-def Agrees (p : Profile) (evm : EvmResult) : Option (Except Fail (ByteArray × World)) → Prop
+    so only running out of gas can match it.  A run that stops from inside a callee is a success,
+    like one that returns. -/
+def Agrees (p : Profile) (evm : EvmResult) :
+    Option (Except (Exit World) (ByteArray × World)) → Prop
   | none => False
-  | some (.ok (out, w)) =>
+  | some (.ok (out, w)) | some (.error (.stop out w)) =>
       ∃ g' A', evm = .ok (.success (w.accounts, g', A') out) ∧ (p = .P1 → A'.logSeries = w.logs)
   | some (.error (.revert data)) =>
       ∃ g' o, evm = .ok (.revert g' o) ∧ (p = .P1 → o = data)
