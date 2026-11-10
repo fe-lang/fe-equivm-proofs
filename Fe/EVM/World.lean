@@ -304,6 +304,11 @@ instance (w : UInt256) : Decidable (NotAddress w) := by unfold NotAddress; infer
 /-- The caller as a word. -/
 def caller : FeM UInt256 := do return UInt256.ofNat (← read).source.val
 
+/-- The check before an array element is reached: `Panic(0x32)` unless `index` is below the
+    array's length `len`. -/
+def checkIndex (index : UInt256) (len : Nat) : FeM Unit :=
+  if index.toNat < len then pure () else Fe.M.panic 0x32
+
 /-- Checked `a + b`: `Panic(0x11)` on overflow. -/
 def checkedAdd (a b : UInt256) : FeM UInt256 :=
   if UInt256.size ≤ a.toNat + b.toNat then Fe.M.panic 0x11 else pure (a + b)

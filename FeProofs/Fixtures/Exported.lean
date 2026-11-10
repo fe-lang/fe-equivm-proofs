@@ -205,7 +205,7 @@ def recv0_arm0 (v0 : UInt256) : FeM UInt256 := do
   let mut r1 : Span := default
   let v1 := (UInt256.ofNat 0)
   let v2 := (UInt256.ofNat 4)
-  let v3 := Cursor.mk v1 v2
+  let v3 := (Cursor.mk v1 v2)
   let v4 := v3
   r0 := v4
   let (v6, v6_0) ← advance r0 v0
@@ -215,7 +215,7 @@ def recv0_arm0 (v0 : UInt256) : FeM UInt256 := do
   r0 := v9_0
   let v10 := r0
   let v11 := v10
-  let v12 := Span.mk v11 v0
+  let v12 := (Span.mk v11 v0)
   let v13 := v12
   r1 := v13
   let v14 := r1.len
@@ -365,7 +365,7 @@ def init : FeM Unit := do
 def make (v0 : UInt256) : FeM Cursor := do
   let v1 := v0
   let v2 := (UInt256.ofNat 4)
-  let v3 := Cursor.mk v1 v2
+  let v3 := (Cursor.mk v1 v2)
   return v3
 
 def «end» (v0 : Cursor) : FeM UInt256 := do
@@ -461,7 +461,7 @@ def init : FeM Unit := do
 
 def new : FeM CallData := do
   let v0 := (UInt256.ofNat 0)
-  let v1 := CallData.mk v0
+  let v1 := (CallData.mk v0)
   return v1
 
 def input : FeM CallData := do
@@ -1014,7 +1014,7 @@ def new_uninit (v0 : UInt256) : FeM MemBuffer := do
   let v1 ← alloc_bytes v0
   let v2 := v0
   let v3 := v0
-  let v4 := MemBuffer.mk v1 v2 v3
+  let v4 := (MemBuffer.mk v1 v2 v3)
   return v4
 
 def zero_bytes (v0 : UInt256) (v1 : UInt256) : FeM Unit := do
@@ -1035,7 +1035,7 @@ def ptr (v0 : MemBuffer) : FeM UInt256 := do
 def from_raw_parts (v0 : UInt256) (v1 : UInt256) : FeM AbiFrame := do
   let v2 := v0
   let v3 := v1
-  let v4 := AbiFrame.mk v2 v3
+  let v4 := (AbiFrame.mk v2 v3)
   return v4
 
 def abi_field_head_size_u256 : FeM UInt256 := do
@@ -1082,7 +1082,7 @@ def tail (v0 : AbiFrame) (v1 : UInt256) : FeM AbiFrame := do
     let v10 := v0.len
     let v11 := v1
     let v12 := v10 - v11
-    let v13 := AbiFrame.mk v9 v12
+    let v13 := (AbiFrame.mk v9 v12)
     return v13
 
 def len (v0 : AbiFrame) : FeM UInt256 := do
@@ -1112,7 +1112,7 @@ def slice (v0 : AbiFrame) (v1 : UInt256) (v2 : UInt256) : FeM AbiFrame := do
       let v13 := v0.ptr
       let v14 ← ptr_offset v13 v1
       let v15 := v2
-      let v16 := AbiFrame.mk v14 v15
+      let v16 := (AbiFrame.mk v14 v15)
       return v16
 
 def cast_u8_u256 (v0 : UInt256) : FeM UInt256 := do
@@ -1384,7 +1384,7 @@ def word (v0 : UInt256) : FeM UInt256 := do
 
 def wei (v0 : UInt256) : FeM Wei := do
   let v1 := v0
-  let v2 := Wei.mk v1
+  let v2 := (Wei.mk v1)
   return v2
 
 def value : FeM Wei := do
@@ -1801,3 +1801,123 @@ theorem triangle_three (I : ExecutionEnv) (w : World) :
   iterate 4 (rw [recv0_arm0.b1]; simp +decide [checkedAdd])
 
 end FeProofs.Fixtures.Loops
+
+/-! ## `arrays`: array values, element reads and writes, and the index check -/
+
+namespace FeProofs.Fixtures.Arrays
+
+section
+set_option linter.unusedVariables false
+
+-- BEGIN fe-lean-export: arrays
+
+def init : FeM Unit := do
+  return ()
+
+def bump (v0 : (Vector UInt256 4)) (v1 : UInt256) (v2 : UInt256) : FeM (Unit × (Vector UInt256 4)) := do
+  let mut v0 := v0
+  let v3 := v2
+  let v4 := v1
+  checkIndex v4 4
+  let v5 := v0[v4.toNat]!
+  let v6 ← checkedAdd v5 v3
+  checkIndex v4 4
+  v0 := (v0.set! v4.toNat v6)
+  let v7 := ()
+  return ((), v0)
+
+def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let mut r0 : (Vector UInt256 4) := default
+  let v2 := Vector.replicate 4 v1
+  let v3 := v2
+  r0 := v3
+  let v4 := (UInt256.ofNat 7)
+  let v5 := (UInt256.ofNat 0)
+  checkIndex v5 4
+  r0 := (r0.set! v5.toNat v4)
+  let v6 := ()
+  let v8 := (UInt256.ofNat 1)
+  let (v9, v9_0) ← bump r0 v0 v8
+  r0 := v9_0
+  checkIndex v0 4
+  let v10 := r0[v0.toNat]!
+  let v11 := (UInt256.ofNat 3)
+  checkIndex v11 4
+  let v12 := r0[v11.toNat]!
+  let v13 ← checkedAdd v10 v12
+  return v13
+
+def WEIGHTS : FeM (Vector UInt256 3) := do
+  let v0 := (UInt256.ofNat 1)
+  let v1 := (UInt256.ofNat 10)
+  let v2 := (UInt256.ofNat 100)
+  let v3 := #v[v0, v1, v2]
+  return v3
+
+def recv0_arm1 (v0 : (Vector UInt256 3)) : FeM UInt256 := do
+  let mut r0 : UInt256 := default
+  let mut r1 : UInt256 := default
+  let v1 := (UInt256.ofNat 0)
+  let v2 := v1
+  r0 := v2
+  let v3 := (UInt256.ofNat 0)
+  let v4 := v3
+  r1 := v4
+  let rec b1 (r0 : UInt256) (r1 : UInt256) : FeM UInt256 := do
+    let mut r0 := r0
+    let mut r1 := r1
+    let v5 := r1
+    let v6 := v5
+    let v7 := (UInt256.ofNat 3)
+    let v8 := decide (v6.toNat < v7.toNat)
+    if v8 then
+      let v9 := r1
+      checkIndex v9 3
+      let v10 := v0[v9.toNat]!
+      let v11 ← WEIGHTS
+      let v12 := r1
+      checkIndex v12 3
+      let v13 := v11[v12.toNat]!
+      let v14 ← checkedMul v10 v13
+      let v15 := r0
+      let v16 ← checkedAdd v15 v14
+      let v17 := v16
+      r0 := v17
+      let v18 := ()
+      let v19 := (UInt256.ofNat 1)
+      let v20 := r1
+      let v21 ← checkedAdd v20 v19
+      let v22 := v21
+      r1 := v22
+      let v23 := ()
+      b1 r0 r1
+    else
+      let v24 := r0
+      return v24
+  partial_fixpoint
+  b1 r0 r1
+
+-- END fe-lean-export
+
+end
+
+/-- `pick` with an index past the array panics with `Panic(0x32)` at the helper's check. -/
+theorem pick_out_of_bounds (value : UInt256) (I : ExecutionEnv) (w : World) :
+    (recv0_arm0 (UInt256.ofNat 4) value).exec I w = some (.error (.panic 0x32)) := by
+  have h0 : (UInt256.ofNat 0).toNat = 0 := rfl
+  have h4 : (UInt256.ofNat 4).toNat = 4 := rfl
+  simp [recv0_arm0, bump, checkIndex, h0, h4]
+
+/-- `pick(3, value)` bumps element 3 and reads it twice. -/
+theorem pick_last (value : UInt256) (I : ExecutionEnv) (w : World) :
+    (recv0_arm0 (UInt256.ofNat 3) value).exec I w =
+      (do let bumped ← checkedAdd value (UInt256.ofNat 1)
+          checkedAdd bumped bumped : FeM UInt256).exec I w := by
+  have h0 : (UInt256.ofNat 0).toNat = 0 := rfl
+  have h3 : (UInt256.ofNat 3).toNat = 3 := rfl
+  have hread : ((Vector.replicate 4 value).set! 0 (UInt256.ofNat 7))[3] = value := rfl
+  have hset (a : UInt256) :
+      (((Vector.replicate 4 value).set! 0 (UInt256.ofNat 7)).set! 3 a)[3] = a := rfl
+  simp [recv0_arm0, bump, checkIndex, h0, h3, hread, hset]
+
+end FeProofs.Fixtures.Arrays
