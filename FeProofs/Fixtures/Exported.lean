@@ -1,4 +1,4 @@
-import Fe.EVM.World
+import Fe.EVM.Int
 
 /-!
 # Exporter fixtures
@@ -205,7 +205,8 @@ def recv0_arm0 (v0 : UInt256) : FeM UInt256 := do
   let mut r1 : Span := default
   let v1 := (UInt256.ofNat 0)
   let v2 := (UInt256.ofNat 4)
-  let v4 := (Cursor.mk v1 v2)
+  let v3 := Cursor.mk v1 v2
+  let v4 := v3
   r0 := v4
   let (v6, v6_0) ← advance r0 v0
   r0 := v6_0
@@ -214,7 +215,8 @@ def recv0_arm0 (v0 : UInt256) : FeM UInt256 := do
   r0 := v9_0
   let v10 := r0
   let v11 := v10
-  let v13 := (Span.mk v11 v0)
+  let v12 := Span.mk v11 v0
+  let v13 := v12
   r1 := v13
   let v14 := r1.len
   let (v16, v16_0) ← advance r1.start v14
@@ -294,13 +296,15 @@ def swap (v0 : (UInt256 × UInt256 × Bool)) : FeM (UInt256 × UInt256 × Bool) 
   let v1 := v0.snd.fst
   let v2 := v0.fst
   let v3 := v0.snd.snd
-  return (v1, v2, v3)
+  let v4 := (v1, v2, v3)
+  return v4
 
 def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
   let mut r0 : (UInt256 × UInt256 × Bool) := default
   let mut r1 : (UInt256 × UInt256 × Bool) := default
   let v3 := true
-  r1 := (v0, v1, v3)
+  let v4 := (v0, v1, v3)
+  r1 := v4
   let v6 ← swap r1
   let v7 := v6
   r0 := v7
@@ -361,7 +365,8 @@ def init : FeM Unit := do
 def make (v0 : UInt256) : FeM Cursor := do
   let v1 := v0
   let v2 := (UInt256.ofNat 4)
-  return (Cursor.mk v1 v2)
+  let v3 := Cursor.mk v1 v2
+  return v3
 
 def «end» (v0 : Cursor) : FeM UInt256 := do
   let v1 := v0.pos
@@ -456,7 +461,8 @@ def init : FeM Unit := do
 
 def new : FeM CallData := do
   let v0 := (UInt256.ofNat 0)
-  return (CallData.mk v0)
+  let v1 := CallData.mk v0
+  return v1
 
 def input : FeM CallData := do
   let v1 ← new
@@ -679,7 +685,8 @@ def decode_from_prechecked_head_Sol_u256_u256_CallData (v0 : CallData) (v1 : UIn
   let v15 := v14
   let v16 ← decode_field_from_prechecked_head_Sol_u256_CallData v0 v1 v15 v2
   let v17 := v16
-  return (v8, v17)
+  let v18 := (v8, v17)
+  return v18
 
 def decode_frame_from_Sol_u256_u256_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM (UInt256 × UInt256) := do
   let v3 ← HEAD_SIZE_u256_u256
@@ -1007,7 +1014,8 @@ def new_uninit (v0 : UInt256) : FeM MemBuffer := do
   let v1 ← alloc_bytes v0
   let v2 := v0
   let v3 := v0
-  return (MemBuffer.mk v1 v2 v3)
+  let v4 := MemBuffer.mk v1 v2 v3
+  return v4
 
 def zero_bytes (v0 : UInt256) (v1 : UInt256) : FeM Unit := do
   let v2 ← zeroMem v0 v1
@@ -1027,7 +1035,8 @@ def ptr (v0 : MemBuffer) : FeM UInt256 := do
 def from_raw_parts (v0 : UInt256) (v1 : UInt256) : FeM AbiFrame := do
   let v2 := v0
   let v3 := v1
-  return (AbiFrame.mk v2 v3)
+  let v4 := AbiFrame.mk v2 v3
+  return v4
 
 def abi_field_head_size_u256 : FeM UInt256 := do
   let v0 ← IS_DYNAMIC
@@ -1073,7 +1082,8 @@ def tail (v0 : AbiFrame) (v1 : UInt256) : FeM AbiFrame := do
     let v10 := v0.len
     let v11 := v1
     let v12 := v10 - v11
-    return (AbiFrame.mk v9 v12)
+    let v13 := AbiFrame.mk v9 v12
+    return v13
 
 def len (v0 : AbiFrame) : FeM UInt256 := do
   let v1 := v0.len
@@ -1102,7 +1112,8 @@ def slice (v0 : AbiFrame) (v1 : UInt256) (v2 : UInt256) : FeM AbiFrame := do
       let v13 := v0.ptr
       let v14 ← ptr_offset v13 v1
       let v15 := v2
-      return (AbiFrame.mk v14 v15)
+      let v16 := AbiFrame.mk v14 v15
+      return v16
 
 def cast_u8_u256 (v0 : UInt256) : FeM UInt256 := do
   let v1 := v0
@@ -1203,3 +1214,221 @@ end
 
 end FeProofs.Fixtures.Encode
 
+/-! ## `ints`: integers of every width, and the call's context -/
+
+namespace FeProofs.Fixtures.Ints
+
+section
+set_option linter.unusedVariables false
+
+-- BEGIN fe-lean-export: ints
+
+structure Wei where
+  amount : UInt256
+deriving Inhabited
+
+def init : FeM Unit := do
+  return ()
+
+def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 ← IntTy.add (.u 8) v0 v1
+  let v3 := v2
+  let v4 := (UInt256.ofNat 1)
+  let v5 := v3 >>> v4
+  let v6 := (UInt256.ofNat 15)
+  let v7 := v5 &&& v6
+  let v8 := v7
+  let v9 ← IntTy.sub (.u 8) v3 v8
+  let v10 := (UInt256.ofNat 2)
+  let v11 ← IntTy.mul (.u 8) v9 v10
+  let v12 ← checkedDiv v11 v1
+  let v13 := (UInt256.ofNat 7)
+  let v14 ← checkedRem v12 v13
+  return v14
+
+def wrapping (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := v0
+  let v3 := v1
+  let v4 := IntTy.mulW (.i 32) v2 v3
+  let v5 := (UInt256.ofNat 3)
+  let v6 := IntTy.shl (.i 32) v4 v5
+  return v6
+
+def recv0_arm1 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := UInt256.sltBool v0 v1
+  if v2 then
+    let v3 ← IntTy.neg (.i 32) v0
+    return v3
+  else
+    let v4 := ()
+    let v5 := v4
+    let v6 ← wrapping v0 v1
+    let v7 ← IntTy.div (.i 32) v0 v1
+    let v8 ← IntTy.add (.i 32) v6 v7
+    let v9 ← IntTy.rem (.i 32) v0 v1
+    let v10 ← IntTy.sub (.i 32) v8 v9
+    let v11 := (IntTy.wrap (.i 256) (-5))
+    let v12 ← IntTy.add (.i 32) v10 v11
+    return v12
+
+def to_word (v0 : UInt256) : FeM UInt256 := do
+  let v1 := v0
+  return v1
+
+def IS_SIGNED : FeM Bool := do
+  let v0 := true
+  return v0
+
+def U8_MASK : FeM UInt256 := do
+  let v0 := (UInt256.ofNat 255)
+  return v0
+
+def MASK : FeM UInt256 := do
+  let v0 ← U8_MASK
+  return v0
+
+def I8_SIGN_BIT : FeM UInt256 := do
+  let v0 := (UInt256.ofNat 128)
+  return v0
+
+def SIGN_BIT : FeM UInt256 := do
+  let v0 ← I8_SIGN_BIT
+  return v0
+
+def U256_MASK : FeM UInt256 := do
+  let v0 := (UInt256.ofNat 115792089237316195423570985008687907853269984665640564039457584007913129639935)
+  return v0
+
+def sign_extend (v0 : UInt256) (v1 : UInt256) (v2 : UInt256) : FeM UInt256 := do
+  let v4 := v0
+  let v5 := v1
+  let v6 := v4 &&& v5
+  let v7 := v6
+  let v8 := v2
+  let v9 := v7 &&& v8
+  let v10 := (UInt256.ofNat 0)
+  let v11 := decide (v9 ≠ v10)
+  let b3 : UInt256 → FeM UInt256 := fun v3 => do
+    return v3
+  if v11 then
+    let v12 ← U256_MASK
+    let v13 := v1
+    let v14 := v12 ^^^ v13
+    let v15 := v7 ||| v14
+    let v16 := v15
+    b3 v16
+  else
+    let v17 := v7
+    b3 v17
+
+def from_word (v0 : UInt256) : FeM UInt256 := do
+  let v1 := IntTy.cast (.u 256) (.i 8) v0
+  return v1
+
+def downcast_truncate_i256_i8 (v0 : UInt256) : FeM UInt256 := do
+  let v2 ← to_word v0
+  let v3 := v2
+  let v4 ← IS_SIGNED
+  let b3 : UInt256 → FeM UInt256 := fun v1 => do
+    return v1
+  if v4 then
+    let v5 ← MASK
+    let v6 ← SIGN_BIT
+    let v7 ← sign_extend v3 v5 v6
+    let v8 ← from_word v7
+    let v9 := v8
+    b3 v9
+  else
+    let v10 ← MASK
+    let v11 := v3 &&& v10
+    let v12 ← from_word v11
+    let v13 := v12
+    b3 v13
+
+def from_word_1 (v0 : UInt256) : FeM UInt256 := do
+  let v1 := v0
+  return v1
+
+def downcast_unchecked_u256_i256 (v0 : UInt256) : FeM UInt256 := do
+  let v1 ← to_word v0
+  let v2 := v1
+  let v3 ← from_word_1 v2
+  return v3
+
+def recv0_arm2 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := v1
+  let v3 := v2
+  let v4 ← downcast_truncate_i256_i8 v0
+  let v5 := v4
+  let v6 ← downcast_unchecked_u256_i256 v3
+  let v7 := v6
+  let v8 := (UInt256.ofNat 2)
+  let v9 := IntTy.shr (.i 256) v0 v8
+  let v10 := (UInt256.ofNat 2)
+  let v11 ← IntTy.pow (.i 256) v9 v10
+  let v12 := v5
+  let v13 ← IntTy.add (.i 256) v11 v12
+  let v14 ← IntTy.add (.i 256) v13 v7
+  let v15 := IntTy.not (.i 256) v0
+  let v16 ← IntTy.add (.i 256) v14 v15
+  return v16
+
+def address : FeM UInt256 := do
+  let v1 ← selfAddress
+  let v2 := v1
+  return v2
+
+def word (v0 : UInt256) : FeM UInt256 := do
+  let v1 := v0
+  return v1
+
+def wei (v0 : UInt256) : FeM Wei := do
+  let v1 := v0
+  let v2 := Wei.mk v1
+  return v2
+
+def value : FeM Wei := do
+  let v1 ← callvalue
+  let v2 ← wei v1
+  return v2
+
+def as_wei (v0 : Wei) : FeM UInt256 := do
+  let v1 := v0.amount
+  return v1
+
+def origin_1 : FeM UInt256 := do
+  let v1 ← origin
+  let v2 := v1
+  return v2
+
+def block_number : FeM UInt256 := do
+  let v1 ← blockNumber
+  return v1
+
+def recv0_arm3 : FeM UInt256 := do
+  let mut r1 : UInt256 := default
+  let mut r2 : Wei := default
+  let mut r3 : UInt256 := default
+  let v1 ← address
+  r1 := v1
+  let v2 := r1
+  let v3 ← word v2
+  let v5 ← value
+  r2 := v5
+  let v6 := r2
+  let v7 ← as_wei v6
+  let v8 := v3 ^^^ v7
+  let v10 ← origin_1
+  r3 := v10
+  let v11 := r3
+  let v12 ← word v11
+  let v13 := v8 ^^^ v12
+  let v15 ← block_number
+  let v16 := v13 ^^^ v15
+  return v16
+
+-- END fe-lean-export
+
+end
+
+end FeProofs.Fixtures.Ints

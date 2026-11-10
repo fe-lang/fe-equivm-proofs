@@ -38,6 +38,7 @@ def Agrees (p : Profile) (evm : EvmResult) :
   | some (.error (.panic code)) =>
       ∃ g' o, evm = .ok (.revert g' o) ∧ (p = .P1 → o = panicData code)
   | some (.error .static) => evm = .error .StaticModeViolation
+  | some (.error .trap) => evm = .error .InvalidInstruction
 
 /-- One model run ends as another does: with the same exit, or successfully with the same return
     data, accounts and logs, whether each returns or stops.  Memory may differ. -/

@@ -80,6 +80,41 @@ def zeroMem (ptr len : UInt256) : FeM Unit :=
     { w with memory :=
         (⟨Array.replicate len.toNat 0⟩ : ByteArray).write 0 w.memory ptr.toNat len.toNat }
 
+/-- `mstore8(ptr, value)`: write the low byte of `value` at `ptr`. -/
+def mstore8 (ptr value : UInt256) : FeM Unit :=
+  modify fun w =>
+    { w with memory := (⟨#[UInt8.ofNat value.toNat]⟩ : ByteArray).write 0 w.memory ptr.toNat 1 }
+
+/-- `copy_mem(dest, source, len)`: copy `len` bytes of memory, as `MCOPY` does. -/
+def mcopy (dest source len : UInt256) : FeM Unit :=
+  modify fun w =>
+    { w with memory := w.memory.write source.toNat w.memory dest.toNat len.toNat }
+
+/-- `calldatacopy(dest, offset, len)`: copy `len` bytes of calldata from `offset` into memory at
+    `dest`, zeros past its end. -/
+def calldatacopy (dest offset len : UInt256) : FeM Unit := do
+  let cd := (← read).calldata
+  modify fun w => { w with memory := cd.write offset.toNat w.memory dest.toNat len.toNat }
+
+/-- `codecopy(dest, offset, len)`: copy `len` bytes of the running code from `offset` into memory
+    at `dest`, zeros past its end. -/
+def codecopy (dest offset len : UInt256) : FeM Unit := do
+  let code := (← read).code
+  modify fun w => { w with memory := code.write offset.toNat w.memory dest.toNat len.toNat }
+
+/-- `codesize()` -/
+def codesize : FeM UInt256 := do return UInt256.ofNat (← read).code.size
+
+/-- `keccak256(ptr, len)`: the hash of the `len` bytes of memory at `ptr`. -/
+def keccak256 (ptr len : UInt256) : FeM UInt256 := do
+  return .ofNat (fromByteArrayBigEndian (KEC ((← get).memory.readWithPadding ptr.toNat len.toNat)))
+
+/-- `stop()`: end the call successfully with no data.  It never returns. -/
+def stopCall : FeM Empty := Fe.M.stop ByteArray.empty
+
+/-- `panic()` and `todo()`: an invalid instruction.  They never return. -/
+def trap : FeM Empty := Fe.M.fail .trap
+
 /-- `revert(ptr, len)`: revert with the `len` bytes of memory at `ptr`.  It never returns. -/
 def revertData (ptr len : UInt256) : FeM Empty := do
   Fe.M.revert ((← get).memory.readWithPadding ptr.toNat len.toNat)
@@ -145,6 +180,84 @@ def emit (topics : Array UInt256) (data : ByteArray) : FeM Unit := do
     `ptr`.  Under a static call it fails. -/
 def logData (ptr len : UInt256) (topics : Array UInt256) : FeM Unit := do
   emit topics ((← get).memory.readWithPadding ptr.toNat len.toNat)
+
+/-- The word at `slot` of the current contract's transient storage. -/
+def tload (slot : UInt256) : FeM UInt256 := do
+  let env ← read
+  return ((← get).accounts.get? env.codeOwner).option ⟨0⟩ (fun acc => acc.tstorage.getD slot ⟨0⟩)
+
+/-- Store `val` at `slot` of the current contract's transient storage.  Under a static call it
+    fails. -/
+def tstore (slot val : UInt256) : FeM Unit := do
+  let env ← read
+  if env.perm then
+    modify fun w =>
+      { w with accounts :=
+          (w.accounts.get? env.codeOwner).option w.accounts fun acc =>
+            w.accounts.insert env.codeOwner (acc.updateTransientStorage slot val) }
+  else
+    Fe.M.fail .static
+
+/-! ## The call's context -/
+
+/-- `address()`: the running contract. -/
+def selfAddress : FeM UInt256 := do return UInt256.ofNat (← read).codeOwner.val
+
+/-- `callvalue()` -/
+def callvalue : FeM UInt256 := do return (← read).weiValue
+
+/-- `origin()`: the transaction's sender. -/
+def origin : FeM UInt256 := do return UInt256.ofNat (← read).sender.val
+
+/-- `gasprice()` -/
+def gasprice : FeM UInt256 := do return UInt256.ofNat (← read).gasPrice
+
+/-- `coinbase()` -/
+def coinbase : FeM UInt256 := do return UInt256.ofNat (← read).header.beneficiary.val
+
+/-- `timestamp()` -/
+def timestamp : FeM UInt256 := do return UInt256.ofNat (← read).header.timestamp
+
+/-- `number()`: the block number. -/
+def blockNumber : FeM UInt256 := do return UInt256.ofNat (← read).header.number
+
+/-- `prevrandao()` -/
+def prevrandao : FeM UInt256 := do return (← read).header.prevRandao
+
+/-- `gaslimit()` -/
+def gaslimit : FeM UInt256 := do return UInt256.ofNat (← read).header.gasLimit
+
+/-- `chainid()` -/
+def chainid : FeM UInt256 := pure (UInt256.ofNat Ethereum.chainId)
+
+/-- `basefee()` -/
+def basefee : FeM UInt256 := do return Ethereum.basefee (← read)
+
+/-- `blobbasefee()` -/
+def blobbasefee : FeM UInt256 := do return (← read).getBlobGasprice
+
+/-- `blobhash(index)` -/
+def blobhash (index : UInt256) : FeM UInt256 := do return Ethereum.blobhash (← read) index
+
+/-- `blockhash(number)`: the hash of one of the 256 most recent blocks, and zero otherwise. -/
+def blockhash (number : UInt256) : FeM UInt256 := do
+  let env ← read
+  let current := env.header.number
+  if current ≤ number.toNat || number.toNat + 256 < current then return ⟨0⟩
+  else return (env.blocks.map ProcessedBlock.hash).getD number.toNat ⟨0⟩
+
+/-- `balance(addr)`: the balance of an account, zero if there is none. -/
+def balance (addr : UInt256) : FeM UInt256 := do
+  return ((← get).accounts.get? (AccountAddress.ofUInt256 addr)).elim ⟨0⟩ (·.balance)
+
+/-- `selfbalance()` -/
+def selfbalance : FeM UInt256 := do
+  return ((← get).accounts.get? (← read).codeOwner).elim ⟨0⟩ (·.balance)
+
+/-- `extcodesize(addr)` -/
+def extcodesize (addr : UInt256) : FeM UInt256 := do
+  return ((← get).accounts.get? (AccountAddress.ofUInt256 addr)).option ⟨0⟩
+    (.ofNat ∘ ByteArray.size ∘ (·.code))
 
 /-- The slot of entry `key` of a `StorageMap` rooted at `root`: Solidity's mapping layout. -/
 def mapSlot (key root : UInt256) : UInt256 :=

@@ -16,6 +16,8 @@ inductive Exit (σ : Type) where
   | panic (code : Nat)
   /-- A state change attempted where none is allowed. -/
   | static
+  /-- An invalid instruction: `panic()` and `todo()`, which trap. -/
+  | trap
   /-- The whole run ends successfully from inside a callee, with return data and the world as
       it then is. -/
   | stop (data : ByteArray) (world : σ)
@@ -23,7 +25,7 @@ inductive Exit (σ : Type) where
 /-- Whether an exit is a failure that discards the run's changes: a revert or a panic. -/
 @[simp] def Exit.reverts {σ : Type} : Exit σ → Bool
   | .revert _ | .panic _ => true
-  | .static | .stop _ _ => false
+  | .static | .trap | .stop _ _ => false
 
 /-- The model monad over an environment `ρ` and a world `σ`.  A run that does not terminate is
     `none`, the bottom of `Option`, so recursive definitions can use `partial_fixpoint`. -/
