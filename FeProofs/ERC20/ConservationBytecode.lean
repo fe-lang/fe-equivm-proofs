@@ -66,6 +66,7 @@ theorem transfer_conserves_bytecode {σ σ₀ σ' : AccountMap} {A A' : Substate
       | panic code => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
       | static => rw [hrun] at hag; cases hag
       | trap => rw [hrun] at hag; cases hag
+      | oob => rw [hrun] at hag; cases hag
       | stop out w' => exact absurd hm (transferArm_noStop _ _ _ _ _)
     | ok p =>
       obtain ⟨out, w'⟩ := p

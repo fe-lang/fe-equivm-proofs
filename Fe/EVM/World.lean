@@ -12,6 +12,19 @@ namespace Fe.EVM
 
 open Ethereum
 
+/-- What the context supplies each time the model consults it: once for `gas()`, once for each
+    message call or creation.  The model counts no gas and keeps no substate, so it cannot
+    compute these. -/
+structure Supply where
+  /-- `gas()`: the value read.  A message call: the most the callee may get, before the cap of
+      the call's own gas argument.  A creation: the gas the init code runs with. -/
+  gas : UInt256
+  /-- The accrued substate the EVM hands the callee: what is warm, what this transaction
+      created, the refund counter, the log so far. -/
+  substate : Substate
+  /-- The account map the transaction started from, which prices the callee's `SSTORE`s. -/
+  orig : AccountMap
+
 /-- The part of the EVM state a contract's model reads and writes. -/
 structure World where
   accounts : AccountMap
@@ -19,9 +32,15 @@ structure World where
   /-- The call's memory.  Its size is the address the next allocation gets.  It is the model's
       own: a certificate compares return data, never memory. -/
   memory : ByteArray := ByteArray.empty
+  /-- The return data of the last message call or creation, empty before the first. -/
+  returnData : ByteArray := ByteArray.empty
+  /-- What the context has yet to supply.  A model that makes no call and reads no gas never
+      looks at it. -/
+  feed : List Supply := []
 
-/-- The world a message call starts in. -/
-def World.init (σ : AccountMap) (A : Substate) : World := { accounts := σ, logs := A.logSeries }
+/-- The world a message call starts in, with the feed the context will supply. -/
+def World.init (σ : AccountMap) (A : Substate) (feed : List Supply := []) : World :=
+  { accounts := σ, logs := A.logSeries, feed := feed }
 
 abbrev Env := ExecutionEnv
 

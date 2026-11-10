@@ -251,19 +251,19 @@ theorem feScalarStoreRefinesExported :
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feScalarStoreRefinesModel σ σ₀ g A I hcode hsize with h | h
+  rcases feScalarStoreRefinesModel σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr (Agrees.of_endsAs
-      (runtime_endsAs I (World.init σ A) (by simp [World.init, UInt256.size]) hfits) h)
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
 
 /-- Deployment with one ABI-encoded `uint256` argument refines the exported deployment entry. -/
 theorem feScalarStoreDeployRefinesExported :
     RefinesDeploy .P0 feScalarStoreCreationBytecode feScalarStoreBytecode contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
-  rcases feScalarStoreDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | h
+  rcases feScalarStoreDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr (Agrees.of_endsAs
-      (init_endsAs v _ I (World.init σ A) (by simp [World.init, UInt256.size])) h)
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (init_endsAs v _ I (World.init σ A feed) (by simp [World.init, UInt256.size])) h⟩
 
 end FeProofs.ScalarStore.Exported

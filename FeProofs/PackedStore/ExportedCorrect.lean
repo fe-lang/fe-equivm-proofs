@@ -236,6 +236,7 @@ theorem setBothArm_refines {g : UInt256}
     entry. -/
 theorem fePackedStoreRefinesHandEntry : Refines .P0 fePackedStoreBytecode handContract := by
   intro σ σ₀ g A I hcode hsize
+  refine RefinesFor.closed ?_
   show ArmAgrees σ σ₀ g A I handRuntime
   have sel : ∀ i, (¬ selIs I (fePackedStoreSelBytes i)) →
       (fePackedStoreSelBytes i == I.calldata.extract 0 4) = false := fun i h => by simpa [selIs] using h
@@ -280,6 +281,7 @@ theorem fePackedStoreRefinesHandEntry : Refines .P0 fePackedStoreBytecode handCo
 theorem fePackedStoreDeployRefinesHandEntry :
     RefinesDeploy .P0 fePackedStoreCreationBytecode fePackedStoreBytecode handContract
       (· = ByteArray.empty) := by
+  refine RefinesDeploy.closed ?_
   intro σ σ₀ g A I args hargs hcode _
   subst hargs
   rw [ByteArray.append_empty] at hcode
