@@ -5,9 +5,9 @@ import FeProofs.Common.Glue
 /-!
 # FeIndexedPackedStore element facts
 
-For an index `i < 64`, the bytecode's word `keccak256(0) + (i >> 5)` and bit offset
-`(i & 31) << 3` are the layout's word `packedSlot + i / 32` and byte `i % 32`; the Stele read and
-write of `pack[i]` are the packed-byte read and read-modify-write of that word.
+For an index `i < 64`, the bytecode's word `KECCAK256` over `MSTORE(0, i >> 5); MSTORE(32, 0)` and
+bit offset `(i & 31) << 3` are the layout's word `mapSlot (i / 32) 0` and byte `i % 32`; the Stele
+read and write of `pack[i]` are the packed-byte read and read-modify-write of that word.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -18,7 +18,7 @@ set_option maxRecDepth 2000000
 
 abbrev elemByte (i : Nat) : Fin 32 := ⟨i % 32, Nat.mod_lt _ (by decide)⟩
 
-abbrev elemSlot (i : Nat) : UInt256 := packedSlot + UInt256.ofNat (i / 32)
+abbrev elemSlot (i : Nat) : UInt256 := mapSlot (UInt256.ofNat (i / 32)) ⟨0⟩
 
 theorem shr5_eq (x : UInt256) : UInt256.shiftRight x (UInt256.ofNat 5) = UInt256.ofNat (x.toNat / 32) := by
   apply u256_inj

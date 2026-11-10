@@ -5,9 +5,9 @@ import FeProofs.Common.Basic
 /-!
 # FeIndexedPackedStore `set(uint256,uint256)`
 
-Arm entry pc 47: call-value check, head check (pc 53), the `index < 64` check (pc 65), then one
-read-modify-write of word `keccak256(0) + index / 32` replacing byte `index % 32` with the value's
-low byte (pc 79).  Under `STATICCALL` the `SSTORE` halts, matching Stele's static violation.
+Arm entry pc 47: call-value check, head check (pc 58), the `index < 64` check (pc 71), then one
+read-modify-write of word `keccak256(index / 32 ‖ 0)` replacing byte `index % 32` with the value's
+low byte (pc 86).  Under `STATICCALL` the `SSTORE` halts, matching Stele's static violation.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -38,7 +38,7 @@ theorem feIndexedPackedStoreSetBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailed hcode rd hd (hbad.elim
       decodeCalldata_uint256_uint256_none_short decodeCalldata_uint256_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok
-  rd_run rd to 65 using [hwv, solcDecodeLenCheckOk_4_64 hlen hhi hsize]
+  rd_run rd to 71 using [hwv, solcDecodeLenCheckOk_4_64 hlen hhi hsize]
   have hdec : config.externalABI.decodeCalldata? (setTransition.params.map Param.name)
       (transitionSignature setTransition).paramTypes I.calldata = some (setStore I) := by
     show decodeCalldata ["index", "value"] [abiUInt256, abiUInt256] I.calldata = _
@@ -56,7 +56,7 @@ theorem feIndexedPackedStoreSetBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (ExecFuncBody.execBlockRevert (ExecBlock.consNormal hreq (ExecBlock.consRevert
         (ExecStmt.requireFalse (by rw [evalIndexLt hxi, decide_eq_false hin])))))
-  rd_run rd to 79 using [(by rw [ult_one (by exact hin)]; decide)]
+  rd_run rd to 86 using [(by rw [ult_one (by exact hin)]; decide)]
   have hval := evalCastU8 (evm := evm) (x := "value") (v := calldataWord I.calldata 36)
     (L := setStore I) (store_get_self _ _ _)
   have hasg := assignElem (evm := evm) hin hxi (by simp) (calldataWord I.calldata 36)
@@ -71,7 +71,7 @@ theorem feIndexedPackedStoreSetBody {σ σ₀ A I} {g : UInt256}
           (ExecStmt.assign (Or.inr (by simp only [hevm, initState]; exact hperm)) hval hasg)
           ExecBlock.nil))))
       ?_ (returnEquiv.fallthrough rfl rfl (by native_decide))
-    rw [laneWrite_eq, shr5_eq, storageStore_accountMap]
+    rw [keccakWord_mapSlot, laneWrite_eq, shr5_eq, storageStore_accountMap]
     rfl
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd

@@ -6,9 +6,9 @@ import Reasoning.ExternalCall
 /-!
 # FeIndexedPackedStore `setTwo(uint256,uint256,uint256,uint256)`
 
-Arm entry pc 153: call-value check, head check (pc 159), the first `index < 64` check (pc 171), the
-first lane write followed by the second index check (pc 182), then the second lane write and an
-empty return (pc 263).  A bad second index reverts after the first write, which the revert
+Arm entry pc 136: call-value check, head check (pc 142), the first `index < 64` check (pc 154), the
+first lane write followed by the second index check (pc 165), then the second lane write and an
+empty return (pc 222).  A bad second index reverts after the first write, which the revert
 discards; under `STATICCALL` the first `SSTORE` halts.
 -/
 
@@ -42,7 +42,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim decodeCalldata_four_uint256_none_short decodeCalldata_four_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok
-  rd_run rd to 171 using [hwv,
+  rd_run rd to 154 using [hwv,
     solcCalldataStaticLenCheckOk (sz := I.calldata.size) (words := 4) (by omega) hhi hsize]
   have hdec : config.externalABI.decodeCalldata? (setTwoTransition.params.map Param.name)
       (transitionSignature setTwoTransition).paramTypes I.calldata = some (setTwoStore I) := by
@@ -71,7 +71,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivExecutionRevert hcode rd hd hdec
       (ExecFuncBody.execBlockRevert (ExecBlock.consNormal hreq (ExecBlock.consRevert
         (ExecStmt.requireFalse (by rw [evalIndexLt hx1, decide_eq_false hin1])))))
-  rd_run rd to 182 using [(by rw [ult_one (by exact hin1)]; decide)]
+  rd_run rd to 165 using [(by rw [ult_one (by exact hin1)]; decide)]
   have hreq1 := ExecStmt.requireTrue (cfg := config)
     (stele := { contract := contract, locals := setTwoStore I }) (evm := evm)
     (by rw [evalIndexLt hx1, decide_eq_true hin1])
@@ -123,7 +123,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     (setPackedByte (solcSlotWord (sstoreAccountMap I.codeOwner σ (elemSlot i1)
       (setPackedByte (solcSlotWord σ I (elemSlot i1)) (calldataWord I.calldata 36)
         (elemByte i1))) I (elemSlot i2)) (calldataWord I.calldata 100) (elemByte i2))
-  rw [laneWrite_eq, laneWrite_eq, shr5_eq, shr5_eq]
+  rw [keccakWord_mapSlot, keccakWord_mapSlot, laneWrite_eq, laneWrite_eq, shr5_eq, shr5_eq]
   refine hs2.accounts.trans ?_
   have hload : Stele.EVM.storageLoad evm1 evm1.executionEnv.codeOwner (elemSlot i2) =
       solcSlotWord (sstoreAccountMap I.codeOwner σ (elemSlot i1)

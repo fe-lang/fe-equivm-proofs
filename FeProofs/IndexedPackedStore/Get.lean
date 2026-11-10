@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FeIndexedPackedStore `get(uint256)`
 
-Arm entry pc 336: call-value check, head check (pc 342), the `index < 64` check (pc 354), then the
-lane read of word `keccak256(0) + index / 32` and the 32-byte return (pc 365).
+Arm entry pc 271: call-value check, head check (pc 277), the `index < 64` check (pc 289), then the
+lane read of word `keccak256(index / 32 ‖ 0)` and the 32-byte return (pc 300).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -36,7 +36,7 @@ theorem feIndexedPackedStoreGetBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim decodeCalldata_uint256_none_short decodeCalldata_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok
-  rd_run rd to 354 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
+  rd_run rd to 289 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
   have hdec : config.externalABI.decodeCalldata? (getTransition.params.map Param.name)
       (transitionSignature getTransition).paramTypes I.calldata = some (indexStore I) := by
     show decodeCalldata ["index"] [abiUInt256] I.calldata = _
@@ -54,8 +54,9 @@ theorem feIndexedPackedStoreGetBody {σ σ₀ A I} {g : UInt256}
       (ExecFuncBody.execBlockRevert (ExecBlock.consNormal hreq (ExecBlock.consRevert
         (ExecStmt.requireFalse (by rw [evalIndexLt hxi, decide_eq_false hin])))))
   rd_run rd using [(by rw [ult_one (by exact hin)]; decide)]
+  rw [keccakWord_mapSlot] at rd
   u256_lits at rd
-  rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), laneRead_eq, shr5_eq] at rd
+  rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _), laneRead_eq, shr5_eq] at rd
   have hval := evalElemCast (evm := initState σ σ₀ (Sat256.ofUInt256 g) A I) hin hxi (by simp)
   exact rd.reEquivExecution hcode hd hdec
     (ExecFuncBody.execBlockRet (ExecBlock.consNormal hreq (ExecBlock.consNormal
