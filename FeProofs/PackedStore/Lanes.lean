@@ -5,8 +5,9 @@ import FeProofs.Common.Glue
 /-!
 # FePackedStore lane facts
 
-The compiled mask/shift expressions are the byte-lane operations of `FeCommon.PackedByte`, and
-the Stele reads/writes of `lane0`/`lane1` are byte loads/stores of word `packedSlot`.
+The compiled mask/shift expressions are the byte-lane operations of `FeCommon.PackedByte`, the
+compiled `KECCAK256` over `MSTORE(0, 0); MSTORE(32, 0)` is `packedSlot`, and the Stele
+reads/writes of `lane0`/`lane1` are byte loads/stores of word `packedSlot`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -16,6 +17,14 @@ namespace FeProofs.PackedStore
 set_option maxRecDepth 2000000
 
 /-! ## Word algebra -/
+
+/-- Each arm hashes the array's word 0 at memory 0, whatever memory held before. -/
+theorem keccak_packedSlot (mem : ByteArray) :
+    keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64)
+        ((⟨0⟩ : UInt256).toByteArray.write 0
+          ((⟨0⟩ : UInt256).toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32)
+          (UInt256.ofNat 32).toNat 32) = packedSlot :=
+  keccakWord_mapSlot _ _ mem
 
 theorem packedByte_lane0 (w : UInt256) :
     UInt256.land (UInt256.ofNat 255) w = packedByte w 0 := by
@@ -115,9 +124,7 @@ theorem assignLane {stele : Frame} {evm : EVM.State} (name : Ident) (offset : Fi
   rw [storageLocStore_packedByte, setPackedByte_truncate]
 
 
-/-! ## Calldata of `setBoth(uint256,uint256)` -/
-
-/-! ## Account maps after one or two lane writes -/
+/-! ## Account maps after a lane write -/
 
 theorem storeLane_accountMap {σ σ₀ A I} {g : Sat256} (v : UInt256) (offset : Fin 32) :
     (Stele.EVM.storageStore (initState σ σ₀ g A I) (initState σ σ₀ g A I).executionEnv.codeOwner
@@ -128,28 +135,6 @@ theorem storeLane_accountMap {σ σ₀ A I} {g : Sat256} (v : UInt256) (offset :
   rw [storageStore_accountMap]
   exact congrArg (sstoreAccountMap I.codeOwner σ packedSlot)
     (congrArg (setPackedByte · v offset) (codeOwnerStorageWord_initState packedSlot))
-
-/-- Two Stele lane writes leave the account map of the compiled single `SSTORE`. -/
-theorem storeLanes_accountMap {evm : EVM.State} (first second : UInt256) :
-    let evm₁ := Stele.EVM.storageStore evm evm.executionEnv.codeOwner packedSlot
-      (setPackedByte (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner packedSlot) first 0)
-    (Stele.EVM.storageStore evm₁ evm₁.executionEnv.codeOwner packedSlot
-      (setPackedByte (Stele.EVM.storageLoad evm₁ evm₁.executionEnv.codeOwner packedSlot)
-        second 1)).accountMap =
-      sstoreAccountMap evm.executionEnv.codeOwner evm.accountMap packedSlot
-        (setPackedByte (setPackedByte
-          (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner packedSlot) first 0) second 1) := by
-  intro evm₁
-  have henv : evm₁.executionEnv = evm.executionEnv := storageStore_executionEnv _ _ _ _
-  rw [henv]
-  cases hacc : evm.accountMap.get? evm.executionEnv.codeOwner with
-  | none =>
-      have h₁ : evm₁ = evm := storageStore_absent _ _ hacc _ _
-      rw [h₁, storageStore_absent _ _ hacc, sstoreAccountMap_absent_same hacc]
-  | some acc =>
-      rw [storageLoad_storageStore_same_present evm _ hacc, storageStore_accountMap,
-        storageStore_accountMap]
-      exact (sstoreAccountMap_self_update _ _ _ _ _).symm
 
 /-- The decoded argument store of the one-argument setters. -/
 abbrev valueStore (I : ExecutionEnv) : Store :=

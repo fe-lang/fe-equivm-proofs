@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FeNarrowAbi `echo_address(address)`
 
-Arm entry pc 242: call-value check, head-size check (pc 248), the canonical-address check
-`SHR(160, word) = 0` (pc 260), and `MSTORE(0, word); RETURN(0, 32)` (pc 270).
+Arm entry pc 204: call-value check, head-size check (pc 210), the canonical-address check
+`SHR(160, word) = 0` (pc 222), and `MSTORE(0, word); RETURN(0, 32)` (pc 232).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

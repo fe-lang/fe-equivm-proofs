@@ -12,11 +12,9 @@ The definitions between the markers are the output of `fe-lean-export` on `FePac
 The theorems evaluate the arms: lanes 0 and 1 are bytes 0 and 1 of the word at `wordSlot`,
 read and written as `packedByte` and `setPackedByte`.
 
-There is no certificate against `fePackedStoreBytecode` here, and none can be proved: that
-bytecode was built by Fe `822e80878`, whose `StoragePackedArray` kept word `w` at
-`keccak256(slot) + w`.  The exporter reads the current std, which keeps it at entry `w` of a
-`StorageMap` (`keccak256(w ++ slot)`, Fe commit `89d07b9db`).  The word expressions agree; the
-slots differ.
+`FeProofs/PackedStore/ExportedCorrect.lean` proves that `fePackedStoreBytecode`, built by the
+same Fe commit the exporter ran on (`22b156fff`), refines a contract whose arms are these
+definitions.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

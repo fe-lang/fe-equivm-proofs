@@ -5,7 +5,7 @@ import FeProofs.Common.Constructor
 /-!
 # FeIndexedPackedStore constructor correctness
 
-Creation-code equivalence: the non-payable guard, then `CODECOPY` of the 422-byte runtime and its
+Creation-code equivalence: the non-payable guard, then `CODECOPY` of the 333-byte runtime and its
 `RETURN`, composed from the creation summaries.
 -/
 
@@ -13,11 +13,11 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
 namespace FeProofs.IndexedPackedStore
 
-/-- The initcode's `CODECOPY(0, 20, 422)` into empty memory reads back as the runtime code. -/
+/-- The initcode's `CODECOPY(0, 20, 333)` into empty memory reads back as the runtime code. -/
 theorem feIndexedPackedStoreCreation_runtime_copy :
     (feIndexedPackedStoreCreationBytecode.write (UInt256.ofNat 20).toNat ByteArray.empty
-        (⟨0⟩ : UInt256).toNat (UInt256.ofNat 422).toNat).readWithPadding
-      (⟨0⟩ : UInt256).toNat (UInt256.ofNat 422).toNat = feIndexedPackedStoreBytecode := by
+        (⟨0⟩ : UInt256).toNat (UInt256.ofNat 333).toNat).readWithPadding
+      (⟨0⟩ : UInt256).toNat (UInt256.ofNat 333).toNat = feIndexedPackedStoreBytecode := by
   native_decide
 
 theorem feIndexedPackedStoreCtorRet {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv} {g : Sat256}

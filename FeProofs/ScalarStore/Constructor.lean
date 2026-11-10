@@ -7,9 +7,9 @@ import Reasoning.VyperCalls
 /-!
 # FeScalarStore constructor correctness
 
-The initcode rejects call value, requires at least 140 bytes of code (the initcode alone), takes
-`max(mload(0x40), 0x60) = 0x60` as its scratch pointer, copies the argument bytes there, requires
-at least one word of them, stores that word in slot 0, and returns the 80-byte runtime.  Under the
+The initcode stores the free-memory pointer `0x60` at `0x40`, rejects call value, requires at least
+133 bytes of code (the initcode alone), copies the argument bytes to `0x60`, requires at least one
+word of them, stores that word in slot 0, and returns the 80-byte runtime.  Under the
 canonical deployment the argument bytes are exactly the encoded `uint256`.
 -/
 
@@ -20,43 +20,52 @@ namespace FeProofs.ScalarStore
 /-- The ABI-encoded constructor argument. -/
 abbrev ctorTail (w : UInt256) : ByteArray := (EVM.Word.toBytesBE w).toByteArray
 
-theorem feScalarStoreCreation_size : feScalarStoreCreationBytecode.size = 140 := by native_decide
+theorem feScalarStoreCreation_size : feScalarStoreCreationBytecode.size = 133 := by native_decide
 
-theorem ctorCode_size (w : UInt256) : (feScalarStoreCreationBytecode ++ ctorTail w).size = 172 := by
+theorem ctorCode_size (w : UInt256) : (feScalarStoreCreationBytecode ++ ctorTail w).size = 165 := by
   rw [ByteArray.size_append, feScalarStoreCreation_size, word_toBytesBE_toByteArray_size]
 
-/-- Memory after `CODECOPY(0x60, 140, 32)` into empty memory. -/
+/-- Memory after `MSTORE(0x40, 0x60)`. -/
+abbrev ctorPtrMem : ByteArray :=
+  (UInt256.ofNat 96).toByteArray.write 0 ByteArray.empty (UInt256.ofNat 64).toNat 32
+
+theorem ctorPtrMem_size : ctorPtrMem.size = 96 :=
+  toByteArray_write32_size_of_ge _ _ 64 0 96 rfl (Nat.zero_le _)
+    (Nat.lt_of_lt_of_le (by decide) USize.le_size) rfl
+
+/-- Memory after `MSTORE(0x40, 0x60)` and `CODECOPY(0x60, 133, 32)`. -/
 abbrev ctorArgMem (w : UInt256) : ByteArray :=
-  (feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 140).toNat ByteArray.empty
-    (UInt256.ofNat 96).toNat (UInt256.sub (UInt256.ofNat 172) (UInt256.ofNat 140)).toNat
+  (feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 133).toNat ctorPtrMem
+    (UInt256.ofNat 96).toNat (UInt256.sub (UInt256.ofNat 165) (UInt256.ofNat 133)).toNat
 
 theorem ctorArgMem_eq (w : UInt256) :
-    ctorArgMem w = ByteArray.zeroes 96 ++ ctorTail w := by
+    ctorArgMem w = ctorPtrMem ++ ByteArray.zeroes 0 ++ ctorTail w := by
   unfold ctorArgMem
-  rw [show (UInt256.ofNat 140).toNat = 140 from rfl, show (UInt256.ofNat 96).toNat = 96 from rfl,
-    show (UInt256.sub (UInt256.ofNat 172) (UInt256.ofNat 140)).toNat = 32 by decide,
-    write_from_gap_eq _ _ 140 96 32 (by decide) (by have := ctorCode_size w; omega)
-      (by simp) (by simp only [ByteArray.size_empty]; exact Nat.lt_of_lt_of_le (by decide) USize.le_size),
-    extract_append_right' _ _ 140 (140 + 32) feScalarStoreCreation_size.symm
-      (by rw [feScalarStoreCreation_size, word_toBytesBE_toByteArray_size])]
-  simp [ByteArray.empty_append]
+  rw [show (UInt256.ofNat 133).toNat = 133 from rfl, show (UInt256.ofNat 96).toNat = 96 from rfl,
+    show (UInt256.sub (UInt256.ofNat 165) (UInt256.ofNat 133)).toNat = 32 by decide,
+    write_from_gap_eq _ _ 133 96 32 (by decide) (by have := ctorCode_size w; omega)
+      (by rw [ctorPtrMem_size]) (by rw [ctorPtrMem_size]; exact Nat.lt_of_lt_of_le (by decide) USize.le_size),
+    extract_append_right' _ _ 133 (133 + 32) feScalarStoreCreation_size.symm
+      (by rw [feScalarStoreCreation_size, word_toBytesBE_toByteArray_size]), ctorPtrMem_size]
 
 theorem ctorArgMem_load (w : UInt256) : memLoad (UInt256.ofNat 96) (ctorArgMem w) = w := by
+  have hpre : (ctorPtrMem ++ ByteArray.zeroes 0).size = 96 := by
+    rw [ByteArray.size_append, ctorPtrMem_size, ByteArray_zeroes_size]
   have hsz : (ctorArgMem w).size = 128 := by
-    rw [ctorArgMem_eq, ByteArray.size_append, ByteArray_zeroes_size, word_toBytesBE_toByteArray_size]
+    rw [ctorArgMem_eq, ByteArray.size_append, hpre, word_toBytesBE_toByteArray_size]
   refine memLoad_of_read _ 96 w (by decide) (by omega) ?_
   rw [readWithPadding_eq_extract _ 96 (by omega), ctorArgMem_eq,
-    extract_append_right' _ _ 96 (96 + 32) (by rw [ByteArray_zeroes_size])
-      (by rw [ByteArray_zeroes_size, word_toBytesBE_toByteArray_size]),
+    extract_append_right' _ _ 96 (96 + 32) hpre.symm
+      (by rw [hpre, word_toBytesBE_toByteArray_size]),
     ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
 
 theorem ctorRuntime_read (w : UInt256) :
-    ((feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 60).toNat (ctorArgMem w)
+    ((feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 53).toNat (ctorArgMem w)
       (⟨0⟩ : UInt256).toNat (UInt256.ofNat 80).toNat).readWithPadding (⟨0⟩ : UInt256).toNat
       (UInt256.ofNat 80).toNat = feScalarStoreBytecode := by
-  rw [show (UInt256.ofNat 60).toNat = 60 from rfl, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+  rw [show (UInt256.ofNat 53).toNat = 53 from rfl, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
     show (UInt256.ofNat 80).toNat = 80 from rfl,
-    write0_read_back_from_gen _ _ 60 80 (by decide) (by have := ctorCode_size w; omega) (by decide),
+    write0_read_back_from_gen _ _ 53 80 (by decide) (by have := ctorCode_size w; omega) (by decide),
     extract_append_left _ _ _ _ (by rw [feScalarStoreCreation_size])]
   native_decide
 

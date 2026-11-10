@@ -6,9 +6,9 @@ import FeProofs.Common.Basic
 # FeNarrowAbi `echo_i8(int8)`
 
 Arm entry pc 56: call-value check, head-size check (pc 62), then Solidity's canonical `int8`
-check: the low byte's sign bit (pc 74) selects comparing the word with the low byte (pc 103) or
+check: the low byte's sign bit (pc 74) selects comparing the word with the low byte (pc 102) or
 with the sign-extended low byte (pc 89); the canonical word is sign-extended again by
-`SAR(248, SHL(248, x))` and returned (pc 111).
+`SAR(248, SHL(248, x))` and returned (pc 109).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -69,7 +69,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
       simp only [hW, hm255, hm128, hlow, byteSignBit_of_lt128 hpos, uInt256_eq_self]
       decide)]
     u256_lits at rd
-    rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), hm255, hlow,
+    rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide),
       sarShiftLeft248_low_lt128 hpos] at rd
     have hcanon : i8Canonical (calldataWord I.calldata 4) := Or.inl (by rw [h128]; exact hpos)
     exact rd.reEquivExecution hcode hd (hdecOk hcanon) (hbody _)
@@ -82,7 +82,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
       simp only [hW, hm255, hm128, byteSignBit_of_ge128 hge hlt, hext, uInt256_eq_self]
       decide)]
     u256_lits at rd
-    rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide), hm255, hext,
+    rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide),
       sarShiftLeft248_negative hneg] at rd
     have hcanon : i8Canonical (calldataWord I.calldata 4) := Or.inr (by rw [hmod]; exact hneg)
     exact rd.reEquivExecution hcode hd (hdecOk hcanon) (hbody _)
@@ -103,7 +103,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
       exact (by decide : (⟨128⟩ : UInt256) ≠ ⟨0⟩) (hsign128.symm.trans hsign)
     rd_run rd using [(by
       simp only [hW, hm255, hm128, hsign,
-        uInt256_eq_zero_of_ne fun h => hlowNe (uInt256_eq_one_eq h)]
+        uInt256_eq_zero_of_ne fun h => hlowNe (uInt256_eq_one_eq h).symm]
       decide)]
     exact RDrev.reEquivDecodingFailed hcode rd hd hdec
   have hlowGe : 128 ≤ (UInt256.land (calldataWord I.calldata 4) ⟨255⟩).toNat := by
@@ -116,7 +116,7 @@ theorem feNarrowAbiEcho_i8Body {σ σ₀ A I} {g : UInt256}
     rw [heq] at hge
     omega
   rd_run rd using [isZero_eq_zero_of_ne hsign,
-    uInt256_eq_zero_of_ne (fun h => hextNe (uInt256_eq_one_eq h))]
+    uInt256_eq_zero_of_ne (fun h => hextNe (uInt256_eq_one_eq h).symm)]
   exact RDrev.reEquivDecodingFailed hcode rd hd hdec
 
 end FeProofs.NarrowAbi

@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FePackedStore `set1(uint256)`
 
-Arm entry pc 287: call-value check, head-size check (pc 292), then one read-modify-write of word
-`packedSlot` replacing lane 1 with the argument's low byte (pc 304).  Under `STATICCALL` the
+Arm entry pc 138: call-value check, head-size check (pc 143), then one read-modify-write of word
+`packedSlot` replacing lane 1 with the argument's low byte (pc 155).  Under `STATICCALL` the
 `SSTORE` halts, matching Stele's static violation at the storage assignment.
 -/
 
@@ -34,7 +34,7 @@ theorem fePackedStoreSet1Body {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim decodeCalldata_uint256_none_short decodeCalldata_uint256_none_huge)
   obtain ⟨hlen, hhi⟩ := hok
-  rd_run rd to 304 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
+  rd_run rd to 155 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
   have hdec : config.externalABI.decodeCalldata? (set1Transition.params.map Param.name)
       (transitionSignature set1Transition).paramTypes I.calldata = some (valueStore I) := by
     show decodeCalldata ["value"] [abiUInt256] I.calldata = _
@@ -50,6 +50,7 @@ theorem fePackedStoreSet1Body {σ σ₀ A I} {g : UInt256}
       (by simp only [initState]; exact hwv))
   by_cases hperm : I.perm = true
   · rd_step rd
+    rw [keccak_packedSlot] at rd
     exact (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _)).reEquivExecutionGen hcode hd
       hdec (ExecFuncBody.execBlockOK (ExecBlock.consNormal hreq (ExecBlock.consNormal
         (ExecStmt.assign (Or.inr (by simp only [initState]; exact hperm)) hval hasg)

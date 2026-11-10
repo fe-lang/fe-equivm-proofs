@@ -4,7 +4,7 @@ import Stele.Notation
 # FeIndexedPackedStore surface spec
 
 Fe's `StoragePackedArray<8>` field at slot 0, indexed at run time and bounded by an explicit
-`index < 64` check.  Element `i` is byte `i % 32` of word `keccak256(0) + i / 32` (see `Spec.lean`).
+`index < 64` check.  Element `i` is byte `i % 32` of word `keccak256(i / 32 ‖ 0)` (see `Spec.lean`).
 `setTwo` checks its second index only after the first write, so a bad second index reverts the
 whole call.  Fe rejects call value on every entry point, including the constructor.  Transitions are
 listed in the dispatcher's compare order.

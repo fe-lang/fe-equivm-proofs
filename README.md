@@ -7,8 +7,8 @@ specification written in EquiVM's specification language, Stele.
 
 ## Contracts
 
-Compiled with the Sonatina backend, `-O 1`, Osaka: WETH9 with Fe `bfc795bb4`, the others with Fe
-26.4.0 (`822e80878`).
+Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit with Fe 26.4.0 (`822e80878`), WETH9
+with Fe `bfc795bb4`, the others with Fe 26.5.0 (`22b156fff`).
 
 | Module | Contract | Theorem |
 | --- | --- | --- |

@@ -98,11 +98,11 @@ theorem feIndexedPackedStoreReachSetBody {σ σ₀ A I} {g : Sat256}
   rd_run rd0 to 47 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `setTwo(uint256,uint256,uint256,uint256)` (arm entry pc 153). -/
+/-- Dispatcher path to `setTwo(uint256,uint256,uint256,uint256)` (arm entry pc 136). -/
 theorem feIndexedPackedStoreReachSetTwoBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feIndexedPackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feIndexedPackedStoreSelBytes 1)) :
-    ∃ k C, RD (feIndexedPackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 153)
+    ∃ k C, RD (feIndexedPackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 136)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -110,14 +110,14 @@ theorem feIndexedPackedStoreReachSetTwoBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x62 0xe3 0xd8 0x7d ⟨1659099261⟩ (by native_decide)
       (by simpa [feIndexedPackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 153 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 136 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
-/-- Dispatcher path to `get(uint256)` (arm entry pc 336). -/
+/-- Dispatcher path to `get(uint256)` (arm entry pc 271). -/
 theorem feIndexedPackedStoreReachGetBody {σ σ₀ A I} {g : Sat256}
     (hcode : I.code = feIndexedPackedStoreBytecode) (hsz : 4 ≤ I.calldata.size) (hsize : I.calldata.size < UInt256.size)
     (hsel : selIs I (feIndexedPackedStoreSelBytes 2)) :
-    ∃ k C, RD (feIndexedPackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 336)
+    ∃ k C, RD (feIndexedPackedStoreBytecode) I g (initState σ σ₀ g A I) (UInt256.ofNat 271)
       [(UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))]
       ByteArray.empty
       (UInt256.ofNat 0) ByteArray.empty σ k C := by
@@ -125,7 +125,7 @@ theorem feIndexedPackedStoreReachGetBody {σ σ₀ A I} {g : Sat256}
     solcSelectorWord_eq_of_beq I hsz 0x95 0x07 0xd3 0x9a ⟨2500318106⟩ (by native_decide)
       (by simpa [feIndexedPackedStoreSelBytes] using hsel)
   have rd0 := RD.initState (g := g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
-  rd_run rd0 to 336 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
+  rd_run rd0 to 271 using [lt_four_eq_zero_of_ge hsz hsize, selWord_eq hword]
   exact ⟨_, _, rd0⟩
 
 /-- Calldata shorter than a selector -/
@@ -161,7 +161,7 @@ theorem feIndexedPackedStoreX_noMatch {σ σ₀ A I} {g : Sat256}
     rw [uInt256_eq_comm] at e
     exact e) rd3
   have rd5 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_44 (by simp) (by jump_dest) rd4
-  have rd6 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_75 (by simp) rd5
+  have rd6 := feIndexedPackedStoreBlocks.feIndexedPackedStore_block_54 (by simp) rd5
   simpa [feIndexedPackedStoreBlocks.feIndexedPackedStore_block_8_fallthrough_stack] using rd6
 
 end FeProofs.IndexedPackedStore

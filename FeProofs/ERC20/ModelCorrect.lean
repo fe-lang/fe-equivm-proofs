@@ -170,11 +170,11 @@ theorem transferArm_refines {g : UInt256}
   have haddr : ¬ NotAddress (word I.calldata 4) := not_notAddress_of hcanon
   have hbal : slotWord I σ (Model.balanceSlot (UInt256.ofNat I.source.val)) = transferBal σ I := rfl
   have hval : word I.calldata 36 = calldataWord I.calldata 36 := rfl
-  rd_run rd to 613 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 137 using [hwv, hc, shiftRight160_eq_zero hcanon]
   by_cases henough : (calldataWord I.calldata 36).toNat ≤ (transferBal σ I).toNat
   swap
   · have hlt := Nat.lt_of_not_le henough
-    rd_run rd using [slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
+    rd_run rd using [slot_hint (isZero_lt_eq_zero hlt)]
     exact agrees_of_rev hcode rd (f := .revert (assertData "ERC20: insufficient balance"))
       (by simp [Model.transferArm, Model.transfer, World.init, exec_nonPayable, hwv, hhead, haddr,
         hbal, hval, hlt]) (by simp)
@@ -183,7 +183,7 @@ theorem transferArm_refines {g : UInt256}
   by_cases hperm : I.perm = true
   swap
   · have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [slot_hint hge]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge]
     exact agrees_of_static hcode rd
       (by simp [Model.transferArm, Model.transfer, World.init, exec_nonPayable, exec_sstore,
         checkedSub, hwv, hhead, haddr, hbal, hval, hnlt, hpf])
@@ -194,12 +194,14 @@ theorem transferArm_refines {g : UInt256}
   by_cases hfit : (transferToBal σ I).toNat + (calldataWord I.calldata 36).toNat < UInt256.size
   swap
   · have hover := Nat.le_of_not_lt hfit
-    rd_run rd using [slot_hint hge, slot_hint (addCarry_ne_zero hover)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge,
+      slot_hint (addCarry_ne_zero hover)]
     exact agrees_of_rev hcode rd (f := .panic 0x11)
       (by simp [Model.transferArm, Model.transfer, World.init, exec_nonPayable, exec_sstore,
         checkedSub, checkedAdd, hwv, hhead, haddr, hbal, hval, hnlt, hperm, hdeb, htob, hover])
       (by simp)
-  rd_run rd using [slot_hint hge, slot_hint (addCarry_eq_zero hfit)]
+  rd_run rd using [slot_hint (isZero_lt_ne_zero henough), slot_hint hge,
+    slot_hint (addCarry_eq_zero hfit)]
   simp only [keccakWord_mapSlot] at rd
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
@@ -244,7 +246,7 @@ theorem approveArm_refines {g : UInt256}
       (by simp [Model.approveArm, exec_nonPayable, hwv, hhead,
         show NotAddress (word I.calldata 4) from notAddress_of hcanon]) (by simp)
   have haddr : ¬ NotAddress (word I.calldata 4) := not_notAddress_of hcanon
-  rd_run rd to 113 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 465 using [hwv, hc, shiftRight160_eq_zero hcanon]
   by_cases hperm : I.perm = true
   · rd_step rd
     rw [keccakWord_mapSlot, keccakWord_mapSlot, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
@@ -306,7 +308,7 @@ theorem transferFromArm_refines {g : UInt256}
   have hal : slotWord I σ (Model.allowanceSlot (word I.calldata 4) (UInt256.ofNat I.source.val))
       = transferFromAllowance σ I := rfl
   have hb0 : slotWord I σ (Model.balanceSlot (word I.calldata 4)) = transferFromBal σ I := rfl
-  rd_run rd to 241 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
+  rd_run rd to 593 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
   by_cases hallow : (calldataWord I.calldata 68).toNat ≤ (transferFromAllowance σ I).toNat
   swap
   · have hlt := Nat.lt_of_not_le hallow
@@ -319,7 +321,8 @@ theorem transferFromArm_refines {g : UInt256}
   by_cases hbal : (calldataWord I.calldata 68).toNat ≤ (transferFromBal σ I).toNat
   swap
   · have hlt := Nat.lt_of_not_le hbal
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_eq_zero hlt)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow),
+      slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact agrees_of_rev hcode rd (f := .revert (assertData "ERC20: insufficient balance"))
       (by simp [Model.transferFromArm, Model.transferFrom, World.init, exec_nonPayable, hwv,
         hhead, ha0, ha1, hval, hal, hb0, hnal, hlt]) (by simp)
@@ -328,7 +331,7 @@ theorem transferFromArm_refines {g : UInt256}
   by_cases hperm : I.perm = true
   swap
   · have hpf : I.perm = false := by simpa using hperm
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal)]
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal)]
     exact agrees_of_static hcode rd
       (by simp [Model.transferFromArm, Model.transferFrom, World.init, exec_nonPayable,
         exec_sstore, checkedSub, hwv, hhead, ha0, ha1, hval, hal, hb0, hnal, hnb, hpf])
@@ -342,7 +345,7 @@ theorem transferFromArm_refines {g : UInt256}
       (transferFromBal (transferFromSpent σ I) I).toNat
   swap
   · have hlt := Nat.lt_of_not_le hsub
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
       slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact agrees_of_rev hcode rd (f := .panic 0x11)
       (by simp [Model.transferFromArm, Model.transferFrom, World.init, exec_nonPayable,
@@ -359,13 +362,13 @@ theorem transferFromArm_refines {g : UInt256}
   by_cases hfit : (transferFromToBal σ I).toNat + (calldataWord I.calldata 68).toNat < UInt256.size
   swap
   · have hover := Nat.le_of_not_lt hfit
-    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+    rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
       slot_hint (ult_zero hsub), slot_hint (addCarry_ne_zero hover)]
     exact agrees_of_rev hcode rd (f := .panic 0x11)
       (by simp [Model.transferFromArm, Model.transferFrom, World.init, exec_nonPayable,
         exec_sstore, checkedSub, checkedAdd, hwv, hhead, ha0, ha1, hval, hal, hb0, hnal, hnb,
         hperm, hsp, hb1, hnsub, hdeb, htob, hover]) (by simp)
-  rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (isZero_lt_ne_zero hbal),
+  rd_run rd using [slot_hint (isZero_lt_ne_zero hallow), slot_hint (ult_zero hbal),
     slot_hint (ult_zero hsub), slot_hint (addCarry_eq_zero hfit)]
   simp only [keccakWord_mapSlot] at rd
   u256_lits at rd

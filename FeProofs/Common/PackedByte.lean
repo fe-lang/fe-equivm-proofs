@@ -4,9 +4,10 @@ import Reasoning.Storage
 # Byte lanes of a storage word
 
 `std::evm::StoragePackedArray<8>` keeps lane `i` in byte `i % 32` (little-endian, lane 0 lowest)
-of word `keccak256(slot) + i / 32`.  These lemmas connect the compiled mask/shift code to Stele's
-byte-wide storage locations at any offset: reads of a lane, writes of one lane preserving every
-other bit, truncation to eight bits, isolation of distinct lanes, and last-write-wins.
+of word `i / 32`, the entry `i / 32` of a `StorageMap` at the array's slot.  These lemmas connect
+the compiled mask/shift code to Stele's byte-wide storage locations at any offset: reads of a
+lane, writes of one lane preserving every other bit, truncation to eight bits, isolation of
+distinct lanes, and last-write-wins.
 
 -- LIBRARY CANDIDATE: `Reasoning/PackedStorage.lean` (offset-generic byte lanes; the existing
 -- helpers there are fixed to particular widths and offsets).

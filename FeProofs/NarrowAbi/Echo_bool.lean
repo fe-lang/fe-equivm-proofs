@@ -5,9 +5,9 @@ import FeProofs.Common.Basic
 /-!
 # FeNarrowAbi `echo_bool(bool)`
 
-Arm entry pc 180: call-value check, head-size check (pc 186), the canonical check (zero at
-pc 198, otherwise `EQ(1, word)` at pc 206), and the re-encoding of the decoded flag as `0`/`1`
-(pcs 221–237).
+Arm entry pc 156: call-value check, head-size check (pc 162), the canonical check (zero at
+pc 174, otherwise `EQ(1, word)` at pc 182), and the re-encoding of the decoded flag as `0`/`1`
+(pcs 189–203).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

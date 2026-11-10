@@ -5,10 +5,10 @@ import FeProofs.Common.Basic
 /-!
 # FeERC20 `allowance(address,address)`
 
-Arm entry pc 743: call-value check, head-size check (pc 749), the canonical-address checks for
-`owner` (pc 761) and `spender` (pc 771), then the nested map read
-`SLOAD(keccak256(spender ‖ keccak256(owner ‖ 1)))` returned as one word (pc 781).  Every failed
-check jumps to the revert block at pc 86.
+Arm entry pc 333: call-value check, head-size check (pc 339), the canonical-address checks for
+`owner` (pc 351) and `spender` (pc 361), then the nested map read
+`SLOAD(keccak256(spender ‖ keccak256(owner ‖ 1)))` returned as one word (pc 371).  Every failed
+check jumps to the revert block at pc 65.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

@@ -3,7 +3,7 @@ import Stele.Notation
 /-!
 # FePackedStore surface spec
 
-`StoragePackedArray<8>` field at slot 0: lane `i` is byte `i` of word `keccak256(0)`.  Lanes 0 and
+`StoragePackedArray<8>` field at slot 0: lane `i` is byte `i` of word `keccak256(0 ‖ 0)`.  Lanes 0 and
 1 are the two `uint8` fields `lane0`/`lane1` (their location is the custom layout in `Spec.lean`).
 Setters truncate to eight bits; getters zero-extend.  Fe rejects call value on every entry point,
 including the constructor.  Transitions are listed in selector order.
