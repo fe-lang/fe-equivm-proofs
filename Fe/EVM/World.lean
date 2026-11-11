@@ -124,6 +124,21 @@ def codecopy (dest offset len : UInt256) : FeM Unit := do
 /-- `codesize()` -/
 def codesize : FeM UInt256 := do return UInt256.ofNat (← read).code.size
 
+/-- The 32-byte big-endian word of the running code at `offset`, reading zero past its end. -/
+def cload (offset : UInt256) : FeM UInt256 := do
+  return uInt256OfByteArray ((← read).code.readWithPadding offset.toNat 32)
+
+/-- Where word `slot` of a contract's immutable fields lies in the running code.  The fields
+    take the last `total` words of the deployed code, so the address counts back from its end,
+    wrapping as the EVM's arithmetic does. -/
+def immutableAt (total slot : Nat) : FeM UInt256 := do
+  return UInt256.ofNat (← read).code.size - UInt256.ofNat ((total - slot) * 32)
+
+/-- The `len` bytes of memory at `ptr`, zeros past its end: what a constructor returns for the
+    words of the immutable fields. -/
+def memoryBytes (ptr len : UInt256) : FeM ByteArray := do
+  return (← get).memory.readWithPadding ptr.toNat len.toNat
+
 /-- `keccak256(ptr, len)`: the hash of the `len` bytes of memory at `ptr`. -/
 def keccak256 (ptr len : UInt256) : FeM UInt256 := do
   return .ofNat (fromByteArrayBigEndian (KEC ((← get).memory.readWithPadding ptr.toNat len.toNat)))

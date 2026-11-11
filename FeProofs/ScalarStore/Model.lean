@@ -69,6 +69,7 @@ def runtime : FeM ByteArray := do
   else
     M.revert ByteArray.empty
 
-def contract : ContractModel := ⟨init, runtime⟩
+def contract : ContractModel :=
+  { init := fun args => init args >>= fun _ => pure ByteArray.empty, runtime := runtime }
 
 end FeProofs.ScalarStore.Model

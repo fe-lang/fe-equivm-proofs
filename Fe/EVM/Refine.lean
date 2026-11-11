@@ -64,11 +64,17 @@ theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
   | ok_ok ha hl => simpa only [Agrees, ha, hl] using hb
   | diverge => exact hb
 
-/-- A contract's model: its constructor, from the argument bytes that follow the creation code,
-    and its runtime entry, from calldata to return data. -/
+/-- A contract's model.  The deployed code is the runtime bytecode followed by the words of the
+    contract's immutable fields, which the constructor computes and the runtime entry reads from
+    the end of the running code. -/
 structure ContractModel where
-  init : ByteArray → FeM Unit
+  /-- The constructor, from the argument bytes that follow the creation code to the bytes of
+      the immutable fields. -/
+  init : ByteArray → FeM ByteArray
+  /-- The runtime entry, from calldata to return data. -/
   runtime : FeM ByteArray
+  /-- The bytes the immutable fields take. -/
+  immutables : Nat := 0
 
 /-- An entry as a computation of return data: it never returns, so it has none to give. -/
 def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
@@ -89,10 +95,22 @@ theorem RefinesFor.closed {p : Profile} {m : ContractModel} {σ σ₀ : AccountM
     RefinesFor p m σ σ₀ g A I :=
   h.imp id fun h => ⟨[], h⟩
 
-/-- The runtime bytecode refines the model on every message call that `admits` holds of. -/
+/-- The runtime bytecode refines the model on every message call that `admits` holds of,
+    whatever the immutable fields after it hold. -/
 def RefinesOn (p : Profile) (bytecode : ByteArray) (m : ContractModel)
     (admits : ExecutionEnv → Prop) : Prop :=
-  ∀ σ σ₀ g A I, I.code = bytecode → admits I → RefinesFor p m σ σ₀ g A I
+  ∀ σ σ₀ g A I tail, I.code = bytecode ++ tail → tail.size = m.immutables → admits I →
+    RefinesFor p m σ σ₀ g A I
+
+/-- A certificate of a contract without immutable fields is one of its runtime bytecode
+    alone. -/
+theorem RefinesOn.of_code {p : Profile} {bytecode : ByteArray} {m : ContractModel}
+    {admits : ExecutionEnv → Prop} (hm : m.immutables = 0)
+    (h : ∀ σ σ₀ g A I, I.code = bytecode → admits I → RefinesFor p m σ σ₀ g A I) :
+    RefinesOn p bytecode m admits := by
+  intro σ σ₀ g A I tail hcode htail hadmits
+  have hempty : tail = ByteArray.empty := ByteArray.size_eq_zero_iff.mp (hm ▸ htail)
+  exact h σ σ₀ g A I (by rw [hcode, hempty, ByteArray.append_empty]) hadmits
 
 /-- The runtime bytecode refines the model on every message call. -/
 def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
@@ -104,13 +122,14 @@ def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
 def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
 /-- Deployment: run with any valid argument bytes after it, the creation bytecode does what the
-    model's constructor does, under some feed, and returns the runtime bytecode. -/
+    model's constructor does, under some feed, and returns the runtime bytecode followed by the
+    immutable fields the constructor computed. -/
 def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
     (validArgs : ByteArray → Prop) : Prop :=
   ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
     Ξ σ σ₀ g A I = .error .OutOfGass
       ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
-          ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A feed))
+          ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A feed))
 
 /-- A deployment certificate of a constructor that never consults the context, stated without a
     feed, is one. -/
@@ -119,9 +138,35 @@ theorem RefinesDeploy.closed {p : Profile} {creation runtime : ByteArray} {m : C
     (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
       Ξ σ σ₀ g A I = .error .OutOfGass
         ∨ Agrees p (Ξ σ σ₀ g A I)
-            ((m.init args >>= fun _ => pure runtime).exec I (World.init σ A))) :
+            ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A))) :
     RefinesDeploy p creation runtime m validArgs :=
   fun σ σ₀ g A I args hargs hcode hperm =>
+    (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
+
+/-- A constructor of a contract without immutable fields returns no bytes: the model's `init`
+    is `init`, a computation of nothing, and the deployed code is the runtime bytecode. -/
+theorem RefinesDeploy.of_unit {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
+    {validArgs : ByteArray → Prop} {init : ByteArray → FeM Unit}
+    (hm : ∀ args, m.init args = init args >>= fun _ => pure ByteArray.empty)
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+      Ξ σ σ₀ g A I = .error .OutOfGass
+        ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
+            ((init args >>= fun _ => pure runtime).exec I (World.init σ A feed))) :
+    RefinesDeploy p creation runtime m validArgs := by
+  intro σ σ₀ g A I args hargs hcode hperm
+  simpa [hm, ByteArray.append_empty] using h σ σ₀ g A I args hargs hcode hperm
+
+/-- `RefinesDeploy.of_unit` for a constructor that never consults the context, stated without
+    a feed. -/
+theorem RefinesDeploy.of_unit_closed {p : Profile} {creation runtime : ByteArray}
+    {m : ContractModel} {validArgs : ByteArray → Prop} {init : ByteArray → FeM Unit}
+    (hm : ∀ args, m.init args = init args >>= fun _ => pure ByteArray.empty)
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+      Ξ σ σ₀ g A I = .error .OutOfGass
+        ∨ Agrees p (Ξ σ σ₀ g A I)
+            ((init args >>= fun _ => pure runtime).exec I (World.init σ A))) :
+    RefinesDeploy p creation runtime m validArgs :=
+  RefinesDeploy.of_unit hm fun σ σ₀ g A I args hargs hcode hperm =>
     (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
 
 /-- How a certificate is used: a property of the accounts the model can end with, shown for

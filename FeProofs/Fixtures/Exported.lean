@@ -3783,9 +3783,10 @@ def runtime : FeM Empty := do
     else
       revertEmpty
 
-def init_entry (args : ByteArray) : FeM Unit := do
+def init_entry (args : ByteArray) : FeM ByteArray := do
   nonPayable
-  init
+  let _ ← init
+  return ByteArray.empty
 
 -- END fe-lean-export
 

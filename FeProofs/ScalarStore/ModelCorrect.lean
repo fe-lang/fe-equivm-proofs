@@ -164,6 +164,7 @@ end Model
 /-! ## Refinement -/
 
 theorem feScalarStoreRefinesModel : Refines .P0 feScalarStoreBytecode Model.contract := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hsize
   refine RefinesFor.closed ?_
   by_cases hsz : 4 ≤ I.calldata.size
@@ -209,27 +210,27 @@ theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b
   exact List.take_of_length_le (by rw [Array.length_toList]; exact Nat.le_of_eq h)
 
 theorem init_value {I : ExecutionEnv} {w : World} {args : ByteArray} (hwv : I.weiValue ≠ ⟨0⟩) :
-    (Model.contract.init args >>= fun _ => pure feScalarStoreBytecode).exec I w
+    (Model.init args >>= fun _ => pure feScalarStoreBytecode).exec I w
       = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.contract, Model.init, nonPayable, hwv]
+  simp [Model.init, nonPayable, hwv]
 
 theorem init_ok {I : ExecutionEnv} {w : World} (v : UInt256) (hwv : I.weiValue = ⟨0⟩)
     (hperm : I.perm = true) :
-    (Model.contract.init (ctorTail v) >>= fun _ => pure feScalarStoreBytecode).exec I w
+    (Model.init (ctorTail v) >>= fun _ => pure feScalarStoreBytecode).exec I w
       = some (.ok (feScalarStoreBytecode,
           { w with accounts := storeWord I.codeOwner w.accounts ⟨0⟩ v })) := by
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
   have hword : uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v := by
     rw [readBytes_all32 _ hsz, ctorTail, word_toBytesBE_toByteArray_eq_toByteArray,
       uInt256OfByteArray_toByteArray]
-  simp [Model.contract, Model.init, Model.initBody, Model.storedSlot, nonPayable, sstore, hwv,
+  simp [Model.init, Model.initBody, Model.storedSlot, nonPayable, sstore, hwv,
     hperm, hsz, hword]
 
 /-- Deployment with one ABI-encoded `uint256` argument. -/
 theorem feScalarStoreDeployRefinesModel :
     RefinesDeploy .P0 feScalarStoreCreationBytecode feScalarStoreBytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
-  refine RefinesDeploy.closed ?_
+  refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
   by_cases hwv : I.weiValue = ⟨0⟩
   · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feScalarStoreCtorRet v hcode hwv hperm)

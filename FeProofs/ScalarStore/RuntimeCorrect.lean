@@ -98,7 +98,8 @@ set_option maxHeartbeats 4000000 in
     It changes memory only. -/
 theorem initEntry_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
     (init_entry (ctorTail v)).exec I w =
-      if I.weiValue = ⟨0⟩ then (init v).exec I { w with memory := withArg w.memory v }
+      if I.weiValue = ⟨0⟩ then
+        (init v >>= fun _ => pure ByteArray.empty).exec I { w with memory := withArg w.memory v }
       else some (.error (.revert ByteArray.empty)) := by
   have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
     ulit_toNat' _ (by omega)
@@ -221,7 +222,7 @@ end Entries
 /-- The exported deployment entry ends as the hand-written model's does, on one argument word. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
     (hmem : w.memory.size + 32 < UInt256.size) :
-    EndsAs ((init_entry (ctorTail v) >>= fun _ => pure out).exec I w)
+    EndsAs ((init_entry (ctorTail v) >>= fun tail => pure (out ++ tail)).exec I w)
       ((Model.init (ctorTail v) >>= fun _ => pure out).exec I w) := by
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
   have hword : uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v := by
@@ -241,17 +242,19 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
 /-! ## The certificate -/
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := ⟨init_entry, entry runtime⟩
+def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feScalarStoreRefinesExported :
     RefinesOn .P0 feScalarStoreBytecode contract CalldataFits := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feScalarStoreRefinesModel σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
+  rcases feScalarStoreRefinesModel σ σ₀ g A I ByteArray.empty
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -263,7 +266,10 @@ theorem feScalarStoreDeployRefinesExported :
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
   rcases feScalarStoreDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr ⟨feed, Agrees.of_endsAs
+  · replace h : Agrees .P0 (Ξ σ σ₀ g A I) ((Model.init (ctorTail v) >>= fun _ =>
+        pure feScalarStoreBytecode).exec I (World.init σ A feed)) := by
+      simpa [Model.contract, ByteArray.append_empty] using h
+    exact Or.inr ⟨feed, Agrees.of_endsAs
       (init_endsAs v _ I (World.init σ A feed) (by simp [World.init, UInt256.size])) h⟩
 
 end FeProofs.ScalarStore.Exported

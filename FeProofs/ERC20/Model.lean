@@ -148,6 +148,7 @@ def init (args : ByteArray) : FeM Unit := do
   if args.size < 32 then M.revert ByteArray.empty
   initBody (word args 0)
 
-def contract : ContractModel := ⟨init, runtime⟩
+def contract : ContractModel :=
+  { init := fun args => init args >>= fun _ => pure ByteArray.empty, runtime := runtime }
 
 end FeProofs.ERC20.Model

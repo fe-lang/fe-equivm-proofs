@@ -387,6 +387,7 @@ theorem transferFromArm_refines {g : UInt256}
 /-! ## The runtime entry -/
 
 theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hsize
   refine RefinesFor.closed ?_
   show ArmAgrees σ σ₀ g A I Model.runtime
@@ -456,13 +457,13 @@ theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b
 theorem feERC20DeployRefinesModel :
     RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
-  refine RefinesDeploy.closed ?_
+  refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feERC20CtorRev hcode hwv)
       (f := .revert ByteArray.empty)
-      (by simp [Model.contract, Model.init, exec_nonPayable, hwv]) (by simp)
+      (by simp [Model.init, exec_nonPayable, hwv]) (by simp)
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
   have hword : word (ctorTail v) 0 = v := by
     show uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v
@@ -476,7 +477,7 @@ theorem feERC20DeployRefinesModel :
                (Model.balanceSlot (UInt256.ofNat I.source.val)) v) Model.totalSupplySlot v,
              logs := A.logSeries.push ⟨I.codeOwner,
                #[Model.transferTopic, ⟨0⟩, UInt256.ofNat I.source.val], v.toByteArray⟩ })
-    (by simp [Model.contract, Model.init, Model.initBody, World.init, exec_nonPayable,
+    (by simp [Model.init, Model.initBody, World.init, exec_nonPayable,
       exec_sstore, exec_emit, hwv, hperm, hsz, hword])
     (by rw [hslot]; rfl)
 

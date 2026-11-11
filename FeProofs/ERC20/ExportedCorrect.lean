@@ -262,7 +262,8 @@ set_option maxHeartbeats 4000000 in
     It changes memory only. -/
 theorem initEntry_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
     (init_entry (ctorTail v)).exec I w =
-      if I.weiValue = ⟨0⟩ then (init v).exec I { w with memory := withArg w.memory v }
+      if I.weiValue = ⟨0⟩ then
+        (init v >>= fun _ => pure ByteArray.empty).exec I { w with memory := withArg w.memory v }
       else some (.error (.revert ByteArray.empty)) := by
   have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
     ulit_toNat' _ (by omega)

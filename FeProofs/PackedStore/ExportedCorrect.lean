@@ -81,7 +81,8 @@ def initEntry (_args : ByteArray) : FeM Unit := do
   nonPayable
   init
 
-def handContract : ContractModel := ⟨initEntry, handRuntime⟩
+def handContract : ContractModel :=
+  { init := fun args => initEntry args >>= fun _ => pure ByteArray.empty, runtime := handRuntime }
 
 /-! ## The arms -/
 
@@ -235,6 +236,7 @@ theorem setBothArm_refines {g : UInt256}
 /-- The runtime bytecode refines the contract built from the exported arms and the hand-written
     entry. -/
 theorem fePackedStoreRefinesHandEntry : Refines .P0 fePackedStoreBytecode handContract := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hsize
   refine RefinesFor.closed ?_
   show ArmAgrees σ σ₀ g A I handRuntime
@@ -281,15 +283,15 @@ theorem fePackedStoreRefinesHandEntry : Refines .P0 fePackedStoreBytecode handCo
 theorem fePackedStoreDeployRefinesHandEntry :
     RefinesDeploy .P0 fePackedStoreCreationBytecode fePackedStoreBytecode handContract
       (· = ByteArray.empty) := by
-  refine RefinesDeploy.closed ?_
+  refine RefinesDeploy.of_unit_closed (init := initEntry) (fun _ => rfl) ?_
   intro σ σ₀ g A I args hargs hcode _
   subst hargs
   rw [ByteArray.append_empty] at hcode
   by_cases hwv : I.weiValue = ⟨0⟩
   · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (fePackedStoreCtorRet hcode hwv)
-      (w' := World.init σ A) (by simp [handContract, initEntry, init, exec_nonPayable, hwv]) rfl
+      (w' := World.init σ A) (by simp [initEntry, init, exec_nonPayable, hwv]) rfl
   · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (fePackedStoreCtorRev hcode hwv)
-      (f := .revert ByteArray.empty) (by simp [handContract, initEntry, exec_nonPayable, hwv])
+      (f := .revert ByteArray.empty) (by simp [initEntry, exec_nonPayable, hwv])
       (by simp)
 
 end FeProofs.PackedStore.Exported

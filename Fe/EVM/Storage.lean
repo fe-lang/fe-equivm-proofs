@@ -167,6 +167,29 @@ def mstoreArray {α : Type} [Inhabited α] {n : Nat} (stride : Nat) (elem : UInt
     (ptr : UInt256) (v : Vector α n) : FeM Unit :=
   (List.range n).forM fun i => elem (ptr + UInt256.ofNat (i * stride)) v[i]!
 
+/-! ## Code
+
+An immutable field lies in the running code as it would in memory. -/
+
+/-- The integer of type `t` at `offset` of the running code: its bytes, big-endian. -/
+def cloadInt (t : IntTy) (offset : UInt256) : FeM UInt256 := do
+  let bytes := (← read).code.readWithPadding offset.toNat (t.bits / 8)
+  return IntTy.cast (.u 256) t (UInt256.ofNat (fromByteArrayBigEndian bytes))
+
+/-- A `bool` in the running code is one byte, true unless it is zero. -/
+def cloadBool (offset : UInt256) : FeM Bool := do
+  return decide (fromByteArrayBigEndian ((← read).code.readWithPadding offset.toNat 1) ≠ 0)
+
+/-- The array of `n` elements at `offset` of the running code, each of `stride` bytes and read
+    by `elem`, in index order. -/
+def cloadArray {α : Type} (stride : Nat) (elem : UInt256 → FeM α) (offset : UInt256) :
+    (n : Nat) → FeM (Vector α n)
+  | 0 => pure #v[]
+  | n + 1 => do
+    let init ← cloadArray stride elem offset n
+    let last ← elem (offset + UInt256.ofNat (n * stride))
+    pure (init.push last)
+
 /-- `clear` of a place of `slots` slots: every word zero. -/
 def clearSlots (p : Place) (slots : Nat) : FeM Unit :=
   (List.range slots).forM fun i => store (p.offset i) (UInt256.ofNat 0)

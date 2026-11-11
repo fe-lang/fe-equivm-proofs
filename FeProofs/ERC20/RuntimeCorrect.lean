@@ -364,7 +364,7 @@ theorem withArg_size (memory : ByteArray) (v : UInt256) :
 /-- The exported deployment entry ends as the hand-written model's does, on one argument word. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
     (hmem : w.memory.size + 64 < UInt256.size) :
-    EndsAs ((init_entry (ctorTail v) >>= fun _ => pure out).exec I w)
+    EndsAs ((init_entry (ctorTail v) >>= fun tail => pure (out ++ tail)).exec I w)
       ((Model.init (ctorTail v) >>= fun _ => pure out).exec I w) := by
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
   have hword : word (ctorTail v) 0 = v := by
@@ -376,7 +376,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   swap
   · simp [Model.init, exec_nonPayable, hwv]
     exact .exit _
-  rw [if_pos hwv, init_exec I _ v (by simp only [withArg_size]; omega)]
+  rw [if_pos hwv, M.exec_bind, init_exec I _ v (by simp only [withArg_size]; omega)]
   by_cases hperm : I.perm = true
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, exec_emit,
       hperm]
@@ -387,16 +387,18 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
 /-! ## The certificate -/
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := ⟨init_entry, entry runtime⟩
+def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feERC20RefinesExported : RefinesOn .P0 feERC20Bytecode contract CalldataFits := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feERC20RefinesModel σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
+  rcases feERC20RefinesModel σ σ₀ g A I ByteArray.empty
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -408,7 +410,10 @@ theorem feERC20DeployRefinesExported :
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
   rcases feERC20DeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
   · exact Or.inl h
-  · exact Or.inr ⟨feed, Agrees.of_endsAs
+  · replace h : Agrees .P0 (Ξ σ σ₀ g A I) ((Model.init (ctorTail v) >>= fun _ =>
+        pure feERC20Bytecode).exec I (World.init σ A feed)) := by
+      simpa [Model.contract, ByteArray.append_empty] using h
+    exact Or.inr ⟨feed, Agrees.of_endsAs
       (init_endsAs v _ I (World.init σ A feed) (by simp [World.init, UInt256.size])) h⟩
 
 end FeProofs.ERC20.Exported

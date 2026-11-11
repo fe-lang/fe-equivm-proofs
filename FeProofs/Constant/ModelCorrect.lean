@@ -70,6 +70,7 @@ theorem runtime_answer {I : ExecutionEnv} {w : World}
 /-! ## Refinement -/
 
 theorem feConstantRefinesModel : Refines .P0 feConstantBytecode Model.contract := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hsize
   refine RefinesFor.closed ?_
   by_cases hsel : selIs I (feConstantSelBytes 0)
@@ -89,15 +90,15 @@ theorem feConstantRefinesModel : Refines .P0 feConstantBytecode Model.contract :
 theorem feConstantDeployRefinesModel :
     RefinesDeploy .P0 feConstantCreationBytecode feConstantBytecode Model.contract
       (· = ByteArray.empty) := by
-  refine RefinesDeploy.closed ?_
+  refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
   intro σ σ₀ g A I args hargs hcode _
   subst hargs
   rw [ByteArray.append_empty] at hcode
   by_cases hwv : I.weiValue = ⟨0⟩
   · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feConstantCtorRet hcode hwv)
-      (w' := World.init σ A) (by simp [Model.contract, Model.init, nonPayable, hwv]) rfl
+      (w' := World.init σ A) (by simp [Model.init, nonPayable, hwv]) rfl
   · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feConstantCtorRev hcode hwv)
-      (f := .revert ByteArray.empty) (by simp [Model.contract, Model.init, nonPayable, hwv])
+      (f := .revert ByteArray.empty) (by simp [Model.init, nonPayable, hwv])
       (by simp)
 
 end FeProofs.Constant

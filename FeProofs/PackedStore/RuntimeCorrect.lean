@@ -355,17 +355,19 @@ end Entries
 /-! ## The certificate -/
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := ⟨init_entry, entry runtime⟩
+def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem fePackedStoreRefinesExported :
     RefinesOn .P0 fePackedStoreBytecode contract CalldataFits := by
+  refine RefinesOn.of_code rfl ?_
   intro σ σ₀ g A I hcode hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases fePackedStoreRefinesHandEntry σ σ₀ g A I hcode hsize with h | ⟨feed, h⟩
+  rcases fePackedStoreRefinesHandEntry σ σ₀ g A I ByteArray.empty
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -375,7 +377,11 @@ theorem fePackedStoreRefinesExported :
     one: the call-value check, then `init`. -/
 theorem fePackedStoreDeployRefinesExported :
     RefinesDeploy .P0 fePackedStoreCreationBytecode fePackedStoreBytecode contract
-      (· = ByteArray.empty) :=
-  fePackedStoreDeployRefinesHandEntry
+      (· = ByteArray.empty) := by
+  have hinit : ∀ args, contract.init args = handContract.init args := fun args => by
+    simp [contract, handContract, init_entry, initEntry]
+  intro σ σ₀ g A I args hargs hcode hperm
+  rw [hinit]
+  exact fePackedStoreDeployRefinesHandEntry σ σ₀ g A I args hargs hcode hperm
 
 end FeProofs.PackedStore.Exported

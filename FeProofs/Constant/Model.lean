@@ -41,6 +41,7 @@ def runtime : FeM ByteArray := do
 /-- The contract declares no `init`: deployment only rejects call value. -/
 def init (_args : ByteArray) : FeM Unit := nonPayable
 
-def contract : ContractModel := ⟨init, runtime⟩
+def contract : ContractModel :=
+  { init := fun args => init args >>= fun _ => pure ByteArray.empty, runtime := runtime }
 
 end FeProofs.Constant.Model
