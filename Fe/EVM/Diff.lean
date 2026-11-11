@@ -4,8 +4,9 @@ import Fe.EVM.Refine
 /-!
 # Differential tests of exported models
 
-A Fe `#[test]` function compiles to bytecode that deploys contracts and calls them.  `runTest`
-runs that bytecode in EVMLean.  At each creation and message call the test makes on a contract
+The `#[test]` functions of a Fe file compile to one object, which runs the test its calldata
+selects: code that deploys contracts and calls them.  `runTest` runs a test in EVMLean.  At each
+creation and message call the test makes on a contract
 with an exported model, it runs the model on the inputs EVMLean gives the callee and compares
 the two results at profile `P1`: outcome kind, return data, account map, event logs and revert
 payload.  Each comparison is an instance of `RefinesFor`, or of `RefinesDeploy` for a creation.
@@ -297,16 +298,18 @@ def compare (evm : Except ExecutionException (ExecutionResult State))
 
 /-! ## Tests -/
 
-/-- A contract with an exported model: its creation code without arguments, and the model. -/
+/-- A contract with an exported model: its creation code without arguments, its runtime code
+    without immutable fields, and the model. -/
 structure Target where
   name : String
   creation : ByteArray
+  runtime : ByteArray
   model : ContractModel
 
-/-- A Fe test: the init code that returns the test's bytecode, and the balance it starts with. -/
+/-- A Fe test: the selector that runs it, and the balance it starts with. -/
 structure Test where
   name : String
-  code : ByteArray
+  selector : Nat
   balance : Nat := 0
 
 /-- One comparison. -/
@@ -361,10 +364,8 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           let args := init.extract target.creation.size init.size
           let r := run (fresh σ s.σ₀ g A I) stepBound
           let feed := r.events.toList.map supply
-          let code := match r.result with
-            | .ok (.success _ out) => out
-            | _ => ByteArray.empty
-          let model := (target.model.init args >>= fun _ => pure code).exec I (World.init σ A feed)
+          let model := (target.model.init args >>= fun tail => pure (target.runtime ++ tail)).exec I
+            (World.init σ A feed)
           let made : Bool := match r.result with
             | .ok (.success _ _) => x == ⟨0⟩ || x == .ofNat a.val
             | _ => x == ⟨0⟩
@@ -374,9 +375,9 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           (some ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict⟩,
             if x == ⟨0⟩ then none else some (AccountAddress.ofUInt256 x, target))
 
-/-- Deploy the test's bytecode and run it, comparing at every call on a target.  Returns the
-    reports and how the test ended. -/
-def runTest (targets : List Target) (t : Test) : Array Report × String := Id.run do
+/-- Deploy the tests' object with `suite`, its init code, and run the test, comparing at every
+    call on a target.  Returns the reports and how the test ended. -/
+def runTest (targets : List Target) (suite : ByteArray) (t : Test) : Array Report × String := Id.run do
   let caller : AccountAddress := Fin.ofNat _ 0xca11e7
   let self : AccountAddress := Fin.ofNat _ 0x7e57
   let σ : AccountMap := (∅ : AccountMap)
@@ -384,11 +385,12 @@ def runTest (targets : List Target) (t : Test) : Array Report × String := Id.ru
     |>.insert self { (default : Account) with nonce := ⟨1⟩, balance := .ofNat t.balance }
   let I : ExecutionEnv :=
     { (default : ExecutionEnv) with
-        codeOwner := self, sender := caller, source := caller, code := t.code, perm := true }
+        codeOwner := self, sender := caller, source := caller, code := suite, perm := true }
   match Ξ σ σ (.ofNat testGas) default I with
   | .ok (.success (σ, _, _) code) =>
     let σ := σ.insert self { σ.getD self default with code := code }
-    let r := run (fresh σ σ testGas default { I with code := code }) testSteps
+    let calldata := (UInt256.ofNat t.selector).toByteArray.extract 28 32
+    let r := run (fresh σ σ testGas default { I with code := code, calldata := calldata }) testSteps
     let mut deployed : List (AccountAddress × Target) := []
     let mut reports : Array Report := #[]
     for event in r.events do
@@ -405,13 +407,14 @@ def runTest (targets : List Target) (t : Test) : Array Report × String := Id.ru
 
 /-- Run every test of a fixture and print one line per comparison that does not agree, one per
     test, and a total. -/
-def main (fixture : String) (targets : List Target) (tests : List Test) : IO Unit := do
+def main (fixture : String) (targets : List Target) (suite : ByteArray) (tests : List Test) :
+    IO Unit := do
   let mut agree := 0
   let mut disagree := 0
   let mut outOfGas := 0
   let mut covered : List String := []
   for t in tests do
-    let (reports, ended) := runTest targets t
+    let (reports, ended) := runTest targets suite t
     IO.println s!"TEST {fixture}::{t.name} {ended}; {reports.size} compared"
     for r in reports do
       match r.verdict with
