@@ -1,4 +1,5 @@
 import Ethereum.Semantics
+import FeProofs.Common.SelectorGet
 
 /-!
 # FeScalarStore selectors
@@ -33,6 +34,6 @@ theorem setSelectorFact :
 /-- `keccak256("get()")[0:4] = 0x6d4ce63c`. -/
 theorem getSelectorFact :
     (Ethereum.KEC (String.toByteArray "get()")).extract 0 4 = feScalarStoreSelBytes 1 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorGet.getSelectorHash
 
 end FeProofs.ScalarStore
