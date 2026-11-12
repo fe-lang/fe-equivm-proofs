@@ -6,7 +6,7 @@ import Reasoning.ExternalCall
 /-!
 # FeDeposit `deposit()` — the event segment, coupled (statements 17..21)
 
-Statements 17..21 of `deposit` against the EVM trace of `DepositEvent.lean` (pc 1026 → 1592):
+Statements 17..21 of `deposit` against the EVM trace of `DepositEvent.lean` (pc 1025 → 1582):
 `require(node == uint256(deposit_data_root))`, `amount_bytes = le64(amount)`,
 `index_bytes = le64(uint64(deposit_count))`, `emit DepositEvent(…)`, and
 `require(deposit_count < 4294967295)`.  None of them changes the EVM state; the emitted log is
@@ -128,26 +128,26 @@ end Stmts
 
 /-! ## The coupled segment -/
 
-/-- **The event segment** (statements 17..21, pc 1026 → 1592): a joint revert (root mismatch or
-    full tree), a joint static halt at the event, or both sides at pc 1592 with the count below
+/-- **The event segment** (statements 17..21, pc 1025 → 1582): a joint revert (root mismatch or
+    full tree), a joint static halt at the event, or both sides at pc 1582 with the count below
     `2^32 - 1`, the Stele continuation running from the exit locals. -/
 theorem depositEventSegment {I : ExecutionEnv} {g : Sat256} {s0 : State} {evm : EVM.State}
-    {L : Store} {p a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256} {mem rdata : ByteArray}
+    {L : Store} {a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256} {mem rdata : ByteArray}
     {aw : UInt256} {σ : AccountMap} {k C : ℕ} {m : UInt256} {pk wc sig : Value}
     (hR : R.length ≤ 1000)
     (h0 : r0.toNat < 4294967296) (h1 : r1.toNat < 4294967296) (h4 : r4.toNat < 4294967296)
-    (hE : EventLocals L (memLoad p mem) m pk wc sig)
+    (hE : EventLocals L (eventNode mem) m pk wc sig)
     (hroot : evalExpr? config { contract := contract, locals := L } evm
       (.cast (.var "deposit_data_root") uint256StorageTy) = .ok (.int (Int.ofNat (eventRoot I).toNat)))
     (hs : SourceState s0 I σ evm)
-    (rd : RD code I g s0 (UInt256.ofNat 1026) (p :: a :: r0 :: r1 :: r2 :: r3 :: r4 :: r5 :: R)
+    (rd : RD code I g s0 (UInt256.ofNat 1025) (a :: r0 :: r1 :: r2 :: r3 :: r4 :: r5 :: R)
       mem aw rdata σ k C) :
     (RDrev code g s0 ∧ ExecBlock config { contract := contract, locals := L } evm
       (depositTransition.body.drop 17) .reverted) ∨
     (RDstatic code g s0 ∧ ExecBlock config { contract := contract, locals := L } evm
       (depositTransition.body.drop 17) .staticViolation) ∨
     (I.perm = true ∧ ∃ (mem' : ByteArray) (aw' : UInt256) (k' C' : ℕ),
-      RD code I g s0 (UInt256.ofNat 1592) (memLoad p mem :: eventCount σ I :: r5 :: R)
+      RD code I g s0 (UInt256.ofNat 1582) (eventNode mem :: eventCount σ I :: r5 :: R)
         mem' aw' rdata σ k' C' ∧
       (eventCount σ I).toNat < 4294967295 ∧
       ∀ res, ExecBlock config
@@ -157,7 +157,7 @@ theorem depositEventSegment {I : ExecutionEnv} {g : Sat256} {s0 : State} {evm : 
           (depositTransition.body.drop 17) res) := by
   obtain ⟨hmis, hstat, hbig, hok⟩ := depositEventTrace (ee := I) hR h0 h1 h4 rd
   rw [depositBody_drop17]
-  by_cases heq : memLoad p mem = eventRoot I
+  by_cases heq : eventNode mem = eventRoot I
   swap
   · refine Or.inl ⟨hmis heq, ExecBlock.consRevert (ExecStmt.requireFalse ?_)⟩
     rw [eventS17_eval hE.node hroot]; simp [heq]

@@ -3,8 +3,8 @@ import FeProofs.Deposit.DepositHashStele
 /-!
 # FeDeposit `deposit()` hashing — EVM payload bytes
 
-The bytecode builds the pubkey payload as `mstore(fp, mload(p))`,
-`mstore(fp + 32, (mload(p + 32) >> 128) << 128)` (pc 650–697) and the second signature payload
+The bytecode builds the pubkey payload as `mstore(0x100, mload(p))`,
+`mstore(0x120, (mload(p + 32) >> 128) << 128)` (pc 637–677) and the second signature payload
 from `mload(q + 64)` and a zero word.  These lemmas compute those payload words from the decoded
 `bytes` in memory, independent of where the decoder put them.
 -/

@@ -1,13 +1,13 @@
 import FeProofs.Deposit.Dispatch
 
 /-!
-# FeDeposit `deposit()` — the event segment (pc 1026 → 1592)
+# FeDeposit `deposit()` — the event segment (pc 1025 → 1582)
 
-After the deposit-data root has been recomputed (its word at the top-of-stack pointer), the
-bytecode compares it with `CALLDATALOAD(0x64)` (pc 1026; mismatch reverts at pc 1036), builds the
-`amount`/`index` eight-byte values and the ABI encoding of `DepositEvent` (pcs 1175–1491), emits
-it with `LOG1` (pc 1534), and checks `count < 2^32 - 1` (pc 1548; otherwise revert via 1549).
-The encoding's allocation guards (pcs 1331, 1355, 1383, 1408, 1435, 1464, 1490) only depend on the
+After the deposit-data root has been recomputed (its word at `0x180`), the bytecode compares it
+with `CALLDATALOAD(0x64)` (pc 1025; mismatch reverts at pc 1038), builds the `amount`/`index`
+eight-byte values and the ABI encoding of `DepositEvent` (pcs 1177–1481), emits it with `LOG1`
+(pc 1524), and checks `count < 2^32 - 1` (pc 1538; otherwise revert via 1539).
+The encoding's allocation guards (pcs 1321, 1345, 1373, 1398, 1425, 1454, 1480) only depend on the
 three payload lengths on the stack and pass for any lengths below `2^60`.
 -/
 
@@ -89,33 +89,38 @@ abbrev eventCount (σ : AccountMap) (ee : ExecutionEnv) : UInt256 :=
 abbrev eventRoot (ee : ExecutionEnv) : UInt256 :=
   uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 100).toNat 32)
 
-/-- **The event segment, EVM side** (pc 1026 → 1592): a root mismatch reverts; with a matching
+/-- The recomputed deposit-data root, at the merkleization pair's first word `0x180`. -/
+abbrev eventNode (mem : ByteArray) : UInt256 := memLoad (UInt256.ofNat 384) mem
+
+/-- **The event segment, EVM side** (pc 1025 → 1582): a root mismatch reverts; with a matching
     root the event is encoded and logged (halting in static mode), and the count check either
-    reverts or reaches pc 1592 with `[node, count, …]`. -/
-theorem depositEventTrace {p a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256}
+    reverts or reaches pc 1582 with `[node, count, …]`. -/
+theorem depositEventTrace {a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256}
     (hR : R.length ≤ 1000)
     (h0 : r0.toNat < 4294967296) (h1 : r1.toNat < 4294967296) (h4 : r4.toNat < 4294967296)
-    (rd : RD code ee g s0 (UInt256.ofNat 1026) (p :: a :: r0 :: r1 :: r2 :: r3 :: r4 :: r5 :: R)
+    (rd : RD code ee g s0 (UInt256.ofNat 1025) (a :: r0 :: r1 :: r2 :: r3 :: r4 :: r5 :: R)
       mem aw rdata σ k C) :
-    (memLoad p mem ≠ eventRoot ee → RDrev code g s0) ∧
-    (memLoad p mem = eventRoot ee → ee.perm = false → RDstatic code g s0) ∧
-    (memLoad p mem = eventRoot ee → ee.perm = true →
+    (eventNode mem ≠ eventRoot ee → RDrev code g s0) ∧
+    (eventNode mem = eventRoot ee → ee.perm = false → RDstatic code g s0) ∧
+    (eventNode mem = eventRoot ee → ee.perm = true →
       4294967295 ≤ (eventCount σ ee).toNat → RDrev code g s0) ∧
-    (memLoad p mem = eventRoot ee → ee.perm = true → (eventCount σ ee).toNat < 4294967295 →
+    (eventNode mem = eventRoot ee → ee.perm = true → (eventCount σ ee).toNat < 4294967295 →
       ∃ (mem' : ByteArray) (aw' : UInt256) (k' C' : ℕ),
-        RD code ee g s0 (UInt256.ofNat 1592) (memLoad p mem :: eventCount σ ee :: r5 :: R)
+        RD code ee g s0 (UInt256.ofNat 1582) (eventNode mem :: eventCount σ ee :: r5 :: R)
           mem' aw' rdata σ k' C') := by
   have hsz : 1000000000000 < UInt256.size := by decide
   refine ⟨fun hne => ?_, ?_⟩
   · rd_run rd using [uInt256_eq_zero_of_ne (fun h => hne (uInt256_eq_one_eq h))]
     exact rd
-  -- the matching-root path up to pc 1491
-  have pre : memLoad p mem = eventRoot ee → ∃ mem9 aw9 k9 C9 x0 x2 x3 x4 x5 x6 x7 x8,
-      RD code ee g s0 (UInt256.ofNat 1491)
+  -- the matching-root path up to pc 1481
+  have pre : eventNode mem = eventRoot ee → ∃ mem9 aw9 k9 C9 x0 x2 x3 x4 x5 x6 x7 x8,
+      RD code ee g s0 (UInt256.ofNat 1481)
         (x0 :: eventCount σ ee :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: r5 :: R)
-        mem9 aw9 rdata σ k9 C9 ∧ x2 = memLoad p mem := by
+        mem9 aw9 rdata σ k9 C9 ∧ x2 = eventNode mem := by
     intro heq
-    rd_run rd to 1491 using [(by rw [heq, uInt256_eq_self]; decide),
+    have hmatch : UInt256.eq (memLoad (UInt256.ofNat 384) mem) (eventRoot ee) ≠ UInt256.ofNat 0 := by
+      rw [show memLoad (UInt256.ofNat 384) mem = eventRoot ee from heq, uInt256_eq_self]; decide
+    rd_run rd to 1481 using [hmatch,
       (by rw [ugt_zero (show (eventTotal r0 r1 r4).toNat ≤ _ by
         rw [eventTotal_toNat h0 h1 h4, eventMax64]; omega)]; decide),
       (by rw [ugt_zero (a := UInt256.ofNat 160) (b := eventTotal r0 r1 r4)
@@ -134,7 +139,7 @@ theorem depositEventTrace {p a r0 r1 r2 r3 r4 r5 : UInt256} {R : List UInt256}
     exact rd9
   · obtain ⟨mem9, aw9, k9, C9, x0, x2, x3, x4, x5, x6, x7, x8, rd9, hx2⟩ := pre heq
     subst hx2
-    rd_run rd9 to 1592 using [hperm,
+    rd_run rd9 to 1582 using [hperm,
       (by rw [ult_one (by rw [ulit_toNat' 4294967295 (by omega)]; exact hlt)]; decide)]
     exact ⟨_, _, _, _, rd9⟩
 
