@@ -1,5 +1,6 @@
 import Reasoning.Reach
 import Reasoning.JumpDest
+import Reasoning.Initcode
 import FeProofs.Common.Calls
 import FeProofs.Common.Basic
 import FeProofs.Common.Fallback
@@ -198,7 +199,11 @@ def discharge (g : MVarId) (hints : Array (Term × Option (Expr × Expr))) : Tac
       if (← withBudgetM? attemptBudget (isDefEq t ty)).getD false then
         g.assign e; return true
       s.restore
-  if isJump then return ← tryTac (evalTactic (← `(tactic| jump_dest))) (budget := 0)
+  if isJump then
+    if ← tryTac (evalTactic (← `(tactic| jump_dest))) (budget := 0) then return true
+    -- runtime code followed by immutable data keeps the code's own jump destinations
+    return ← tryTac (evalTactic (← `(tactic|
+      exact Reasoning.Theory.D_J_contains_append_left _ _ _ (by jump_dest)))) (budget := 0)
   if isStack then return false
   -- branch conditions: hints that need the goal to elaborate, decide, or rewrite with the hints first
   for (stx, et) in hints do
