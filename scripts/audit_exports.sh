@@ -24,9 +24,11 @@ grep "^contracts:" $out/blockers.txt || tail -5 $out/cargo.err
 python3 $root/scripts/tally_blockers.py $out/blockers.txt
 [[ -n "${NO_LEAN:-}" ]] && exit 0
 cd $root
+# The tests of some files reach the SHA-256 precompile, which EVMLean implements in C.
+scripts/build_ffi.sh > /dev/null || echo "no FFI library: tests that reach SHA-256 or BLAKE2 will not run"
 ls $out/*.lean | xargs -n 1 -P 8 scripts/lean_check_one.sh | sort > $out/leanfail.txt
 echo "lean failures: $(wc -l < $out/leanfail.txt | tr -d ' ')"
-# A test that reaches a precompile EVMLean implements in C ends the interpreter.
+# Without that library, a test that reaches such a precompile ends the interpreter.
 while read -r _ name; do
   echo "LEANFAIL $name: $(grep -m1 -o "Could not find native implementation of external declaration '[^']*'" $out/$name.log || echo 'timed out or does not elaborate')"
 done < $out/leanfail.txt | head -40
