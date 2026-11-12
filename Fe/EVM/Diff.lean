@@ -214,6 +214,8 @@ inductive Verdict where
   | agree (how : String)
   /-- The EVM ran out of gas: nothing is required of the model. -/
   | outOfGas
+  /-- The EVM overflowed its stack: nothing is required of the model. -/
+  | stackOverflow
   | disagree (why : String)
 
 /-- Where two account maps differ, in a few words. -/
@@ -269,6 +271,7 @@ def compare (evm : Except ExecutionException (ExecutionResult State))
     | _ => differ m
   match evm with
   | .error .OutOfGass | .error .OutOfFuel => .outOfGas
+  | .error .StackOverflow => .stackOverflow
   | _ =>
     match model with
     | none => differ "does not terminate"
@@ -427,6 +430,7 @@ def main (fixture : String) (targets : List Target) (suite : ByteArray) (tests :
   let mut agree := 0
   let mut disagree := 0
   let mut outOfGas := 0
+  let mut stackOverflow := 0
   let mut covered : List String := []
   for t in tests do
     let (reports, ended) := runTest targets suite t
@@ -437,9 +441,10 @@ def main (fixture : String) (targets : List Target) (suite : ByteArray) (tests :
         agree := agree + 1
         if !covered.contains r.target then covered := r.target :: covered
       | .outOfGas => outOfGas := outOfGas + 1
+      | .stackOverflow => stackOverflow := stackOverflow + 1
       | .disagree why =>
         disagree := disagree + 1
         IO.println s!"DISAGREE {fixture}::{r.test} {r.target} {r.input}: {why}"
-  IO.println s!"DIFF {fixture} tests={tests.length} agree={agree} disagree={disagree} outOfGas={outOfGas} targets={targets.length} covered={covered.length}"
+  IO.println s!"DIFF {fixture} tests={tests.length} agree={agree} disagree={disagree} outOfGas={outOfGas} stackOverflow={stackOverflow} targets={targets.length} covered={covered.length}"
 
 end Fe.EVM.Diff

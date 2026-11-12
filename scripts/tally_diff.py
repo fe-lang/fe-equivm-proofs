@@ -4,8 +4,8 @@ the calls of Fe tests and `Fe/EVM/Generate.lean` for generated calls."""
 import re
 import sys
 
-totals = {"tests": 0, "agree": 0, "disagree": 0, "outOfGas": 0, "targets": 0, "covered": 0}
-generated = {"contracts": 0, "sequences": 0, "deployed": 0, "agree": 0, "disagree": 0, "outOfGas": 0, "returned": 0}
+totals = {"tests": 0, "agree": 0, "disagree": 0, "outOfGas": 0, "stackOverflow": 0, "targets": 0, "covered": 0}
+generated = {"contracts": 0, "sequences": 0, "deployed": 0, "agree": 0, "disagree": 0, "outOfGas": 0, "stackOverflow": 0, "returned": 0}
 files = 0
 disagreements = []
 unfinished = []
@@ -26,14 +26,15 @@ for line in open(sys.argv[1]):
 
 print(
     f"differential: {files} files, {totals['tests']} tests, {totals['agree']} calls agree, "
-    f"{totals['disagree']} disagree, {totals['outOfGas']} out of gas; "
+    f"{totals['disagree']} disagree, {totals['outOfGas']} out of gas, "
+    f"{totals['stackOverflow']} out of stack; "
     f"{totals['covered']} of {totals['targets']} contracts with tests compared"
 )
 print(
     f"generated: {generated['contracts']} contracts, {generated['deployed']} of "
     f"{generated['sequences']} sequences deployed, {generated['agree']} creations and calls agree "
     f"({generated['returned']} calls returned), {generated['disagree']} disagree, "
-    f"{generated['outOfGas']} out of gas"
+    f"{generated['outOfGas']} out of gas, {generated['stackOverflow']} out of stack"
 )
 for line in disagreements[:60]:
     print("  DISAGREE", line[:300])

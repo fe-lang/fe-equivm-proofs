@@ -211,14 +211,13 @@ def generatedGas : Nat := 30000000
 def generatedSteps : Nat := 50000
 
 /-- Run a frame from the start of a transaction and compare it with `model`.  The model is not
-    run when the EVM runs out of gas or overflows its stack: nothing bounds it then.  `Agrees`
-    holds of no model run when the stack overflows, so that is a disagreement. -/
+    run when the EVM runs out of gas or overflows its stack: nothing bounds it then. -/
 def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : FeM ByteArray) :
     Verdict × Except ExecutionException (ExecutionResult State) :=
   let r := run (fresh σ σ generatedGas A I) generatedSteps
   match r.result with
   | .error .OutOfGass | .error .OutOfFuel => (.outOfGas, r.result)
-  | .error .StackOverflow => (.disagree "EVM halts with StackOverflow, model not run", r.result)
+  | .error .StackOverflow => (.stackOverflow, r.result)
   | _ => (compare r.result (model.exec I (World.init σ A (r.events.toList.map supply))), r.result)
 
 /-- Deploy `target`, trying a few argument lists until its constructor returns, and send it
@@ -296,6 +295,7 @@ def generated (fixture : String) (targets : List Target) (sequences : Nat := 4)
     let mut agree := 0
     let mut disagree := 0
     let mut outOfGas := 0
+    let mut stackOverflow := 0
     let mut deployed := 0
     let mut returned := 0
     for index in [:sequences] do
@@ -306,9 +306,10 @@ def generated (fixture : String) (targets : List Target) (sequences : Nat := 4)
         match r.verdict with
         | .agree _ => agree := agree + 1
         | .outOfGas => outOfGas := outOfGas + 1
+        | .stackOverflow => stackOverflow := stackOverflow + 1
         | .disagree why =>
           disagree := disagree + 1
           IO.println s!"DISAGREE {fixture}::{r.test} {r.target} {r.input}: {why}"
-    IO.println s!"GEN {fixture} {target.name} sequences={sequences} deployed={deployed} agree={agree} disagree={disagree} outOfGas={outOfGas} returned={returned}"
+    IO.println s!"GEN {fixture} {target.name} sequences={sequences} deployed={deployed} agree={agree} disagree={disagree} outOfGas={outOfGas} stackOverflow={stackOverflow} returned={returned}"
 
 end Fe.EVM.Diff

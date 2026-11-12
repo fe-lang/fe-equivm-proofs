@@ -3,8 +3,8 @@ import Fe.EVM.World
 /-!
 # Refinement of a Fe contract model by EVM bytecode
 
-`Refines p bytecode model`: on every message call the bytecode either runs out of gas, or does
-what the model does, as far as profile `p` observes.  A model that calls other contracts or
+`Refines p bytecode model`: on every message call the bytecode either runs out of gas or of
+stack, or does what the model does, as far as profile `p` observes.  A model that calls other contracts or
 reads its gas takes those inputs from a feed, and does what the bytecode does under some feed.
 -/
 
@@ -27,7 +27,7 @@ abbrev EvmResult :=
   Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate))
 
 /-- The EVM result agrees with the model's run.  A model run that diverges agrees with nothing,
-    so only running out of gas can match it.  A run that stops from inside a callee is a success,
+    so only running out of gas or of stack can match it.  A run that stops from inside a callee is a success,
     like one that returns.  A read past the end of the return data is the EVM's invalid memory
     access. -/
 def Agrees (p : Profile) (evm : EvmResult) :
@@ -79,21 +79,37 @@ structure ContractModel where
 /-- An entry as a computation of return data: it never returns, so it has none to give. -/
 def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
 
-/-- Refinement at fixed inputs: the bytecode runs out of gas, or some feed makes the model end
-    as the bytecode does.  The feed is what the model cannot compute: the gas and the substate
-    of each call it makes. -/
+/-- The bytecode halts for want of a resource the model does not have: gas, or room on the
+    EVM's stack of 1024 words, which a deep enough recursion fills.  A caller cannot tell the two
+    apart: the call fails, its changes are undone and the gas it was given is spent. -/
+def Exhausted (evm : EvmResult) : Prop :=
+  evm = .error .OutOfGass ∨ evm = .error .StackOverflow
+
+/-- Refinement at fixed inputs: the bytecode runs out of gas or of stack, or some feed makes the
+    model end as the bytecode does.  The feed is what the model cannot compute: the gas and the
+    substate of each call it makes. -/
 def RefinesFor (p : Profile) (m : ContractModel) (σ σ₀ : AccountMap) (g : UInt256)
     (A : Substate) (I : ExecutionEnv) : Prop :=
-  Ξ σ σ₀ g A I = .error .OutOfGass
+  Exhausted (Ξ σ σ₀ g A I)
     ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A feed))
 
-/-- A certificate of a model that never consults the context, stated without a feed, is one. -/
+/-- A certificate that excuses running out of gas only is one.  It shows more: the bytecode
+    never overflows its stack. -/
+theorem RefinesFor.of_gas {p : Profile} {m : ContractModel} {σ σ₀ : AccountMap} {g : UInt256}
+    {A : Substate} {I : ExecutionEnv}
+    (h : Ξ σ σ₀ g A I = .error .OutOfGass
+      ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A feed))) :
+    RefinesFor p m σ σ₀ g A I :=
+  h.imp Or.inl id
+
+/-- A certificate of a model that never consults the context, stated without a feed and
+    excusing running out of gas only, is one. -/
 theorem RefinesFor.closed {p : Profile} {m : ContractModel} {σ σ₀ : AccountMap} {g : UInt256}
     {A : Substate} {I : ExecutionEnv}
     (h : Ξ σ σ₀ g A I = .error .OutOfGass
       ∨ Agrees p (Ξ σ σ₀ g A I) (m.runtime.exec I (World.init σ A))) :
     RefinesFor p m σ σ₀ g A I :=
-  h.imp id fun h => ⟨[], h⟩
+  h.imp Or.inl fun h => ⟨[], h⟩
 
 /-- The runtime bytecode refines the model on every message call that `admits` holds of,
     whatever the immutable fields after it hold. -/
@@ -121,13 +137,13 @@ def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
     such calls.  No transaction comes near the bound. -/
 def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
-/-- Deployment: run with any valid argument bytes after it, the creation bytecode does what the
-    model's constructor does, under some feed, and returns the runtime bytecode followed by the
+/-- Deployment: run with any valid argument bytes after it, the creation bytecode runs out of
+    gas or of stack, or does what the model's constructor does, under some feed, and returns the runtime bytecode followed by the
     immutable fields the constructor computed. -/
 def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
     (validArgs : ByteArray → Prop) : Prop :=
   ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
-    Ξ σ σ₀ g A I = .error .OutOfGass
+    Exhausted (Ξ σ σ₀ g A I)
       ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
           ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A feed))
 
@@ -141,7 +157,7 @@ theorem RefinesDeploy.closed {p : Profile} {creation runtime : ByteArray} {m : C
             ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A))) :
     RefinesDeploy p creation runtime m validArgs :=
   fun σ σ₀ g A I args hargs hcode hperm =>
-    (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
+    (h σ σ₀ g A I args hargs hcode hperm).imp Or.inl fun h => ⟨[], h⟩
 
 /-- A constructor of a contract without immutable fields returns no bytes: the model's `init`
     is `init`, a computation of nothing, and the deployed code is the runtime bytecode. -/
@@ -154,7 +170,7 @@ theorem RefinesDeploy.of_unit {p : Profile} {creation runtime : ByteArray} {m : 
             ((init args >>= fun _ => pure runtime).exec I (World.init σ A feed))) :
     RefinesDeploy p creation runtime m validArgs := by
   intro σ σ₀ g A I args hargs hcode hperm
-  simpa [hm, ByteArray.append_empty] using h σ σ₀ g A I args hargs hcode hperm
+  simpa [hm, ByteArray.append_empty] using (h σ σ₀ g A I args hargs hcode hperm).imp Or.inl id
 
 /-- `RefinesDeploy.of_unit` for a constructor that never consults the context, stated without
     a feed. -/
@@ -177,7 +193,8 @@ theorem RefinesFor.accounts {p : Profile} {m : ContractModel} {σ σ₀ σ' : Ac
     (hP : ∀ feed out w, m.runtime.exec I (World.init σ A feed) = some (.ok (out, w))
       ∨ m.runtime.exec I (World.init σ A feed) = some (.error (.stop out w)) → P w.accounts)
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' := by
-  rcases h with hoog | ⟨feed, hag⟩
+  rcases h with (hoog | hoog) | ⟨feed, hag⟩
+  · rw [hrun] at hoog; cases hoog
   · rw [hrun] at hoog; cases hoog
   cases hm : m.runtime.exec I (World.init σ A feed) with
   | none => rw [hm] at hag; exact hag.elim
