@@ -5,6 +5,6 @@
 # implements in C.
 ffi=$(ls .lake/ffi/libfeffi.* 2> /dev/null | head -1)
 ( lake env lean ${ffi:+--load-dynlib=$ffi} "$1" > "$1.log" 2>&1 ) & pid=$!
-( sleep 600; pkill -f "lean $1" ) > /dev/null 2>&1 & watcher=$!
+( sleep 600; pkill -f "lean ${ffi:+--load-dynlib=$ffi }$1" ) > /dev/null 2>&1 & watcher=$!
 wait $pid || echo "LEANFAIL $(basename "$1")"
 kill $watcher 2>/dev/null
