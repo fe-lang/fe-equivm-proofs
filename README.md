@@ -7,7 +7,7 @@ specification written in EquiVM's specification language, Stele.
 
 ## Contracts
 
-Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit with Fe 26.4.0 (`822e80878`), WETH9
+Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit with Fe 26.6.0 (`aa5244d43`), WETH9
 with Fe `bfc795bb4`, the others with Fe 26.5.0 (`22b156fff`).
 
 | Module | Contract | Theorem |
@@ -18,7 +18,7 @@ with Fe `bfc795bb4`, the others with Fe 26.5.0 (`22b156fff`).
 | `FeProofs.ScalarStore` | one `u256` field with a `uint256` constructor | `feScalarStoreContractCorrect` |
 | `FeProofs.PackedStore` | `StoragePackedArray<8>` lanes 0 and 1 | `fePackedStoreContractCorrect` |
 | `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
-| `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/822e80878/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
+| `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/e4372c0d7/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
 | `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | `feERC20ContractCorrect` |
 | `FeProofs.WETH9` | [canonical WETH9](https://github.com/gnosis/canonical-weth/blob/master/contracts/WETH9.sol) written in Fe | `feWETH9ContractCorrect` (string getters under a string-size precondition) |
 
