@@ -42,9 +42,6 @@ theorem pairWords_size (mem : ByteArray) (a b : UInt256) (s t : Nat) (ht : t = s
     (small_gap _ (s + 32) hs)
   omega
 
-theorem gapSmall {d b : ℕ} (hd : d < 2 ^ 32) : d - b < USize.size := by
-  have := USize.le_size; omega
-
 /-- A write never shrinks memory. -/
 theorem write_size_ge (src base : ByteArray) {srcOff dest len : ℕ}
     (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size) :
@@ -109,17 +106,6 @@ theorem write32_size_ge (src base : ByteArray) (dest : ℕ) (hsrc : 32 ≤ src.s
   rw [write32_eq src base dest hsrc hlo, ByteArray.size_append, ByteArray.size_append,
     ByteArray.size_extract, ByteArray.size_extract]
   omega
-
-/-- `MLOAD(0x40)` is unchanged by writes at or above `0x60`. -/
-theorem memLoad64_write (src base : ByteArray) {srcOff dest len : ℕ}
-    (hpos : len ≠ 0) (hsrc : srcOff + len ≤ src.size) (hgap : dest - base.size < USize.size)
-    (hd : 96 ≤ dest) (hb : 96 ≤ base.size) :
-    memLoad (UInt256.ofNat 64) (src.write srcOff base dest len) = memLoad (UInt256.ofNat 64) base := by
-  have hsz := write_size_ge src base hpos hsrc hgap (dest := dest)
-  unfold memLoad
-  rw [show (UInt256.ofNat 64).toNat = 64 from rfl, if_neg (by omega), if_neg (by omega),
-    readWithPadding_eq_extract _ 64 (by omega), readWithPadding_eq_extract _ 64 (by omega),
-    write_extract_below src base hpos hsrc hgap (by omega) (by omega) (by omega)]
 
 /-- The 64-byte payload `abi.encodePacked(uint256(a), uint256(b))`. -/
 abbrev pairPayload (a b : UInt256) : ByteArray :=

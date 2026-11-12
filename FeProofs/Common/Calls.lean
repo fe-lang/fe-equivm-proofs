@@ -85,27 +85,6 @@ theorem callOutput_loadAt (mem out : ByteArray) (off : UInt256) (hb : out.size <
     memLoad off (callOutputMem mem out off (UInt256.ofNat 32)) = calldataWord out 0 :=
   callOutput_load mem out off hb hs hin
 
-theorem callOutput_sizeAt (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hin : off.toNat + 32 ≤ mem.size) :
-    (callOutputMem mem out off (UInt256.ofNat 32)).size = mem.size :=
-  callOutput32_size mem out off hb hin
-
-theorem callOutput_memLoad64' (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hoff : 96 ≤ off.toNat) (hin : off.toNat + 32 ≤ mem.size) :
-    memLoad (UInt256.ofNat 64) (callOutputMem mem out off ⟨32⟩) =
-      memLoad (UInt256.ofNat 64) mem := by
-  unfold callOutputMem
-  rw [callOutputLen32 hb, Nat.min_eq_left hs]
-  exact memLoad64_write out mem (by decide) (by omega) (by have := USize.le_size; omega) hoff
-    (by omega)
-
-/-- A successful call's output write keeps `MLOAD(0x40)`. -/
-theorem callOutput_memLoad64 (mem out : ByteArray) (off : UInt256) (hb : out.size < UInt256.size)
-    (hs : 32 ≤ out.size) (hoff : 96 ≤ off.toNat) (hin : off.toNat + 32 ≤ mem.size) :
-    memLoad (UInt256.ofNat 64) (callOutputMem mem out off (UInt256.ofNat 32)) =
-      memLoad (UInt256.ofNat 64) mem :=
-  callOutput_memLoad64' mem out off hb hs hoff hin
-
 theorem callOutput_load32 (mem out : ByteArray) (hb : out.size < UInt256.size)
     (hs : 32 ≤ out.size) (hin : 32 ≤ mem.size) :
     memLoad (⟨0⟩ : UInt256) (callOutputMem mem out (⟨0⟩ : UInt256) (UInt256.ofNat 32)) =
