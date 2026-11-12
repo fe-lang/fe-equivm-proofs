@@ -1,11 +1,11 @@
 import FeProofs.Deposit.Dispatch
 
 /-!
-# FeDeposit `deposit` length and value checks (EVM side, pc 242 → 650)
+# FeDeposit `deposit` length and value checks (EVM side, pc 229 → 637)
 
 The decoded lengths must be 48, 32 and 96; the call value must be at least one ether, a whole
 number of gwei, and at most `2^64 - 1` gwei.  Every failure reverts with an `Error(string)` payload
-(pc 2249).  On success pc 650 holds the gwei amount on top of the remaining decoded values.
+(pc 2203).  On success pc 637 holds the gwei amount on top of the remaining decoded values.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -26,20 +26,20 @@ theorem depositChecks_ok {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : By
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
     {fp2 len2 alloc2 len1 alloc1 fp0 len0 alloc0 fp1 : UInt256}
     (hok : cOk ee len0 len1 len2)
-    (h : RD feDepositBytecode ee g s0 (UInt256.ofNat 242)
+    (h : RD feDepositBytecode ee g s0 (UInt256.ofNat 229)
       [fp2, len2, alloc2, len1, alloc1, fp0, len0, alloc0, fp1] mem aw rdata σ k C) :
-    ∃ k' C', RD feDepositBytecode ee g s0 (UInt256.ofNat 650)
+    ∃ k' C', RD feDepositBytecode ee g s0 (UInt256.ofNat 637)
       [UInt256.div ee.weiValue (UInt256.ofNat 1000000000), alloc2, alloc1, fp0, fp2, alloc0, fp1]
       mem aw rdata σ k' C' := by
   obtain ⟨h0, h1, h2, h3, h4, h5⟩ := hok
-  rd_run h to 650 using [h0, h1, h2, h3, h4, h5]
+  rd_run h to 637 using [h0, h1, h2, h3, h4, h5]
   exact ⟨_, _, h⟩
 
 theorem depositChecks_rev {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
     {fp2 len2 alloc2 len1 alloc1 fp0 len0 alloc0 fp1 : UInt256}
     (hbad : ¬ cOk ee len0 len1 len2)
-    (h : RD feDepositBytecode ee g s0 (UInt256.ofNat 242)
+    (h : RD feDepositBytecode ee g s0 (UInt256.ofNat 229)
       [fp2, len2, alloc2, len1, alloc1, fp0, len0, alloc0, fp1] mem aw rdata σ k C) :
     RDrev feDepositBytecode g s0 := by
   unfold cOk at hbad

@@ -14,15 +14,15 @@ private abbrev j := Reasoning.Theory.D_J_contains_append_left FeProofs.Deposit.f
 theorem feDepositCreation_block_0_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
     (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 41) = true)
+    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 36) = true)
     (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 41) R mem aw rdata σ (k + 3) (C + ((15))) := by
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) R mem aw rdata σ (k + 3) (C + ((15))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.callvalue (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 41) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 41) hvalid) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 41)) r3 (by native_decide)
+  have r2 := r1.push1 (UInt256.ofNat 36) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 36) hvalid) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 36)) r3 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Automatically generated RD summary for bytecode block at pc 0. -/
@@ -32,202 +32,184 @@ theorem feDepositCreation_block_0_fallthrough {tail : ByteArray} {ee : Execution
     (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
     : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 4) R mem aw rdata σ (k + 3) (C + ((15))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.callvalue (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 41) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r2 := r1.push1 (UInt256.ofNat 36) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r3 := r2.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 4)) r3 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
 /-- Final stack for bytecode block summary `feDepositCreation_block_4`. -/
 def feDepositCreation_block_4_stack {R : List UInt256} : List UInt256 :=
-  ((⟨0⟩ : UInt256) :: R)
+  ((UInt256.ofNat 33) :: (⟨0⟩ : UInt256) :: R)
 
 /-- Automatically generated RD summary for bytecode block at pc 4. -/
 theorem feDepositCreation_block_4 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 1 ≤ 1024)
+    (hstack : R.length + 3 ≤ 1024)
+    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 12) = true)
     (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 4) R mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 5) (feDepositCreation_block_4_stack (R := R)) mem aw rdata σ (k + 1) (C + ((2))) := by
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 12) (feDepositCreation_block_4_stack (R := R)) mem aw rdata σ (k + 4) (C + ((16))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 5)) r1 (by native_decide)
-  exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Automatically generated RD summary for bytecode block at pc 5. -/
-theorem feDepositCreation_block_5_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.isZero (UInt256.lt x0 (UInt256.ofNat 31))) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 71) = true)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 5) (x0 :: R) mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 71) (x0 :: R) mem aw rdata σ (k + 7) (C + ((26))) := by
-  let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
-  have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 31) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.iszero (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 71) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r7 := r6.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 71) hvalid) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 71)) r7 (by native_decide)
-  exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Automatically generated RD summary for bytecode block at pc 5. -/
-theorem feDepositCreation_block_5_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.isZero (UInt256.lt x0 (UInt256.ofNat 31))) = (UInt256.ofNat 0))
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 5) (x0 :: R) mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 14) (x0 :: R) mem aw rdata σ (k + 7) (C + ((26))) := by
-  let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
-  have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 31) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.iszero (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 71) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r7 := r6.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 14)) r7 (by native_decide)
-  exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Final stack for bytecode block summary `feDepositCreation_block_14`. -/
-def feDepositCreation_block_14_stack {x0 : UInt256} {R : List UInt256} {gasWord0 : UInt256} : List UInt256 :=
-  (gasWord0 :: (UInt256.ofNat 2) :: (⟨0⟩ : UInt256) :: (UInt256.ofNat 64) :: (⟨0⟩ : UInt256) :: (UInt256.ofNat 32) :: gasWord0 :: x0 :: R)
-
-/-- Final memory for bytecode block summary `feDepositCreation_block_14`. -/
-def feDepositCreation_block_14_memory {ee : ExecutionEnv} {mem : ByteArray} {σ : AccountMap} {x0 : UInt256} : ByteArray :=
-  ((σ.get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD ((UInt256.ofNat 33) + x0) (⟨0⟩ : UInt256))).toByteArray.write 0 ((σ.get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD ((UInt256.ofNat 33) + x0) (⟨0⟩ : UInt256))).toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)
-
-/-- Automatically generated RD summary for bytecode block at pc 14. -/
-theorem feDepositCreation_block_14 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 8 ≤ 1024)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 14) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (gasWord0 : UInt256) (k' C' : ℕ), RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 35) (feDepositCreation_block_14_stack (x0 := x0) (R := R) (gasWord0 := gasWord0)) (feDepositCreation_block_14_memory (ee := ee) (mem := mem) (σ := σ) (x0 := x0)) (M (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) rdata σ k' C' := by
-  let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
-  have r1 := r0.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.push1 (UInt256.ofNat 33) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.add (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  obtain ⟨_, _, r4⟩ := RD.sload r3 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.push1 (UInt256.ofNat 12) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.jump (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (j tail (UInt256.ofNat 12) hvalid) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 12)) r4 (by native_decide)
+  exact RD.normalizeCounters rFinal (by omega) (by omega)
+
+/-- Final stack for bytecode block summary `feDepositCreation_block_10`. -/
+def feDepositCreation_block_10_stack {x0 : UInt256} {x1 : UInt256} {R : List UInt256} : List UInt256 :=
+  (x1 :: x0 :: R)
+
+/-- Automatically generated RD summary for bytecode block at pc 10. -/
+theorem feDepositCreation_block_10 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 10) (x0 :: x1 :: R) mem aw rdata σ k C)
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 12) (feDepositCreation_block_10_stack (x0 := x0) (x1 := x1) (R := R)) mem aw rdata σ (k + 2) (C + ((4))) := by
+  let r0 := h
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
+  have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r2 := r1.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 12)) r2 (by native_decide)
+  exact RD.normalizeCounters rFinal (by omega) (by omega)
+
+/-- Final stack for bytecode block summary `feDepositCreation_block_12`. -/
+def feDepositCreation_block_12_stack {R : List UInt256} {gasWord0 : UInt256} : List UInt256 :=
+  (gasWord0 :: (UInt256.ofNat 2) :: (⟨0⟩ : UInt256) :: (UInt256.ofNat 64) :: (⟨0⟩ : UInt256) :: (UInt256.ofNat 32) :: gasWord0 :: R)
+
+/-- Final memory for bytecode block summary `feDepositCreation_block_12`. -/
+def feDepositCreation_block_12_memory {ee : ExecutionEnv} {mem : ByteArray} {σ : AccountMap} {x0 : UInt256} : ByteArray :=
+  ((σ.get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD x0 (⟨0⟩ : UInt256))).toByteArray.write 0 ((σ.get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD x0 (⟨0⟩ : UInt256))).toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)
+
+/-- Automatically generated RD summary for bytecode block at pc 12. -/
+theorem feDepositCreation_block_12 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+    (hstack : R.length + 7 ≤ 1024)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 12) (x0 :: R) mem aw rdata σ k C)
+    : ∃ (gasWord0 : UInt256) (k' C' : ℕ), RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 30) (feDepositCreation_block_12_stack (R := R) (gasWord0 := gasWord0)) (feDepositCreation_block_12_memory (ee := ee) (mem := mem) (σ := σ) (x0 := x0)) (M (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) rdata σ k' C' := by
+  let r0 := h
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
+  have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  obtain ⟨_, _, r2⟩ := RD.sload r1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r5 := RD.genMstore r4 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r7 := RD.genMstore r6 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r8 := r7.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r9 := RD.genMstore r8 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r10 := RD.genGas r9 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r11 := r10.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r12 := r11.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r13 := r12.push1 (UInt256.ofNat 64) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r14 := r13.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r15 := r14.push1 (UInt256.ofNat 2) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r16 := r15.dup6 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 35)) r16 (by native_decide)
+  have r8 := RD.genGas r7 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r9 := r8.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r10 := r9.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r11 := r10.push1 (UInt256.ofNat 64) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r12 := r11.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r13 := r12.push1 (UInt256.ofNat 2) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r14 := r13.dup6 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 30)) r14 (by native_decide)
   exact ⟨_, _, _, rFinal⟩
 
-/- Unsupported instruction boundary at pc 35: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 36 from a fresh symbolic RD state. -/
+/- Unsupported instruction boundary at pc 30: staticcall (0xfa). No RD transition is asserted. Summaries resume at pc 31 from a fresh symbolic RD state. -/
 
-/-- Final stack for bytecode block summary `feDepositCreation_block_36_taken`. -/
-def feDepositCreation_block_36_taken_stack {R : List UInt256} : List UInt256 :=
+/-- Final stack for bytecode block summary `feDepositCreation_block_31_taken`. -/
+def feDepositCreation_block_31_taken_stack {R : List UInt256} : List UInt256 :=
   R
 
-/-- Automatically generated RD summary for bytecode block at pc 36. -/
-theorem feDepositCreation_block_36_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 31. -/
+theorem feDepositCreation_block_31_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
     (hcond : x0 ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 45) = true)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 45) (feDepositCreation_block_36_taken_stack (R := R)) mem aw rdata σ (k + 4) (C + ((18))) := by
+    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 40) = true)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 31) (x0 :: x1 :: R) mem aw rdata σ k C)
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 40) (feDepositCreation_block_31_taken_stack (R := R)) mem aw rdata σ (k + 4) (C + ((18))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.pop (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 45) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 45) hvalid) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 45)) r4 (by native_decide)
+  have r3 := r2.push1 (UInt256.ofNat 40) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 40) hvalid) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 40)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Final stack for bytecode block summary `feDepositCreation_block_36_fallthrough`. -/
-def feDepositCreation_block_36_fallthrough_stack {R : List UInt256} : List UInt256 :=
+/-- Final stack for bytecode block summary `feDepositCreation_block_31_fallthrough`. -/
+def feDepositCreation_block_31_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
 
-/-- Automatically generated RD summary for bytecode block at pc 36. -/
-theorem feDepositCreation_block_36_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 31. -/
+theorem feDepositCreation_block_31_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 : UInt256} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
     (hcond : x0 = (UInt256.ofNat 0))
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) (x0 :: x1 :: R) mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 41) (feDepositCreation_block_36_fallthrough_stack (R := R)) mem aw rdata σ (k + 4) (C + ((18))) := by
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 31) (x0 :: x1 :: R) mem aw rdata σ k C)
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) (feDepositCreation_block_31_fallthrough_stack (R := R)) mem aw rdata σ (k + 4) (C + ((18))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.pop (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 45) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.push1 (UInt256.ofNat 40) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r4 := r3.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 41)) r4 (by native_decide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 36)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 41. -/
-theorem feDepositCreation_block_41 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 36. -/
+theorem feDepositCreation_block_36 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 41) R mem aw rdata σ k C)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) R mem aw rdata σ k C)
     : RDrev (FeProofs.Deposit.feDepositCreationBytecode ++ tail) g s0 := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r3 := r2.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   exact RD.genRev r3 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
 
-/-- Automatically generated RD summary for bytecode block at pc 45. -/
-theorem feDepositCreation_block_45_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 40. -/
+theorem feDepositCreation_block_40_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
     (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 41) = true)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 45) R mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 41) R mem aw rdata σ (k + 7) (C + ((25))) := by
+    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 36) = true)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 40) R mem aw rdata σ k C)
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 36) R mem aw rdata σ (k + 7) (C + ((25))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.returndatasize (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r3 := r2.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r4 := r3.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r5 := r4.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 41) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r7 := r6.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 41) hvalid) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 41)) r7 (by native_decide)
+  have r6 := r5.push1 (UInt256.ofNat 36) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r7 := r6.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 36) hvalid) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 36)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 45. -/
-theorem feDepositCreation_block_45_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 40. -/
+theorem feDepositCreation_block_40_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
     (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 45) R mem aw rdata σ k C)
-    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 54) R mem aw rdata σ (k + 7) (C + ((25))) := by
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 40) R mem aw rdata σ k C)
+    : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 49) R mem aw rdata σ (k + 7) (C + ((25))) := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := r1.returndatasize (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r3 := r2.push1 (UInt256.ofNat 32) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r4 := r3.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r5 := r4.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 41) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 36) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r7 := r6.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 54)) r7 (by native_decide)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 49)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Final stack for bytecode block summary `feDepositCreation_block_54`. -/
-def feDepositCreation_block_54_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
-  (((UInt256.ofNat 1) + x0) :: R)
+/-- Final stack for bytecode block summary `feDepositCreation_block_49_taken`. -/
+def feDepositCreation_block_49_taken_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
+  (((UInt256.ofNat 1) + x0) :: ((UInt256.ofNat 33) + ((UInt256.ofNat 1) + x0)) :: R)
 
-/-- Automatically generated RD summary for bytecode block at pc 54. -/
-theorem feDepositCreation_block_54 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+/-- Automatically generated RD summary for bytecode block at pc 49. -/
+theorem feDepositCreation_block_49_taken {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 4 ≤ 1024)
     (hperm : ee.perm = true)
-    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 5) = true)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 54) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (k' C' : ℕ), RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 5) (feDepositCreation_block_54_stack (x0 := x0) (R := R)) mem (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) rdata (sstoreAccountMap ee.codeOwner σ ((UInt256.ofNat 33) + ((UInt256.ofNat 1) + x0)) (memLoad (⟨0⟩ : UInt256) mem)) k' C' := by
+    (hcond : (UInt256.lt ((UInt256.ofNat 1) + x0) (UInt256.ofNat 31)) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.Deposit.feDepositCreationBytecode 0).contains (UInt256.ofNat 10) = true)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 49) (x0 :: R) mem aw rdata σ k C)
+    : ∃ (k' C' : ℕ), RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 10) (feDepositCreation_block_49_taken_stack (x0 := x0) (R := R)) mem (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) rdata (sstoreAccountMap ee.codeOwner σ ((UInt256.ofNat 33) + ((UInt256.ofNat 1) + x0)) (memLoad (⟨0⟩ : UInt256) mem)) k' C' := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
   have r1 := r0.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r2 := RD.genMload r1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r3 := r2.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
@@ -236,30 +218,63 @@ theorem feDepositCreation_block_54 {tail : ByteArray} {ee : ExecutionEnv} {g : S
   have r6 := r5.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r7 := r6.push1 (UInt256.ofNat 33) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
   have r8 := r7.add (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r9 := r8.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r10 := r9.swap2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r11 := r10.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  obtain ⟨_, _, r12⟩ := RD.sstore r11 hperm (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r13 := r12.push1 (UInt256.ofNat 5) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r14 := r13.jump (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (j tail (UInt256.ofNat 5) hvalid) (by evm_ov)
-  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 5)) r14 (by native_decide)
+  have r9 := r8.swap2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r10 := r9.dup3 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  obtain ⟨_, _, r11⟩ := RD.sstore r10 hperm (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r12 := r11.push1 (UInt256.ofNat 31) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r13 := r12.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r14 := r13.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r15 := r14.push1 (UInt256.ofNat 10) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r16 := r15.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 10) hvalid) (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 10)) r16 (by native_decide)
   exact ⟨_, _, rFinal⟩
 
-/-- Automatically generated RD summary for bytecode block at pc 71. -/
-theorem feDepositCreation_block_71 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/-- Final stack for bytecode block summary `feDepositCreation_block_49_fallthrough`. -/
+def feDepositCreation_block_49_fallthrough_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
+  (((UInt256.ofNat 1) + x0) :: ((UInt256.ofNat 33) + ((UInt256.ofNat 1) + x0)) :: R)
+
+/-- Automatically generated RD summary for bytecode block at pc 49. -/
+theorem feDepositCreation_block_49_fallthrough {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 4 ≤ 1024)
-    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 71) R mem aw rdata σ k C)
-    : RDret (FeProofs.Deposit.feDepositCreationBytecode ++ tail) g s0 σ (((FeProofs.Deposit.feDepositCreationBytecode ++ tail).write (UInt256.ofNat 83).toNat mem (⟨0⟩ : UInt256).toNat (UInt256.ofNat 2307).toNat).readWithPadding (⟨0⟩ : UInt256).toNat (UInt256.ofNat 2307).toNat) := by
+    (hperm : ee.perm = true)
+    (hcond : (UInt256.lt ((UInt256.ofNat 1) + x0) (UInt256.ofNat 31)) = (UInt256.ofNat 0))
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 49) (x0 :: R) mem aw rdata σ k C)
+    : ∃ (k' C' : ℕ), RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 69) (feDepositCreation_block_49_fallthrough_stack (x0 := x0) (R := R)) mem (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) rdata (sstoreAccountMap ee.codeOwner σ ((UInt256.ofNat 33) + ((UInt256.ofNat 1) + x0)) (memLoad (⟨0⟩ : UInt256) mem)) k' C' := by
   let r0 := h
-  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2390 := by native_decide
-  have r1 := r0.jumpdest (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 83) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := r2.push2 (UInt256.ofNat 2307) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.swap2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r7 := RD.genCodecopy r6 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r8 := r7.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  exact RD.genRet r8 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
+  have r1 := r0.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r2 := RD.genMload r1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.swap1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.push1 (UInt256.ofNat 1) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r5 := r4.add (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := r5.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r7 := r6.push1 (UInt256.ofNat 33) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r8 := r7.add (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r9 := r8.swap2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r10 := r9.dup3 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  obtain ⟨_, _, r11⟩ := RD.sstore r10 hperm (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r12 := r11.push1 (UInt256.ofNat 31) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r13 := r12.dup2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r14 := r13.lt (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r15 := r14.push1 (UInt256.ofNat 10) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r16 := r15.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
+  have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 69)) r16 (by native_decide)
+  exact ⟨_, _, rFinal⟩
+
+/-- Automatically generated RD summary for bytecode block at pc 69. -/
+theorem feDepositCreation_block_69 {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 4 ≤ 1024)
+    (h : RD (FeProofs.Deposit.feDepositCreationBytecode ++ tail) ee g s0 (UInt256.ofNat 69) R mem aw rdata σ k C)
+    : RDret (FeProofs.Deposit.feDepositCreationBytecode ++ tail) g s0 σ (((FeProofs.Deposit.feDepositCreationBytecode ++ tail).write (UInt256.ofNat 80).toNat mem (⟨0⟩ : UInt256).toNat (UInt256.ofNat 2261).toNat).readWithPadding (⟨0⟩ : UInt256).toNat (UInt256.ofNat 2261).toNat) := by
+  let r0 := h
+  have hcreationCodeSize : FeProofs.Deposit.feDepositCreationBytecode.size = 2341 := by native_decide
+  have r1 := r0.push1 (UInt256.ofNat 80) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r2 := r1.push2 (UInt256.ofNat 2261) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := r2.dup1 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.swap2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r5 := r4.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := RD.genCodecopy r5 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r7 := r6.push0 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  exact RD.genRet r7 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
 
 end feDepositCreationBlocks

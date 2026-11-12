@@ -5,8 +5,8 @@ import FeProofs.Common.Basic
 /-!
 # FeDeposit `get_deposit_count()`
 
-Arm entry pc 1716 checks call value.  The body (pc 1723) loads slot 32, masks it to 64 bits,
-byte-swaps it into an SSZ chunk with three passes, allocates the `bytes` value at `0x100`, writes
+Arm entry pc 1708 checks call value.  The body (pc 1714) loads slot 32, masks it to 64 bits,
+byte-swaps it into an SSZ chunk with three passes, builds the `bytes` value at `0x1c0`, writes
 the head offset at `0xa0`, `MCOPY`s the value behind it, and returns `[0xa0, 0x100)`.  The spec's
 `le64(uint64(deposit_count))` performs the same passes (`Le64.lean`), so the returned word is the
 ABI encoding of its eight bytes.
@@ -31,12 +31,12 @@ theorem feDepositGet_deposit_countBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 2) rfl hsel
   have hd := feDepositDispatch_get_deposit_count hsel
-  obtain ⟨k, C, rd⟩ := feDepositReachGet_deposit_countBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feDepositReachGet_deposit_countBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · nonpayable_revert rd hcode hd hwv
-  rd_run rd using [hwv, (by native_decide)]
+  rd_run rd using [hwv]
   rw [evmChunk_eq, countReturn_eq] at rd
   obtain ⟨F, hbody⟩ := getCountBody (initState σ σ₀ (Sat256.ofUInt256 g) A I)
     (by simp only [initState]; exact hwv)

@@ -98,66 +98,67 @@ theorem evalShr_word (a : UInt256) (s : ℕ) (hs : s < 256) {x : Int}
 
 /-! ## The `get_deposit_count` return buffer
 
-The bytecode allocates the `bytes` value at `max(mload 0x40, 0x100) = 0x100`, writes its length
-and data words there, writes the head offset `0x20` at `0xa0`, `MCOPY`s the 64-byte value to
-`0xc0`, and returns `[0xa0, 0x100)`. -/
+The bytecode builds the `bytes` value at the initial free pointer `0x1c0`: it bumps the free
+pointer to `0x200`, writes the length and data words at `0x1c0` and `0x1e0`, writes the head
+offset `0x20` at `0xa0`, `MCOPY`s the 64-byte value to `0xc0`, and returns `[0xa0, 0x100)`. -/
 
-/-- Memory before the data word: free pointer `0x140` at `0x40`, length `8` at `0x100`. -/
+/-- Memory before the data word: free pointer `0x200` at `0x40`, length `8` at `0x1c0`. -/
 abbrev countLenMem : ByteArray :=
   (UInt256.ofNat 8).toByteArray.write 0
-    ((UInt256.ofNat 256 + UInt256.ofNat 64).toByteArray.write 0 ByteArray.empty
-      (UInt256.ofNat 64).toNat 32) (UInt256.ofNat 256).toNat 32
+    ((UInt256.ofNat 512).toByteArray.write 0
+      ((UInt256.ofNat 448).toByteArray.write 0 ByteArray.empty (UInt256.ofNat 64).toNat 32)
+      (UInt256.ofNat 64).toNat 32) (UInt256.ofNat 448).toNat 32
 
 /-- `countLenMem` with the head offset `0x20` written at `0xa0`. -/
 abbrev countHeadMem : ByteArray :=
   (UInt256.ofNat 32).toByteArray.write 0 countLenMem (UInt256.ofNat 160).toNat 32
 
-theorem countLenMem_size : countLenMem.size = 288 := by native_decide
+theorem countLenMem_size : countLenMem.size = 480 := by native_decide
 
 theorem countHeadMem_head : countHeadMem.extract 160 192 = (UInt256.ofNat 32).toByteArray := by
   native_decide
 
-theorem countHeadMem_len : countHeadMem.extract 256 288 = (UInt256.ofNat 8).toByteArray := by
+theorem countHeadMem_len : countHeadMem.extract 448 480 = (UInt256.ofNat 8).toByteArray := by
   native_decide
 
-theorem countHeadMem_size : countHeadMem.size = 288 := by native_decide
+theorem countHeadMem_size : countHeadMem.size = 480 := by native_decide
 
 theorem byteArray_extract_of_size (b : ByteArray) (n : ℕ) (h : b.size = n) : b.extract 0 n = b := by
   subst h; exact byteArray_extract_self b
 
 theorem countHeadMem_split :
     countHeadMem = countLenMem.extract 0 160 ++ (UInt256.ofNat 32).toByteArray.extract 0 32 ++
-      countLenMem.extract (160 + 32) 288 := by
+      countLenMem.extract (160 + 32) 480 := by
   native_decide
 
 theorem countDataMem_eq (b : UInt256) :
     (UInt256.ofNat 32).toByteArray.write 0
-        (b.toByteArray.write 0 countLenMem (UInt256.ofNat 256 + UInt256.ofNat 32).toNat 32)
+        (b.toByteArray.write 0 countLenMem (UInt256.ofNat 480).toNat 32)
         (UInt256.ofNat 160).toNat 32 = countHeadMem ++ b.toByteArray := by
   have hb : b.toByteArray.size = 32 := toByteArray_size b
   have h32 : 32 ≤ (UInt256.ofNat 32).toByteArray.size := by rw [toByteArray_size]
-  have e1 : b.toByteArray.write 0 countLenMem (UInt256.ofNat 256 + UInt256.ofNat 32).toNat 32 =
+  have e1 : b.toByteArray.write 0 countLenMem (UInt256.ofNat 480).toNat 32 =
       countLenMem ++ b.toByteArray := by
-    rw [show (UInt256.ofNat 256 + UInt256.ofNat 32).toNat = countLenMem.size by
+    rw [show (UInt256.ofNat 480).toNat = countLenMem.size by
         rw [countLenMem_size]; decide,
       write_at_end_eq _ _ 32 (by decide) (by omega), toByteArray_extract_all]
-  have hs : (countLenMem ++ b.toByteArray).size = 320 := by
+  have hs : (countLenMem ++ b.toByteArray).size = 512 := by
     rw [ByteArray.size_append, countLenMem_size, hb]
   rw [e1, show (UInt256.ofNat 160).toNat = 160 from rfl, write32_eq _ _ 160 h32 (by omega), hs,
     extract_append_left _ _ 0 160 (by rw [countLenMem_size]; omega),
-    extract_append_span _ _ (160 + 32) 320 (by rw [countLenMem_size]; omega)
+    extract_append_span _ _ (160 + 32) 512 (by rw [countLenMem_size]; omega)
       (by rw [countLenMem_size]; omega),
-    countLenMem_size, show 320 - 288 = 32 from rfl, countHeadMem_split]
+    countLenMem_size, show 512 - 480 = 32 from rfl, countHeadMem_split]
   simp only [toByteArray_extract_all]
   apply ByteArray.ext
   simp only [ByteArray.data_append, Array.append_assoc]
 
 theorem countReturn_eq (b : UInt256) :
     (((UInt256.ofNat 32).toByteArray.write 0
-          (b.toByteArray.write 0 countLenMem (UInt256.ofNat 256 + UInt256.ofNat 32).toNat 32)
-          (UInt256.ofNat 160).toNat 32).write (UInt256.ofNat 256).toNat
+          (b.toByteArray.write 0 countLenMem (UInt256.ofNat 480).toNat 32)
+          (UInt256.ofNat 160).toNat 32).write (UInt256.ofNat 448).toNat
         ((UInt256.ofNat 32).toByteArray.write 0
-          (b.toByteArray.write 0 countLenMem (UInt256.ofNat 256 + UInt256.ofNat 32).toNat 32)
+          (b.toByteArray.write 0 countLenMem (UInt256.ofNat 480).toNat 32)
           (UInt256.ofNat 160).toNat 32)
         (UInt256.ofNat 192).toNat (UInt256.ofNat 64).toNat).readWithPadding
       (UInt256.ofNat 160).toNat (UInt256.ofNat 96).toNat =
@@ -165,22 +166,21 @@ theorem countReturn_eq (b : UInt256) :
   have hb : b.toByteArray.size = 32 := toByteArray_size b
   rw [countDataMem_eq]
   generalize hM : countHeadMem ++ b.toByteArray = M
-  have hMs : M.size = 320 := by rw [← hM, ByteArray.size_append, countHeadMem_size, hb]
-  have hBm : M.extract 256 (256 + 64) = (UInt256.ofNat 8).toByteArray ++ b.toByteArray := by
-    rw [← hM, extract_append_span _ _ 256 (256 + 64) (by rw [countHeadMem_size]; omega)
+  have hMs : M.size = 512 := by rw [← hM, ByteArray.size_append, countHeadMem_size, hb]
+  have hBm : M.extract 448 (448 + 64) = (UInt256.ofNat 8).toByteArray ++ b.toByteArray := by
+    rw [← hM, extract_append_span _ _ 448 (448 + 64) (by rw [countHeadMem_size]; omega)
         (by rw [countHeadMem_size]; omega), countHeadMem_size, countHeadMem_len,
-      show 256 + 64 - 288 = 32 from rfl, toByteArray_extract_all]
+      show 448 + 64 - 480 = 32 from rfl, toByteArray_extract_all]
   have hA : (M.extract 0 192).extract 160 192 = (UInt256.ofNat 32).toByteArray := by
     rw [extract_extract_BA, show 0 + 160 = 160 from rfl,
       show min (0 + 192) 192 = 192 from rfl, ← hM,
       extract_append_left _ _ 160 192 (by rw [countHeadMem_size]; omega), countHeadMem_head]
   have hAs : (M.extract 0 192).size = 192 := by rw [ByteArray.size_extract]; omega
-  have hBs : (M.extract 256 (256 + 64)).size = 64 := by rw [ByteArray.size_extract]; omega
-  rw [show (UInt256.ofNat 256).toNat = 256 from rfl, show (UInt256.ofNat 192).toNat = 192 from rfl,
+  have hBs : (M.extract 448 (448 + 64)).size = 64 := by rw [ByteArray.size_extract]; omega
+  rw [show (UInt256.ofNat 448).toNat = 448 from rfl, show (UInt256.ofNat 192).toNat = 192 from rfl,
     show (UInt256.ofNat 64).toNat = 64 from rfl, show (UInt256.ofNat 160).toNat = 160 from rfl,
     show (UInt256.ofNat 96).toNat = 96 from rfl,
-    write_eq_gen_from _ _ 256 192 64 (by decide) (by omega) (by omega), hMs,
-    show 192 + 64 = 256 from rfl, show (320 : ℕ) = 256 + 64 from rfl]
+    write_eq_gen_from _ _ 448 192 64 (by decide) (by omega) (by omega)]
   rw [readWithPadding_eq_extract' _ 160 96 (by decide) (by decide) (by
       rw [ByteArray.size_append, ByteArray.size_append, hAs, hBs]; omega),
     extract_append_left _ _ 160 (160 + 96) (by rw [ByteArray.size_append, hAs, hBs]),
@@ -450,11 +450,26 @@ theorem le64Word_bytes (m : UInt256) :
       calc le64Value m * 2 ^ 192 < 2 ^ 64 * 2 ^ 192 := Nat.mul_lt_mul_of_pos_right hq (by positivity)
         _ = 2 ^ 256 := by norm_num)]
 
+/-- A chunk only has its top eight bytes set. -/
+theorem u64ChunkWord_top (m : UInt256) :
+    UInt256.shiftLeft (UInt256.shiftRight (u64ChunkWord m) (UInt256.ofNat 192)) (UInt256.ofNat 192) =
+      u64ChunkWord m := by
+  apply u256_inj
+  have hx : ∀ x : UInt256, (UInt256.shiftLeft x (UInt256.ofNat 192)).toNat =
+      x.toNat * 2 ^ 192 % 2 ^ 256 := fun x => ushlN_toNat x 192 (by decide)
+  rw [hx, shiftRight_toNat_of_lt _ 192 (by decide)]
+  show (u64ChunkWord m).toNat / 2 ^ 192 * 2 ^ 192 % 2 ^ 256 = _
+  unfold u64ChunkWord chunkOf
+  rw [hx]
+  generalize (UInt256.lor (UInt256.shiftLeft (swap16 (swap8 m)) (UInt256.ofNat 32))
+    (UInt256.shiftRight (swap16 (swap8 m)) (UInt256.ofNat 32))).toNat = n
+  have h : n * 2 ^ 192 % 2 ^ 256 = n % 2 ^ 64 * 2 ^ 192 := by
+    rw [show (2 : ℕ) ^ 256 = 2 ^ 64 * 2 ^ 192 by norm_num, Nat.mul_mod_mul_right]
+  rw [h, Nat.mul_div_cancel _ (by positivity), ← h, Nat.mod_mod]
+
 theorem le64_padded (m : UInt256) :
-    (ABI.padRightToWord (le64Bytes m)).toByteArray =
-      (UInt256.shiftLeft (UInt256.shiftRight (u64ChunkWord m) (UInt256.ofNat 192))
-        (UInt256.ofNat 192)).toByteArray := by
-  rw [← word_toBytesBE_toByteArray_eq_toByteArray, le64Word_bytes]
+    (ABI.padRightToWord (le64Bytes m)).toByteArray = (u64ChunkWord m).toByteArray := by
+  rw [← u64ChunkWord_top, ← word_toBytesBE_toByteArray_eq_toByteArray, le64Word_bytes]
   unfold ABI.padRightToWord ABI.zeroBytes
   rw [le64Bytes_length]
   rfl
@@ -462,8 +477,7 @@ theorem le64_padded (m : UInt256) :
 theorem le64_returnEncoding (m : UInt256) :
     encodeReturnValues? [ABIType.bytes] [.bytes ⟨(le64Bytes m).toArray⟩] =
       some ((UInt256.ofNat 32).toByteArray ++ ((UInt256.ofNat 8).toByteArray ++
-        (UInt256.shiftLeft (UInt256.shiftRight (u64ChunkWord m) (UInt256.ofNat 192))
-          (UInt256.ofNat 192)).toByteArray)) := by
+        (u64ChunkWord m).toByteArray)) := by
   have hsize : (⟨(le64Bytes m).toArray⟩ : ByteArray).size = 8 := by
     show (le64Bytes m).toArray.size = 8
     rw [List.size_toArray]; exact le64Bytes_length m

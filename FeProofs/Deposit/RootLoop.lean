@@ -5,11 +5,13 @@ import FeProofs.Deposit.Sha256
 /-!
 # FeDeposit `get_deposit_root()` — one loop iteration, EVM and Stele together
 
-At loop iteration `i < 32` the EVM sits at pc 1866 with stack `[size, node, i, count]` and the
+At loop iteration `i < 32` the EVM sits at pc 1840 with stack `[size, node, i, count]` and the
 Stele loop has `height = i`, `node`, `size` in its locals.  One iteration either reverts on both
 sides (the precompile call failed or returned fewer than 32 bytes) or reaches iteration `i + 1`
 with `node := sha256(left ++ right)` (the precompile's first output word) and `size := size / 2`
-on both sides, with the account maps kept in sync by `SourceState`.
+on both sides, with the account maps kept in sync by `SourceState`.  The bytecode tests
+`height < 32` at the end of an iteration, so after the last one it stands past the loop, at
+pc 1959 with stack `[32, node, size, count]` (`RootAt`).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -62,22 +64,47 @@ abbrev zeroStore (L : Store) (a : UInt256) : Store := L.insert "zero" (.int (Int
 
 local notation "code" => feDepositBytecode
 
+/-- The EVM at the start of Stele loop iteration `i`: in the loop body (pc 1840) while `i < 32`,
+    past the loop (pc 1959) after the last iteration. -/
+def RootAt (s0 : State) (I : ExecutionEnv) (g : Sat256) (i : Nat) (size node count : UInt256)
+    (mem : ByteArray) (aw : UInt256) (rdata : ByteArray) (σ : AccountMap) : Prop :=
+  (i < 32 ∧ ∃ k C, RD code I g s0 (UInt256.ofNat 1840) [size, node, UInt256.ofNat i, count]
+    mem aw rdata σ k C) ∨
+  (32 ≤ i ∧ ∃ k C, RD code I g s0 (UInt256.ofNat 1959) [UInt256.ofNat i, node, size, count]
+    mem aw rdata σ k C)
+
 /-- The outcome of one loop iteration on both sides: a joint revert, or iteration `i + 1`. -/
 def RootStep (s0 : State) (I : ExecutionEnv) (g : Sat256) (evm : EVM.State) (L : Store) (i : Nat)
     (size count : UInt256) : Prop :=
   (RDrev code g s0 ∧
     ExecBlock config { contract := contract, locals := L } evm rootLoopBody .reverted) ∨
   (∃ (node' : UInt256) (σ' : AccountMap) (evm' : EVM.State) (mem' rdata' : ByteArray)
-      (aw' : UInt256) (k' C' : ℕ) (L1 L2 : Store),
-    RD code I g s0 (UInt256.ofNat 1866)
-      [UInt256.shiftRight size (UInt256.ofNat 1), node', UInt256.ofNat (i + 1), count]
-      mem' aw' rdata' σ' k' C' ∧
+      (aw' : UInt256) (L1 L2 : Store),
+    RootAt s0 I g (i + 1) (UInt256.shiftRight size (UInt256.ofNat 1)) node' count
+      mem' aw' rdata' σ' ∧
     SourceState s0 I σ' evm' ∧
     ExecBlock config { contract := contract, locals := L } evm rootLoopBody
       (.ok { contract := contract, locals := L1 } evm') ∧
     ExecBlock config { contract := contract, locals := L1 } evm' rootPost
       (.ok { contract := contract, locals := L2 } evm') ∧
     RootLocals L2 (i + 1) node' (UInt256.shiftRight size (UInt256.ofNat 1)) count)
+
+/-- The state after an iteration's `height + 1 < 32` test, as `RootAt`. -/
+theorem rootAt_of_post {s0 : State} {I : ExecutionEnv} {g : Sat256} {i : Nat}
+    {size node count : UInt256} {mem rdata : ByteArray} {aw : UInt256} {σ : AccountMap}
+    (hi : i < 32)
+    (hpost : ((UInt256.ofNat 1 + UInt256.ofNat i).toNat < 32 → ∃ k' C',
+        RD code I g s0 (UInt256.ofNat 1840) [size, node, UInt256.ofNat 1 + UInt256.ofNat i, count]
+          mem aw rdata σ k' C') ∧
+      (32 ≤ (UInt256.ofNat 1 + UInt256.ofNat i).toNat → ∃ k' C',
+        RD code I g s0 (UInt256.ofNat 1959) [UInt256.ofNat 1 + UInt256.ofNat i, node, size, count]
+          mem aw rdata σ k' C')) :
+    RootAt s0 I g (i + 1) size node count mem aw rdata σ := by
+  have hsz : i + 1 < UInt256.size := lt_of_lt_of_le (by omega : i + 1 < 33) (by decide)
+  rw [ofNat_succ_add i hsz, ulit_toNat' (i + 1) hsz] at hpost
+  by_cases h : i + 1 < 32
+  · exact Or.inl ⟨h, hpost.1 h⟩
+  · exact Or.inr ⟨by omega, hpost.2 (by omega)⟩
 
 /-- After a lane's hash: halve `size`, advance `height`, and re-establish the invariant. -/
 theorem rootFinish {evm' : EVM.State} {L1 : Store} {i : Nat} {d size count : UInt256}
@@ -107,27 +134,23 @@ theorem rootFinish {evm' : EVM.State} {L1 : Store} {i : Nat} {d size count : UIn
     · store_get; exact hbranch
     · store_get; exact hzero
 
-theorem ofNat_toNat_lt32 {i : Nat} (hi : i < 32) : (UInt256.ofNat i).toNat = i :=
-  ulit_toNat' i (lt_of_lt_of_le hi (by decide))
-
 /-- One odd-lane iteration (`size` odd): hash `branch[height] ++ node`. -/
 theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.State} {L : Store}
     {i : Nat} {node size count : UInt256} {mem rdata : ByteArray} {aw : UInt256}
     {σ : AccountMap} {k C : ℕ}
     (hi : i < 32) (hL : RootLocals L i node size count) (hodd : size.toNat % 2 = 1)
     (hs : SourceState s0 I σ evm)
-    (rd : RD code I g s0 (UInt256.ofNat 1866) [size, node, UInt256.ofNat i, count]
+    (rd : RD code I g s0 (UInt256.ofNat 1840) [size, node, UInt256.ofNat i, count]
       mem aw rdata σ k C) :
     RootStep s0 I g evm L i size count := by
-  have rd1 := rootHeadContinue (by rw [ofNat_toNat_lt32 hi]; exact hi) rd
   have hland : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 1 := by
     apply u256_inj; rw [land_one_toNat, hodd]; rfl
-  obtain ⟨gw, k2, C2, rd2⟩ := rootOddPre hland rd1
+  obtain ⟨gw, k2, C2, rd2⟩ := rootOddPre hland rd
   obtain ⟨evm', σ', z, out, aw', k3, C3, hcall, hs', rd3, hout⟩ :=
     staticCallBridge rd2 hs (by native_decide) (by simp)
-  have hpc : UInt256.ofNat 1908 + (⟨1⟩ : UInt256) = UInt256.ofNat 1909 := by decide
+  have hpc : UInt256.ofNat 1873 + (⟨1⟩ : UInt256) = UInt256.ofNat 1874 := by decide
   rw [hpc] at rd3
-  have hpost := rootLoopPost (UInt256.ofNat 1909) (Or.inl rfl) hout rd3
+  have hpost := rootLoopPost (UInt256.ofNat 1874) (Or.inl rfl) hout rd3
   -- the call's payload is `branch[height] ++ node`
   have hpay : ((UInt256.toByteArray node).write 0
       ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat i))).write 0 mem 160 32) 192 32
@@ -175,7 +198,7 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
       (by store_get; exact hL.size)
       (by store_get; exact hL.branch)
       (by store_get; exact hL.zero)
-    obtain ⟨k4, C4, rd4⟩ := hpost.2 rfl hlen
+    have rd4 := hpost.2 rfl hlen
     have hmem : 224 ≤ ((UInt256.toByteArray node).write 0
         ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat i))).write 0 mem 160 32) 192 32).size :=
       toByteArray_write_size_ge_off_add32 node _ 192 (lt_usize _ (by omega))
@@ -183,8 +206,8 @@ theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Stat
         ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat i))).write 0 mem 160 32) 192 32)
         out (UInt256.ofNat 160) (UInt256.ofNat 32)) = calldataWord out 0 :=
       callOutput_load _ out (UInt256.ofNat 160) hout hlen (by change 160 + 32 ≤ _; omega)
-    rw [hload, ofNat_succ_add i (lt_of_lt_of_le (by omega : i + 1 < 33) (by decide))] at rd4
-    exact Or.inr ⟨calldataWord out 0, σ', evm', _, out, _, k4, C4, L2, L3, rd4, hs',
+    rw [hload] at rd4
+    exact Or.inr ⟨calldataWord out 0, σ', evm', _, out, _, L2, L3, rootAt_of_post hi rd4, hs',
       ExecBlock.consNormal (ExecStmt.iteTrue hcond hodd') (ExecBlock.consNormal hsize ExecBlock.nil),
       hpostB, hL3⟩
   · have hsha := shaPairCall_revert (ret := "parent") rfl ha hb hcall' hok
@@ -201,18 +224,17 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
     {σ : AccountMap} {k C : ℕ}
     (hi : i < 32) (hL : RootLocals L i node size count) (heven : size.toNat % 2 = 0)
     (hs : SourceState s0 I σ evm)
-    (rd : RD code I g s0 (UInt256.ofNat 1866) [size, node, UInt256.ofNat i, count]
+    (rd : RD code I g s0 (UInt256.ofNat 1840) [size, node, UInt256.ofNat i, count]
       mem aw rdata σ k C) :
     RootStep s0 I g evm L i size count := by
-  have rd1 := rootHeadContinue (by rw [ofNat_toNat_lt32 hi]; exact hi) rd
   have hland : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 0 := by
     apply u256_inj; rw [land_one_toNat, heven]; rfl
-  obtain ⟨gw, k2, C2, rd2⟩ := rootEvenPre hland rd1
+  obtain ⟨gw, k2, C2, rd2⟩ := rootEvenPre hland rd
   obtain ⟨evm', σ', z, out, aw', k3, C3, hcall, hs', rd3, hout⟩ :=
     staticCallBridge rd2 hs (by native_decide) (by simp)
-  have hpc : UInt256.ofNat 1957 + (⟨1⟩ : UInt256) = UInt256.ofNat 1958 := by decide
+  have hpc : UInt256.ofNat 1922 + (⟨1⟩ : UInt256) = UInt256.ofNat 1923 := by decide
   rw [hpc] at rd3
-  have hpost := rootLoopPost (UInt256.ofNat 1958) (Or.inr rfl) hout rd3
+  have hpost := rootLoopPost (UInt256.ofNat 1923) (Or.inr rfl) hout rd3
   -- the call's payload is `node ++ zero_hashes[height]`
   have hpay : ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat 33 + UInt256.ofNat i))).write 0
       ((UInt256.toByteArray node).write 0 mem 160 32) 192 32
@@ -257,7 +279,7 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
       (by store_get; exact hL.size)
       (by store_get; exact hL.branch)
       (by store_get; exact hL.zero)
-    obtain ⟨k4, C4, rd4⟩ := hpost.2 rfl hlen
+    have rd4 := hpost.2 rfl hlen
     have hmem : 224 ≤ ((UInt256.toByteArray (solcSlotWord σ I (UInt256.ofNat 33 + UInt256.ofNat i))).write 0
         ((UInt256.toByteArray node).write 0 mem 160 32) 192 32).size :=
       toByteArray_write_size_ge_off_add32 _ _ 192 (lt_usize _ (by omega))
@@ -266,8 +288,8 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
         ((UInt256.toByteArray node).write 0 mem 160 32) 192 32)
         out (UInt256.ofNat 160) (UInt256.ofNat 32)) = calldataWord out 0 :=
       callOutput_load _ out (UInt256.ofNat 160) hout hlen (by change 160 + 32 ≤ _; omega)
-    rw [hload, ofNat_succ_add i (lt_of_lt_of_le (by omega : i + 1 < 33) (by decide))] at rd4
-    exact Or.inr ⟨calldataWord out 0, σ', evm', _, out, _, k4, C4, L2, L3, rd4, hs',
+    rw [hload] at rd4
+    exact Or.inr ⟨calldataWord out 0, σ', evm', _, out, _, L2, L3, rootAt_of_post hi rd4, hs',
       ExecBlock.consNormal (ExecStmt.iteFalse hcond heven') (ExecBlock.consNormal hsize ExecBlock.nil),
       hpostB, hL3⟩
   · have hsha := shaPairCall_revert (ret := "parent") rfl ha hb hcall' hok
@@ -278,17 +300,17 @@ theorem rootEvenStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.Sta
     exact Or.inl ⟨hpost.1 hbad, ExecBlock.consRevert (ExecStmt.iteFalse hcond
       (ExecBlock.consNormal hlet (ExecBlock.consRevert hsha)))⟩
 
-/-- The whole hashing loop from iteration `i`: a joint revert, or both sides at iteration 32. -/
+/-- The whole hashing loop from iteration `i`: a joint revert, or both sides past iteration 31. -/
 theorem rootLoop {s0 : State} {I : ExecutionEnv} {g : Sat256} {count : UInt256} :
     ∀ (n i : Nat) (evm : EVM.State) (L : Store) (node size : UInt256) (mem rdata : ByteArray)
-      (aw : UInt256) (σ : AccountMap) (k C : ℕ),
+      (aw : UInt256) (σ : AccountMap),
     i + n = 32 → RootLocals L i node size count → SourceState s0 I σ evm →
-    RD code I g s0 (UInt256.ofNat 1866) [size, node, UInt256.ofNat i, count] mem aw rdata σ k C →
+    RootAt s0 I g i size node count mem aw rdata σ →
     (RDrev code g s0 ∧
       ExecForLoop config (fr L) evm rootCond rootPost rootLoopBody .reverted) ∨
     (∃ (node' size' : UInt256) (σ' : AccountMap) (evm' : EVM.State) (mem' rdata' : ByteArray)
         (aw' : UInt256) (k' C' : ℕ) (L' : Store),
-      RD code I g s0 (UInt256.ofNat 1866) [size', node', UInt256.ofNat 32, count]
+      RD code I g s0 (UInt256.ofNat 1959) [UInt256.ofNat 32, node', size', count]
         mem' aw' rdata' σ' k' C' ∧
       SourceState s0 I σ' evm' ∧
       ExecForLoop config (fr L) evm rootCond rootPost rootLoopBody (.ok (fr L') evm') ∧
@@ -296,14 +318,19 @@ theorem rootLoop {s0 : State} {I : ExecutionEnv} {g : Sat256} {count : UInt256} 
   intro n
   induction n with
   | zero =>
-      intro i evm L node size mem rdata aw σ k C hi hL hs rd
+      intro i evm L node size mem rdata aw σ hi hL hs hat
       have hi32 : i = 32 := by omega
       subst hi32
+      rcases hat with ⟨hlt, -⟩ | ⟨-, k, C, rd⟩
+      · omega
       exact Or.inr ⟨node, size, σ, evm, mem, rdata, aw, k, C, L, rd, hs,
         ExecForLoop.falseDone (by rw [rootCond, evalLoopCond hL.height]; rfl), hL⟩
   | succ n ih =>
-      intro i evm L node size mem rdata aw σ k C hi hL hs rd
+      intro i evm L node size mem rdata aw σ hi hL hs hat
       have hlt : i < 32 := by omega
+      rcases hat with ⟨-, k, C, rd⟩ | ⟨hge, -⟩
+      swap
+      · omega
       have hcond : evalExpr? config (fr L) evm rootCond = .ok (.bool true) := by
         rw [rootCond, evalLoopCond hL.height]; simp [hlt]
       have hstep : RootStep s0 I g evm L i size count := by
@@ -311,9 +338,9 @@ theorem rootLoop {s0 : State} {I : ExecutionEnv} {g : Sat256} {count : UInt256} 
         · exact rootEvenStep hlt hL h hs rd
         · exact rootOddStep hlt hL h hs rd
       rcases hstep with ⟨hrev, hbody⟩ |
-        ⟨node', σ', evm', mem', rdata', aw', k', C', L1, L2, rd', hs', hbody, hpost, hL2⟩
+        ⟨node', σ', evm', mem', rdata', aw', L1, L2, hat', hs', hbody, hpost, hL2⟩
       · exact Or.inl ⟨hrev, ExecForLoop.bodyRevert hcond hbody⟩
-      · rcases ih (i + 1) evm' L2 node' _ mem' rdata' aw' σ' k' C' (by omega) hL2 hs' rd' with
+      · rcases ih (i + 1) evm' L2 node' _ mem' rdata' aw' σ' (by omega) hL2 hs' hat' with
           ⟨hrev, hloop⟩ | ⟨node'', size'', σ'', evm'', mem'', rdata'', aw'', k'', C'', L', rd'',
             hs'', hloop, hL'⟩
         · exact Or.inl ⟨hrev, ExecForLoop.iterate hcond hbody hpost hloop⟩

@@ -7,7 +7,7 @@ import FeProofs.Deposit.DepositCalls
 Per-function proof: the front (`depositFront`: dispatcher arm, decode, value checks, statements
 1–8) via `depositBody_of_rest`, then the hashing calls 1–3 (`calls123`) and the rest of the body
 (`depositRest`: hashing calls 4–7, the event, the count update and the insertion loop).
-Dispatcher arm entry: pc 154; reach lemma `feDepositReachDepositBody`.
+Dispatcher arm entry: pc 141; reach lemma `feDepositReachDepositBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach

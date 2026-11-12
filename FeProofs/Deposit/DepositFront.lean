@@ -2,11 +2,11 @@ import FeProofs.Deposit.DepositPrefix
 import FeProofs.Common.Basic
 
 /-!
-# FeDeposit `deposit`: from the dispatcher arm to pc 650
+# FeDeposit `deposit`: from the dispatcher arm to pc 637
 
 Combines the argument decoding (EVM and Stele), the length and value checks, and the Stele body
 prefix.  Every rejected call is closed here (EVM revert against Stele decoding failure or a
-reverting `require`); otherwise both sides stand at pc 650 / statement 9 with matching facts.
+reverting `require`); otherwise both sides stand at pc 637 / statement 9 with matching facts.
 Stated under the calldata bound `size < 2^64` (see `DepositBridge`).
 -/
 
@@ -57,13 +57,13 @@ theorem cOk_iff (I : ExecutionEnv) (evm : EVM.State) (hee : evm.executionEnv = I
     show (UInt256.shiftRight (UInt256.lnot (⟨0⟩ : UInt256)) (UInt256.ofNat 192)).toNat =
       18446744073709551615 by decide]
 
-/-- The EVM stack at pc 650. -/
+/-- The EVM stack at pc 637. -/
 abbrev fStack (I : ExecutionEnv) : List UInt256 :=
   [UInt256.div I.weiValue (UInt256.ofNat 1000000000), rAlloc I (hPos I 2), rAlloc I (hPos I 1),
-   rFp ByteArray.empty, rFp (hMem2 I), rAlloc I (hPos I 0), rFp (hMem1 I)]
+   rFp entryMem, rFp (hMem2 I), rAlloc I (hPos I 0), rFp (hMem1 I)]
 
-/-- `deposit` up to pc 650: either the call is already refined (every rejection), or both sides
-    reach pc 650 / the ninth statement with the decoder, check and prefix facts. -/
+/-- `deposit` up to pc 637: either the call is already refined (every rejection), or both sides
+    reach pc 637 / the ninth statement with the decoder, check and prefix facts. -/
 theorem depositFront {σ σ₀ A I} {g : UInt256} (hcode : I.code = feDepositBytecode)
     (hsize : I.calldata.size < UInt256.size) (hsmall : I.calldata.size < 2 ^ 64)
     (hsel : selIs I (feDepositSelBytes 1)) :
@@ -71,20 +71,20 @@ theorem depositFront {σ σ₀ A I} {g : UInt256} (hcode : I.code = feDepositByt
     (hOk I ∧ dArgsOk I.calldata ∧ pOk I.calldata (initState σ σ₀ (Sat256.ofUInt256 g) A I) ∧
       dispatchMsg contract I.calldata = some depositTransition ∧
       ∃ aw k C, RD feDepositBytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-        (UInt256.ofNat 650) (fStack I) (hMem3 I) aw ByteArray.empty σ k C) := by
+        (UInt256.ofNat 637) (fStack I) (hMem3 I) aw ByteArray.empty σ k C) := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 1) rfl hsel
   have hd := feDepositDispatch_deposit hsel
-  obtain ⟨k, C, rd⟩ := feDepositReachDepositBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
+  obtain ⟨aw0, k, C, rd⟩ := feDepositReachDepositBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   have hee : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv = I := rfl
   by_cases hok : hOk I
   · obtain ⟨hargs, _, _, _⟩ := (hOk_iff I hsz hsmall).mp hok
-    obtain ⟨aw, k', C', r242⟩ := depositHead_ok hok rd
+    obtain ⟨aw, k', C', r229⟩ := depositHead_ok hok rd
     by_cases hc : cOk I (rLen I (hPos I 0)) (rLen I (hPos I 1)) (rLen I (hPos I 2))
-    · obtain ⟨k'', C'', r650⟩ := depositChecks_ok hc r242
-      exact Or.inr ⟨hok, hargs, (cOk_iff I _ hee hok).mp hc, hd, _, _, _, r650⟩
+    · obtain ⟨k'', C'', r637⟩ := depositChecks_ok hc r229
+      exact Or.inr ⟨hok, hargs, (cOk_iff I _ hee hok).mp hc, hd, _, _, _, r637⟩
     · left
-      exact RDrev.reEquivExecutionRevert hcode (depositChecks_rev hc r242) hd
+      exact RDrev.reEquivExecutionRevert hcode (depositChecks_rev hc r229) hd
         (depositDecode_ok hargs hsmall)
         (ExecFuncBody.execBlockRevert (depositPrefix_rev _ _ hargs
           (fun hp => hc ((cOk_iff I _ hee hok).mpr hp))))
