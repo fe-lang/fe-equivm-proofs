@@ -8,10 +8,12 @@ import FeProofs.Deposit.CreationBlocks_001
 
 The initcode fills `zero_hashes[1..31]`: for `h < 31` it loads `zero_hashes[h]` (slot `33 + h`),
 stores it at memory words 0 and 1, hashes `[0, 64)` with precompile 2 (reverting unless the call
-succeeds and returns a word), and stores the first returned word in slot `34 + h`.  The spec's
-`for` loop makes the same storage reads, the same opaque `sha256_pair` calls and the same writes;
-`ctorLoop` simulates the two loops together by induction on the remaining iterations, linking the
-EVM accounts to the Stele state with `SourceState`.
+succeeds and returns a word), and stores the first returned word in slot `34 + h`.  It keeps
+`[33 + h, h]` on the stack and tests `h + 1 < 31` at the end of an iteration (pc 68), so after the
+last one it stands past the loop at pc 69 (`CtorAt`).  The spec's `for` loop makes the same
+storage reads, the same opaque `sha256_pair` calls and the same writes; `ctorLoop` simulates the
+two loops together by induction on the remaining iterations, linking the EVM accounts to the
+Stele state with `SourceState`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -78,12 +80,6 @@ theorem zeroHash_write {L : Store} {evm : EVM.State} {idx : Expr} {i : Nat} (hi 
 
 /-! ## Word facts for the loop -/
 
-theorem lt31_word {h : ℕ} (hlt : h < 31) :
-    UInt256.isZero (UInt256.lt (UInt256.ofNat h) (UInt256.ofNat 31)) = UInt256.ofNat 0 := by
-  have hw : UInt256.ofNat h < UInt256.ofNat 31 :=
-    (ofNat_lt_ofNat (lt_trans hlt (by decide)) (by decide)).mpr hlt
-  simp only [UInt256.lt, decide_eq_true hw]; decide
-
 theorem succ_word {h : ℕ} (hlt : h < 31) :
     UInt256.ofNat 1 + UInt256.ofNat h = UInt256.ofNat (h + 1) := by
   apply u256_inj
@@ -136,39 +132,50 @@ abbrev loopL2 (L : Store) (σ : AccountMap) (I : ExecutionEnv) (h : ℕ) (out : 
 abbrev loopL3 (L : Store) (σ : AccountMap) (I : ExecutionEnv) (h : ℕ) (out : ByteArray) : Store :=
   (loopL2 L σ I h out).insert "height" (.int (Int.ofNat (h + 1)))
 
+/-- The EVM at the start of Stele loop iteration `h`: in the loop body (pc 12) while `h < 31`,
+    past the loop (pc 69) after the last iteration. -/
+def CtorAt (s0 : State) (I : ExecutionEnv) (g : Sat256) (h : ℕ) (mem : ByteArray) (aw : UInt256)
+    (rdata : ByteArray) (σ : AccountMap) : Prop :=
+  (h < 31 ∧ ∃ k C, RD ctorCode I g s0 (UInt256.ofNat 12)
+    [UInt256.ofNat 33 + UInt256.ofNat h, UInt256.ofNat h] mem aw rdata σ k C) ∨
+  (31 ≤ h ∧ ∃ k C x, RD ctorCode I g s0 (UInt256.ofNat 69) [UInt256.ofNat h, x] mem aw rdata σ k C)
+
 theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = true) :
     ∀ n h, h + n = 31 → ∀ {σh : AccountMap} {evmh : EVM.State} {mem rdata : ByteArray}
-      {aw : UInt256} {k C : ℕ} {L : Store},
+      {aw : UInt256} {L : Store},
       L.get? "height" = some (.int (Int.ofNat h)) → L.get? "zero_hashes" = none →
-      RD ctorCode I g s0 (UInt256.ofNat 5) [UInt256.ofNat h] mem aw rdata σh k C →
+      CtorAt s0 I g h mem aw rdata σh →
       SourceState s0 I σh evmh →
       (RDrev ctorCode g s0 ∧
         ExecForLoop config { contract := contract, locals := L } evmh ctorCond ctorPost ctorLoopBody
           .reverted) ∨
       (∃ (σf : AccountMap) (evmf : EVM.State) (Lf : Store) (mem' rdata' : ByteArray)
-          (aw' : UInt256) (k' C' : ℕ),
+          (aw' : UInt256) (k' C' : ℕ) (x : UInt256),
         SourceState s0 I σf evmf ∧
-        RD ctorCode I g s0 (UInt256.ofNat 71) [UInt256.ofNat 31] mem' aw' rdata' σf k' C' ∧
+        RD ctorCode I g s0 (UInt256.ofNat 69) [UInt256.ofNat 31, x] mem' aw' rdata' σf k' C' ∧
         ExecForLoop config { contract := contract, locals := L } evmh ctorCond ctorPost ctorLoopBody
           (.ok { contract := contract, locals := Lf } evmf)) := by
   intro n
   induction n with
   | zero =>
-    intro h hn σh evmh mem rdata aw k C L hh hz rd hs
+    intro h hn σh evmh mem rdata aw L hh hz hat hs
     obtain rfl : h = 31 := by omega
-    right
-    rd_step rd
-    refine ⟨σh, evmh, L, mem, rdata, aw, _, _, hs, rd, ExecForLoop.falseDone ?_⟩
+    rcases hat with ⟨hlt, -⟩ | ⟨-, k, C, x, rd⟩
+    · omega
+    refine Or.inr ⟨σh, evmh, L, mem, rdata, aw, k, C, x, hs, rd, ExecForLoop.falseDone ?_⟩
     rw [evalHeightLt hh]
     rfl
   | succ m ih =>
-    intro h hn σh evmh mem rdata aw k C L hh hz rd hs
+    intro h hn σh evmh mem rdata aw L hh hz hat hs
     have hlt : h < 31 := by omega
+    rcases hat with ⟨-, k, C, rd⟩ | ⟨hge, -⟩
+    swap
+    · omega
     have hcond : evalExpr? config { contract := contract, locals := L } evmh ctorCond =
         .ok (.bool true) := by
       have hlt' : Int.ofNat h < 31 := Int.ofNat_lt.mpr hlt
       rw [evalHeightLt hh, decide_eq_true hlt']
-    rd_run rd using [lt31_word hlt]
+    rd_step rd
     obtain ⟨evm', σ', z, out, aw', k2, C2, hcall, hs', rd36, hob⟩ :=
       staticCallBridge rd hs (by native_decide) (by simp)
     u256_lits at hcall
@@ -181,12 +188,39 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
         .ok (.int (Int.ofNat (σh.get? I.codeOwner |>.option (⟨0⟩ : UInt256)
           (fun ac => ac.storage.getD ((UInt256.ofNat 33) + UInt256.ofNat h) (⟨0⟩ : UInt256))).toNat)) :=
       evalVarF (store_get_self _ _ _)
-    rd_checked rd36 z out as hrev hout to 5
-    · exact Or.inl ⟨hrev, ExecForLoop.bodyRevert hcond (ExecBlock.consNormal (ExecStmt.letDecl hcur)
+    -- the EVM after the call: its checks, the store, and the loop test at the end of the iteration
+    have hnext : (UInt256.ofNat 1 + UInt256.ofNat h).toNat = h + 1 := by
+      rw [succ_word hlt, ulit_toNat' (h + 1) (lt_of_lt_of_le (by omega : h + 1 < 32) (by decide))]
+    have key : (¬ (z = true ∧ 32 ≤ out.size) → RDrev ctorCode g s0) ∧
+        (z = true → 32 ≤ out.size → ∃ memN awN, CtorAt s0 I g (h + 1) memN awN out
+          (sstoreAccountMap I.codeOwner σ' (UInt256.ofNat 33 + UInt256.ofNat (h + 1))
+            (calldataWord out 0))) := by
+      by_cases hlast : h + 1 < 31
+      · have hjump : UInt256.lt (UInt256.ofNat 1 + UInt256.ofNat h) (UInt256.ofNat 31) ≠
+            UInt256.ofNat 0 := by
+          rw [ult_one (by rw [hnext]; exact hlast)]; decide
+        rd_checked rd36 z out as hrev hout to 12
+        · exact ⟨fun _ => hrev, fun hz hl => absurd ⟨hz, hl⟩ hout⟩
+        u256_lits at rd36
+        rw [callOutput_load32 _ out hob hout
+          (le_trans (by decide) (pairWords_size _ _ _ 0 32 rfl (by decide))), succ_word hlt] at rd36
+        exact ⟨fun hbad => absurd ⟨rfl, hout⟩ hbad, fun _ _ => ⟨_, _, Or.inl ⟨hlast, _, _, rd36⟩⟩⟩
+      · have hstay : UInt256.lt (UInt256.ofNat 1 + UInt256.ofNat h) (UInt256.ofNat 31) =
+            UInt256.ofNat 0 :=
+          ult_zero (by rw [hnext, ulit_toNat' 31 (by decide)]; omega)
+        rd_checked rd36 z out as hrev hout to 69
+        · exact ⟨fun _ => hrev, fun hz hl => absurd ⟨hz, hl⟩ hout⟩
+        u256_lits at rd36
+        rw [callOutput_load32 _ out hob hout
+          (le_trans (by decide) (pairWords_size _ _ _ 0 32 rfl (by decide))), succ_word hlt] at rd36
+        exact ⟨fun hbad => absurd ⟨rfl, hout⟩ hbad,
+          fun _ _ => ⟨_, _, Or.inr ⟨by omega, _, _, _, rd36⟩⟩⟩
+    by_cases hout : z = true ∧ 32 ≤ out.size
+    swap
+    · exact Or.inl ⟨key.1 hout, ExecForLoop.bodyRevert hcond (ExecBlock.consNormal (ExecStmt.letDecl hcur)
         (ExecBlock.consRevert (shaPairCall_revert rfl hcurVar hcurVar hcall hout)))⟩
-    u256_lits at rd36
-    rw [callOutput_load32 _ out hob hout (le_trans (by decide) (pairWords_size _ _ _ 0 32 rfl (by decide))),
-      succ_word hlt] at rd36
+    obtain ⟨rfl, hout⟩ := hout
+    obtain ⟨memN, awN, hatN⟩ := key.2 rfl hout
     -- the Stele body after the call
     have hcall2 := shaPairCall_ok (caller := { contract := contract, locals := loopL1 L σh I h })
       rfl (ret := "next") hcurVar hcurVar hcall hout
@@ -197,7 +231,7 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
     have hassign := zeroHash_write (evm := evm') (i := h + 1) (by omega) (evalInc hh2) hz2
       (calldataWord out 0)
     rw [hs'.env] at hassign
-    have hs'' := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
+    have hsN := hs'.storageWrite (⟨33⟩ + UInt256.ofNat (h + 1)) (calldataWord out 0)
     have hstore := ExecStmt.assign (hperm := Or.inr (by rw [hs'.env]; exact hperm))
       (evalVarF (store_get_self _ _ _)) hassign
     have hpost := ExecStmt.assign (cfg := config) (hperm := Or.inl rfl)
@@ -213,9 +247,10 @@ theorem ctorLoop {I : ExecutionEnv} {g : Sat256} {s0 : State} (hperm : I.perm = 
             (calldataWord out 0))) :=
       ExecBlock.consNormal (ExecStmt.letDecl hcur) <|
         ExecBlock.consNormal hcall2 <| ExecBlock.consNormal hstore ExecBlock.nil
-    rcases ih (h + 1) (by omega) hh3 hz3 rd36 hs'' with ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71, hloop⟩
+    rcases ih (h + 1) (by omega) hh3 hz3 hatN hsN with
+      ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, memF, rdataF, awF, kF, CF, x, hsf, rd69, hloop⟩
     · exact Or.inl ⟨hrev, ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
-    · exact Or.inr ⟨σf, evmf, Lf, mem', rdata', aw'', k', C', hsf, rd71,
+    · exact Or.inr ⟨σf, evmf, Lf, memF, rdataF, awF, kF, CF, x, hsf, rd69,
         ExecForLoop.iterate hcond hbody (ExecBlock.consNormal hpost ExecBlock.nil) hloop⟩
 
 end FeProofs.Deposit

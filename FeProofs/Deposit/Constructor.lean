@@ -4,7 +4,7 @@ import FeProofs.Deposit.CtorLoop
 # FeDeposit constructor correctness
 
 The initcode rejects call value, runs the `zero_hashes` loop (`CtorLoop.lean`), and returns the
-2307-byte runtime with `CODECOPY(0, 83, 2307)`.  The Stele constructor is
+2261-byte runtime with `CODECOPY(0, 80, 2261)`.  The Stele constructor is
 `require(msg.value == 0)` followed by the same `for` loop.
 -/
 
@@ -16,14 +16,14 @@ theorem ctorCode_eq : ctorCode = feDepositCreationBytecode := by
   show feDepositCreationBytecode ++ ByteArray.empty = _
   rw [ByteArray.append_empty]
 
-/-- The final `CODECOPY(0, 83, 2307)` reads back as the runtime, whatever memory held. -/
+/-- The final `CODECOPY(0, 80, 2261)` reads back as the runtime, whatever memory held. -/
 theorem ctorRuntime_read (mem : ByteArray) :
-    (feDepositCreationBytecode.write (UInt256.ofNat 83).toNat mem (⟨0⟩ : UInt256).toNat
-        (UInt256.ofNat 2307).toNat).readWithPadding (⟨0⟩ : UInt256).toNat
-      (UInt256.ofNat 2307).toNat = feDepositBytecode := by
-  rw [show (UInt256.ofNat 83).toNat = 83 from rfl, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
-    show (UInt256.ofNat 2307).toNat = 2307 from rfl,
-    write0_read_back_from_gen _ _ 83 2307 (by decide) (by native_decide) (by decide)]
+    (feDepositCreationBytecode.write (UInt256.ofNat 80).toNat mem (⟨0⟩ : UInt256).toNat
+        (UInt256.ofNat 2261).toNat).readWithPadding (⟨0⟩ : UInt256).toNat
+      (UInt256.ofNat 2261).toNat = feDepositBytecode := by
+  rw [show (UInt256.ofNat 80).toNat = 80 from rfl, show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+    show (UInt256.ofNat 2261).toNat = 2261 from rfl,
+    write0_read_back_from_gen _ _ 80 2261 (by decide) (by native_decide) (by decide)]
   native_decide
 
 theorem feDepositConstructorCorrect :
@@ -39,18 +39,19 @@ theorem feDepositConstructorCorrect :
   have rd0 := RD.initState (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A) hcode'
   by_cases hwv : I.weiValue = ⟨0⟩
   · have hwv' : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.weiValue = ⟨0⟩ := hwv
-    rd_run rd0 to 5 using [hwv]
-    have rd5' : RD ctorCode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-        (UInt256.ofNat 5) [UInt256.ofNat 0] ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ _ _ :=
-      rd0
+    rd_run rd0 to 12 using [hwv]
+    have hat : CtorAt (initState σ σ₀ (Sat256.ofUInt256 g) A I) I (Sat256.ofUInt256 g) 0
+        ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ := by
+      rw [← show UInt256.ofNat 33 + UInt256.ofNat 0 = UInt256.ofNat 33 by decide] at rd0
+      exact Or.inl ⟨by decide, _, _, rd0⟩
     have hinit : ExecBlock config { contract := contract, locals := ∅ }
         (initState σ σ₀ (Sat256.ofUInt256 g) A I) ctorInit
         (.ok { contract := contract, locals := (∅ : Store).insert "height" (.int 0) }
           (initState σ σ₀ (Sat256.ofUInt256 g) A I)) :=
       ExecBlock.consNormal (ExecStmt.letDecl (evalLit 0)) ExecBlock.nil
     rcases ctorLoop hperm 31 0 rfl (L := (∅ : Store).insert "height" (.int 0))
-        (store_get_self _ _ _) (by simp) rd5' SourceState.init with
-      ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, mem', rdata', aw', k', C', hsf, rd71, hloop⟩
+        (store_get_self _ _ _) (by simp) hat SourceState.init with
+      ⟨hrev, hloop⟩ | ⟨σf, evmf, Lf, mem', rdata', aw', k', C', x, hsf, rd71, hloop⟩
     · rw [ctorCode_eq] at hrev
       refine RDrev.constructorRefinementEmptyParams hrev hcode rfl ?_
       rw [ctorBody_eq]
