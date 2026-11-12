@@ -6,7 +6,7 @@ import FeProofs.Common.Basic
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 506; reach lemma `feWETH9ReachDecimalsBody`.
+Dispatcher arm entry: pc 247; reach lemma `feWETH9ReachDecimalsBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -35,7 +35,7 @@ theorem feWETH9DecimalsBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 5) rfl hsel
   have hd := feWETH9Dispatch_decimals hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachDecimalsBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachDecimalsBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap

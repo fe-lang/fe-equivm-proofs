@@ -5,18 +5,18 @@ import FeProofs.WETH9.Deposit
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 340; reach lemma `feWETH9ReachWithdrawBody`.
+Dispatcher arm entry: pc 451; reach lemma `feWETH9ReachWithdrawBody`.
 
-The arm checks the call value (revert block 143) and the one-word head (pc 346).  Pc 358 reads
+The arm checks the call value (revert block 81) and the one-word head (pc 457).  Pc 469 reads
 `balanceOf[caller]` (`SLOAD(keccak256(caller ‖ 3))` over memory `0xa0..0xe0`) and jumps to the
-`assert!` panic at 1539 when it is below `wad`; pc 384 hashes the slot again, stores the debit
+`assert!` panic at 1575 when it is below `wad`; pc 495 reads the slot again, stores the debit
 (the `SSTORE` halts in static mode, matching the Stele storage assignment) and branches on
-`wad == 0` for the gas stipend (`2300` at pc 416, `0` at pc 411).  Pc 420 to 452 bump the free
-pointer for the empty call buffers and push the arguments of the `CALL` at pc 453, which sends
-`wad` to the caller with no input and no output copy.  `callBridge` couples it with Stele's
-`callViaEVM` for the same opaque `Θ` result, whether the call is made or not (call depth,
-insufficient balance), with the callee free to change any account.  Pc 454 asserts `success`
-(panic at 1539) and pc 461 logs `Withdrawal` and returns nothing, leaving the post-call accounts.
+`wad != 0` for the gas stipend (`2300` at pc 533, `0` at pc 540).  Pc 542 resets the free
+pointer to `0xe0` for the empty call buffers and pushes the arguments of the `CALL` at pc 561,
+which sends `wad` to the caller with no input and no output copy.  `callBridge` couples it with
+Stele's `callViaEVM` for the same opaque `Θ` result, whether the call is made or not (call depth,
+insufficient balance), with the callee free to change any account.  Pc 562 asserts `success`
+(panic at 1575) and pc 569 logs `Withdrawal` and returns nothing, leaving the post-call accounts.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -173,28 +173,18 @@ theorem withdrawBody_returns {evm' : EVM.State} {out : ByteArray} (hwv : I.weiVa
 
 end
 
-/-- From pc 420, with the debit stored and the gas stipend on the stack: the call buffers, the
+/-- From pc 542, with the debit stored and the gas stipend on the stack: the call buffers, the
 transfer `CALL`, `assert!(success)`, the `Withdrawal` log and the empty return. -/
-theorem withdrawFrom420 {σ σ₀ A I} {g gas aw : UInt256} {mem : ByteArray} {k C : ℕ}
+theorem withdrawFrom542 {σ σ₀ A I} {g gas aw : UInt256} {mem : ByteArray} {k C : ℕ}
     (hcode : I.code = feWETH9Bytecode) (hperm : I.perm = true) (hwv : I.weiValue = ⟨0⟩)
     (henough : (withdrawWad I).toNat ≤ (withdrawBal σ I).toNat)
     (hd : selectorDispatchMsg contract I.calldata = some withdrawTransition)
     (hdec : config.externalABI.decodeCalldata? (withdrawTransition.params.map Param.name)
       (transitionSignature withdrawTransition).paramTypes I.calldata = some (withdrawLocals I))
     (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-      (UInt256.ofNat 420) [gas, withdrawWad I, UInt256.ofNat I.source.val] mem aw ByteArray.empty
+      (UInt256.ofNat 542) [gas, withdrawWad I, UInt256.ofNat I.source.val] mem aw ByteArray.empty
       (withdrawDebited σ I) k C) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
-  -- the call buffers: whichever free pointer `MLOAD(0x40)` gives, both are empty
-  obtain ⟨q, aw, k, C, rd⟩ : ∃ q aw k C, RD feWETH9Bytecode I (Sat256.ofUInt256 g)
-      (initState σ σ₀ (Sat256.ofUInt256 g) A I) (UInt256.ofNat 435)
-      [q, gas, withdrawWad I, UInt256.ofNat I.source.val] mem aw ByteArray.empty
-      (withdrawDebited σ I) k C := by
-    by_cases hq : UInt256.gt (memLoad (UInt256.ofNat 64) mem) (UInt256.ofNat 223) = UInt256.ofNat 0
-    · rd_run rd to 435 using [hq]
-      exact ⟨_, _, _, _, rd⟩
-    · rd_run rd to 435 using [hq]
-      exact ⟨_, _, _, _, rd⟩
   rd_step rd
   obtain ⟨evm', σ', z, out, _, _, hcall, hs', rd, _⟩ := callBridge rd
     (SourceState.init.storageWrite (callerBalanceSlot I)
@@ -220,7 +210,7 @@ theorem feWETH9WithdrawBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 4) rfl hsel
   have hd := feWETH9Dispatch_withdraw hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachWithdrawBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachWithdrawBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -232,7 +222,7 @@ theorem feWETH9WithdrawBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailedSel hcode rd hd (feWETH9WithdrawDecode_none hbad)
   obtain ⟨hlen, hhi⟩ := hok
   have hdec := feWETH9WithdrawDecode_ok hlen hhi
-  rd_run rd to 358 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
+  rd_run rd to 469 using [hwv, solcDecodeLenCheckOk_4_32 hlen hhi hsize]
   by_cases henough : (withdrawWad I).toNat ≤ (withdrawBal σ I).toNat
   swap
   · -- `balanceOf[caller] < wad`: `assert!` panics
@@ -246,12 +236,13 @@ theorem feWETH9WithdrawBody {σ σ₀ A I} {g : UInt256}
     have hpf : I.perm = false := by simpa using hperm
     rd_run rd using [slot_hint hge]
     exact RDstatic.reEquivStaticHaltSel hcode rd hd hdec (withdrawBody_static hwv henough hpf)
-  rd_run rd to 384 using [slot_hint hge]
+  rd_run rd to 495 using [slot_hint hge]
   -- the gas stipend: `2300` when `wad == 0`, else `0`
-  by_cases hz : UInt256.isZero (withdrawWad I) = UInt256.ofNat 0 <;>
-  · rd_run rd to 420 using [hz]
+  by_cases hz : withdrawWad I = UInt256.ofNat 0 <;>
+  · rd_run rd to 542 using [hz]
     u256_lits at rd
-    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide)] at rd
-    exact withdrawFrom420 hcode hperm hwv henough hd hdec rd
+    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide),
+      keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide)] at rd
+    exact withdrawFrom542 hcode hperm hwv henough hd hdec rd
 
 end FeProofs.WETH9

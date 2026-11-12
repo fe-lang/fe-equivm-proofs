@@ -5,7 +5,7 @@ import FeProofs.WETH9.StringLoad
 
 `name()` and `symbol()` are `function f() external returns (string) { return f; }` for a string
 field.  `stringGetter` proves the refinement for either, from the EVM state at the call of
-`SolString::load` (pc 800): Stele reads the field with `solidityReadBytesValue?` (Solidity 0.8),
+`SolString::load` (pc 860): Stele reads the field with `solidityReadBytesValue?` (Solidity 0.8),
 and the bytecode returns the ABI encoding of the same bytes, or both revert on a header whose
 length contradicts its short/long flag.
 
@@ -13,7 +13,7 @@ length contradicts its short/long flag.
 
 For arbitrary storage a header word can claim a length up to `2^255 - 1` bytes.  Fe reverts with
 `Panic(0x41)` when the allocation (`32 + 32 * ceil(len / 32)` bytes, checked by
-`ptr::alloc_bytes` before any memory is touched) or the ABI encoding (`64 + 32 * ceil(len / 32)`
+`ptr::alloc_bytes` before the string is copied) or the ABI encoding (`64 + 32 * ceil(len / 32)`
 bytes, checked by the return encoder) exceeds `2^64 - 1` bytes, while Stele returns the string
 whatever its length.  Even the larger case needs only about `2^109` gas of memory expansion, within
 the gas the refinement quantifies over, so the refinement is false for a string whose ABI encoding
@@ -52,8 +52,8 @@ def feWETH9StorageWF : StorageWF := fun σ I =>
 /-! ## The getter -/
 
 /-- A `string` getter of the field `field` at `slot`, whose dispatcher arm (zero call value) has
-called `SolString::load` (pc 800) with return address `ret`, from where it jumps to the return
-encoder (pc 1236, `hjump`). -/
+called `SolString::load` (pc 860) with return address `ret`, from where it jumps to the return
+encoder (pc 1228, `hjump`). -/
 theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : Ident}
     {slot ret : UInt256} {R : List UInt256} {aw : UInt256} {rdata : ByteArray} {k C : ℕ}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
@@ -68,12 +68,12 @@ theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : 
     (hwv : I.weiValue = ⟨0⟩) (hfits : stringReturnFits (solcSlotWord σ I slot))
     (hret : (D_J feWETH9Bytecode 0).contains ret = true) (hR : R.length ≤ 990)
     (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-      (UInt256.ofNat 800) (slot :: ret :: R) ByteArray.empty aw rdata σ k C)
+      (UInt256.ofNat 860) (slot :: ret :: R) entryMem aw rdata σ k C)
     (hjump : ∀ M aw k C n, RD feWETH9Bytecode I (Sat256.ofUInt256 g)
         (initState σ σ₀ (Sat256.ofUInt256 g) A I) ret
         (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw rdata σ k C →
       ∃ aw' k' C', RD feWETH9Bytecode I (Sat256.ofUInt256 g)
-        (initState σ σ₀ (Sat256.ofUInt256 g) A I) (UInt256.ofNat 1236)
+        (initState σ σ₀ (Sat256.ofUInt256 g) A I) (UInt256.ofNat 1228)
         (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw' rdata σ k' C') :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hwv' : (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.weiValue = ⟨0⟩ := by

@@ -7,7 +7,7 @@ import FeProofs.Common.Basic
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 162; reach lemma `feWETH9ReachApproveBody`.
+Dispatcher arm entry: pc 661; reach lemma `feWETH9ReachApproveBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -74,7 +74,7 @@ theorem feWETH9ApproveBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 1) rfl hsel
   have hd := feWETH9Dispatch_approve hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachApproveBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachApproveBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -91,7 +91,7 @@ theorem feWETH9ApproveBody {σ σ₀ A I} {g : UInt256}
   · rd_run rd using [hwv, hc, shiftRight160_ne_zero (Nat.le_of_not_lt hcanon)]
     exact RDrev.reEquivDecodingFailedSel hcode rd hd
       (feWETH9ApproveDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))
-  rd_run rd to 190 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 689 using [hwv, hc, shiftRight160_eq_zero hcanon]
   let evmS := initState σ σ₀ (Sat256.ofUInt256 g) A I
   have hcv : evalExpr? config { contract := contract, locals := approveLocals I } evmS
       (.binary .eq (.env .callvalue) (.intLit 0)) = .ok (.bool true) :=
@@ -116,7 +116,7 @@ theorem feWETH9ApproveBody {σ σ₀ A I} {g : UInt256}
     exact RDret.reEquivExecutionGenSel hcode rd hd (feWETH9ApproveDecode_ok hlen hhi hcanon) hbody
       (by rw [storageStore_accountMap]; rfl)
       (returnEquiv_of_encode boolTrueReturnEncoding)
-  -- static mode: the `SSTORE` of block 190 halts
+  -- static mode: the `SSTORE` of block 689 halts
   have hpf : I.perm = false := by simpa using hperm
   rd_step rd
   exact RDstatic.reEquivStaticHaltSel hcode rd hd (feWETH9ApproveDecode_ok hlen hhi hcanon)
