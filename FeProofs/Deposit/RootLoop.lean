@@ -134,9 +134,6 @@ theorem rootFinish {evm' : EVM.State} {L1 : Store} {i : Nat} {d size count : UIn
     · store_get; exact hbranch
     · store_get; exact hzero
 
-theorem ofNat_toNat_lt32 {i : Nat} (hi : i < 32) : (UInt256.ofNat i).toNat = i :=
-  ulit_toNat' i (lt_of_lt_of_le hi (by decide))
-
 /-- One odd-lane iteration (`size` odd): hash `branch[height] ++ node`. -/
 theorem rootOddStep {s0 : State} {I : ExecutionEnv} {g : Sat256} {evm : EVM.State} {L : Store}
     {i : Nat} {node size count : UInt256} {mem rdata : ByteArray} {aw : UInt256}
