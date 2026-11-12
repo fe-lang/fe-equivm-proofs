@@ -25,13 +25,10 @@ theorem feERC20_block_109_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 115)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 115. -/
-theorem feERC20_block_115_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/- Shared branch prefix at pc 115. -/
+private def feERC20_block_115_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
-    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 115) R mem aw rdata σ k C)
-    : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ (k + 9) (C + ((33))) := by
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 115) R mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.calldatasize (by native_decide) (by evm_ov)
   have r2 := r1.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
@@ -41,6 +38,16 @@ theorem feERC20_block_115_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have r6 := r5.swap1 (by native_decide) (by evm_ov)
   have r7 := r6.slt (by native_decide) (by evm_ov)
   have r8 := r7.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  exact r8
+
+/-- Automatically generated RD summary for bytecode block at pc 115. -/
+theorem feERC20_block_115_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 115) R mem aw rdata σ k C)
+    : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ (k + 9) (C + ((33))) := by
+  have r8 := feERC20_block_115_shared hstack h
   have r9 := r8.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 65)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -51,18 +58,23 @@ theorem feERC20_block_115_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
     (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) = (UInt256.ofNat 0))
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 115) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 127) R mem aw rdata σ (k + 9) (C + ((33))) := by
-  let r0 := h
-  have r1 := r0.calldatasize (by native_decide) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r3 := r2.swap1 (by native_decide) (by evm_ov)
-  have r4 := r3.sub (by native_decide) (by evm_ov)
-  have r5 := r4.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r6 := r5.swap1 (by native_decide) (by evm_ov)
-  have r7 := r6.slt (by native_decide) (by evm_ov)
-  have r8 := r7.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r8 := feERC20_block_115_shared hstack h
   have r9 := r8.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 127)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
+
+/- Shared branch prefix at pc 127. -/
+private def feERC20_block_127_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 127) R mem aw rdata σ k C) := by
+  let r0 := h
+  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
+  have r2 := r1.calldataload (by native_decide) (by evm_ov)
+  have r3 := r2.dup1 (by native_decide) (by evm_ov)
+  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
+  have r5 := r4.shr (by native_decide) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  exact r6
 
 /-- Final stack for bytecode block summary `feERC20_block_127_taken`. -/
 def feERC20_block_127_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
@@ -75,13 +87,7 @@ theorem feERC20_block_127_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
     (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 127) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) (feERC20_block_127_taken_stack (ee := ee) (R := R)) mem aw rdata σ (k + 7) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
-  have r5 := r4.shr (by native_decide) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r6 := feERC20_block_127_shared hstack h
   have r7 := r6.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 65)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -96,13 +102,7 @@ theorem feERC20_block_127_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
     (hcond : (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 160)) = (UInt256.ofNat 0))
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 127) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 137) (feERC20_block_127_fallthrough_stack (ee := ee) (R := R)) mem aw rdata σ (k + 7) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
-  have r5 := r4.shr (by native_decide) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r6 := feERC20_block_127_shared hstack h
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 137)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -247,14 +247,10 @@ def feERC20_block_220_taken_stack {ee : ExecutionEnv} {mem : ByteArray} {σ : Ac
 def feERC20_block_220_taken_memory {mem : ByteArray} {x2 : UInt256} {x3 : UInt256} : ByteArray :=
   ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)
 
-/-- Automatically generated RD summary for bytecode block at pc 220. -/
-theorem feERC20_block_220_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
+/- Shared prefix before the static-sensitive operation. -/
+private def feERC20_block_220_before_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
     (hstack : R.length + 6 ≤ 1024)
-    (hperm : ee.perm = true)
-    (hcond : (UInt256.lt (((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256))) + x1) ((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256)))) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 313) = true)
-    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 220) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
-    : ∃ (k' C' : ℕ), RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 313) (feERC20_block_220_taken_stack (ee := ee) (mem := mem) (σ := σ) (x0 := x0) (x1 := x1) (x2 := x2) (x3 := x3) (R := R)) (feERC20_block_220_taken_memory (mem := mem) (x2 := x2) (x3 := x3)) (M (M (M (M (M (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) rdata (sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0) k' C' := by
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 220) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.dup3 (by native_decide) (by evm_ov)
   have r2 := r1.push0 (by native_decide) (by evm_ov)
@@ -265,6 +261,17 @@ theorem feERC20_block_220_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
   have r8 := r7.push0 (by native_decide) (by evm_ov)
   have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  exact r9
+
+/-- Automatically generated RD summary for bytecode block at pc 220. -/
+theorem feERC20_block_220_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 : UInt256} {R : List UInt256}
+    (hstack : R.length + 6 ≤ 1024)
+    (hperm : ee.perm = true)
+    (hcond : (UInt256.lt (((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256))) + x1) ((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256)))) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 313) = true)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 220) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
+    : ∃ (k' C' : ℕ), RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 313) (feERC20_block_220_taken_stack (ee := ee) (mem := mem) (σ := σ) (x0 := x0) (x1 := x1) (x2 := x2) (x3 := x3) (R := R)) (feERC20_block_220_taken_memory (mem := mem) (x2 := x2) (x3 := x3)) (M (M (M (M (M (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) rdata (sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0) k' C' := by
+  have r9 := feERC20_block_220_before_static hstack h
   obtain ⟨_, _, r10⟩ := RD.sstore r9 hperm (by native_decide) (by evm_ov)
   have r11 := r10.dup3 (by native_decide) (by evm_ov)
   have r12 := r11.push0 (by native_decide) (by evm_ov)
@@ -302,16 +309,7 @@ theorem feERC20_block_220_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
     (hcond : (UInt256.lt (((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256))) + x1) ((sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0).get? ee.codeOwner |>.option (⟨0⟩ : UInt256) (fun ac => ac.storage.getD (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x3.toByteArray.write 0 ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32) (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) (⟨0⟩ : UInt256)))) = (UInt256.ofNat 0))
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 220) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
     : ∃ (k' C' : ℕ), RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 254) (feERC20_block_220_fallthrough_stack (ee := ee) (mem := mem) (σ := σ) (x0 := x0) (x1 := x1) (x2 := x2) (x3 := x3) (R := R)) (feERC20_block_220_fallthrough_memory (mem := mem) (x2 := x2) (x3 := x3)) (M (M (M (M (M (M aw (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) (⟨0⟩ : UInt256) (⟨32⟩ : UInt256)) (UInt256.ofNat 32) (⟨32⟩ : UInt256)) (⟨0⟩ : UInt256) (UInt256.ofNat 64)) rdata (sstoreAccountMap ee.codeOwner σ (keccakWord (⟨0⟩ : UInt256) (UInt256.ofNat 64) ((⟨0⟩ : UInt256).toByteArray.write 0 (x2.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32) (UInt256.ofNat 32).toNat 32)) x0) k' C' := by
-  let r0 := h
-  have r1 := r0.dup3 (by native_decide) (by evm_ov)
-  have r2 := r1.push0 (by native_decide) (by evm_ov)
-  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
-  have r4 := r3.push0 (by native_decide) (by evm_ov)
-  have r5 := r4.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-  have r6 := RD.genMstore r5 (by native_decide) (by evm_ov)
-  have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r8 := r7.push0 (by native_decide) (by evm_ov)
-  have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  have r9 := feERC20_block_220_before_static hstack h
   obtain ⟨_, _, r10⟩ := RD.sstore r9 hperm (by native_decide) (by evm_ov)
   have r11 := r10.dup3 (by native_decide) (by evm_ov)
   have r12 := r11.push0 (by native_decide) (by evm_ov)
@@ -422,13 +420,10 @@ theorem feERC20_block_333_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 339)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 339. -/
-theorem feERC20_block_339_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/- Shared branch prefix at pc 339. -/
+private def feERC20_block_339_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
-    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 339) R mem aw rdata σ k C)
-    : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ (k + 9) (C + ((33))) := by
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 339) R mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.calldatasize (by native_decide) (by evm_ov)
   have r2 := r1.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
@@ -438,6 +433,16 @@ theorem feERC20_block_339_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have r6 := r5.swap1 (by native_decide) (by evm_ov)
   have r7 := r6.slt (by native_decide) (by evm_ov)
   have r8 := r7.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  exact r8
+
+/-- Automatically generated RD summary for bytecode block at pc 339. -/
+theorem feERC20_block_339_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 339) R mem aw rdata σ k C)
+    : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) R mem aw rdata σ (k + 9) (C + ((33))) := by
+  have r8 := feERC20_block_339_shared hstack h
   have r9 := r8.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 65)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -448,18 +453,23 @@ theorem feERC20_block_339_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
     (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 64)) = (UInt256.ofNat 0))
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 339) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 351) R mem aw rdata σ (k + 9) (C + ((33))) := by
-  let r0 := h
-  have r1 := r0.calldatasize (by native_decide) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r3 := r2.swap1 (by native_decide) (by evm_ov)
-  have r4 := r3.sub (by native_decide) (by evm_ov)
-  have r5 := r4.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r6 := r5.swap1 (by native_decide) (by evm_ov)
-  have r7 := r6.slt (by native_decide) (by evm_ov)
-  have r8 := r7.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r8 := feERC20_block_339_shared hstack h
   have r9 := r8.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 351)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
+
+/- Shared branch prefix at pc 351. -/
+private def feERC20_block_351_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 351) R mem aw rdata σ k C) := by
+  let r0 := h
+  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
+  have r2 := r1.calldataload (by native_decide) (by evm_ov)
+  have r3 := r2.dup1 (by native_decide) (by evm_ov)
+  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
+  have r5 := r4.shr (by native_decide) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  exact r6
 
 /-- Final stack for bytecode block summary `feERC20_block_351_taken`. -/
 def feERC20_block_351_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
@@ -472,13 +482,7 @@ theorem feERC20_block_351_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
     (hvalid : (D_J FeProofs.ERC20.feERC20Bytecode 0).contains (UInt256.ofNat 65) = true)
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 351) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 65) (feERC20_block_351_taken_stack (ee := ee) (R := R)) mem aw rdata σ (k + 7) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
-  have r5 := r4.shr (by native_decide) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r6 := feERC20_block_351_shared hstack h
   have r7 := r6.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 65)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -493,13 +497,7 @@ theorem feERC20_block_351_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
     (hcond : (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 160)) = (UInt256.ofNat 0))
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 351) R mem aw rdata σ k C)
     : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 361) (feERC20_block_351_fallthrough_stack (ee := ee) (R := R)) mem aw rdata σ (k + 7) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 4) (by native_decide) (by evm_ov)
-  have r2 := r1.calldataload (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.push1 (UInt256.ofNat 160) (by native_decide) (by evm_ov)
-  have r5 := r4.shr (by native_decide) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 65) (by native_decide) (by evm_ov)
+  have r6 := feERC20_block_351_shared hstack h
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 361)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -511,16 +509,7 @@ theorem feERC20_block_220_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {
     (hperm : ee.perm = false)
     (h : RD FeProofs.ERC20.feERC20Bytecode ee g s0 (UInt256.ofNat 220) (x0 :: x1 :: x2 :: x3 :: R) mem aw rdata σ k C)
     : RDstatic FeProofs.ERC20.feERC20Bytecode g s0 := by
-  let r0 := h
-  have r1 := r0.dup3 (by native_decide) (by evm_ov)
-  have r2 := r1.push0 (by native_decide) (by evm_ov)
-  have r3 := RD.genMstore r2 (by native_decide) (by evm_ov)
-  have r4 := r3.push0 (by native_decide) (by evm_ov)
-  have r5 := r4.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-  have r6 := RD.genMstore r5 (by native_decide) (by evm_ov)
-  have r7 := r6.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r8 := r7.push0 (by native_decide) (by evm_ov)
-  have r9 := RD.genKeccak256 r8 (by native_decide) (by evm_ov)
+  have r9 := feERC20_block_220_before_static hstack h
   exact RD.sstoreStatic r9 hperm (by native_decide) (by evm_ov)
 
 end feERC20Blocks

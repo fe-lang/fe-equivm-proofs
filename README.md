@@ -88,6 +88,13 @@ Shared selector hashes are listed in `scripts/selector_facts.json`. To regenerat
 `--selector-facts scripts/selector_facts.json`; then remove any unused declarations with
 `scripts/drop_decl.py`. The pinned EquiVM library is sufficient to check the generated proofs.
 
+Some generated branch summaries share their instruction prefixes. With an EquiVM generator
+supporting `--share-branch-prefixes`, pass that flag and repeat `--share-branch-pc` for each
+retained pair: the existing private definitions named `*_block_<pc>_shared` record those PCs.
+After pruning and running `scripts/static_twins.py`, run `scripts/share_static_prefixes.py` on
+the contract directory to share eligible prefixes with static-mode twins, then run
+`scripts/prune_blocks.py` again to update the block indexes.
+
 `FeProofs/Common/` is shared by the contracts:
 
 - `Tactics.lean`: `rd_step`/`rd_run` apply the generated block summaries from an `RD` hypothesis

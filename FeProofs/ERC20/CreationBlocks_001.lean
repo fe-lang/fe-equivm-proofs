@@ -10,6 +10,20 @@ namespace feERC20CreationBlocks
 private abbrev d := Reasoning.Theory.decode_append_left_of_decode FeProofs.ERC20.feERC20CreationBytecode
 private abbrev j := Reasoning.Theory.D_J_contains_append_left FeProofs.ERC20.feERC20CreationBytecode
 
+/- Shared branch prefix at pc 0. -/
+private def feERC20Creation_block_0_shared {tail : ByteArray} {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (hcreationCodeSize : FeProofs.ERC20.feERC20CreationBytecode.size = 987)
+    (h : RD (FeProofs.ERC20.feERC20CreationBytecode ++ tail) ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C) := by
+  let r0 := h
+  have r1 := r0.push1 (UInt256.ofNat 160) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r2 := r1.push1 (UInt256.ofNat 64) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r3 := RD.genMstore r2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r4 := r3.callvalue (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r5 := r4.iszero (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := r5.push1 (UInt256.ofNat 14) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  exact r6
+
 /-- Final memory for bytecode block summary `feERC20Creation_block_0_taken`. -/
 def feERC20Creation_block_0_taken_memory {mem : ByteArray} : ByteArray :=
   ((UInt256.ofNat 160).toByteArray.write 0 mem (UInt256.ofNat 64).toNat 32)
@@ -21,14 +35,8 @@ theorem feERC20Creation_block_0_taken {tail : ByteArray} {ee : ExecutionEnv} {g 
     (hvalid : (D_J FeProofs.ERC20.feERC20CreationBytecode 0).contains (UInt256.ofNat 14) = true)
     (h : RD (FeProofs.ERC20.feERC20CreationBytecode ++ tail) ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
     : RD (FeProofs.ERC20.feERC20CreationBytecode ++ tail) ee g s0 (UInt256.ofNat 14) R (feERC20Creation_block_0_taken_memory (mem := mem)) (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 7) (C + ((27) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
-  let r0 := h
   have hcreationCodeSize : FeProofs.ERC20.feERC20CreationBytecode.size = 987 := by native_decide
-  have r1 := r0.push1 (UInt256.ofNat 160) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 64) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := RD.genMstore r2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.callvalue (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.iszero (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 14) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := feERC20Creation_block_0_shared hstack hcreationCodeSize h
   have r7 := r6.jumpiT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (j tail (UInt256.ofNat 14) hvalid) (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 14)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -43,14 +51,8 @@ theorem feERC20Creation_block_0_fallthrough {tail : ByteArray} {ee : ExecutionEn
     (hcond : (UInt256.isZero ee.weiValue) = (UInt256.ofNat 0))
     (h : RD (FeProofs.ERC20.feERC20CreationBytecode ++ tail) ee g s0 (UInt256.ofNat 0) R mem aw rdata σ k C)
     : RD (FeProofs.ERC20.feERC20CreationBytecode ++ tail) ee g s0 (UInt256.ofNat 10) R (feERC20Creation_block_0_fallthrough_memory (mem := mem)) (M aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)) rdata σ (k + 7) (C + ((27) + (memExpansionCost aw (UInt256.ofNat 64) (⟨32⟩ : UInt256)))) := by
-  let r0 := h
   have hcreationCodeSize : FeProofs.ERC20.feERC20CreationBytecode.size = 987 := by native_decide
-  have r1 := r0.push1 (UInt256.ofNat 160) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r2 := r1.push1 (UInt256.ofNat 64) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r3 := RD.genMstore r2 (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r4 := r3.callvalue (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r5 := r4.iszero (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
-  have r6 := r5.push1 (UInt256.ofNat 14) (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) (by evm_ov)
+  have r6 := feERC20Creation_block_0_shared hstack hcreationCodeSize h
   have r7 := r6.jumpiNT (by exact d tail _ _ _ (by native_decide) (by rw [hcreationCodeSize]; native_decide) (by native_decide)) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 10)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)

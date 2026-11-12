@@ -115,6 +115,19 @@ theorem feWETH9_block_1285_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : St
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 1308)) r16 (by native_decide)
   exact ⟨_, _, rFinal⟩
 
+/- Shared branch prefix at pc 1308. -/
+private def feWETH9_block_1308_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+    (hstack : R.length + 4 ≤ 1024)
+    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1308) (x0 :: R) mem aw rdata σ k C) := by
+  let r0 := h
+  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
+  have r2 := r1.caller (by native_decide) (by evm_ov)
+  have r3 := r2.dup1 (by native_decide) (by evm_ov)
+  have r4 := r3.dup3 (by native_decide) (by evm_ov)
+  have r5 := r4.eq (by native_decide) (by evm_ov)
+  have r6 := r5.push2 (UInt256.ofNat 1453) (by native_decide) (by evm_ov)
+  exact r6
+
 /-- Final stack for bytecode block summary `feWETH9_block_1308_taken`. -/
 def feWETH9_block_1308_taken_stack {ee : ExecutionEnv} {x0 : UInt256} {R : List UInt256} : List UInt256 :=
   ((UInt256.ofNat ee.source.val) :: x0 :: R)
@@ -126,13 +139,7 @@ theorem feWETH9_block_1308_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {
     (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 1453) = true)
     (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1308) (x0 :: R) mem aw rdata σ k C)
     : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1453) (feWETH9_block_1308_taken_stack (ee := ee) (x0 := x0) (R := R)) mem aw rdata σ (k + 7) (C + ((25))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.caller (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.dup3 (by native_decide) (by evm_ov)
-  have r5 := r4.eq (by native_decide) (by evm_ov)
-  have r6 := r5.push2 (UInt256.ofNat 1453) (by native_decide) (by evm_ov)
+  have r6 := feWETH9_block_1308_shared hstack h
   have r7 := r6.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 1453)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -147,13 +154,7 @@ theorem feWETH9_block_1308_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : St
     (hcond : (UInt256.eq x0 (UInt256.ofNat ee.source.val)) = (UInt256.ofNat 0))
     (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1308) (x0 :: R) mem aw rdata σ k C)
     : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1317) (feWETH9_block_1308_fallthrough_stack (ee := ee) (x0 := x0) (R := R)) mem aw rdata σ (k + 7) (C + ((25))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.caller (by native_decide) (by evm_ov)
-  have r3 := r2.dup1 (by native_decide) (by evm_ov)
-  have r4 := r3.dup3 (by native_decide) (by evm_ov)
-  have r5 := r4.eq (by native_decide) (by evm_ov)
-  have r6 := r5.push2 (UInt256.ofNat 1453) (by native_decide) (by evm_ov)
+  have r6 := feWETH9_block_1308_shared hstack h
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 1317)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
