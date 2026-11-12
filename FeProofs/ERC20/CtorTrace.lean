@@ -40,27 +40,9 @@ abbrev ctorArgMem (w : UInt256) : ByteArray :=
   (feERC20CreationBytecode ++ ctorTail w).write (UInt256.ofNat 987).toNat ctorPtrMem
     (UInt256.ofNat 160).toNat (UInt256.sub (UInt256.ofNat 1019) (UInt256.ofNat 987)).toNat
 
-theorem ctorArgMem_eq (w : UInt256) :
-    ctorArgMem w = ctorPtrMem ++ ByteArray.zeroes 64 ++ ctorTail w := by
-  unfold ctorArgMem
-  rw [show (UInt256.ofNat 987).toNat = 987 from rfl, show (UInt256.ofNat 160).toNat = 160 from rfl,
-    show (UInt256.sub (UInt256.ofNat 1019) (UInt256.ofNat 987)).toNat = 32 by decide,
-    write_from_gap_eq _ _ 987 160 32 (by decide) (by have := ctorCode_size w; omega)
-      (by rw [ctorPtrMem_size]; omega)
-      (by rw [ctorPtrMem_size]; exact Nat.lt_of_lt_of_le (by decide) USize.le_size),
-    extract_append_right' _ _ 987 (987 + 32) feERC20Creation_size.symm
-      (by rw [feERC20Creation_size, word_toBytesBE_toByteArray_size]), ctorPtrMem_size]
-
 theorem ctorArgMem_load (w : UInt256) : memLoad (UInt256.ofNat 160) (ctorArgMem w) = w := by
-  have hpre : (ctorPtrMem ++ ByteArray.zeroes 64).size = 160 := by
-    rw [ByteArray.size_append, ctorPtrMem_size, ByteArray_zeroes_size]
-  have hsz : (ctorArgMem w).size = 192 := by
-    rw [ctorArgMem_eq, ByteArray.size_append, hpre, word_toBytesBE_toByteArray_size]
-  refine memLoad_of_read _ 160 w (by decide) (by omega) ?_
-  rw [readWithPadding_eq_extract _ 160 (by omega), ctorArgMem_eq,
-    extract_append_right' _ _ 160 (160 + 32) hpre.symm
-      (by rw [hpre, word_toBytesBE_toByteArray_size]),
-    ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
+  simpa only [ctorArgMem, ctorTail, feERC20Creation_size] using
+    ctorLoadWord feERC20CreationBytecode ctorPtrMem 160 w (by rw [ctorPtrMem_size]; decide) (by decide)
 
 /-- The `KECCAK256(0x60, 0x40)` input memory: the caller word at `0x60`, slot 0 at `0x80`. -/
 abbrev ctorKeyMem (w : UInt256) (caller : AccountAddress) : ByteArray :=

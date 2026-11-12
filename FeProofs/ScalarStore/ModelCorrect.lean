@@ -202,13 +202,6 @@ theorem feScalarStoreRefinesModel : Refines .P0 feScalarStoreBytecode Model.cont
 
 /-! ## Deployment -/
 
-/-- Reading all 32 bytes of a 32-byte array returns it. -/
-theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b := by
-  apply ByteArray.ext
-  apply Array.ext'
-  rw [readBytes_at_toList_any b 0 (by omega), List.drop_zero]
-  exact List.take_of_length_le (by rw [Array.length_toList]; exact Nat.le_of_eq h)
-
 theorem init_value {I : ExecutionEnv} {w : World} {args : ByteArray} (hwv : I.weiValue ≠ ⟨0⟩) :
     (Model.init args >>= fun _ => pure feScalarStoreBytecode).exec I w
       = some (.error (.revert ByteArray.empty)) := by

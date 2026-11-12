@@ -38,26 +38,9 @@ abbrev ctorArgMem (w : UInt256) : ByteArray :=
   (feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 133).toNat ctorPtrMem
     (UInt256.ofNat 96).toNat (UInt256.sub (UInt256.ofNat 165) (UInt256.ofNat 133)).toNat
 
-theorem ctorArgMem_eq (w : UInt256) :
-    ctorArgMem w = ctorPtrMem ++ ByteArray.zeroes 0 ++ ctorTail w := by
-  unfold ctorArgMem
-  rw [show (UInt256.ofNat 133).toNat = 133 from rfl, show (UInt256.ofNat 96).toNat = 96 from rfl,
-    show (UInt256.sub (UInt256.ofNat 165) (UInt256.ofNat 133)).toNat = 32 by decide,
-    write_from_gap_eq _ _ 133 96 32 (by decide) (by have := ctorCode_size w; omega)
-      (by rw [ctorPtrMem_size]) (by rw [ctorPtrMem_size]; exact Nat.lt_of_lt_of_le (by decide) USize.le_size),
-    extract_append_right' _ _ 133 (133 + 32) feScalarStoreCreation_size.symm
-      (by rw [feScalarStoreCreation_size, word_toBytesBE_toByteArray_size]), ctorPtrMem_size]
-
 theorem ctorArgMem_load (w : UInt256) : memLoad (UInt256.ofNat 96) (ctorArgMem w) = w := by
-  have hpre : (ctorPtrMem ++ ByteArray.zeroes 0).size = 96 := by
-    rw [ByteArray.size_append, ctorPtrMem_size, ByteArray_zeroes_size]
-  have hsz : (ctorArgMem w).size = 128 := by
-    rw [ctorArgMem_eq, ByteArray.size_append, hpre, word_toBytesBE_toByteArray_size]
-  refine memLoad_of_read _ 96 w (by decide) (by omega) ?_
-  rw [readWithPadding_eq_extract _ 96 (by omega), ctorArgMem_eq,
-    extract_append_right' _ _ 96 (96 + 32) hpre.symm
-      (by rw [hpre, word_toBytesBE_toByteArray_size]),
-    ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
+  simpa only [ctorArgMem, ctorTail, feScalarStoreCreation_size] using
+    ctorLoadWord feScalarStoreCreationBytecode ctorPtrMem 96 w (by rw [ctorPtrMem_size]) (by decide)
 
 theorem ctorRuntime_read (w : UInt256) :
     ((feScalarStoreCreationBytecode ++ ctorTail w).write (UInt256.ofNat 53).toNat (ctorArgMem w)

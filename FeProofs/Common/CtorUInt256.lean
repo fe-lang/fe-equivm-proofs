@@ -1,5 +1,6 @@
 import Reasoning.Constructor
 import Reasoning.Memory
+import Reasoning.VyperCalls
 
 /-!
 # Deployments of a constructor taking one `uint256`
@@ -11,9 +12,40 @@ argument list encodes.
 -- lemmas such as `ctorStoreDeployment_shape`).
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
+open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach Reasoning.VyperCalls
 
 namespace FeProofs
+
+/-- Reading a whole ABI argument word returns its bytes. -/
+theorem readBytes_all32 (b : ByteArray) (h : b.size = 32) : b.readBytes 0 32 = b := by
+  apply ByteArray.ext
+  apply Array.ext'
+  rw [readBytes_at_toList_any b 0 (by omega), List.drop_zero]
+  exact List.take_of_length_le (by rw [Array.length_toList]; exact Nat.le_of_eq h)
+
+/-- A copied constructor argument word can be loaded from its destination, independently of
+    the initcode prefix and the memory already present below the destination. -/
+theorem ctorLoadWord (code mem : ByteArray) (off : Nat) (w : UInt256)
+    (hmem : mem.size ≤ off) (hoff : off < 2 ^ 32) :
+    memLoad (UInt256.ofNat off)
+      ((code ++ (EVM.Word.toBytesBE w).toByteArray).write code.size mem off 32) = w := by
+  let tail := (EVM.Word.toBytesBE w).toByteArray
+  change memLoad (UInt256.ofNat off) ((code ++ tail).write code.size mem off 32) = w
+  have htail : tail.size = 32 := word_toBytesBE_toByteArray_size w
+  have hgap : off - mem.size < USize.size :=
+    Nat.lt_of_le_of_lt (Nat.sub_le _ _) (Nat.lt_of_lt_of_le hoff USize.le_size)
+  have heq : (code ++ tail).write code.size mem off 32 =
+      (mem ++ ByteArray.zeroes (off - mem.size)) ++ tail := by
+    rw [write_from_gap_eq _ _ _ _ _ (by decide) (by rw [ByteArray.size_append, htail]) hmem hgap,
+      extract_append_right' code tail code.size (code.size + 32) rfl (by rw [htail])]
+  have hpre : (mem ++ ByteArray.zeroes (off - mem.size)).size = off := by
+    rw [ByteArray.size_append, ByteArray_zeroes_size]; omega
+  have hsz : off + 32 ≤ ((code ++ tail).write code.size mem off 32).size := by
+    rw [heq, ByteArray.size_append, hpre, htail]
+  refine memLoad_of_read _ off w (by simp only [UInt256.size]; omega) (by omega) ?_
+  rw [readWithPadding_eq_extract _ off hsz, heq,
+    extract_append_right' _ _ off (off + 32) hpre.symm (by rw [hpre, htail])]
+  exact word_toBytesBE_toByteArray_eq_toByteArray w
 
 theorem uint256CtorDeployment_shape {name : Ident} {initcode d : ByteArray} {args : List Value}
     (h : genSolidityConstructorDeployment [{ name := name, ty := .elem (.int (.uint ⟨256, by decide⟩)) }]
