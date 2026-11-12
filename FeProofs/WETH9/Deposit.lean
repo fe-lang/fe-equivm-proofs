@@ -7,7 +7,7 @@ import FeProofs.Common.Basic
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 640; reach lemma `feWETH9ReachDepositBody`.
+Dispatcher arm entry: pc 128; reach lemma `feWETH9ReachDepositBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -60,7 +60,7 @@ theorem feWETH9DepositBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 9) rfl hsel
   have hd := feWETH9Dispatch_deposit hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachDepositBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachDepositBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   have hdec : config.externalABI.decodeCalldata? (depositTransition.params.map Param.name)
       (transitionSignature depositTransition).paramTypes I.calldata = some ∅ :=
@@ -68,7 +68,8 @@ theorem feWETH9DepositBody {σ σ₀ A I} {g : UInt256}
   by_cases hperm : I.perm = true
   · rd_run rd
     u256_lits at rd
-    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide), byteArray_readWithPadding_zero] at rd
+    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide),
+      keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide), byteArray_readWithPadding_zero] at rd
     refine RDret.reEquivExecutionGenSel hcode rd hd hdec ((depositBody rfl).1 hperm) ?_
       (returnEquiv.fallthrough (dvs := []) rfl rfl (by native_decide))
     rw [storageStore_accountMap, u256_add_comm]
@@ -77,12 +78,12 @@ theorem feWETH9DepositBody {σ σ₀ A I} {g : UInt256}
   rd_run rd
   exact RDstatic.reEquivStaticHaltSel hcode rd hd hdec ((depositBody rfl).2 hpf)
 
-/-- From the fallback entry (pc 723), reached with the selector word or nothing on the stack:
+/-- From the fallback entry (pc 771), reached with the selector word or nothing on the stack:
 `balanceOf[msg.sender] += msg.value`, then `RETURN(0, 0)`. -/
-theorem feWETH9FallbackFrom723 {σ σ₀ A I} {g : UInt256} {R : List UInt256} {k C : ℕ}
+theorem feWETH9FallbackFrom771 {σ σ₀ A I} {g aw : UInt256} {R : List UInt256} {k C : ℕ}
     (hcode : I.code = feWETH9Bytecode) (hR : R.length ≤ 1)
     (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
-      (UInt256.ofNat 723) R ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ k C)
+      (UInt256.ofNat 771) R entryMem aw ByteArray.empty σ k C)
     (hnosel : selectorDispatchMsg contract I.calldata = none) :
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hnorecv : receiveDispatchMsg contract I.calldata = none := by
@@ -90,7 +91,8 @@ theorem feWETH9FallbackFrom723 {σ σ₀ A I} {g : UInt256} {R : List UInt256} {
   by_cases hperm : I.perm = true
   · rd_run rd using [hR]
     u256_lits at rd
-    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide), byteArray_readWithPadding_zero] at rd
+    rw [keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide),
+      keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide), byteArray_readWithPadding_zero] at rd
     refine RDret.reEquivFallback hcode rd hnosel hnorecv rfl rfl rfl ((depositBody rfl).1 hperm) ?_
       (.abi (returnEquiv.fallthrough (dvs := []) rfl rfl (by native_decide)))
     rw [storageStore_accountMap, u256_add_comm]
@@ -124,76 +126,48 @@ theorem feWETH9FallbackBody {σ σ₀ A I} {g : UInt256}
     · rw [allowanceSelectorOf]; exact hnm 10 (by omega)
   have rd := RD.initState (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
   by_cases hsz : 4 ≤ I.calldata.size
-  · have hc := lt_four_eq_zero_of_ge hsz hsize
-    have n0 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨117300739⟩ = ⟨0⟩ := by
-      have e := nameEvmSelector hsz
-      simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n1 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨157198259⟩ = ⟨0⟩ := by
-      have e := approveEvmSelector hsz
-      simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n2 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨404098525⟩ = ⟨0⟩ := by
-      have e := totalSupplyEvmSelector hsz
-      simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n3 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨599290589⟩ = ⟨0⟩ := by
-      have e := transferFromEvmSelector hsz
-      simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n4 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨773487949⟩ = ⟨0⟩ := by
-      have e := withdrawEvmSelector hsz
-      simp only [hnm 4 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n5 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨826074471⟩ = ⟨0⟩ := by
-      have e := decimalsEvmSelector hsz
-      simp only [hnm 5 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n6 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨1889567281⟩ = ⟨0⟩ := by
-      have e := balanceOfEvmSelector hsz
-      simp only [hnm 6 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n7 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨2514000705⟩ = ⟨0⟩ := by
-      have e := symbolEvmSelector hsz
-      simp only [hnm 7 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n8 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨2835717307⟩ = ⟨0⟩ := by
-      have e := transferEvmSelector hsz
-      simp only [hnm 8 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n9 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨3504541104⟩ = ⟨0⟩ := by
-      have e := depositEvmSelector hsz
-      simp only [hnm 9 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    have n10 : UInt256.eq (UInt256.shiftRight (uInt256OfByteArray
-        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) ⟨3714247998⟩ = ⟨0⟩ := by
-      have e := allowanceEvmSelector hsz
-      simp only [hnm 10 (by omega), Bool.false_eq_true, if_false] at e
-      rw [uInt256_eq_comm] at e
-      exact e
-    rd_run rd to 723 using [hc, n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10]
-    exact feWETH9FallbackFrom723 hcode (by simp) rd hnosel
-  · rd_run rd to 723 using [lt_four_ne_zero_of_lt (by omega)]
-    exact feWETH9FallbackFrom723 hcode (by simp) rd hnosel
+  swap
+  · rd_run rd to 771 using [lt_four_ne_zero_of_lt (by omega)]
+    exact feWETH9FallbackFrom771 hcode (by simp) rd hnosel
+  have hc := lt_four_eq_zero_of_ge hsz hsize
+  have miss : ∀ (i : ℕ) (sel : UInt256), i < 11 →
+      UInt256.eq sel (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes 0 32)) ⟨224⟩)
+        = (if (feWETH9SelBytes i == I.calldata.extract 0 4) then ⟨1⟩ else ⟨0⟩) →
+      UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
+        (UInt256.ofNat 224)) sel = UInt256.ofNat 0 := by
+    intro i sel hi e
+    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    rw [uInt256_eq_comm]
+    exact e
+  have n0 := miss 0 _ (by omega) (nameEvmSelector hsz)
+  have n1 := miss 1 _ (by omega) (approveEvmSelector hsz)
+  have n2 := miss 2 _ (by omega) (totalSupplyEvmSelector hsz)
+  have n3 := miss 3 _ (by omega) (transferFromEvmSelector hsz)
+  have n4 := miss 4 _ (by omega) (withdrawEvmSelector hsz)
+  have n5 := miss 5 _ (by omega) (decimalsEvmSelector hsz)
+  have n6 := miss 6 _ (by omega) (balanceOfEvmSelector hsz)
+  have n7 := miss 7 _ (by omega) (symbolEvmSelector hsz)
+  have n8 := miss 8 _ (by omega) (transferEvmSelector hsz)
+  have n9 := miss 9 _ (by omega) (depositEvmSelector hsz)
+  have n10 := miss 10 _ (by omega) (allowanceEvmSelector hsz)
+  -- the binary search: below `decimals()` (pc 14), then below `transfer` (pc 30) or below
+  -- `totalSupply()` (pc 333); every compare of the group reached falls through
+  by_cases hp1 : UInt256.lt (UInt256.shiftRight (uInt256OfByteArray
+      (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))
+        (UInt256.ofNat 826074471) = UInt256.ofNat 0
+  · by_cases hp2 : UInt256.lt (UInt256.shiftRight (uInt256OfByteArray
+        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))
+          (UInt256.ofNat 2835717307) = UInt256.ofNat 0
+    · rd_run rd to 771 using [hc, hp1, hp2, n8, n9, n10]
+      exact feWETH9FallbackFrom771 hcode (by simp) rd hnosel
+    · rd_run rd to 771 using [hc, hp1, hp2, n5, n6, n7]
+      exact feWETH9FallbackFrom771 hcode (by simp) rd hnosel
+  · by_cases hp3 : UInt256.lt (UInt256.shiftRight (uInt256OfByteArray
+        (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224))
+          (UInt256.ofNat 404098525) = UInt256.ofNat 0
+    · rd_run rd to 771 using [hc, hp1, hp3, n2, n3, n4]
+      exact feWETH9FallbackFrom771 hcode (by simp) rd hnosel
+    · rd_run rd to 771 using [hc, hp1, hp3, n0, n1]
+      exact feWETH9FallbackFrom771 hcode (by simp) rd hnosel
 
 end FeProofs.WETH9

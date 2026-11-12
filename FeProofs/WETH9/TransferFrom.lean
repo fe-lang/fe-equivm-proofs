@@ -6,7 +6,7 @@ import FeProofs.WETH9.TransferFromBody
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 284; reach lemma `feWETH9ReachTransferFromBody`.
+Dispatcher arm entry: pc 394; reach lemma `feWETH9ReachTransferFromBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -15,16 +15,16 @@ namespace FeProofs.WETH9
 
 set_option maxRecDepth 2000000
 
-/-- From the shared tail (pc 1450) with write permission: the debit, the credit, `LOG3`, and the
+/-- From the shared tail (pc 1455) with write permission: the debit, the credit, `LOG3`, and the
 jump back to the arm with `true`. -/
 theorem tfTail {σ σ₀ A I} {g : Sat256} {σ1 : AccountMap} {mem : ByteArray} {aw : UInt256} {k C : ℕ}
     {sw dw w ret : UInt256} (hperm : I.perm = true)
     (hret : (D_J feWETH9Bytecode 0).contains ret = true)
-    (rd : RD feWETH9Bytecode I g (initState σ σ₀ g A I) (UInt256.ofNat 1450) [sw, dw, w, ret] mem aw
+    (rd : RD feWETH9Bytecode I g (initState σ σ₀ g A I) (UInt256.ofNat 1455) [sw, dw, w, ret] mem aw
       ByteArray.empty σ1 k C) :
     ∃ mem' aw' k' C', RD feWETH9Bytecode I g (initState σ σ₀ g A I) ret [UInt256.ofNat 1] mem' aw'
       ByteArray.empty (tfMoveMap σ1 I sw dw w) k' C' := by
-  obtain ⟨k', C', rd'⟩ := feWETH9Blocks.feWETH9_block_1450 (by simp) hperm hret rd
+  obtain ⟨k', C', rd'⟩ := feWETH9Blocks.feWETH9_block_1455 (by simp) hperm hret rd
   simp (disch := (first | rfl | decide | omega)) only [keccakWord_mapSlotAtWord] at rd'
   rw [u256_add_comm w] at rd'
   exact ⟨_, _, _, _, rd'⟩
@@ -32,7 +32,7 @@ theorem tfTail {σ σ₀ A I} {g : Sat256} {σ1 : AccountMap} {mem : ByteArray} 
 /-- From the shared tail in static mode: the debit's `SSTORE` halts. -/
 theorem tfTailStatic {σ σ₀ A I} {g : Sat256} {σ1 : AccountMap} {mem : ByteArray} {aw : UInt256}
     {k C : ℕ} {sw dw w ret : UInt256} (hpf : I.perm = false)
-    (rd : RD feWETH9Bytecode I g (initState σ σ₀ g A I) (UInt256.ofNat 1450) [sw, dw, w, ret] mem aw
+    (rd : RD feWETH9Bytecode I g (initState σ σ₀ g A I) (UInt256.ofNat 1455) [sw, dw, w, ret] mem aw
       ByteArray.empty σ1 k C) :
     RDstatic feWETH9Bytecode g (initState σ σ₀ g A I) := by
   rd_run rd
@@ -51,7 +51,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 3) rfl hsel
   have hd := feWETH9Dispatch_transferFrom hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachTransferFromBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachTransferFromBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -79,7 +79,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
       (transitionSignature transferFromTransition).paramTypes I.calldata =
         some (transferFromLocals I) :=
     decodeCalldata_address_address_uint256_ok hlen hhi hc0 hc1
-  rd_run rd to 1305 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
+  rd_run rd to 1285 using [hwv, hc, shiftRight160_eq_zero hc0, shiftRight160_eq_zero hc1]
   have hsrcL : (transferFromLocals I).get? "src" =
       some (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat)) := by store_get
   have hdstL : (transferFromLocals I).get? "dst" =
@@ -99,7 +99,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     rd_run rd using [slot_hint (ne_of_eq_of_ne (ult_one hlt) (by decide))]
     exact RDrev.reEquivExecutionRevertSel hcode rd hd hdec
       (tfBody_balance (hcv := hwv) (hbo := hbo) (hsrc := hsrcL) (hwad := hwadL) (by rw [hB]; exact hlt))
-  rd_run rd to 1328 using [slot_hint (ult_zero hbal)]
+  rd_run rd to 1308 using [slot_hint (ult_zero hbal)]
   have hbalS : (calldataWord I.calldata 68).toNat ≤ (loadAt (initState σ σ₀ (Sat256.ofUInt256 g) A I)
       (balSlot (AccountAddress.ofNat (calldataWord I.calldata 4).toNat))).toNat := by
     rw [hB]; exact hbal
@@ -113,7 +113,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
   · -- `src` is the caller: no allowance
     have hs : AccountAddress.ofNat (calldataWord I.calldata 4).toNat = I.source :=
       (ofNat_eq_iff hc0).mpr hself
-    rd_run rd to 1450 using [(show UInt256.eq (calldataWord I.calldata 4) (addrWord I.source) = ⟨1⟩ by
+    rd_run rd to 1455 using [(show UInt256.eq (calldataWord I.calldata 4) (addrWord I.source) = ⟨1⟩ by
       rw [hself]; exact u256_eq_refl _)]
     by_cases hperm : I.perm = true
     swap
@@ -124,7 +124,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     obtain ⟨mem', aw', k', C', rd⟩ := tfTail hperm (by native_decide) rd
     rd_run rd
     u256_lits at rd
-    rw [toByteArray_write_read_back_of_gap _ mem' 224 (small_gap mem' 224 (by decide))] at rd
+    rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
     exact RDret.reEquivExecutionGenSel hcode rd hd hdec
       (tfBody_skipReturns (hcv := hwv) (hbo := hbo) (hal := hal) (hsrc := hsrcL) (hdst := hdstL)
         (hwad := hwadL) (hbal := hbalS) (Or.inl hs) hperm)
@@ -140,7 +140,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     rw [loadAt_initState]
     show solcSlotWord σ I (allowSlot _ I.source) = _
     rw [allowSlot, addrWord_ofNat hc0]
-  rd_run rd to 1337 using [u256_eq_of_ne hself]
+  rd_run rd to 1317 using [u256_eq_of_ne hself]
   by_cases hmaxw : solcSlotWord σ I (mapSlot (addrWord I.source) (mapSlot (calldataWord I.calldata 4) ⟨4⟩)) =
       UInt256.lnot ⟨0⟩
   · -- the maximum allowance is not spent
@@ -148,7 +148,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
         (allowSlot (AccountAddress.ofNat (calldataWord I.calldata 4).toNat)
         (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.source)).toNat =
         2 ^ 256 - 1 := by rw [hA, hmaxw]; rfl
-    rd_run rd to 1450 using [slot_hint (ne_of_eq_of_ne (show UInt256.eq (UInt256.lnot ⟨0⟩)
+    rd_run rd to 1455 using [slot_hint (ne_of_eq_of_ne (show UInt256.eq (UInt256.lnot ⟨0⟩)
       (solcSlotWord σ I (mapSlot (addrWord I.source) (mapSlot (calldataWord I.calldata 4) ⟨4⟩))) = ⟨1⟩ by
         rw [hmaxw]; exact u256_eq_refl _) (by decide))]
     by_cases hperm : I.perm = true
@@ -160,7 +160,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     obtain ⟨mem', aw', k', C', rd⟩ := tfTail hperm (by native_decide) rd
     rd_run rd
     u256_lits at rd
-    rw [toByteArray_write_read_back_of_gap _ mem' 224 (small_gap mem' 224 (by decide))] at rd
+    rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
     exact RDret.reEquivExecutionGenSel hcode rd hd hdec
       (tfBody_skipReturns (hcv := hwv) (hbo := hbo) (hal := hal) (hsrc := hsrcL) (hdst := hdstL)
         (hwad := hwadL) (hbal := hbalS) (Or.inr hmax) hperm)
@@ -171,7 +171,7 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
         (initState σ σ₀ (Sat256.ofUInt256 g) A I).executionEnv.source)).toNat ≠
       2 ^ 256 - 1 := by
     rw [hA]; intro h; exact hmaxw (u256_inj (by rw [h]; rfl))
-  rd_run rd to 1371 using [slot_hint (u256_eq_of_ne (Ne.symm hmaxw))]
+  rd_run rd to 1351 using [slot_hint (u256_eq_of_ne (Ne.symm hmaxw))]
   by_cases hallow : (calldataWord I.calldata 68).toNat ≤
       (solcSlotWord σ I (mapSlot (addrWord I.source) (mapSlot (calldataWord I.calldata 4) ⟨4⟩))).toNat
   swap
@@ -193,12 +193,12 @@ theorem feWETH9TransferFromBody {σ σ₀ A I} {g : UInt256}
     exact RDstatic.reEquivStaticHaltSel hcode rd hd hdec
       (tfBody_spendStatic (hcv := hwv) (hbo := hbo) (hal := hal) (hsrc := hsrcL) (hwad := hwadL)
         (hbal := hbalS) hne hmax hallowS hpf)
-  rd_run rd to 1450 using [slot_hint (ult_zero hallow)]
+  rd_run rd to 1455 using [slot_hint (ult_zero hallow)]
   simp (disch := (first | rfl | decide | omega)) only [keccakWord_mapSlotAtWord] at rd
   obtain ⟨mem', aw', k', C', rd⟩ := tfTail hperm (by native_decide) rd
   rd_run rd
   u256_lits at rd
-  rw [toByteArray_write_read_back_of_gap _ mem' 224 (small_gap mem' 224 (by decide))] at rd
+  rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
   refine RDret.reEquivExecutionGenSel hcode rd hd hdec
     (tfBody_spendReturns (hcv := hwv) (hbo := hbo) (hal := hal) (hsrc := hsrcL) (hdst := hdstL)
       (hwad := hwadL) (hbal := hbalS) hne hmax hallowS hperm) ?_

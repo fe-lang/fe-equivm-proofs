@@ -3,8 +3,8 @@ import FeProofs.WETH9.StringGetter
 /-!
 # FeWETH9 `symbol()`
 
-Dispatcher arm entry: pc 571; reach lemma `feWETH9ReachSymbolBody`.  The arm checks the call
-value, then calls `SolString::load` (pc 800) on slot 1 with return address 586, which jumps to the
+Dispatcher arm entry: pc 312; reach lemma `feWETH9ReachSymbolBody`.  The arm checks the call
+value, then calls `SolString::load` (pc 860) on slot 1 with return address 327, which jumps to the
 return encoder; `stringGetter` (`StringGetter.lean`) does the rest.
 -/
 
@@ -21,12 +21,12 @@ theorem feWETH9SymbolBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 7) rfl hsel
   have hd := feWETH9Dispatch_symbol hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachSymbolBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachSymbolBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · nonpayable_revert rd hcode hd hwv
-  rd_run rd to 800 using [hwv]
+  rd_run rd to 860 using [hwv]
   exact stringGetter (field := "symbol") hcode hsize hd
     (show decodeCalldata [] [] I.calldata = some ∅ from decodeCalldata_empty_ok hsz)
     rfl rfl rfl rfl hwv (hwf.2 hsel hwv) (by jump_dest) (by simp) rd

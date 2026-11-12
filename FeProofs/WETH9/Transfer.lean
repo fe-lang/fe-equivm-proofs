@@ -5,7 +5,7 @@ import FeProofs.WETH9.TransferFrom
 
 Per-function proof: calldata decode facts, the EVM trace from the dispatcher arm through the
 body, the Stele body evaluation, and the `…Body` theorem `Correct.lean` consumes.
-Dispatcher arm entry: pc 592; reach lemma `feWETH9ReachTransferBody`.
+Dispatcher arm entry: pc 74; reach lemma `feWETH9ReachTransferBody`.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -120,7 +120,7 @@ theorem feWETH9TransferBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 8) rfl hsel
   have hd := feWETH9Dispatch_transfer hsel
-  obtain ⟨k, C, rd⟩ := feWETH9ReachTransferBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachTransferBody (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀)
     (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -138,7 +138,7 @@ theorem feWETH9TransferBody {σ σ₀ A I} {g : UInt256}
     exact RDrev.reEquivDecodingFailedSel hcode rd hd
       (feWETH9TransferDecode_none hsz (Or.inr (Or.inr ⟨hlen, hhi, hcanon⟩)))
   have hdec := feWETH9TransferDecode_ok hlen hhi hcanon
-  rd_run rd to 1305 using [hwv, hc, shiftRight160_eq_zero hcanon]
+  rd_run rd to 1285 using [hwv, hc, shiftRight160_eq_zero hcanon]
   have hsrcL : (transferCalleeLocals I).get? "src" = some (.address I.source) := by store_get
   have hdstL : (transferCalleeLocals I).get? "dst" =
       some (.address (AccountAddress.ofNat (calldataWord I.calldata 4).toNat)) := by store_get
@@ -157,7 +157,7 @@ theorem feWETH9TransferBody {σ σ₀ A I} {g : UInt256}
   have hbalS : (calldataWord I.calldata 36).toNat ≤
       (loadAt (initState σ σ₀ (Sat256.ofUInt256 g) A I) (balSlot I.source)).toNat := by
     rw [loadAt_initState]; exact hbal
-  rd_run rd to 1450 using [slot_hint (ult_zero hbal), u256_eq_refl (addrWord I.source)]
+  rd_run rd to 1455 using [slot_hint (ult_zero hbal), u256_eq_refl (addrWord I.source)]
   by_cases hperm : I.perm = true
   swap
   · have hpf : I.perm = false := by simpa using hperm
@@ -167,7 +167,7 @@ theorem feWETH9TransferBody {σ σ₀ A I} {g : UInt256}
   obtain ⟨mem', aw', k', C', rd⟩ := tfTail hperm (by native_decide) rd
   rd_run rd
   u256_lits at rd
-  rw [toByteArray_write_read_back_of_gap _ mem' 224 (small_gap mem' 224 (by decide))] at rd
+  rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
   refine RDret.reEquivExecutionGenSel hcode rd hd hdec (transferBody_returns hwv
     (tfBody_skipReturns (hcv := hwv) (hbo := hbo) (hal := hal) (hsrc := hsrcL) (hdst := hdstL)
       (hwad := hwadL) (hbal := hbalS) (Or.inl rfl) hperm)) ?_
