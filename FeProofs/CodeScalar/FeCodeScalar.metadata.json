@@ -1,0 +1,64 @@
+{
+  "compiler": {
+    "commit": "aa5244d43",
+    "version": "26.6.0"
+  },
+  "language": "Fe",
+  "output": {
+    "abi": [
+      {
+        "inputs": [
+          {
+            "name": "initial",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+      },
+      {
+        "inputs": [],
+        "name": "get",
+        "outputs": [
+          {
+            "name": "",
+            "type": "uint256"
+          }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+      }
+    ]
+  },
+  "settings": {
+    "arithmetic": "checked",
+    "compilationTarget": {
+      "FeCodeScalar.fe": "FeCodeScalar"
+    },
+    "dependencyArithmetic": "defer",
+    "evmVersion": "osaka",
+    "ingots": [
+      {
+        "arithmetic": "checked",
+        "dependencies": {
+          "core": "core",
+          "std": "std"
+        },
+        "dependencyArithmetic": "defer",
+        "name": "FeCodeScalar",
+        "namespace": "",
+        "version": null
+      }
+    ],
+    "optimizer": {
+      "level": "1"
+    }
+  },
+  "sources": {
+    "FeCodeScalar.fe": {
+      "content": "use std::abi::sol\n\nmsg FeCodeScalarMsg {\n    #[selector = sol(\"get()\")]\n    Get -> u256,\n}\n\npub contract FeCodeScalar {\n    value: u256\n\n    init(initial: u256) uses (mut value) {\n        value = initial\n    }\n\n    recv FeCodeScalarMsg {\n        Get -> u256 uses (value) {\n            value\n        }\n    }\n}\n",
+      "keccak256": "0xb9bf4486d3de205a842c473f5200a4cb885781f216e91cd5dc57df91a58f6053"
+    }
+  },
+  "version": 1
+}
