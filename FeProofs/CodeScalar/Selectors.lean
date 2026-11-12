@@ -1,4 +1,5 @@
 import Ethereum.Semantics
+import FeProofs.Common.SelectorGet
 
 /-!
 # FeCodeScalar selectors
@@ -31,6 +32,6 @@ set_option maxRecDepth 1000000
 /-- `keccak256("get()")[0:4] = 0x6d4ce63c`. -/
 theorem getSelectorFact :
     (Ethereum.KEC (String.toByteArray "get()")).extract 0 4 = feCodeScalarSelBytes 0 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorGet.getSelectorHash
 
 end FeProofs.CodeScalar

@@ -1,4 +1,5 @@
 import Ethereum.Semantics
+import FeProofs.Common.SelectorERC20
 
 /-!
 # FeERC20 selectors
@@ -32,31 +33,31 @@ set_option maxRecDepth 1000000
 /-- `keccak256("approve(address,uint256)")[0:4] = 0x095ea7b3`. -/
 theorem approveSelectorFact :
     (Ethereum.KEC (String.toByteArray "approve(address,uint256)")).extract 0 4 = feERC20SelBytes 0 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.approveSelectorHash
 
 /-- `keccak256("totalSupply()")[0:4] = 0x18160ddd`. -/
 theorem totalSupplySelectorFact :
     (Ethereum.KEC (String.toByteArray "totalSupply()")).extract 0 4 = feERC20SelBytes 1 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.totalSupplySelectorHash
 
 /-- `keccak256("transferFrom(address,address,uint256)")[0:4] = 0x23b872dd`. -/
 theorem transferFromSelectorFact :
     (Ethereum.KEC (String.toByteArray "transferFrom(address,address,uint256)")).extract 0 4 = feERC20SelBytes 2 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.transferFromSelectorHash
 
 /-- `keccak256("balanceOf(address)")[0:4] = 0x70a08231`. -/
 theorem balanceOfSelectorFact :
     (Ethereum.KEC (String.toByteArray "balanceOf(address)")).extract 0 4 = feERC20SelBytes 3 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.balanceOfSelectorHash
 
 /-- `keccak256("transfer(address,uint256)")[0:4] = 0xa9059cbb`. -/
 theorem transferSelectorFact :
     (Ethereum.KEC (String.toByteArray "transfer(address,uint256)")).extract 0 4 = feERC20SelBytes 4 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.transferSelectorHash
 
 /-- `keccak256("allowance(address,address)")[0:4] = 0xdd62ed3e`. -/
 theorem allowanceSelectorFact :
     (Ethereum.KEC (String.toByteArray "allowance(address,address)")).extract 0 4 = feERC20SelBytes 5 := by
-  decide +kernel
+  exact FeProofs.Common.SelectorERC20.allowanceSelectorHash
 
 end FeProofs.ERC20

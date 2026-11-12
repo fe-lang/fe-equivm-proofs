@@ -1,0 +1,30 @@
+{
+  "allowance(address,address)": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.allowanceSelectorHash"
+  },
+  "approve(address,uint256)": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.approveSelectorHash"
+  },
+  "balanceOf(address)": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.balanceOfSelectorHash"
+  },
+  "get()": {
+    "module": "FeProofs.Common.SelectorGet",
+    "theorem": "FeProofs.Common.SelectorGet.getSelectorHash"
+  },
+  "totalSupply()": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.totalSupplySelectorHash"
+  },
+  "transfer(address,uint256)": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.transferSelectorHash"
+  },
+  "transferFrom(address,address,uint256)": {
+    "module": "FeProofs.Common.SelectorERC20",
+    "theorem": "FeProofs.Common.SelectorERC20.transferFromSelectorHash"
+  }
+}
