@@ -8,7 +8,7 @@ message with std's `decode_runtime_args`, runs the arm and returns through std's
 `runtime` dispatches on the selector, and `init_entry` decodes the constructor argument.  This
 file shows each entry ends as the hand-written model's does, so the certificates for that model
 carry over.  The two differ in memory only: exported code encodes events and return data in
-fresh buffers.
+fresh buffers, and hashes the key of each map entry it reaches in another.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
@@ -21,30 +21,31 @@ section Alike
 
 variable (I : ExecutionEnv) (w : World)
 
-theorem alike_transfer (dst value : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    Alike 32 w ((recv0_arm0 dst value).exec I w) ((Model.transfer dst value).exec I w) :=
-  alike_withMemory (transfer_exec I w dst value hmem) (by rw [returned_size])
+theorem alike_transfer (dst value : UInt256) (hmem : w.memory.size + 352 < UInt256.size) :
+    Alike 352 w ((recv0_arm0 dst value).exec I w) ((Model.transfer dst value).exec I w) :=
+  alike_withMemory (transfer_exec I w dst value hmem)
+    (by rw [returned_size, keyedAll_size]; simp)
 
-theorem alike_approve (spender value : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    Alike 32 w ((recv0_arm1 spender value).exec I w) ((Model.approve spender value).exec I w) :=
-  alike_withMemory (approve_exec I w spender value hmem) (by rw [returned_size])
+theorem alike_approve (spender value : UInt256) (hmem : w.memory.size + 160 < UInt256.size) :
+    Alike 160 w ((recv0_arm1 spender value).exec I w) ((Model.approve spender value).exec I w) :=
+  alike_withMemory (approve_exec I w spender value hmem)
+    (by rw [returned_size, keyedAll_size]; simp)
 
 theorem alike_transferFrom (src dst value : UInt256)
-    (hmem : w.memory.size + 32 < UInt256.size) :
-    Alike 32 w ((recv0_arm2 src dst value).exec I w)
+    (hmem : w.memory.size + 608 < UInt256.size) :
+    Alike 608 w ((recv0_arm2 src dst value).exec I w)
       ((Model.transferFrom src dst value).exec I w) :=
-  alike_withMemory (transferFrom_exec I w src dst value hmem) (by rw [returned_size])
+  alike_withMemory (transferFrom_exec I w src dst value hmem)
+    (by rw [returned_size, keyedAll_size]; simp)
 
-theorem alike_balanceOf (owner : UInt256) :
-    Alike 0 w ((recv0_arm3 owner).exec I w) ((Model.balanceOf owner).exec I w) :=
-  alike_of_eq (balanceOf_exec I w owner)
-    ((show KeepsMemory (Model.balanceOf owner) by unfold Model.balanceOf; keeps_memory) I w)
+theorem alike_balanceOf (owner : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
+    Alike 64 w ((recv0_arm3 owner).exec I w) ((Model.balanceOf owner).exec I w) :=
+  alike_withMemory (balanceOf_exec I w owner hmem) (by rw [keyedAll_size]; simp)
 
-theorem alike_allowance (owner spender : UInt256) :
-    Alike 0 w ((recv0_arm4 owner spender).exec I w) ((Model.allowance owner spender).exec I w) :=
-  alike_of_eq (allowance_exec I w owner spender)
-    ((show KeepsMemory (Model.allowance owner spender) by
-      unfold Model.allowance; keeps_memory) I w)
+theorem alike_allowance (owner spender : UInt256) (hmem : w.memory.size + 128 < UInt256.size) :
+    Alike 128 w ((recv0_arm4 owner spender).exec I w)
+      ((Model.allowance owner spender).exec I w) :=
+  alike_withMemory (allowance_exec I w owner spender hmem) (by rw [keyedAll_size]; simp)
 
 theorem alike_totalSupply : Alike 0 w (recv0_arm5.exec I w) (Model.totalSupply.exec I w) :=
   alike_of_eq (totalSupply_exec I w)
@@ -58,7 +59,7 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-theorem transfer_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+theorem transfer_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm0_entry).exec I w) ((Model.transferArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
@@ -89,7 +90,7 @@ theorem transfer_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ 
   exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
     (alike_transfer I w _ _ (by omega)) (by omega)
 
-theorem approve_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+theorem approve_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm1_entry).exec I w) ((Model.approveArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
@@ -120,7 +121,7 @@ theorem approve_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I
   exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
     (alike_approve I w _ _ (by omega)) (by omega)
 
-theorem transferFrom_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+theorem transferFrom_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm2_entry).exec I w) ((Model.transferFromArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 3 hfits
@@ -156,7 +157,7 @@ theorem transferFrom_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 
   exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
     (alike_transferFrom I w _ _ _ (by omega)) (by omega)
 
-theorem balanceOf_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+theorem balanceOf_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm3_entry).exec I w) ((Model.balanceOfArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
@@ -184,10 +185,10 @@ theorem balanceOf_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤
       (Model.balanceOf (word I.calldata 4) >>= fun r => pure (r.toByteArray)).exec I w := by
     simp [Model.balanceOfArm, exec_nonPayable, hwv, hgood, ha0]
   rw [eg, eh]
-  exact endsAs_alike (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (alike_balanceOf I w _)
+  exact endsAs_alike (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (alike_balanceOf I w _ (by omega))
     (by omega)
 
-theorem allowance_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+theorem allowance_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm4_entry).exec I w) ((Model.allowanceArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
@@ -220,10 +221,10 @@ theorem allowance_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hlo : 4 ≤
       (Model.allowance (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (r.toByteArray)).exec I w := by
     simp [Model.allowanceArm, exec_nonPayable, hwv, hgood, ha0, ha1]
   rw [eg, eh]
-  exact endsAs_alike (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (alike_allowance I w _ _)
+  exact endsAs_alike (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (alike_allowance I w _ _ (by omega))
     (by omega)
 
-theorem totalSupply_endsAs (hmem : w.memory.size + 64 < UInt256.size) :
+theorem totalSupply_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((entry recv0_arm5_entry).exec I w) (Model.totalSupplyArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -244,7 +245,7 @@ theorem totalSupply_endsAs (hmem : w.memory.size + 64 < UInt256.size) :
 
 /-- The exported runtime entry ends as the hand-written model's does, on calldata below
     `2 ^ 64` bytes. -/
-theorem runtime_endsAs (hmem : w.memory.size + 64 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry runtime).exec I w) (Model.runtime.exec I w) := by
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
     ulit_toNat' _ (by unfold UInt256.size; omega)
@@ -363,7 +364,7 @@ theorem withArg_size (memory : ByteArray) (v : UInt256) :
 
 /-- The exported deployment entry ends as the hand-written model's does, on one argument word. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
-    (hmem : w.memory.size + 64 < UInt256.size) :
+    (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((init_entry (ctorTail v) >>= fun tail => pure (out ++ tail)).exec I w)
       ((Model.init (ctorTail v) >>= fun _ => pure out).exec I w) := by
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v

@@ -67,8 +67,9 @@ attribute [local simp]
   size_1 len_MemSlice_u8 word_at_1 read_word_MemSlice_u8 base pos set_base set_pos 
   decode_payload_Sol_SolDecoder_MemSlice_u8 decode_field_Sol_u256_SolDecoder_MemSlice_u8 
   decode_payload_Sol_u256_SolDecoder_MemSlice_u8
+  encoded_len downcast_saturate_u256_usize write_key write_key_1 keccak256_1
   checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData logData
-  panicCode
+  panicCode keccak256
 
 variable (I : ExecutionEnv) (w : World)
 
@@ -133,6 +134,42 @@ theorem emitApproval_exec (e : Approval) :
   · have hroom := hmem
     simp only [UInt256.size] at hroom
     simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, UInt256.size, hroom]
+
+/-! ### Map entries -/
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- Std's `mapping_slot` stores the key and the map's root in a fresh buffer and hashes it: the
+    slot the hand-written model computes. -/
+theorem mappingSlot_exec (root key : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
+    (mapping_slot_Address root key).exec I w =
+      some (.ok (Fe.EVM.mapSlot key root, { w with memory := keyed w.memory key root })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hnext : (UInt256.ofNat w.memory.size + UInt256.ofNat 32).toNat = w.memory.size + 32 := by
+    rw [uadd_toNat, hsize, toNat32]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [mapping_slot_Address, toNat0, toNat32, toNat64, toNatMax, toNatU64, add32_32, hsize,
+    hnext, UInt256.size, hroom, keyed]
+  exact keyed_slot w.memory key root
+
+/-- `locate` of a balance: the entry's slot, at no offset. -/
+theorem locateBalance_exec (p : Place) (root key : UInt256)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (locate_Address_u256 p root key).exec I w =
+      some (.ok (⟨Fe.EVM.mapSlot key root, UInt256.ofNat 0⟩,
+        { w with memory := keyed w.memory key root })) := by
+  simp [locate_Address_u256, mappingSlot_exec I w root key hmem]
+
+/-- `locate` of an owner's allowances: the slot of that map. -/
+theorem locateAllowances_exec (p : Place) (root key : UInt256)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (locate_Address_StorageMap_Address_u256 p root key).exec I w =
+      some (.ok (⟨Fe.EVM.mapSlot key root, UInt256.ofNat 0⟩,
+        { w with memory := keyed w.memory key root })) := by
+  simp [locate_Address_StorageMap_Address_u256, mappingSlot_exec I w root key hmem]
 
 /-! ### Decoders -/
 
@@ -312,52 +349,101 @@ macro "agree" : tactic =>
     | split
     | simp_all [checkedSub, checkedAdd, exec_sstore, exec_emit])
 
+/-- The room a step of an arm needs, from the room the arm has and the buffers made before. -/
+macro "room" : tactic =>
+  `(tactic| ((try simp only [keyed_size, returned_size]); omega))
+
+theorem emitTransfer_ok (e : Transfer) (hmem : w.memory.size + 32 < UInt256.size) :
+    (emit_Evm_Transfer e).exec I w =
+      if I.perm then
+        some (.ok ((), { w with
+          logs := w.logs.push ⟨I.codeOwner, #[Model.transferTopic, e.«from», e.«to»],
+            e.value.toByteArray⟩,
+          memory := returned w.memory e.value }))
+      else some (.error .static) := by
+  rw [emitTransfer_exec, if_pos hmem]
+
+theorem emitApproval_ok (e : Approval) (hmem : w.memory.size + 32 < UInt256.size) :
+    (emit_Evm_Approval e).exec I w =
+      if I.perm then
+        some (.ok ((), { w with
+          logs := w.logs.push ⟨I.codeOwner, #[Model.approvalTopic, e.owner, e.spender],
+            e.value.toByteArray⟩,
+          memory := returned w.memory e.value }))
+      else some (.error .static) := by
+  rw [emitApproval_exec, if_pos hmem]
+
+/-- The caller's address word. -/
+abbrev sender : UInt256 := UInt256.ofNat I.source.val
+
 set_option maxHeartbeats 4000000 in
-theorem init_exec (initialSupply : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
+theorem init_exec (initialSupply : UInt256) (hmem : w.memory.size + 96 < UInt256.size) :
     (init initialSupply).exec I w =
-      withMemory (returned w.memory initialSupply) ((Model.initBody initialSupply).exec I w) := by
+      withMemory (returned (keyedAll w.memory [(sender I, Model.balancesRoot)]) initialSupply)
+        ((Model.initBody initialSupply).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [ofNat0, balancesPlace, totalSupplyPlace, caller_1, zero, init, Model.initBody, Model.balanceSlot,
-      Model.balancesRoot, Model.totalSupplySlot, emitTransfer_exec, hmem, hp, exec_sstore,
-      exec_emit]
+    simp (disch := room) [ofNat0, balancesPlace, totalSupplyPlace, caller_1, zero, init,
+      Model.initBody, Model.balanceSlot, Model.balancesRoot, Model.totalSupplySlot,
+      locateBalance_exec, emitTransfer_ok, hp, exec_sstore, exec_emit]
 
 set_option maxHeartbeats 4000000 in
-theorem transfer_exec (dst value : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
+theorem transfer_exec (dst value : UInt256) (hmem : w.memory.size + 352 < UInt256.size) :
     (recv0_arm0 dst value).exec I w =
-      withMemory (returned w.memory value) ((Model.transfer dst value).exec I w) := by
+      withMemory (returned (keyedAll w.memory [(sender I, Model.balancesRoot),
+          (sender I, Model.balancesRoot), (sender I, Model.balancesRoot),
+          (dst, Model.balancesRoot), (dst, Model.balancesRoot)]) value)
+        ((Model.transfer dst value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp [balancesPlace, caller_1, recv0_arm0, Model.transfer, Model.balanceSlot, Model.balancesRoot,
-      emitTransfer_exec, hmem, hp, checkedSub, checkedAdd, exec_sstore, exec_emit,
-      M.ite_bind, M.exec_ite, apply_ite (withMemory _)] <;>
-    agree
-
-set_option maxHeartbeats 4000000 in
-theorem approve_exec (spender value : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    (recv0_arm1 spender value).exec I w =
-      withMemory (returned w.memory value) ((Model.approve spender value).exec I w) := by
-  by_cases hp : I.perm = true <;>
-    simp [allowancesPlace, caller_1, recv0_arm1, Model.approve, Model.allowanceSlot, Model.allowancesRoot,
-      emitApproval_exec, hmem, hp, exec_sstore, exec_emit]
-
-set_option maxHeartbeats 4000000 in
-theorem transferFrom_exec (src dst value : UInt256)
-    (hmem : w.memory.size + 32 < UInt256.size) :
-    (recv0_arm2 src dst value).exec I w =
-      withMemory (returned w.memory value) ((Model.transferFrom src dst value).exec I w) := by
-  by_cases hp : I.perm = true <;>
-    simp [balancesPlace, allowancesPlace, caller_1, recv0_arm2, Model.transferFrom, Model.balanceSlot,
-      Model.balancesRoot, Model.allowanceSlot, Model.allowancesRoot, emitTransfer_exec, hmem, hp,
+    simp (disch := room) [balancesPlace, caller_1, recv0_arm0, Model.transfer,
+      Model.balanceSlot, Model.balancesRoot, locateBalance_exec, emitTransfer_ok, hp,
       checkedSub, checkedAdd, exec_sstore, exec_emit, M.ite_bind, M.exec_ite,
       apply_ite (withMemory _)] <;>
     agree
 
-theorem balanceOf_exec (owner : UInt256) :
-    (recv0_arm3 owner).exec I w = (Model.balanceOf owner).exec I w := by
-  simp [balancesPlace, recv0_arm3, Model.balanceOf, Model.balanceSlot, Model.balancesRoot]
+set_option maxHeartbeats 4000000 in
+theorem approve_exec (spender value : UInt256) (hmem : w.memory.size + 160 < UInt256.size) :
+    (recv0_arm1 spender value).exec I w =
+      withMemory (returned (keyedAll w.memory [(sender I, Model.allowancesRoot),
+          (spender, Fe.EVM.mapSlot (sender I) Model.allowancesRoot)]) value)
+        ((Model.approve spender value).exec I w) := by
+  by_cases hp : I.perm = true <;>
+    simp (disch := room) [allowancesPlace, caller_1, recv0_arm1, Model.approve,
+      Model.allowanceSlot, Model.allowancesRoot, locateBalance_exec, locateAllowances_exec,
+      emitApproval_ok, hp, exec_sstore, exec_emit]
 
-theorem allowance_exec (owner spender : UInt256) :
-    (recv0_arm4 owner spender).exec I w = (Model.allowance owner spender).exec I w := by
-  simp [allowancesPlace, recv0_arm4, Model.allowance, Model.allowanceSlot, Model.allowancesRoot]
+set_option maxHeartbeats 4000000 in
+theorem transferFrom_exec (src dst value : UInt256)
+    (hmem : w.memory.size + 608 < UInt256.size) :
+    (recv0_arm2 src dst value).exec I w =
+      withMemory (returned (keyedAll w.memory [(src, Model.allowancesRoot),
+          (sender I, Fe.EVM.mapSlot src Model.allowancesRoot), (src, Model.balancesRoot),
+          (src, Model.allowancesRoot), (sender I, Fe.EVM.mapSlot src Model.allowancesRoot),
+          (src, Model.balancesRoot), (src, Model.balancesRoot), (dst, Model.balancesRoot),
+          (dst, Model.balancesRoot)]) value)
+        ((Model.transferFrom src dst value).exec I w) := by
+  by_cases hp : I.perm = true <;>
+    simp (maxSteps := 2000000) (disch := room) [balancesPlace, allowancesPlace, caller_1,
+      recv0_arm2,
+      Model.transferFrom, Model.balanceSlot, Model.balancesRoot, Model.allowanceSlot,
+      Model.allowancesRoot, locateBalance_exec, locateAllowances_exec, emitTransfer_ok, hp,
+      checkedSub, checkedAdd, exec_sstore, exec_emit, M.ite_bind, M.exec_ite,
+      apply_ite (withMemory _)] <;>
+    agree
+
+theorem balanceOf_exec (owner : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
+    (recv0_arm3 owner).exec I w =
+      withMemory (keyedAll w.memory [(owner, Model.balancesRoot)])
+        ((Model.balanceOf owner).exec I w) := by
+  simp (disch := room) [balancesPlace, recv0_arm3, Model.balanceOf, Model.balanceSlot,
+    Model.balancesRoot, locateBalance_exec]
+
+theorem allowance_exec (owner spender : UInt256) (hmem : w.memory.size + 128 < UInt256.size) :
+    (recv0_arm4 owner spender).exec I w =
+      withMemory (keyedAll w.memory [(owner, Model.allowancesRoot),
+          (spender, Fe.EVM.mapSlot owner Model.allowancesRoot)])
+        ((Model.allowance owner spender).exec I w) := by
+  simp (disch := room) [allowancesPlace, recv0_arm4, Model.allowance, Model.allowanceSlot,
+    Model.allowancesRoot, locateBalance_exec, locateAllowances_exec]
 
 theorem totalSupply_exec : recv0_arm5.exec I w = Model.totalSupply.exec I w := by
   simp [totalSupplyPlace, recv0_arm5, Model.totalSupply, Model.totalSupplySlot]

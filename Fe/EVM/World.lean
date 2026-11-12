@@ -315,7 +315,9 @@ def extcodesize (addr : UInt256) : FeM UInt256 := do
   return ((← get).accounts.get? (AccountAddress.ofUInt256 addr)).option ⟨0⟩
     (.ofNat ∘ ByteArray.size ∘ (·.code))
 
-/-- The slot of entry `key` of a `StorageMap` rooted at `root`: Solidity's mapping layout. -/
+/-- The slot of entry `key` of a `StorageMap` rooted at `root`: Solidity's mapping layout.
+    Exported code does not name it.  It reaches an entry through std's `locate`, which hashes
+    the key and the root in memory, and `keyed_slot` shows that hash is this slot. -/
 def mapSlot (key root : UInt256) : UInt256 :=
   uInt256OfByteArray (KEC (key.toByteArray ++ root.toByteArray))
 
@@ -343,11 +345,6 @@ structure Layout where
 /-- The place of field `index` of the struct at `p`. -/
 def Place.field (p : Place) (layout : Layout) (index : Nat) : Place :=
   { p with slot := p.slot + UInt256.ofNat (layout.storage.getD index 0) }
-
-/-- The place of entry `key` of the `StorageMap` at `p`.  This is `StorageMap`'s `locate`,
-    written by hand until the model has the memory its Fe definition hashes in. -/
-def Place.entry (p : Place) (key : UInt256) : Place :=
-  { p with slot := mapSlot key p.slot }
 
 /-- The word at `p`. -/
 def load (p : Place) : FeM UInt256 :=
@@ -417,8 +414,12 @@ def assertData (msg : String) : ByteArray :=
     (Place.storage slot).field layout index =
       .storage (slot + UInt256.ofNat (layout.storage.getD index 0)) := rfl
 
-@[simp] theorem Place.entry_storage (slot key : UInt256) :
-    (Place.storage slot).entry key = .storage (mapSlot key slot) := rfl
+@[simp] theorem Place.storage_slot (slot : UInt256) : (Place.storage slot).slot = slot := rfl
+
+@[simp] theorem load_mk_storage (slot : UInt256) : load ⟨.storage, slot⟩ = sload slot := rfl
+
+@[simp] theorem store_mk_storage (slot val : UInt256) :
+    store ⟨.storage, slot⟩ val = sstore slot val := rfl
 
 @[simp] theorem exec_caller (I : Env) (w : World) :
     caller.exec I w = some (.ok (UInt256.ofNat I.source.val, w)) := rfl

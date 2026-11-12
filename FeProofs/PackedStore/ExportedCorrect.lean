@@ -88,6 +88,11 @@ def handContract : ContractModel :=
 
 variable {σ σ₀ : AccountMap} {A : Substate} {I : ExecutionEnv}
 
+/-- The model starts with empty memory, so every lookup of an arm has room for its buffer. -/
+theorem init_room (σ : AccountMap) (A : Substate) :
+    (World.init σ A).memory.size + 128 < UInt256.size := by
+  simp [World.init, UInt256.size]
+
 /-- What an arm must show: out of gas, or agreement with its model. -/
 abbrev ArmAgrees (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv)
     (arm : FeM ByteArray) : Prop :=
@@ -109,8 +114,9 @@ theorem get0Arm_refines {g : UInt256}
   rw [keccak_packedSlot] at rd
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _), packedByte_lane0] at rd
-  exact agrees_of_ret hcode rd (w' := World.init σ A)
-    (by simp [get0Arm, exec_nonPayable, hwv, get0_exec]; rfl) rfl
+  exact agrees_of_ret hcode rd (w' := afterLookup (World.init σ A))
+    (by simp [get0Arm, exec_nonPayable, hwv,
+      get0_exec I (World.init σ A) (by have := init_room σ A; omega)]; rfl) rfl
 
 theorem get1Arm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -128,8 +134,9 @@ theorem get1Arm_refines {g : UInt256}
   rw [keccak_packedSlot] at rd
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _), packedByte_lane1] at rd
-  exact agrees_of_ret hcode rd (w' := World.init σ A)
-    (by simp [get1Arm, exec_nonPayable, hwv, get1_exec]; rfl) rfl
+  exact agrees_of_ret hcode rd (w' := afterLookup (World.init σ A))
+    (by simp [get1Arm, exec_nonPayable, hwv,
+      get1_exec I (World.init σ A) (by have := init_room σ A; omega)]; rfl) rfl
 
 theorem set0Arm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -156,13 +163,16 @@ theorem set0Arm_refines {g : UInt256}
   · rd_step rd
     rw [keccak_packedSlot] at rd
     exact agrees_of_ret hcode (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _))
-      (w' := { World.init σ A with accounts := setLane I σ 0 (word I.calldata 4) })
-      (by simp [set0Arm, exec_nonPayable, hwv, hhead, set0_exec, hperm]; rfl)
+      (w' := { afterLookup (World.init σ A) with
+        accounts := setLane I σ 0 (word I.calldata 4) })
+      (by simp [set0Arm, exec_nonPayable, hwv, hhead,
+        set0_exec I (World.init σ A) _ (by have := init_room σ A; omega), hperm]; rfl)
       (by simp only [setLane, setPackedByte_lane0]; rfl)
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
     exact agrees_of_static hcode rd
-      (by simp [set0Arm, exec_nonPayable, hwv, hhead, set0_exec, hpf])
+      (by simp [set0Arm, exec_nonPayable, hwv, hhead,
+        set0_exec I (World.init σ A) _ (by have := init_room σ A; omega), hpf])
 
 theorem set1Arm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -189,13 +199,16 @@ theorem set1Arm_refines {g : UInt256}
   · rd_step rd
     rw [keccak_packedSlot] at rd
     exact agrees_of_ret hcode (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _))
-      (w' := { World.init σ A with accounts := setLane I σ 1 (word I.calldata 4) })
-      (by simp [set1Arm, exec_nonPayable, hwv, hhead, set1_exec, hperm]; rfl)
+      (w' := { afterLookup (World.init σ A) with
+        accounts := setLane I σ 1 (word I.calldata 4) })
+      (by simp [set1Arm, exec_nonPayable, hwv, hhead,
+        set1_exec I (World.init σ A) _ (by have := init_room σ A; omega), hperm]; rfl)
       (by simp only [setLane, setPackedByte_lane1]; rfl)
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
     exact agrees_of_static hcode rd
-      (by simp [set1Arm, exec_nonPayable, hwv, hhead, set1_exec, hpf])
+      (by simp [set1Arm, exec_nonPayable, hwv, hhead,
+        set1_exec I (World.init σ A) _ (by have := init_room σ A; omega), hpf])
 
 theorem setBothArm_refines {g : UInt256}
     (hcode : I.code = fePackedStoreBytecode) (hsize : I.calldata.size < UInt256.size)
@@ -222,14 +235,16 @@ theorem setBothArm_refines {g : UInt256}
   · rd_step rd
     simp only [keccak_packedSlot] at rd
     exact agrees_of_ret hcode (RDret.of_output_eq rd (byteArray_readWithPadding_zero _ _))
-      (w' := { World.init σ A with
+      (w' := { afterLookup (afterLookup (World.init σ A)) with
         accounts := setLane I (setLane I σ 0 (word I.calldata 4)) 1 (word I.calldata 36) })
-      (by simp [setBothArm, exec_nonPayable, hwv, hhead, setBoth_exec, hperm]; rfl)
+      (by simp [setBothArm, exec_nonPayable, hwv, hhead,
+        setBoth_exec I (World.init σ A) _ _ (init_room σ A), hperm]; rfl)
       (by simp only [setLane, setPackedByte_lane0, setPackedByte_lane1]; rfl)
   · have hpf : I.perm = false := by simpa using hperm
     rd_step rd
     exact agrees_of_static hcode rd
-      (by simp [setBothArm, exec_nonPayable, hwv, hhead, setBoth_exec, hpf])
+      (by simp [setBothArm, exec_nonPayable, hwv, hhead,
+        setBoth_exec I (World.init σ A) _ _ (init_room σ A), hpf])
 
 /-! ## Refinement -/
 

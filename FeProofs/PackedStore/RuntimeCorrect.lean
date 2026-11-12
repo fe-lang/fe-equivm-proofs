@@ -149,35 +149,40 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-theorem get0_endsAs (hmem : w.memory.size + 32 < UInt256.size) :
+theorem get0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((entry recv0_arm0_entry).exec I w) (get0Arm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
-      simp [recv0_arm0_entry, exec_nonPayable, hwv, decodeGet0_exec, get0_exec,
-        returnU256_exec _ _ _ hmem]
+      simp [recv0_arm0_entry, exec_nonPayable, hwv, decodeGet0_exec,
+        get0_exec I w (by omega),
+        returnU256_exec _ _ _ (show (afterLookup w).memory.size + 32 < UInt256.size by
+          rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
-    simp [get0Arm, exec_nonPayable, hwv, get0_exec]
+    simp [get0Arm, exec_nonPayable, hwv, get0_exec I w (by omega)]
     exact .stop_ok rfl rfl
   · rw [entry_exec (f := .revert ByteArray.empty) (by
       simp [recv0_arm0_entry, exec_nonPayable, hwv])]
     simp [get0Arm, exec_nonPayable, hwv]
     exact .exit _
 
-theorem get1_endsAs (hmem : w.memory.size + 32 < UInt256.size) :
+theorem get1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((entry recv0_arm1_entry).exec I w) (get1Arm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeGet1_exec, get1_exec,
-        returnU256_exec _ _ _ hmem]
+      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeGet1_exec,
+        get1_exec I w (by omega),
+        returnU256_exec _ _ _ (show (afterLookup w).memory.size + 32 < UInt256.size by
+          rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
-    simp [get1Arm, exec_nonPayable, hwv, get1_exec]
+    simp [get1Arm, exec_nonPayable, hwv, get1_exec I w (by omega)]
     exact .stop_ok rfl rfl
   · rw [entry_exec (f := .revert ByteArray.empty) (by
       simp [recv0_arm1_entry, exec_nonPayable, hwv])]
     simp [get1Arm, exec_nonPayable, hwv]
     exact .exit _
 
-theorem set0_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem set0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+    (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm2_entry).exec I w) ((set0Arm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -194,18 +199,19 @@ theorem set0_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { w with accounts := setLane I w.accounts 0 (word I.calldata 4) }) (by
+        { afterLookup w with accounts := setLane I w.accounts 0 (word I.calldata 4) }) (by
       simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
-        set0_exec, hperm, returnNone_exec])]
-    simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec, hperm]
+        set0_exec I w _ (by omega), hperm, returnNone_exec])]
+    simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec I w _ (by omega), hperm]
     exact .stop_ok rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
-        set0_exec, hperm])]
-    simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec, hperm]
+        set0_exec I w _ (by omega), hperm])]
+    simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec I w _ (by omega), hperm]
     exact .exit _
 
-theorem set1_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem set1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+    (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm3_entry).exec I w) ((set1Arm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -222,18 +228,19 @@ theorem set1_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { w with accounts := setLane I w.accounts 1 (word I.calldata 4) }) (by
+        { afterLookup w with accounts := setLane I w.accounts 1 (word I.calldata 4) }) (by
       simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
-        set1_exec, hperm, returnNone_exec])]
-    simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec, hperm]
+        set1_exec I w _ (by omega), hperm, returnNone_exec])]
+    simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec I w _ (by omega), hperm]
     exact .stop_ok rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
-        set1_exec, hperm])]
-    simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec, hperm]
+        set1_exec I w _ (by omega), hperm])]
+    simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec I w _ (by omega), hperm]
     exact .exit _
 
-theorem setBoth_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem setBoth_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
+    (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm4_entry).exec I w) ((setBothArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -250,23 +257,24 @@ theorem setBoth_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 
   have hgood : ¬ BadHead I.calldata 2 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { w with accounts :=
+        { afterLookup (afterLookup w) with
+          accounts :=
             setLane I (setLane I w.accounts 0 (word I.calldata 4)) 1 (word I.calldata 36) }) (by
       simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
-        setBoth_exec, hperm, returnNone_exec])]
-    simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec, hperm]
+        setBoth_exec I w _ _ (by omega), hperm, returnNone_exec])]
+    simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec I w _ _ (by omega), hperm]
     exact .stop_ok rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
-        setBoth_exec, hperm])]
-    simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec, hperm]
+        setBoth_exec I w _ _ (by omega), hperm])]
+    simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec I w _ _ (by omega), hperm]
     exact .exit _
 
 /-! ## The runtime entry -/
 
 /-- The exported runtime entry ends as the hand-written one does, on calldata below `2 ^ 64`
     bytes. -/
-theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
+theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry runtime).exec I w) (handRuntime.exec I w) := by
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
     ulit_toNat' _ (by unfold UInt256.size; omega)
@@ -310,7 +318,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hfits : I.cal
         show (get1Selector == I.calldata.extract 0 4) = false from n0,
         show (set0Selector == I.calldata.extract 0 4) = true from h4]
     rw [eg, eh]
-    exact set0_endsAs I w hsz hfits
+    exact set0_endsAs I w hmem hsz hfits
   have n4 := miss 4 h4
   have w4 : selWord I.calldata ≠ UInt256.ofNat 0xf26feec9 := selWord_miss (set0EvmSelector hsz) n4
   by_cases h3 : selIs I (fePackedStoreSelBytes 3)
@@ -323,7 +331,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hfits : I.cal
         show (set0Selector == I.calldata.extract 0 4) = false from n4,
         show (set1Selector == I.calldata.extract 0 4) = true from h3]
     rw [eg, eh]
-    exact set1_endsAs I w hsz hfits
+    exact set1_endsAs I w hmem hsz hfits
   have n3 := miss 3 h3
   have w3 : selWord I.calldata ≠ UInt256.ofNat 0x9bc39d3c := selWord_miss (set1EvmSelector hsz) n3
   by_cases h2 : selIs I (fePackedStoreSelBytes 2)
@@ -337,7 +345,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hfits : I.cal
         show (set1Selector == I.calldata.extract 0 4) = false from n3,
         show (setBothSelector == I.calldata.extract 0 4) = true from h2]
     rw [eg, eh]
-    exact setBoth_endsAs I w hsz hfits
+    exact setBoth_endsAs I w hmem hsz hfits
   have n2 := miss 2 h2
   have w2 : selWord I.calldata ≠ UInt256.ofNat 0x92cf1ef5 :=
     selWord_miss (setBothEvmSelector hsz) n2

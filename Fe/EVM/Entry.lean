@@ -114,6 +114,69 @@ theorem returned_size (memory : ByteArray) (v : UInt256) :
     byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
       (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
 
+/-! ## A hashed pair of words -/
+
+/-- Memory after two words are stored in a fresh 64-byte buffer: what std's `mapping_slot`
+    leaves, the key and the root of the map it hashes. -/
+def keyed (memory : ByteArray) (key root : UInt256) : ByteArray :=
+  root.toByteArray.write 0
+    (key.toByteArray.write 0 (memory ++ ⟨Array.replicate 64 0⟩) memory.size 32)
+    (memory.size + 32) 32
+
+private theorem keyed_first_size (memory : ByteArray) (key : UInt256) :
+    (key.toByteArray.write 0 (memory ++ ⟨Array.replicate 64 0⟩) memory.size 32).size =
+      memory.size + 64 := by
+  have hzeros : (⟨Array.replicate 64 0⟩ : ByteArray).size = 64 := rfl
+  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
+    (by rw [ByteArray.size_append, hzeros]; omega), ByteArray.size_append, hzeros]
+
+theorem keyed_size (memory : ByteArray) (key root : UInt256) :
+    (keyed memory key root).size = memory.size + 64 := by
+  unfold keyed
+  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
+    (by rw [keyed_first_size]), keyed_first_size]
+
+/-- The buffer reads back as the two words. -/
+theorem keyed_read (memory : ByteArray) (key root : UInt256) :
+    (keyed memory key root).readWithPadding memory.size 64 =
+      key.toByteArray ++ root.toByteArray := by
+  rw [show (64 : Nat) = 32 + 32 from rfl,
+    byteArray_readWithPadding_split_unbounded _ _ 32 32 (by decide) (by decide)
+      (by rw [keyed_size])]
+  unfold keyed
+  rw [write32_read_below _ _ (memory.size + 32) memory.size (by rw [toByteArray_size])
+      (by rw [keyed_first_size]; omega) (by omega),
+    toByteArray_write32_read_back _ _ _ (by rw [ByteArray.size_append]; omega),
+    toByteArray_write32_read_back _ _ _ (by rw [keyed_first_size]; omega)]
+
+/-- The hash of the buffer is the slot of the map's entry: Solidity's mapping layout. -/
+theorem keyed_slot (memory : ByteArray) (key root : UInt256) :
+    UInt256.ofNat (fromByteArrayBigEndian
+      (KEC ((keyed memory key root).readWithPadding memory.size 64))) = mapSlot key root := by
+  rw [keyed_read]
+  exact Reasoning.Theory.mappingSlot_single key root
+
+/-- Memory after each pair of `pairs` is hashed in turn, each in its own fresh buffer: what the
+    lookups of an arm leave. -/
+def keyedAll (memory : ByteArray) : List (UInt256 × UInt256) → ByteArray
+  | [] => memory
+  | (key, root) :: rest => keyedAll (keyed memory key root) rest
+
+@[simp] theorem keyedAll_nil (memory : ByteArray) : keyedAll memory [] = memory := rfl
+
+@[simp] theorem keyedAll_cons (memory : ByteArray) (key root : UInt256)
+    (rest : List (UInt256 × UInt256)) :
+    keyedAll memory ((key, root) :: rest) = keyedAll (keyed memory key root) rest := rfl
+
+theorem keyedAll_size (memory : ByteArray) (pairs : List (UInt256 × UInt256)) :
+    (keyedAll memory pairs).size = memory.size + 64 * pairs.length := by
+  induction pairs generalizing memory with
+  | nil => rfl
+  | cons pair rest ih =>
+    obtain ⟨key, root⟩ := pair
+    rw [keyedAll_cons, ih, keyed_size, List.length_cons]
+    omega
+
 /-- An empty return ends the call with no data and changes nothing. -/
 theorem returnNone_exec (I : ExecutionEnv) (w : World) :
     (returnData (UInt256.ofNat 0) (UInt256.ofNat 0)).exec I w =
