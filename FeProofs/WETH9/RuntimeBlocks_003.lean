@@ -21,16 +21,6 @@ theorem feWETH9_block_247_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 81)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_247_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 81) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 247) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 81) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_247_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 247. -/
 theorem feWETH9_block_247_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -44,15 +34,6 @@ theorem feWETH9_block_247_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r4 := r3.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 252)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_247_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 247) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 252) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_247_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 252. -/
 theorem feWETH9_block_252 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
@@ -90,16 +71,6 @@ theorem feWETH9_block_264_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 81)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_264_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 81) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 264) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 81) (feWETH9_block_264_taken_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_264_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feWETH9_block_264_fallthrough`. -/
 def feWETH9_block_264_fallthrough_stack {R : List UInt256} : List UInt256 :=
   R
@@ -118,15 +89,6 @@ theorem feWETH9_block_264_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 270)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_264_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 264) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 270) (feWETH9_block_264_fallthrough_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_264_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 270. -/
 theorem feWETH9_block_270_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
@@ -148,16 +110,6 @@ theorem feWETH9_block_270_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 81)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_270_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 81) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 270) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 81) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_270_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 270. -/
 theorem feWETH9_block_270_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -176,15 +128,6 @@ theorem feWETH9_block_270_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r9 := r8.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 282)) r9 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_270_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.slt (UInt256.sub (UInt256.ofNat ee.calldata.size) (UInt256.ofNat 4)) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 270) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 282) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_270_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feWETH9_block_282_taken`. -/
 def feWETH9_block_282_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
@@ -208,16 +151,6 @@ theorem feWETH9_block_282_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 81)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_282_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 160)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 81) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 282) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 81) (feWETH9_block_282_taken_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_282_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Final stack for bytecode block summary `feWETH9_block_282_fallthrough`. -/
 def feWETH9_block_282_fallthrough_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
   ((uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) :: R)
@@ -238,15 +171,6 @@ theorem feWETH9_block_282_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 292)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_282_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.shiftRight (uInt256OfByteArray (ee.calldata.readBytes (UInt256.ofNat 4).toNat 32)) (UInt256.ofNat 160)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 282) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 292) (feWETH9_block_282_fallthrough_stack (ee := ee) (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_282_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 292. -/
 theorem feWETH9_block_292 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -284,16 +208,6 @@ theorem feWETH9_block_312_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 81)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_312_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 81) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 312) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 81) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_312_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 312. -/
 theorem feWETH9_block_312_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
@@ -307,15 +221,6 @@ theorem feWETH9_block_312_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r4 := r3.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 317)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_312_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 2 ≤ 1024)
-    (hcond : ee.weiValue = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 312) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 317) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_312_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Final stack for bytecode block summary `feWETH9_block_317`. -/
 def feWETH9_block_317_stack {R : List UInt256} : List UInt256 :=
@@ -336,15 +241,6 @@ theorem feWETH9_block_317 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 860)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_317_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 860) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 317) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 860) (feWETH9_block_317_stack (R := R)) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_317 hstack hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 327. -/
 theorem feWETH9_block_327 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 1 ≤ 1024)
@@ -357,22 +253,6 @@ theorem feWETH9_block_327 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : B
   have r3 := r2.jump (by native_decide) hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 1228)) r3 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_327_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (hstack : R.length + 1 ≤ 1024)
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 1228) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 327) R mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 1228) R mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_327 hstack hvalid h)
-  exact ⟨_, k', C', h'⟩
-
-/-- Automatically generated RD summary for bytecode block at pc 332. -/
-theorem feWETH9_block_332 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 332) R mem aw rdata σ k C)
-    : RDinvalid FeProofs.WETH9.feWETH9Bytecode g s0 := by
-  let r0 := h
-  exact RD.invalid r0 (by native_decide)
 
 /-- Automatically generated RD summary for bytecode block at pc 333. -/
 theorem feWETH9_block_333_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -391,16 +271,6 @@ theorem feWETH9_block_333_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 614)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_333_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt x0 (UInt256.ofNat 404098525)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 614) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 333) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 614) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_333_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 333. -/
 theorem feWETH9_block_333_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
@@ -416,15 +286,6 @@ theorem feWETH9_block_333_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r6 := r5.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 345)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_333_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.lt x0 (UInt256.ofNat 404098525)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 333) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 345) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_333_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 345. -/
 theorem feWETH9_block_345_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -442,16 +303,6 @@ theorem feWETH9_block_345_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 382)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_345_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 404098525)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 382) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 345) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 382) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_345_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
-
 /-- Automatically generated RD summary for bytecode block at pc 345. -/
 theorem feWETH9_block_345_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
@@ -466,15 +317,6 @@ theorem feWETH9_block_345_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : Sta
   have r5 := r4.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 356)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_345_fallthrough_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 404098525)) = (UInt256.ofNat 0))
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 345) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 356) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_345_fallthrough hstack hcond h)
-  exact ⟨_, k', C', h'⟩
 
 /-- Automatically generated RD summary for bytecode block at pc 356. -/
 theorem feWETH9_block_356_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
@@ -491,15 +333,5 @@ theorem feWETH9_block_356_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {m
   have r5 := r4.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 394)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
-
-/-- Packed RD summary for bytecode block with abstract final counters and active words. -/
-theorem feWETH9_block_356_taken_packed {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
-    (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.eq x0 (UInt256.ofNat 599290589)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.WETH9.feWETH9Bytecode 0).contains (UInt256.ofNat 394) = true)
-    (h : RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 356) (x0 :: R) mem aw rdata σ k C)
-    : ∃ (aw' : UInt256) (k' C' : ℕ), RD FeProofs.WETH9.feWETH9Bytecode ee g s0 (UInt256.ofNat 394) (x0 :: R) mem aw' rdata σ k' C' := by
-  obtain ⟨k', C', h'⟩ := RD.pack (feWETH9_block_356_taken hstack hcond hvalid h)
-  exact ⟨_, k', C', h'⟩
 
 end feWETH9Blocks
