@@ -87,6 +87,14 @@ def mload (ptr : UInt256) : FeM UInt256 := do
 def mstoreBytes (ptr : UInt256) (bytes : ByteArray) : FeM Unit :=
   modify fun w => { w with memory := bytes.write 0 w.memory ptr.toNat bytes.size }
 
+/-- A string literal longer than a word: fresh memory that holds its length word, then its
+    bytes, then zeros to a whole word.  Returns the address. -/
+def stringLiteral (bytes : ByteArray) : FeM UInt256 := do
+  let ptr ← alloc (UInt256.ofNat (32 + (bytes.size + 31) / 32 * 32))
+  mstore ptr (UInt256.ofNat bytes.size)
+  mstoreBytes (ptr + UInt256.ofNat 32) bytes
+  return ptr
+
 /-- `read_padded_word(ptr, len)`: the big-endian word whose first `min len 32` bytes are
     memory's at `ptr` and whose other bytes are zero. -/
 def readPaddedWord (ptr len : UInt256) : FeM UInt256 := do
@@ -123,6 +131,20 @@ def codecopy (dest offset len : UInt256) : FeM Unit := do
 
 /-- `codesize()` -/
 def codesize : FeM UInt256 := do return UInt256.ofNat (← read).code.size
+
+/-- `C::init_code_len()`: the size of `creation`, the creation code of a contract `C` that the
+    running one deploys. -/
+def initCodeLen (creation : ByteArray) : FeM UInt256 := pure (UInt256.ofNat creation.size)
+
+/-- `C::init_code_offset()`: where `creation`, the creation code of a contract `C` that the
+    running one deploys, lies in the running code.  A contract that deploys `C` holds its
+    creation code, and this is where that code first occurs; code that does not hold it gives
+    its own size. -/
+def initCodeOffset (creation : ByteArray) : FeM UInt256 := do
+  let code := (← read).code
+  let found := (List.range (code.size + 1 - creation.size)).find? fun i =>
+    code.get! i == creation.get! 0 && code.extract i (i + creation.size) == creation
+  return UInt256.ofNat (found.getD code.size)
 
 /-- The 32-byte big-endian word of the running code at `offset`, reading zero past its end. -/
 def cload (offset : UInt256) : FeM UInt256 := do
