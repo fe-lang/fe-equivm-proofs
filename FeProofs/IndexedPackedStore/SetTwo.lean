@@ -40,7 +40,9 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
   · have hbad : I.calldata.size < 132 ∨ 2 ^ 255 + 4 ≤ I.calldata.size := by omega
     rd_run rd using [hwv, solcDecodeLenCheckBad 4 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd
-      (hbad.elim decodeCalldata_four_uint256_none_short decodeCalldata_four_uint256_none_huge)
+      (hbad.elim
+        (fun h => decodeCalldata_scalar_none_short (by decide) (by simpa using h))
+        (fun h => decodeCalldata_scalar_none_huge (by decide) rfl h))
   obtain ⟨hlen, hhi⟩ := hok
   rd_run rd to 154 using [hwv,
     solcCalldataStaticLenCheckOk (sz := I.calldata.size) (words := 4) (by omega) hhi hsize]
@@ -48,7 +50,9 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
       (transitionSignature setTwoTransition).paramTypes I.calldata = some (setTwoStore I) := by
     show decodeCalldata ["first_index", "first_value", "second_index", "second_value"]
       [abiUInt256, abiUInt256, abiUInt256, abiUInt256] I.calldata = _
-    exact decodeCalldata_four_uint256_ok hlen hhi
+    exact decodeCalldata_uint256s (cd := I.calldata)
+      ["first_index", "first_value", "second_index", "second_value"]
+      (by simpa using hlen) (by intro _; exact hhi)
   set i1 := (calldataWord I.calldata 4).toNat with hi1
   set i2 := (calldataWord I.calldata 68).toNat with hi2
   set evm := initState σ σ₀ (Sat256.ofUInt256 g) A I with hevm

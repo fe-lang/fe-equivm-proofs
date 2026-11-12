@@ -101,7 +101,7 @@ Shared selector hashes are listed in `scripts/selector_facts.json`. To regenerat
   reads and writes of `m[k]` and `m[k][k']` for any contract's Solidity layout.
 - `Fallback.lean`: refinement glue for contracts with a fallback (EquiVM's assumes none).
 - `Abi.lean`, `Memory.lean`, `Calls.lean`: ABI decoding facts (selector word, canonical
-  `address`, two `uint256` arguments), memory facts (adjacent word writes), and call-result checks.
+  `address`, fixed-width scalar arguments), memory facts (adjacent word writes), and call-result checks.
 - `SelectorERC20.lean`, `SelectorGet.lean`: kernel-checked hashes reused by selector certificates.
 - `Basic.lean`, `Glue.lean`, `Constructor.lean`, `CtorUInt256.lean`, `PackedByte.lean`: dispatcher
   revert paths and Fe's checked arithmetic and `assert!` branches, small refinement glue,

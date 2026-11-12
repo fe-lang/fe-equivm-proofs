@@ -5,8 +5,7 @@ import Reasoning.Dispatch
 /-!
 # ABI decoding facts shared by the contracts
 
-Fe's canonical-`address` check `SHR(160, word) = 0`, and the modern decoder on two `uint256`
-arguments.
+Fe's canonical-`address` check `SHR(160, word) = 0` and fixed-width scalar decoding.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory
@@ -63,35 +62,107 @@ theorem shiftRight160_ne_zero {w : UInt256} (hdirty : EVM.addressModulus ≤ w.t
   · exact (by native_decide : EVM.twoPow 160 ≠ 0) hpow
   · exact (not_lt_of_ge (by simpa [EVM.addressModulus] using hdirty)) hlt
 
-/-! ## Two `uint256` arguments -/
+/-! ## Scalar arguments -/
+
+/-- Assemble scalar decodings at successive 32-byte offsets. -/
+theorem decodeScalarWords_of_indexed {bytes : List UInt8} (tys : List ABIType)
+    (vals : List Value) (start : Nat) (hlen : tys.length = vals.length)
+    (hword : ∀ i ty value, tys[i]? = some ty → vals[i]? = some value →
+      decodeScalarWord? ty bytes (start + 32 * i) = some (value, start + 32 * i + 32)) :
+    decodeScalarWords? tys bytes start = some vals := by
+  induction tys generalizing vals start with
+  | nil =>
+    cases vals with
+    | nil => rfl
+    | cons v vs => simp at hlen
+  | cons ty ts ih =>
+    cases vals with
+    | nil => simp at hlen
+    | cons v vs =>
+      have hl : ts.length = vs.length := by simpa using hlen
+      have hfirst := hword 0 ty v (by simp) (by simp)
+      simp only [Nat.mul_zero, Nat.add_zero] at hfirst
+      have hrest : ∀ i ty' value, ts[i]? = some ty' → vs[i]? = some value →
+          decodeScalarWord? ty' bytes (start + 32 + 32 * i) =
+            some (value, start + 32 + 32 * i + 32) := by
+        intro i ty' value ht hv
+        have hp := hword (i + 1) ty' value (by simpa using ht) (by simpa using hv)
+        simpa only [Nat.mul_add, Nat.mul_one, Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hp
+      simp only [decodeScalarWords?, hfirst, bind, Option.bind]
+      rw [ih vs (start + 32) hl hrest]
+
+/-- Decode any number of complete `uint256` words from the calldata head. -/
+theorem decodeScalarWords_uint256s (cd : ByteArray) (n start : Nat)
+    (hsz : 4 + start + 32 * n ≤ cd.size) :
+    decodeScalarWords? (List.replicate n abiUInt256) (cd.toList.drop 4) start =
+      some ((List.range n).map fun i =>
+        .int (Int.ofNat (calldataWord cd (4 + start + 32 * i)).toNat)) := by
+  apply decodeScalarWords_of_indexed
+  · simp
+  · intro i ty value hty hval
+    have ⟨hi, _⟩ := List.getElem?_eq_some_iff.mp hty
+    simp only [List.length_replicate] at hi
+    simp only [List.getElem?_replicate, if_pos hi, Option.some.injEq] at hty
+    subst ty
+    simp only [List.getElem?_map, List.getElem?_range hi, Option.map_some,
+      Option.some.injEq] at hval
+    subst value
+    have hlen : cd.toList.length = cd.size := by
+      rw [byteArray_toList_eq, Array.length_toList]; rfl
+    have hread : (((cd.toList.drop 4).drop (start + 32 * i)).take 32).length = 32 := by
+      rw [List.drop_drop, List.length_take, List.length_drop, hlen]
+      omega
+    have hword : ABI.bytesToWord (((cd.toList.drop 4).drop (start + 32 * i)).take 32) =
+        calldataWord cd (4 + start + 32 * i) := by
+      simpa only [List.drop_drop, Nat.add_assoc] using
+        (decode_word_at_eq_any cd (4 + start + 32 * i) (by omega))
+    simp only [List.getElem_replicate]
+    rw [decodeScalarWord_uint256_ok hread, hword]
+
+/-- Lift scalar-word decoding through the selector and size guards. -/
+theorem decodeCalldata_scalars {cd : ByteArray} {names : List Ident}
+    {tys : List ABIType} {vals : List Value}
+    (hscalar : tys.all isABIScalarWordType = true) (hhead : 4 ≤ cd.size)
+    (hbig : tys ≠ [] → cd.size < 2 ^ 255 + 4)
+    (hdecoded : decodeScalarWords? tys (cd.toList.drop 4) 0 = some vals) :
+    decodeCalldata names tys cd = decodeCalldata.insertValues names vals ∅ := by
+  have hlen : cd.toList.length = cd.size := by
+    rw [byteArray_toList_eq, Array.length_toList]; rfl
+  rw [decodeCalldata_scalarWords_eq hscalar]
+  rw [if_neg (by rw [hlen]; omega : ¬ cd.toList.length < 4)]
+  rw [if_neg (by
+    rintro ⟨hnonempty, hlarge⟩
+    have hn : tys ≠ [] := by
+      intro hempty
+      subst tys
+      simp at hnonempty
+    have hb := hbig hn
+    rw [List.length_drop, hlen] at hlarge
+    omega)]
+  rw [hdecoded]
+
+/-- Decode a fixed-width `uint256` head, inserting values in argument order. -/
+theorem decodeCalldata_uint256s {cd : ByteArray} (names : List Ident)
+    (hsz : 4 + 32 * names.length ≤ cd.size)
+    (hbig : names ≠ [] → cd.size < 2 ^ 255 + 4) :
+    decodeCalldata names (List.replicate names.length abiUInt256) cd =
+      decodeCalldata.insertValues names
+        ((List.range names.length).map fun i =>
+          .int (Int.ofNat (calldataWord cd (4 + 32 * i)).toNat)) ∅ := by
+  apply decodeCalldata_scalars (by simp [List.all_replicate, isABIScalarWordType]) (by omega)
+  · intro _
+    apply hbig
+    intro hempty
+    subst names
+    simp_all
+  · simpa using decodeScalarWords_uint256s cd names.length 0 (by simpa using hsz)
 
 theorem decodeCalldata_uint256_uint256_ok {cd : ByteArray} {x y : Ident}
     (hsz68 : 68 ≤ cd.size) (hbig : cd.size < 2 ^ 255 + 4) :
     decodeCalldata [x, y] [abiUInt256, abiUInt256] cd =
       some (((∅ : Store).insert x (.int (Int.ofNat (calldataWord cd 4).toNat))).insert y
         (.int (Int.ofNat (calldataWord cd 36).toNat))) := by
-  have htlen : cd.toList.length = cd.size := by
-    rw [byteArray_toList_eq, Array.length_toList]; rfl
-  have htake4 : ((cd.toList.drop 4).take 32).length = 32 := by
-    rw [List.length_take, List.length_drop, htlen]; omega
-  have htake36 : ((cd.toList.drop 36).take 32).length = 32 := by
-    rw [List.length_take, List.length_drop, htlen]; omega
-  have hword4 : ABI.bytesToWord ((cd.toList.drop 4).take 32) = calldataWord cd 4 :=
-    decode_word_at_eq cd 4 (by omega) (by norm_num)
-  have hword36 : ABI.bytesToWord ((cd.toList.drop 36).take 32) = calldataWord cd 36 :=
-    decode_word_at_eq cd 36 (by omega) (by norm_num)
-  have hdrop : (cd.toList.drop 4).drop 32 = cd.toList.drop 36 := by
-    rw [List.drop_drop]
-  rw [decodeCalldata_scalarWords_eq (by decide)]
-  rw [if_neg (by rw [htlen]; omega : ¬ cd.toList.length < 4)]
-  rw [if_neg (by rintro ⟨_, hc⟩; rw [List.length_drop, htlen] at hc; omega)]
-  simp only [decodeScalarWords?, decodeScalarWord?, readWord?, readBytes?, List.drop_zero,
-    Nat.zero_add, hdrop, htake4, htake36, ↓reduceIte, hword4, hword36, bind, Option.bind]
-  have hb4 : ((calldataWord cd 4).val : Nat) < EVM.twoPow 256 := (calldataWord cd 4).val.isLt
-  have hb36 : ((calldataWord cd 36).val : Nat) < EVM.twoPow 256 := (calldataWord cd 36).val.isLt
-  simp only [decodeABIWord?, OfNat.ofNat_ne_zero, ↓reduceIte, hb4, Int.ofNat_eq_natCast, hb36,
-    Nat.reduceAdd, decodeCalldata.insertValues, Option.some.injEq]
-  rfl
+  exact decodeCalldata_uint256s (cd := cd) [x, y] (by simpa using hsz68) (by intro _; exact hbig)
 
 theorem decodeCalldata_uint256_uint256_none_short {cd : ByteArray} {x y : Ident}
     (hshort : cd.size < 68) :
