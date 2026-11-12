@@ -298,13 +298,28 @@ def compare (evm : Except ExecutionException (ExecutionResult State))
 
 /-! ## Tests -/
 
+/-- An entry point: its selector, the canonical tuple type of its arguments as in a selector
+    signature (empty when the compiler does not know it), and whether it takes value. -/
+structure Arm where
+  selector : Nat
+  inputs : String
+  payable : Bool
+
+/-- What generated calls (`Fe/EVM/Generate.lean`) are made from: the constructor's argument
+    types and the entry points. -/
+structure Interface where
+  init : String := "()"
+  initPayable : Bool := false
+  arms : List Arm := []
+
 /-- A contract with an exported model: its creation code without arguments, its runtime code
-    without immutable fields, and the model. -/
+    without immutable fields, the model, and its interface. -/
 structure Target where
   name : String
   creation : ByteArray
   runtime : ByteArray
   model : ContractModel
+  interface : Interface := {}
 
 /-- A Fe test: the selector that runs it, and the balance it starts with. -/
 structure Test where
