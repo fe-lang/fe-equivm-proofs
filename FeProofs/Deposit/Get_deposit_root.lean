@@ -6,8 +6,8 @@ import FeProofs.Common.Basic
 /-!
 # FeDeposit `get_deposit_root()`
 
-Arm entry pc 1853: call-value check, `count := SLOAD(32)`, the 32-iteration hashing loop
-(`RootLoop.lean`), then the SSZ length mix-in `sha256(node ++ u64_chunk(count))` (pc 2084) and the
+Arm entry pc 1821: call-value check, `count := SLOAD(32)`, the 32-iteration hashing loop
+(`RootLoop.lean`), then the SSZ length mix-in `sha256(node ++ u64_chunk(count))` (pc 2051) and the
 return of its digest.  Every precompile call is coupled to the spec's `sha256_pair` through
 `Sha256.lean`; a failed call or a short output reverts on both sides.
 -/
@@ -49,7 +49,7 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
       (transitionSignature get_deposit_rootTransition).paramTypes I.calldata = some ∅ := by
     show decodeCalldata [] [] I.calldata = some ∅
     exact decodeCalldata_empty_ok hsz
-  obtain ⟨k, C, rd⟩ := feDepositReachGet_deposit_rootBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feDepositReachGet_deposit_rootBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -89,8 +89,8 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
     · store_get
     · simp
     · simp
-  rcases rootLoop (count := countWord σ I) 32 0 _ _ ⟨0⟩ (countWord σ I) _ _ _ _ _ _ rfl hL0 hs0
-      rd1 with
+  rcases rootLoop (count := countWord σ I) 32 0 _ _ ⟨0⟩ (countWord σ I) _ _ _ _ rfl hL0 hs0
+      (Or.inl ⟨by decide, k1, C1, rd1⟩) with
     ⟨hrev, hloop⟩ |
     ⟨node', size', σ', evm', mem', rdata', aw', k', C', L', rd2, hs', hloop, hL'⟩
   · exact RDrev.reEquivExecutionRevert hcode hrev hd hdec (by
@@ -100,17 +100,17 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
         ExecBlock.consNormal hletNode <| ExecBlock.consNormal hletSize <|
         ExecBlock.consRevert (ExecStmt.for hinit hloop))
   -- the loop exit and the length mix-in call
-  have rd3 := feDepositBlocks.feDeposit_block_1991 (by simp) (rootHeadExit (by decide) rd2)
-  simp only [feDepositBlocks.feDeposit_block_1991_stack] at rd3
+  have rd3 := feDepositBlocks.feDeposit_block_1959 (by simp) rd2
+  simp only [feDepositBlocks.feDeposit_block_1959_stack] at rd3
   obtain ⟨evm'', σ'', z, out, aw'', k'', C'', hcall, hs'', rd4, hout⟩ :=
     staticCallBridge rd3 hs' (by native_decide) (by simp)
-  have hpc : UInt256.ofNat 2084 + (⟨1⟩ : UInt256) = UInt256.ofNat 2085 := by decide
+  have hpc : UInt256.ofNat 2051 + (⟨1⟩ : UInt256) = UInt256.ofNat 2052 := by decide
   rw [hpc] at rd4
   have hpost := rootExitPost (R := []) (by simp) hout rd4
-  have hpay : (feDepositBlocks.feDeposit_block_1991_memory (mem := mem') (x1 := node')
-      (x3 := countWord σ I)).readWithPadding (UInt256.ofNat 160).toNat (UInt256.ofNat 64).toNat =
+  have hpay : (feDepositBlocks.feDeposit_block_1959_memory (mem := mem') (x1 := node')
+      (x3 := countWord σ I)).readWithPadding (UInt256.ofNat 96).toNat (UInt256.ofNat 64).toNat =
       pairPayload node' (u64ChunkWord (mask64 (countWord σ I))) := by
-    rw [pairPayload_eq, ← evmChunk_eq]; exact pairWords_read mem' node' _ 160 192 64 rfl rfl (by decide)
+    rw [pairPayload_eq, ← evmChunk_eq]; exact pairWords_read mem' node' _ 96 128 64 rfl rfl (by decide)
   have hcall' : callViaEVM evm' (EVM.address precompile2) 0
       (pairPayload node' (u64ChunkWord (mask64 (countWord σ I)))) (z, evm'', out) false := by
     rw [precompile2_eq, ← hpay]; exact hcall
@@ -138,14 +138,14 @@ theorem feDepositGet_deposit_rootBody {σ σ₀ A I} {g : UInt256}
         (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat))).insert "root"
         (shaDigest out)))
       (evalExprs?_singleton (evalLocalVar (store_get_self _ _ _)))
-    have hmem : 224 ≤ (feDepositBlocks.feDeposit_block_1991_memory (mem := mem') (x1 := node')
+    have hmem : 160 ≤ (feDepositBlocks.feDeposit_block_1959_memory (mem := mem') (x1 := node')
         (x3 := countWord σ I)).size :=
-      toByteArray_write_size_ge_off_add32 _ _ 192 (lt_usize _ (by omega))
+      toByteArray_write_size_ge_off_add32 _ _ 128 (lt_usize _ (by omega))
     have rret := hpost.2 rfl hlen
-    have hload : memLoad (UInt256.ofNat 160) (callOutputMem
-        (feDepositBlocks.feDeposit_block_1991_memory (mem := mem') (x1 := node')
-          (x3 := countWord σ I)) out (UInt256.ofNat 160) (UInt256.ofNat 32)) = calldataWord out 0 :=
-      callOutput_load _ out (UInt256.ofNat 160) hout hlen (by change 160 + 32 ≤ _; omega)
+    have hload : memLoad (UInt256.ofNat 96) (callOutputMem
+        (feDepositBlocks.feDeposit_block_1959_memory (mem := mem') (x1 := node')
+          (x3 := countWord σ I)) out (UInt256.ofNat 96) (UInt256.ofNat 32)) = calldataWord out 0 :=
+      callOutput_load _ out (UInt256.ofNat 96) hout hlen (by change 96 + 32 ≤ _; omega)
     rw [hload] at rret
     refine RDret.reEquivExecutionGen (cs := fr ((L'.insert "length_chunk"
         (.int (Int.ofNat (u64ChunkWord (mask64 (countWord σ I))).toNat))).insert "root"

@@ -7,9 +7,9 @@ import Reasoning.EVMWord
 /-!
 # FeDeposit `supportsInterface(bytes4)`
 
-Arm entry pc 60: the call-value check, the head check at pc 67, Fe's canonical-`bytes4` check
-`SHL(32, word) == 0` at pc 80, then `SHR(224, word)` compared with `0x01ffc9a7` (pc 91) and
-`0x85640907` (pc 104); the boolean is stored at `0x100` and returned (pc 147).
+Arm entry pc 66: the call-value check, the head check at pc 73, Fe's canonical-`bytes4` check
+`SHL(32, word) == 0` at pc 86, then `SHR(224, word)` compared with `0x01ffc9a7` (pc 97) and
+`0x85640907` (pc 110); the boolean is stored at `0` and returned (pc 134).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -215,11 +215,10 @@ theorem siReturn (b : Bool) (w : UInt256) (hw : w = if b then ⟨1⟩ else ⟨0�
   · exact returnEquiv_of_encode boolFalseReturnEncoding
   · exact returnEquiv_of_encode boolTrueReturnEncoding
 
-theorem siOut (w : UInt256) :
-    ((w.toByteArray.write 0 ByteArray.empty (UInt256.ofNat 256).toNat 32).readWithPadding
-      (UInt256.ofNat 256).toNat (UInt256.ofNat 32).toNat) = w.toByteArray :=
-  toByteArray_write_read_back_of_gap w ByteArray.empty 256
-    (by simp only [ByteArray.size_empty]; exact Nat.lt_of_lt_of_le (by decide) USize.le_size)
+theorem siOut (w : UInt256) (mem : ByteArray) :
+    ((w.toByteArray.write 0 mem (⟨0⟩ : UInt256).toNat 32).readWithPadding
+      (⟨0⟩ : UInt256).toNat (UInt256.ofNat 32).toNat) = w.toByteArray :=
+  toByteArray_write32_read_back mem w 0 (Nat.zero_le _)
 
 /-- `supportsInterface(bytes4)`: the theorem `Correct.lean` routes selector 0 to. -/
 theorem feDepositSupportsInterfaceBody {σ σ₀ A I} {g : UInt256}
@@ -228,7 +227,7 @@ theorem feDepositSupportsInterfaceBody {σ σ₀ A I} {g : UInt256}
     runtimeRefinementFor config contract σ σ₀ g A I := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feDepositSelBytes 0) rfl hsel
   have hd := feDepositDispatch_supportsInterface hsel
-  obtain ⟨k, C, rd⟩ := feDepositReachSupportsInterfaceBody (g := Sat256.ofUInt256 g) (σ := σ)
+  obtain ⟨aw, k, C, rd⟩ := feDepositReachSupportsInterfaceBody (g := Sat256.ofUInt256 g) (σ := σ)
     (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -253,17 +252,24 @@ theorem feDepositSupportsInterfaceBody {σ σ₀ A I} {g : UInt256}
       have hdec := siDecode_ok hlen hhi hpad
       have hsel1 := siSel_eq hlen [0x01, 0xff, 0xc9, 0xa7] rfl 33540519 (by decide) (by decide)
       have hsel2 := siSel_eq hlen [0x85, 0x64, 0x09, 0x07] rfl 2237925639 (by decide) (by decide)
+      rw [uInt256_eq_comm] at hsel2
       by_cases h1 : siBytes I = [0x01, 0xff, 0xc9, 0xa7]
       · rd_run rd using [hwv, hc, siPad_ok hlen hpad, hsel1.mpr h1]
         rw [siOut] at rd
         exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h1]; rfl))
       by_cases h2 : siBytes I = [0x85, 0x64, 0x09, 0x07]
       · rd_run rd using [hwv, hc, siPad_ok hlen hpad, (by by_contra hne; exact h1 (hsel1.mp hne)),
-          (by rw [uInt256_eq_comm]; exact hsel2.mpr h2)]
+          isZero_eq_zero_of_ne (hsel2.mpr h2)]
         rw [siOut] at rd
         exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h2]; rfl))
-      · rd_run rd using [hwv, hc, siPad_ok hlen hpad, (by by_contra hne; exact h1 (hsel1.mp hne)),
-          (by rw [uInt256_eq_comm]; by_contra hne; exact h2 (hsel2.mp hne))]
+      · have hmiss : UInt256.isZero (UInt256.eq (UInt256.ofNat 2237925639)
+            (UInt256.shiftRight (siWord I) (UInt256.ofNat 224))) ≠ UInt256.ofNat 0 := by
+          rw [show UInt256.eq (UInt256.ofNat 2237925639)
+            (UInt256.shiftRight (siWord I) (UInt256.ofNat 224)) = ⟨0⟩ by
+              by_contra hne; exact h2 (hsel2.mp hne)]
+          decide
+        rd_run rd using [hwv, hc, siPad_ok hlen hpad, (by by_contra hne; exact h1 (hsel1.mp hne)),
+          hmiss]
         rw [siOut] at rd
         exact rd.reEquivExecution hcode hd hdec hbody (siReturn _ _ (by simp [siResult, h1, h2]))
 

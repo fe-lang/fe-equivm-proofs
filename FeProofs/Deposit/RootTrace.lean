@@ -3,21 +3,18 @@ import FeProofs.Deposit.Dispatch
 /-!
 # FeDeposit `get_deposit_root()` — EVM trace segments
 
-The runtime trace of `get_deposit_root` (arm entry pc 1853), cut at its `STATICCALL`s:
+The runtime trace of `get_deposit_root` (arm entry pc 1821), cut at its `STATICCALL`s:
 
-* prologue (pcs 1853–1866): call-value check, `SLOAD(32)` for the count, and the loop state
+* prologue (pcs 1821–1840): call-value check, `SLOAD(32)` for the count, and the loop state
   `[size, node, height, count] = [count, 0, 0, count]`;
-* loop head (pc 1866): `height < 32` continues (pc 1876), otherwise the loop exits (pc 1991);
-* odd/even lane (pc 1876): `size & 1 == 1` writes `branch[height]` and `node` to `0xa0`/`0xc0`
-  (pc 1888), otherwise `node` and `zero_hashes[height]` (pc 1932); both stop at the
-  `STATICCALL(gas, 2, 0xa0, 0x40, 0xa0, 0x20)` (pcs 1908, 1957);
-* after each call (pcs 1909/1958): revert unless it succeeded with at least 32 return bytes, then
-  `node := MLOAD(0xa0)`, `size >>= 1`, `height += 1` and jump back to pc 1866;
-* exit (pc 1991): `node` and `u64_chunk(count)` to `0xa0`/`0xc0`, the final `STATICCALL` (pc 2084),
-  the same checks (pcs 2085/2092) and `RETURN` of `MLOAD(0xa0)` (pc 2101).
-
-The memory facts at the end identify the call payload with the two written words and the loaded
-word with the first word of the call's output.
+* odd/even lane (pc 1840, entered with `height < 32`): `size & 1 == 1` writes `branch[height]`
+  and `node` to `0xa0`/`0xc0` (pc 1853), otherwise `node` and `zero_hashes[height]` (pc 1897);
+  both stop at the `STATICCALL(gas, 2, 0xa0, 0x40, 0xa0, 0x20)` (pcs 1873, 1922);
+* after each call (pcs 1874/1923): revert unless it succeeded with at least 32 return bytes, then
+  `node := MLOAD(0xa0)`, `size >>= 1`, `height += 1` (pc 1942), and back to pc 1840 while
+  `height < 32`, otherwise on to pc 1959 with `[height, node, size, count]`;
+* exit (pc 1959): `node` and `u64_chunk(count)` to `0x60`/`0x80`, the final `STATICCALL`
+  (pc 2051), the same checks (pcs 2052/2059) and `RETURN` of `MLOAD(0x60)` (pc 2068).
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
@@ -25,8 +22,6 @@ open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 namespace FeProofs.Deposit
 
 set_option maxRecDepth 2000000
-
-/-! ## Memory facts -/
 
 /-! ## Trace segments -/
 
@@ -36,20 +31,19 @@ local notation "code" => feDepositBytecode
 abbrev countWord (σ : AccountMap) (I : ExecutionEnv) : UInt256 :=
   solcSlotWord σ I (UInt256.ofNat 32)
 
-theorem rootPrologue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
+theorem rootPrologue {σ σ₀ A I} {g : Sat256} {aw : UInt256} {k C : ℕ} {sel : UInt256}
     (hwv : I.weiValue = ⟨0⟩)
-    (rd : RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1853) [sel]
-      ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ k C) :
-    ∃ k' C', RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1866)
-      [countWord σ I, ⟨0⟩, ⟨0⟩, countWord σ I] ByteArray.empty (UInt256.ofNat 0)
-      ByteArray.empty σ k' C' := by
-  rd_run rd to 1866 using [hwv]
+    (rd : RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1821) [sel]
+      entryMem aw ByteArray.empty σ k C) :
+    ∃ k' C', RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1840)
+      [countWord σ I, ⟨0⟩, ⟨0⟩, countWord σ I] entryMem aw ByteArray.empty σ k' C' := by
+  rd_run rd to 1840 using [hwv]
   exact ⟨_, _, rd⟩
 
-theorem rootCallvalue {σ σ₀ A I} {g : Sat256} {k C : ℕ} {sel : UInt256}
+theorem rootCallvalue {σ σ₀ A I} {g : Sat256} {aw : UInt256} {k C : ℕ} {sel : UInt256}
     (hwv : I.weiValue ≠ ⟨0⟩)
-    (rd : RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1853) [sel]
-      ByteArray.empty (UInt256.ofNat 0) ByteArray.empty σ k C) :
+    (rd : RD code I g (initState σ σ₀ g A I) (UInt256.ofNat 1821) [sel]
+      entryMem aw ByteArray.empty σ k C) :
     RDrev code g (initState σ σ₀ g A I) := by
   rd_run rd using [hwv]
   exact rd
@@ -59,23 +53,11 @@ section Loop
 variable {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256}
   {rdata : ByteArray} {σ : AccountMap} {k C : ℕ}
 
-theorem rootHeadContinue {size node h count : UInt256} (hh : h.toNat < 32)
-    (rd : RD code ee g s0 (UInt256.ofNat 1866) [size, node, h, count] mem aw rdata σ k C) :
-    RD code ee g s0 (UInt256.ofNat 1876) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) := by
-  rd_run rd to 1876 using [ult_one (a := h) (b := UInt256.ofNat 32) hh]
-  exact rd
-
-theorem rootHeadExit {size node h count : UInt256} (hh : 32 ≤ h.toNat)
-    (rd : RD code ee g s0 (UInt256.ofNat 1866) [size, node, h, count] mem aw rdata σ k C) :
-    RD code ee g s0 (UInt256.ofNat 1991) [size, node, h, count] mem aw rdata σ (k + 7) (C + 26) := by
-  rd_run rd to 1991 using [ult_zero (a := h) (b := UInt256.ofNat 32) hh]
-  exact rd
-
 /-- Odd lane: `branch[height]` and `node` are written to `0xa0`/`0xc0`, stopping at the call. -/
 theorem rootOddPre {size node h count : UInt256}
     (hodd : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 1)
-    (rd : RD code ee g s0 (UInt256.ofNat 1876) [size, node, h, count] mem aw rdata σ k C) :
-    ∃ gw k' C', RD code ee g s0 (UInt256.ofNat 1908)
+    (rd : RD code ee g s0 (UInt256.ofNat 1840) [size, node, h, count] mem aw rdata σ k C) :
+    ∃ gw k' C', RD code ee g s0 (UInt256.ofNat 1873)
       [gw, UInt256.ofNat 2, UInt256.ofNat 160, UInt256.ofNat 64, UInt256.ofNat 160,
         UInt256.ofNat 32, gw, size, h, count]
       ((UInt256.toByteArray node).write 0
@@ -88,8 +70,8 @@ theorem rootOddPre {size node h count : UInt256}
     call. -/
 theorem rootEvenPre {size node h count : UInt256}
     (heven : UInt256.land size (UInt256.ofNat 1) = UInt256.ofNat 0)
-    (rd : RD code ee g s0 (UInt256.ofNat 1876) [size, node, h, count] mem aw rdata σ k C) :
-    ∃ gw k' C', RD code ee g s0 (UInt256.ofNat 1957)
+    (rd : RD code ee g s0 (UInt256.ofNat 1840) [size, node, h, count] mem aw rdata σ k C) :
+    ∃ gw k' C', RD code ee g s0 (UInt256.ofNat 1922)
       [gw, UInt256.ofNat 2, UInt256.ofNat 160, UInt256.ofNat 64, UInt256.ofNat 160,
         UInt256.ofNat 32, gw, size, h, count]
       ((UInt256.toByteArray (solcSlotWord σ ee (UInt256.ofNat 33 + h))).write 0
@@ -99,30 +81,43 @@ theorem rootEvenPre {size node h count : UInt256}
   exact ⟨_, _, _, rd⟩
 
 /-- After an in-loop hash call: revert unless it succeeded with at least 32 return bytes;
-    otherwise load the digest and continue at the loop head. -/
+    otherwise load the digest, halve `size`, advance `height`, and either continue the loop
+    (pc 1840) or leave it (pc 1959). -/
 theorem rootLoopPost (pc : UInt256) {z : Bool} {o : ByteArray} {gw size h count : UInt256}
-    (hpc : pc = UInt256.ofNat 1909 ∨ pc = UInt256.ofNat 1958)
+    (hpc : pc = UInt256.ofNat 1874 ∨ pc = UInt256.ofNat 1923)
     (ho : o.size < UInt256.size)
     (rd : RD code ee g s0 pc ((if z then ⟨1⟩ else ⟨0⟩) :: gw :: [size, h, count]) mem aw o σ k C) :
     ((z = false ∨ o.size < 32) → RDrev code g s0) ∧
-    (z = true → 32 ≤ o.size → ∃ k' C', RD code ee g s0 (UInt256.ofNat 1866)
-      [UInt256.shiftRight size (UInt256.ofNat 1), memLoad (UInt256.ofNat 160) mem,
-        UInt256.ofNat 1 + h, count] mem (M aw (UInt256.ofNat 160) ⟨32⟩) o σ k' C') := by
-  rcases hpc with rfl | rfl <;> refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩ <;>
+    (z = true → 32 ≤ o.size →
+      ((UInt256.ofNat 1 + h).toNat < 32 → ∃ k' C', RD code ee g s0 (UInt256.ofNat 1840)
+        [UInt256.shiftRight size (UInt256.ofNat 1), memLoad (UInt256.ofNat 160) mem,
+          UInt256.ofNat 1 + h, count] mem (M aw (UInt256.ofNat 160) ⟨32⟩) o σ k' C') ∧
+      (32 ≤ (UInt256.ofNat 1 + h).toNat → ∃ k' C', RD code ee g s0 (UInt256.ofNat 1959)
+        [UInt256.ofNat 1 + h, memLoad (UInt256.ofNat 160) mem,
+          UInt256.shiftRight size (UInt256.ofNat 1), count] mem (M aw (UInt256.ofNat 160) ⟨32⟩) o σ
+          k' C')) := by
+  rcases hpc with rfl | rfl <;> refine ⟨fun hbad => ?_, fun hz hlen => ⟨fun hlt => ?_, fun hge => ?_⟩⟩ <;>
     first
     | (cases z
        · rd_run rd; exact rd
        · rd_run rd using [lt32_size_word_ne (hbad.resolve_left (by simp))]; exact rd)
-    | (subst hz; rd_run rd to 1866 using [lt32_size_word hlen ho]; exact ⟨_, _, rd⟩)
+    | (subst hz
+       rd_run rd to 1840 using [lt32_size_word hlen ho,
+         ult_one (a := UInt256.ofNat 1 + h) (b := UInt256.ofNat 32) hlt]
+       exact ⟨_, _, rd⟩)
+    | (subst hz
+       rd_run rd to 1959 using [lt32_size_word hlen ho,
+         ult_zero (a := UInt256.ofNat 1 + h) (b := UInt256.ofNat 32) hge]
+       exact ⟨_, _, rd⟩)
 
 /-- After the final (length mix-in) hash call: revert unless it succeeded with at least 32
     return bytes; otherwise return the loaded digest. -/
 theorem rootExitPost {z : Bool} {o : ByteArray} {gw : UInt256} {R : List UInt256}
     (hR : R.length ≤ 1000) (ho : o.size < UInt256.size)
-    (rd : RD code ee g s0 (UInt256.ofNat 2085) ((if z then ⟨1⟩ else ⟨0⟩) :: gw :: R) mem aw o σ k C) :
+    (rd : RD code ee g s0 (UInt256.ofNat 2052) ((if z then ⟨1⟩ else ⟨0⟩) :: gw :: R) mem aw o σ k C) :
     ((z = false ∨ o.size < 32) → RDrev code g s0) ∧
     (z = true → 32 ≤ o.size →
-      RDret code g s0 σ (memLoad (UInt256.ofNat 160) mem).toByteArray) := by
+      RDret code g s0 σ (memLoad (UInt256.ofNat 96) mem).toByteArray) := by
   refine ⟨fun hbad => ?_, fun hz hlen => ?_⟩
   · cases z
     · rd_run rd; exact rd
