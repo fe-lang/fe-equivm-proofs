@@ -21,9 +21,10 @@
 //! `SolSlot::read_string`/`write_string`.
 use core::abi::{DynString, store_word}
 use core::marker::{Pinned, Storage}
+use core::num::IntDowncast
 use core::ops::{Location, StateIndex, WrappingAdd}
 use core::ptr::{self, MemSpan}
-use std::evm::{Evm, PANIC_STORAGE_ENCODING, Panic, RawStorage, array_data_slot, revert_error, storage_at_mut}
+use std::evm::{Evm, PANIC_STORAGE_ENCODING, Panic, RawStorage, array_data_slot, revert_error, storage_at}
 
 pub struct SolString {
     payload: Payload,
@@ -55,8 +56,8 @@ impl SolString {
     /// The caller must ensure that nothing the compiler allocates, such as a
     /// contract field, uses `slot` or the slots its bytes derive.
     #[raw_place]
-    pub unsafe fn at(_ slot: u256) -> mut Self uses (storage: mut RawStorage) {
-        unsafe { storage_at_mut(slot) }
+    pub unsafe fn at(_ slot: u256) -> mut? Self uses (storage: mut? RawStorage) {
+        unsafe { storage_at(slot) }
     }
 
     /// The length in bytes.
@@ -69,7 +70,7 @@ impl SolString {
         let head = self.payload.head
         let len = stored_len(head)
         let size = 32 + word_count(len) * 32
-        let data = ptr::alloc_bytes(size)
+        let data = ptr::alloc_bytes(size.downcast_saturate())
         unsafe {
             store_word(ptr: data, value: len)
             // Only the `len` data bytes are kept, so the ABI padding is zero.
@@ -81,18 +82,18 @@ impl SolString {
                 var i: u256 = 0
                 while i < word_count(len) {
                     let word = leading_bytes(self.payload[i], count: len - i * 32)
-                    store_word(ptr: ptr::offset_bytes(data, 32 + i * 32), value: word)
+                    store_word(ptr: ptr::offset_bytes(data, (32 + i * 32).downcast_unchecked()), value: word)
                     i += 1
                 }
             }
-            DynString::from_abi_tail(data, len: len as usize, size)
+            DynString::from_abi_tail(data, len: len.downcast_unchecked(), size)
         }
     }
 
     /// Replaces the string, zeroing the words a previous, longer value left
     /// behind.
     pub fn store(mut self, _ value: DynString) {
-        let payload = value.payload_span()
+        let payload = value.span()
         let old = self.payload.head
         let old_len = stored_len(old)
         let old_words = if old & 1 == 0 { 0 } else { word_count(old_len) }
