@@ -105,6 +105,20 @@ theorem feDeposit_block_371 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2203)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
+/- Shared branch prefix at pc 422. -/
+private def feDeposit_block_422_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 422) R mem aw rdata σ k C) := by
+  let r0 := h
+  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
+  have r2 := r1.callvalue (by native_decide) (by evm_ov)
+  have r3 := r2.pushConst (UInt256.ofNat 1000000000000000000) (width := 8) (op := .PUSH8) (by decide) (by native_decide) (by evm_ov)
+  have r4 := r3.dup2 (by native_decide) (by evm_ov)
+  have r5 := r4.lt (by native_decide) (by evm_ov)
+  have r6 := r5.iszero (by native_decide) (by evm_ov)
+  have r7 := r6.push2 (UInt256.ofNat 488) (by native_decide) (by evm_ov)
+  exact r7
+
 /-- Final stack for bytecode block summary `feDeposit_block_422_taken`. -/
 def feDeposit_block_422_taken_stack {ee : ExecutionEnv} {R : List UInt256} : List UInt256 :=
   (ee.weiValue :: R)
@@ -116,14 +130,7 @@ theorem feDeposit_block_422_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
     (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 488) = true)
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 422) R mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 488) (feDeposit_block_422_taken_stack (ee := ee) (R := R)) mem aw rdata σ (k + 8) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.callvalue (by native_decide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 1000000000000000000) (width := 8) (op := .PUSH8) (by decide) (by native_decide) (by evm_ov)
-  have r4 := r3.dup2 (by native_decide) (by evm_ov)
-  have r5 := r4.lt (by native_decide) (by evm_ov)
-  have r6 := r5.iszero (by native_decide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 488) (by native_decide) (by evm_ov)
+  have r7 := feDeposit_block_422_shared hstack h
   have r8 := r7.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 488)) r8 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -138,14 +145,7 @@ theorem feDeposit_block_422_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
     (hcond : (UInt256.isZero (UInt256.lt ee.weiValue (UInt256.ofNat 1000000000000000000))) = (UInt256.ofNat 0))
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 422) R mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 440) (feDeposit_block_422_fallthrough_stack (ee := ee) (R := R)) mem aw rdata σ (k + 8) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.callvalue (by native_decide) (by evm_ov)
-  have r3 := r2.pushConst (UInt256.ofNat 1000000000000000000) (width := 8) (op := .PUSH8) (by decide) (by native_decide) (by evm_ov)
-  have r4 := r3.dup2 (by native_decide) (by evm_ov)
-  have r5 := r4.lt (by native_decide) (by evm_ov)
-  have r6 := r5.iszero (by native_decide) (by evm_ov)
-  have r7 := r6.push2 (UInt256.ofNat 488) (by native_decide) (by evm_ov)
+  have r7 := feDeposit_block_422_shared hstack h
   have r8 := r7.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 440)) r8 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -170,13 +170,10 @@ theorem feDeposit_block_440 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2203)) r6 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 488. -/
-theorem feDeposit_block_488_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+/- Shared branch prefix at pc 488. -/
+private def feDeposit_block_488_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.isZero (UInt256.mod x0 (UInt256.ofNat 1000000000))) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 568) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 488) (x0 :: R) mem aw rdata σ k C)
-    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ (k + 7) (C + ((28))) := by
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 488) (x0 :: R) mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.jumpdest (by native_decide) (by evm_ov)
   have r2 := r1.push4 (UInt256.ofNat 1000000000) (by native_decide) (by evm_ov)
@@ -184,6 +181,16 @@ theorem feDeposit_block_488_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have r4 := r3.mod (by native_decide) (by evm_ov)
   have r5 := r4.iszero (by native_decide) (by evm_ov)
   have r6 := r5.push2 (UInt256.ofNat 568) (by native_decide) (by evm_ov)
+  exact r6
+
+/-- Automatically generated RD summary for bytecode block at pc 488. -/
+theorem feDeposit_block_488_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (hcond : (UInt256.isZero (UInt256.mod x0 (UInt256.ofNat 1000000000))) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 568) = true)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 488) (x0 :: R) mem aw rdata σ k C)
+    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ (k + 7) (C + ((28))) := by
+  have r6 := feDeposit_block_488_shared hstack h
   have r7 := r6.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 568)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -194,13 +201,7 @@ theorem feDeposit_block_488_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
     (hcond : (UInt256.isZero (UInt256.mod x0 (UInt256.ofNat 1000000000))) = (UInt256.ofNat 0))
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 488) (x0 :: R) mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 501) (x0 :: R) mem aw rdata σ (k + 7) (C + ((28))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 1000000000) (by native_decide) (by evm_ov)
-  have r3 := r2.dup2 (by native_decide) (by evm_ov)
-  have r4 := r3.mod (by native_decide) (by evm_ov)
-  have r5 := r4.iszero (by native_decide) (by evm_ov)
-  have r6 := r5.push2 (UInt256.ofNat 568) (by native_decide) (by evm_ov)
+  have r6 := feDeposit_block_488_shared hstack h
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 501)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -223,17 +224,10 @@ theorem feDeposit_block_501 {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem :
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2203)) r4 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Final stack for bytecode block summary `feDeposit_block_568_taken`. -/
-def feDeposit_block_568_taken_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
-  ((UInt256.div x0 (UInt256.ofNat 1000000000)) :: R)
-
-/-- Automatically generated RD summary for bytecode block at pc 568. -/
-theorem feDeposit_block_568_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+/- Shared branch prefix at pc 568. -/
+private def feDeposit_block_568_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
     (hstack : R.length + 3 ≤ 1024)
-    (hcond : (UInt256.isZero (UInt256.gt (UInt256.div x0 (UInt256.ofNat 1000000000)) (UInt256.shiftRight (UInt256.lnot (⟨0⟩ : UInt256)) (UInt256.ofNat 192)))) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 637) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ k C)
-    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 637) (feDeposit_block_568_taken_stack (x0 := x0) (R := R)) mem aw rdata σ (k + 13) (C + ((45))) := by
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.jumpdest (by native_decide) (by evm_ov)
   have r2 := r1.push4 (UInt256.ofNat 1000000000) (by native_decide) (by evm_ov)
@@ -247,6 +241,20 @@ theorem feDeposit_block_568_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have r10 := r9.gt (by native_decide) (by evm_ov)
   have r11 := r10.iszero (by native_decide) (by evm_ov)
   have r12 := r11.push2 (UInt256.ofNat 637) (by native_decide) (by evm_ov)
+  exact r12
+
+/-- Final stack for bytecode block summary `feDeposit_block_568_taken`. -/
+def feDeposit_block_568_taken_stack {x0 : UInt256} {R : List UInt256} : List UInt256 :=
+  ((UInt256.div x0 (UInt256.ofNat 1000000000)) :: R)
+
+/-- Automatically generated RD summary for bytecode block at pc 568. -/
+theorem feDeposit_block_568_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 : UInt256} {R : List UInt256}
+    (hstack : R.length + 3 ≤ 1024)
+    (hcond : (UInt256.isZero (UInt256.gt (UInt256.div x0 (UInt256.ofNat 1000000000)) (UInt256.shiftRight (UInt256.lnot (⟨0⟩ : UInt256)) (UInt256.ofNat 192)))) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 637) = true)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ k C)
+    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 637) (feDeposit_block_568_taken_stack (x0 := x0) (R := R)) mem aw rdata σ (k + 13) (C + ((45))) := by
+  have r12 := feDeposit_block_568_shared hstack h
   have r13 := r12.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 637)) r13 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -261,19 +269,7 @@ theorem feDeposit_block_568_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
     (hcond : (UInt256.isZero (UInt256.gt (UInt256.div x0 (UInt256.ofNat 1000000000)) (UInt256.shiftRight (UInt256.lnot (⟨0⟩ : UInt256)) (UInt256.ofNat 192)))) = (UInt256.ofNat 0))
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 568) (x0 :: R) mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 588) (feDeposit_block_568_fallthrough_stack (x0 := x0) (R := R)) mem aw rdata σ (k + 13) (C + ((45))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.push4 (UInt256.ofNat 1000000000) (by native_decide) (by evm_ov)
-  have r3 := r2.swap1 (by native_decide) (by evm_ov)
-  have r4 := r3.div (by native_decide) (by evm_ov)
-  have r5 := r4.push0 (by native_decide) (by evm_ov)
-  have r6 := r5.not (by native_decide) (by evm_ov)
-  have r7 := r6.push1 (UInt256.ofNat 192) (by native_decide) (by evm_ov)
-  have r8 := r7.shr (by native_decide) (by evm_ov)
-  have r9 := r8.dup2 (by native_decide) (by evm_ov)
-  have r10 := r9.gt (by native_decide) (by evm_ov)
-  have r11 := r10.iszero (by native_decide) (by evm_ov)
-  have r12 := r11.push2 (UInt256.ofNat 637) (by native_decide) (by evm_ov)
+  have r12 := feDeposit_block_568_shared hstack h
   have r13 := r12.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 588)) r13 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -383,13 +379,10 @@ theorem feDeposit_block_678_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 685)) r5 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
 
-/-- Automatically generated RD summary for bytecode block at pc 685. -/
-theorem feDeposit_block_685_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+/- Shared branch prefix at pc 685. -/
+private def feDeposit_block_685_shared {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
     (hstack : R.length + 2 ≤ 1024)
-    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2199) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 685) R mem aw rdata σ k C)
-    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2199) R mem aw rdata σ (k + 7) (C + ((25))) := by
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 685) R mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.jumpdest (by native_decide) (by evm_ov)
   have r2 := r1.returndatasize (by native_decide) (by evm_ov)
@@ -397,6 +390,16 @@ theorem feDeposit_block_685_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} 
   have r4 := r3.swap1 (by native_decide) (by evm_ov)
   have r5 := r4.lt (by native_decide) (by evm_ov)
   have r6 := r5.push2 (UInt256.ofNat 2199) (by native_decide) (by evm_ov)
+  exact r6
+
+/-- Automatically generated RD summary for bytecode block at pc 685. -/
+theorem feDeposit_block_685_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {R : List UInt256}
+    (hstack : R.length + 2 ≤ 1024)
+    (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 2199) = true)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 685) R mem aw rdata σ k C)
+    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 2199) R mem aw rdata σ (k + 7) (C + ((25))) := by
+  have r6 := feDeposit_block_685_shared hstack h
   have r7 := r6.jumpiT (by native_decide) hcond hvalid (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 2199)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)
@@ -407,13 +410,7 @@ theorem feDeposit_block_685_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : S
     (hcond : (UInt256.lt (UInt256.ofNat rdata.size) (UInt256.ofNat 32)) = (UInt256.ofNat 0))
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 685) R mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 695) R mem aw rdata σ (k + 7) (C + ((25))) := by
-  let r0 := h
-  have r1 := r0.jumpdest (by native_decide) (by evm_ov)
-  have r2 := r1.returndatasize (by native_decide) (by evm_ov)
-  have r3 := r2.push1 (UInt256.ofNat 32) (by native_decide) (by evm_ov)
-  have r4 := r3.swap1 (by native_decide) (by evm_ov)
-  have r5 := r4.lt (by native_decide) (by evm_ov)
-  have r6 := r5.push2 (UInt256.ofNat 2199) (by native_decide) (by evm_ov)
+  have r6 := feDeposit_block_685_shared hstack h
   have r7 := r6.jumpiNT (by native_decide) hcond (by evm_ov)
   have rFinal := RD.normalizePC (pc' := (UInt256.ofNat 695)) r7 (by native_decide)
   exact RD.normalizeCounters rFinal (by omega) (by omega)

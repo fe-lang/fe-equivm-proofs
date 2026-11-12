@@ -211,14 +211,10 @@ def feDeposit_block_1481_taken_stack {x1 : UInt256} {x2 : UInt256} {R : List UIn
 def feDeposit_block_1481_taken_memory {mem : ByteArray} {x0 : UInt256} {x4 : UInt256} : ByteArray :=
   (mem.write x0.toNat mem x4.toNat (UInt256.ofNat 64).toNat)
 
-/-- Automatically generated RD summary for bytecode block at pc 1481. -/
-theorem feDeposit_block_1481_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 x5 x6 x7 x8 : UInt256} {R : List UInt256}
+/- Shared prefix before the static-sensitive operation. -/
+private def feDeposit_block_1481_before_static {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 x5 x6 x7 x8 : UInt256} {R : List UInt256}
     (hstack : R.length + 10 ≤ 1024)
-    (hperm : ee.perm = true)
-    (hcond : (UInt256.lt x1 (UInt256.ofNat 4294967295)) ≠ (UInt256.ofNat 0))
-    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 1582) = true)
-    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1481) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C)
-    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1582) (feDeposit_block_1481_taken_stack (x1 := x1) (x2 := x2) (R := R)) (feDeposit_block_1481_taken_memory (mem := mem) (x0 := x0) (x4 := x4)) (M (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) rdata σ (k + 19) (C + ((55) + (mcopyExpansionCost aw x4 x0 (UInt256.ofNat 64)) + (3 + 3 * (((UInt256.ofNat 64).toNat + 31) / 32)) + (memExpansionCost (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) + (375 + 8 * x5.toNat + 1 * 375))) := by
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1481) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C) := by
   let r0 := h
   have r1 := r0.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
   have r2 := r1.swap2 (by native_decide) (by evm_ov)
@@ -230,6 +226,17 @@ theorem feDeposit_block_1481_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State}
   have r8 := r7.pushConst (UInt256.ofNat 45506446345753628416285423056165511379837572639148407563471291220684748896453) (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
   have r9 := r8.swap2 (by native_decide) (by evm_ov)
   have r10 := r9.swap6 (by native_decide) (by evm_ov)
+  exact r10
+
+/-- Automatically generated RD summary for bytecode block at pc 1481. -/
+theorem feDeposit_block_1481_taken {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray} {aw : UInt256} {rdata : ByteArray} {σ : AccountMap} {k C : ℕ} {x0 x1 x2 x3 x4 x5 x6 x7 x8 : UInt256} {R : List UInt256}
+    (hstack : R.length + 10 ≤ 1024)
+    (hperm : ee.perm = true)
+    (hcond : (UInt256.lt x1 (UInt256.ofNat 4294967295)) ≠ (UInt256.ofNat 0))
+    (hvalid : (D_J FeProofs.Deposit.feDepositBytecode 0).contains (UInt256.ofNat 1582) = true)
+    (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1481) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C)
+    : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1582) (feDeposit_block_1481_taken_stack (x1 := x1) (x2 := x2) (R := R)) (feDeposit_block_1481_taken_memory (mem := mem) (x0 := x0) (x4 := x4)) (M (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) rdata σ (k + 19) (C + ((55) + (mcopyExpansionCost aw x4 x0 (UInt256.ofNat 64)) + (3 + 3 * (((UInt256.ofNat 64).toNat + 31) / 32)) + (memExpansionCost (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) + (375 + 8 * x5.toNat + 1 * 375))) := by
+  have r10 := feDeposit_block_1481_before_static hstack h
   have r11 := RD.genLog1 r10 (by native_decide) hperm (by evm_ov)
   have r12 := r11.swap2 (by native_decide) (by evm_ov)
   have r13 := r12.pop (by native_decide) (by evm_ov)
@@ -257,17 +264,7 @@ theorem feDeposit_block_1481_fallthrough {ee : ExecutionEnv} {g : Sat256} {s0 : 
     (hcond : (UInt256.lt x1 (UInt256.ofNat 4294967295)) = (UInt256.ofNat 0))
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1481) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C)
     : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1539) (feDeposit_block_1481_fallthrough_stack (x1 := x1) (x2 := x2) (R := R)) (feDeposit_block_1481_fallthrough_memory (mem := mem) (x0 := x0) (x4 := x4)) (M (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) rdata σ (k + 19) (C + ((55) + (mcopyExpansionCost aw x4 x0 (UInt256.ofNat 64)) + (3 + 3 * (((UInt256.ofNat 64).toNat + 31) / 32)) + (memExpansionCost (Mmcopy aw x4 x0 (UInt256.ofNat 64)) x8 x5) + (375 + 8 * x5.toNat + 1 * 375))) := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r2 := r1.swap2 (by native_decide) (by evm_ov)
-  have r3 := r2.swap5 (by native_decide) (by evm_ov)
-  have r4 := RD.genMcopy r3 (by native_decide) (by evm_ov)
-  have r5 := r4.swap1 (by native_decide) (by evm_ov)
-  have r6 := r5.pop (by native_decide) (by evm_ov)
-  have r7 := r6.swap2 (by native_decide) (by evm_ov)
-  have r8 := r7.pushConst (UInt256.ofNat 45506446345753628416285423056165511379837572639148407563471291220684748896453) (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
-  have r9 := r8.swap2 (by native_decide) (by evm_ov)
-  have r10 := r9.swap6 (by native_decide) (by evm_ov)
+  have r10 := feDeposit_block_1481_before_static hstack h
   have r11 := RD.genLog1 r10 (by native_decide) hperm (by evm_ov)
   have r12 := r11.swap2 (by native_decide) (by evm_ov)
   have r13 := r12.pop (by native_decide) (by evm_ov)
@@ -498,17 +495,7 @@ theorem feDeposit_block_1481_static {ee : ExecutionEnv} {g : Sat256} {s0 : State
     (hperm : ee.perm = false)
     (h : RD FeProofs.Deposit.feDepositBytecode ee g s0 (UInt256.ofNat 1481) (x0 :: x1 :: x2 :: x3 :: x4 :: x5 :: x6 :: x7 :: x8 :: R) mem aw rdata σ k C)
     : RDstatic FeProofs.Deposit.feDepositBytecode g s0 := by
-  let r0 := h
-  have r1 := r0.push1 (UInt256.ofNat 64) (by native_decide) (by evm_ov)
-  have r2 := r1.swap2 (by native_decide) (by evm_ov)
-  have r3 := r2.swap5 (by native_decide) (by evm_ov)
-  have r4 := RD.genMcopy r3 (by native_decide) (by evm_ov)
-  have r5 := r4.swap1 (by native_decide) (by evm_ov)
-  have r6 := r5.pop (by native_decide) (by evm_ov)
-  have r7 := r6.swap2 (by native_decide) (by evm_ov)
-  have r8 := r7.pushConst (UInt256.ofNat 45506446345753628416285423056165511379837572639148407563471291220684748896453) (width := 32) (op := .PUSH32) (by decide) (by native_decide) (by evm_ov)
-  have r9 := r8.swap2 (by native_decide) (by evm_ov)
-  have r10 := r9.swap6 (by native_decide) (by evm_ov)
+  have r10 := feDeposit_block_1481_before_static hstack h
   exact RD.log1Static r10 hperm (by native_decide) (by evm_ov)
 
 end feDepositBlocks
