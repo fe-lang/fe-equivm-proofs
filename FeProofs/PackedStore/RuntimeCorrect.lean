@@ -1,3 +1,4 @@
+import FeProofs.Lib.ExportedCorrect
 import FeProofs.PackedStore.ExportedCorrect
 import Fe.EVM.Entry
 
@@ -11,6 +12,7 @@ the hand-written one of `ExportedCorrect.lean` does, so the certificate for that
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open FeProofs.Lib (returnU256_exec)
 
 namespace FeProofs.PackedStore.Exported
 
@@ -21,10 +23,10 @@ The std definitions the entry reaches unfold under `simp` in this section. -/
 section Std
 
 attribute [local simp]
-  new input SELECTOR_SIZE to_word IS_SIGNED U64_MASK MASK SIGN_BIT sign_extend from_word 
-  downcast_truncate_u256_u64 size len_CallData HEAD_SIZE from_word_1 validate_runtime_head 
+  new input SELECTOR_SIZE to_word IS_SIGNED U64_MASK MASK_1 SIGN_BIT sign_extend from_word_1 
+  downcast_truncate_u256_u64 size len_CallData HEAD_SIZE from_word validate_runtime_head 
   decode_from_CallData decode_from_prechecked_head_Get0_Sol_CallData 
-  decode_runtime_args_Evm_Sol_Get0 IS_DYNAMIC HEAD_SIZE_1 max to_word_1 MASK_1 I256_SIGN_BIT 
+  decode_runtime_args_Evm_Sol_Get0 IS_DYNAMIC HEAD_SIZE_1 max to_word_1 MASK I256_SIGN_BIT 
   downcast_saturate_u64_usize MAX_ALLOCATION PANIC_OUT_OF_MEMORY alloc_bytes alloc_uninit_32 
   zero_bytes alloc_32 ptr_32 from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds 
   word_to_usize ptr_offset slice cast_u8_u256 store_word store_word_1 encode_Sol 
@@ -125,21 +127,6 @@ theorem decodeGet1_exec : decode_runtime_args_Evm_Sol_Get1.exec I w = some (.ok 
 end Decode
 
 /-! ## The return -/
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-/-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
-theorem returnU256_exec (I : ExecutionEnv) (w : World) (v : UInt256)
-    (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_u256 v).exec I w =
-      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, add_zero, hsize, UInt256.size, hroom,
-    returned]
-  exact returned_read _ _
 
 end Std
 

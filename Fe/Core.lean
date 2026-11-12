@@ -1,3 +1,5 @@
+import Fe.ExportAll
+
 /-!
 # Fe model core
 

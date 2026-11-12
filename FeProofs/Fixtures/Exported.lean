@@ -19,12 +19,6 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: helper_call
 
-def Field.store : Place :=
-  .storage (UInt256.ofNat 0)
-
-def Layout.Store : Layout :=
-  { storage := [0, 1] }
-
 structure Location where
   slot : UInt256
   offset : UInt256
@@ -40,9 +34,6 @@ structure MemSlice_u8 where
   ptr : UInt256
   len : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
 
 def encoded_len (v0 : UInt256) : FeM UInt256 := do
   let v1 := (UInt256.ofNat 32)
@@ -479,6 +470,15 @@ def locate_u256_u256 (v0 : Place) (v1 : UInt256) (v2 : UInt256) : FeM Location :
   let v4 := (UInt256.ofNat 0)
   let v5 := (Location.mk v3 v4)
   return v5
+
+def Field.store : Place :=
+  .storage (UInt256.ofNat 0)
+
+def Layout.Store : Layout :=
+  { storage := [0, 1] }
+
+def init : FeM Unit := do
+  return ()
 
 def add_Store (v0 : UInt256) : FeM UInt256 := do
   let v1 ← load (Field.store.field Layout.Store 0)
@@ -516,12 +516,6 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: join
 
-def Field.store : Place :=
-  .storage (UInt256.ofNat 0)
-
-def Layout.Store : Layout :=
-  { storage := [0, 1] }
-
 structure Location where
   slot : UInt256
   offset : UInt256
@@ -537,9 +531,6 @@ structure MemSlice_u8 where
   ptr : UInt256
   len : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
 
 def encoded_len (v0 : UInt256) : FeM UInt256 := do
   let v1 := (UInt256.ofNat 32)
@@ -976,6 +967,15 @@ def locate_u256_u256 (v0 : Place) (v1 : UInt256) (v2 : UInt256) : FeM Location :
   let v4 := (UInt256.ofNat 0)
   let v5 := (Location.mk v3 v4)
   return v5
+
+def Field.store : Place :=
+  .storage (UInt256.ofNat 0)
+
+def Layout.Store : Layout :=
+  { storage := [0, 1] }
+
+def init : FeM Unit := do
+  return ()
 
 def add_Store (v0 : UInt256) : FeM UInt256 := do
   let v2 := v0
@@ -1367,9 +1367,6 @@ structure CallData where
   base : UInt256
 deriving Inhabited
 
-def init : FeM Unit := do
-  return ()
-
 def new : FeM CallData := do
   let v0 := (UInt256.ofNat 0)
   let v1 := (CallData.mk v0)
@@ -1621,6 +1618,9 @@ def decode_args_u256_u256 : FeM (UInt256 × UInt256) := do
   let v5 ← decode_input_at_u256_u256_CallData v4 v3
   return v5
 
+def init : FeM Unit := do
+  return ()
+
 def recv0_arm0 : FeM UInt256 := do
   let v1 ← decode_args_u256_u256
   let v2 := v1
@@ -1654,9 +1654,6 @@ structure AbiFrame where
   ptr : UInt256
   len : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
 
 def HEAD_SIZE : FeM UInt256 := do
   let v0 := (UInt256.ofNat 32)
@@ -2114,6 +2111,9 @@ def revert_u256 (v0 : UInt256) : FeM Empty := do
   let v8 ← revertData v4 v7
   nomatch v8
 
+def init : FeM Unit := do
+  return ()
+
 def recv0_arm0 (v0 : UInt256) : FeM UInt256 := do
   let v1 ← revert_u256 v0
   let v1 : UInt256 := nomatch v1
@@ -2137,50 +2137,6 @@ set_option linter.unusedVariables false
 structure Wei where
   amount : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
-
-def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
-  let v2 ← IntTy.add (.u 8) v0 v1
-  let v3 := v2
-  let v4 := (UInt256.ofNat 1)
-  let v5 := v3 >>> v4
-  let v6 := (UInt256.ofNat 15)
-  let v7 := v5 &&& v6
-  let v8 := v7
-  let v9 ← IntTy.sub (.u 8) v3 v8
-  let v10 := (UInt256.ofNat 2)
-  let v11 ← IntTy.mul (.u 8) v9 v10
-  let v12 ← checkedDiv v11 v1
-  let v13 := (UInt256.ofNat 7)
-  let v14 ← checkedRem v12 v13
-  return v14
-
-def wrapping (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
-  let v2 := v0
-  let v3 := v1
-  let v4 := IntTy.mulW (.i 32) v2 v3
-  let v5 := (UInt256.ofNat 3)
-  let v6 := IntTy.shl (.i 32) v4 v5
-  return v6
-
-def recv0_arm1 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
-  let v2 := UInt256.sltBool v0 v1
-  if v2 then
-    let v3 ← IntTy.neg (.i 32) v0
-    return v3
-  else
-    let v4 := ()
-    let v5 := v4
-    let v6 ← wrapping v0 v1
-    let v7 ← IntTy.div (.i 32) v0 v1
-    let v8 ← IntTy.add (.i 32) v6 v7
-    let v9 ← IntTy.rem (.i 32) v0 v1
-    let v10 ← IntTy.sub (.i 32) v8 v9
-    let v11 := (IntTy.wrap (.i 256) (-5))
-    let v12 ← IntTy.add (.i 32) v10 v11
-    return v12
 
 def to_word (v0 : UInt256) : FeM UInt256 := do
   let v1 := v0
@@ -2266,24 +2222,6 @@ def downcast_unchecked_u256_i256 (v0 : UInt256) : FeM UInt256 := do
   let v3 ← from_word_1 v2
   return v3
 
-def recv0_arm2 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
-  let v2 := v1
-  let v3 := v2
-  let v4 ← downcast_truncate_i256_i8 v0
-  let v5 := v4
-  let v6 ← downcast_unchecked_u256_i256 v3
-  let v7 := v6
-  let v8 := (UInt256.ofNat 2)
-  let v9 := IntTy.shr (.i 256) v0 v8
-  let v10 := (UInt256.ofNat 2)
-  let v11 ← IntTy.pow (.i 256) v9 v10
-  let v12 := v5
-  let v13 ← IntTy.add (.i 256) v11 v12
-  let v14 ← IntTy.add (.i 256) v13 v7
-  let v15 := IntTy.not (.i 256) v0
-  let v16 ← IntTy.add (.i 256) v14 v15
-  return v16
-
 def address : FeM UInt256 := do
   let v1 ← selfAddress
   let v2 := v1
@@ -2315,6 +2253,68 @@ def origin_1 : FeM UInt256 := do
 def block_number : FeM UInt256 := do
   let v1 ← blockNumber
   return v1
+
+def init : FeM Unit := do
+  return ()
+
+def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 ← IntTy.add (.u 8) v0 v1
+  let v3 := v2
+  let v4 := (UInt256.ofNat 1)
+  let v5 := v3 >>> v4
+  let v6 := (UInt256.ofNat 15)
+  let v7 := v5 &&& v6
+  let v8 := v7
+  let v9 ← IntTy.sub (.u 8) v3 v8
+  let v10 := (UInt256.ofNat 2)
+  let v11 ← IntTy.mul (.u 8) v9 v10
+  let v12 ← checkedDiv v11 v1
+  let v13 := (UInt256.ofNat 7)
+  let v14 ← checkedRem v12 v13
+  return v14
+
+def wrapping (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := v0
+  let v3 := v1
+  let v4 := IntTy.mulW (.i 32) v2 v3
+  let v5 := (UInt256.ofNat 3)
+  let v6 := IntTy.shl (.i 32) v4 v5
+  return v6
+
+def recv0_arm1 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := UInt256.sltBool v0 v1
+  if v2 then
+    let v3 ← IntTy.neg (.i 32) v0
+    return v3
+  else
+    let v4 := ()
+    let v5 := v4
+    let v6 ← wrapping v0 v1
+    let v7 ← IntTy.div (.i 32) v0 v1
+    let v8 ← IntTy.add (.i 32) v6 v7
+    let v9 ← IntTy.rem (.i 32) v0 v1
+    let v10 ← IntTy.sub (.i 32) v8 v9
+    let v11 := (IntTy.wrap (.i 256) (-5))
+    let v12 ← IntTy.add (.i 32) v10 v11
+    return v12
+
+def recv0_arm2 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
+  let v2 := v1
+  let v3 := v2
+  let v4 ← downcast_truncate_i256_i8 v0
+  let v5 := v4
+  let v6 ← downcast_unchecked_u256_i256 v3
+  let v7 := v6
+  let v8 := (UInt256.ofNat 2)
+  let v9 := IntTy.shr (.i 256) v0 v8
+  let v10 := (UInt256.ofNat 2)
+  let v11 ← IntTy.pow (.i 256) v9 v10
+  let v12 := v5
+  let v13 ← IntTy.add (.i 256) v11 v12
+  let v14 ← IntTy.add (.i 256) v13 v7
+  let v15 := IntTy.not (.i 256) v0
+  let v16 ← IntTy.add (.i 256) v14 v15
+  return v16
 
 def recv0_arm3 : FeM UInt256 := do
   let mut r1 : UInt256 := default
@@ -2353,6 +2353,24 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: enums
 
+inductive Option_u256 where
+  | None
+  | Some (f0 : UInt256)
+deriving Inhabited
+
+def Option_u256.tag : Option_u256 → UInt256
+  | .None => UInt256.ofNat 0
+  | .Some .. => UInt256.ofNat 1
+
+def Option_u256.Some_0 : Option_u256 → UInt256
+  | .Some f0 => f0
+  | _ => default
+
+def Option_u256.set_Some_0 (x : Option_u256) (v : UInt256) : Option_u256 :=
+  match x with
+  | .Some f0 => .Some v
+  | x => x
+
 inductive Shape where
   | Empty
   | Square (f0 : UInt256)
@@ -2389,24 +2407,6 @@ def Shape.Rect_1 : Shape → UInt256
 def Shape.set_Rect_1 (x : Shape) (v : UInt256) : Shape :=
   match x with
   | .Rect f0 f1 => .Rect f0 v
-  | x => x
-
-inductive Option_u256 where
-  | None
-  | Some (f0 : UInt256)
-deriving Inhabited
-
-def Option_u256.tag : Option_u256 → UInt256
-  | .None => UInt256.ofNat 0
-  | .Some .. => UInt256.ofNat 1
-
-def Option_u256.Some_0 : Option_u256 → UInt256
-  | .Some f0 => f0
-  | _ => default
-
-def Option_u256.set_Some_0 (x : Option_u256) (v : UInt256) : Option_u256 :=
-  match x with
-  | .Some f0 => .Some v
   | x => x
 
 def init : FeM Unit := do
@@ -2842,6 +2842,9 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: state
 
+def Layout.TSlot_bool : Layout :=
+  { storage := [0] }
+
 def Field.packed : Place :=
   .storage (UInt256.ofNat 0)
 
@@ -2946,9 +2949,6 @@ def Field.narrow : Place :=
 def Field.lock : Place :=
   .storage (UInt256.ofNat 0)
 
-def Layout.TSlot_bool : Layout :=
-  { storage := [0] }
-
 def Field.alone : Place :=
   .storage (UInt256.ofNat 8)
 
@@ -3045,12 +3045,6 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: entries
 
-def Field.store : Place :=
-  .storage (UInt256.ofNat 0)
-
-def Layout.Store : Layout :=
-  { storage := [0, 1] }
-
 structure Location where
   slot : UInt256
   offset : UInt256
@@ -3066,9 +3060,6 @@ structure MemSlice_u8 where
   ptr : UInt256
   len : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
 
 def encoded_len (v0 : UInt256) : FeM UInt256 := do
   let v1 := (UInt256.ofNat 32)
@@ -3526,18 +3517,6 @@ def locate_u256_u256_bool (v0 : Place) (v1 : UInt256) (v2 : (UInt256 × UInt256)
   let v5 := (Location.mk v3 v4)
   return v5
 
-def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM Bool := do
-  let v2 := (v0, v1)
-  let l0 ← locate_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v2
-  let v3 ← loadBool (Place.mk .storage l0.slot)
-  let v4 := v3
-  let v5 := true
-  let v6 := (v0, v1)
-  let l1 ← locate_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v6
-  storeBool (Place.mk .storage l1.slot) v5
-  let v7 := ()
-  return v4
-
 def encoded_len_1 (v0 : Bool) : FeM UInt256 := do
   let v1 := (UInt256.ofNat 32)
   return v1
@@ -3586,6 +3565,27 @@ def locate_bool_u256 (v0 : Place) (v1 : UInt256) (v2 : Bool) : FeM Location := d
   let v5 := (Location.mk v3 v4)
   return v5
 
+def Field.store : Place :=
+  .storage (UInt256.ofNat 0)
+
+def Layout.Store : Layout :=
+  { storage := [0, 1] }
+
+def init : FeM Unit := do
+  return ()
+
+def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM Bool := do
+  let v2 := (v0, v1)
+  let l0 ← locate_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v2
+  let v3 ← loadBool (Place.mk .storage l0.slot)
+  let v4 := v3
+  let v5 := true
+  let v6 := (v0, v1)
+  let l1 ← locate_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v6
+  storeBool (Place.mk .storage l1.slot) v5
+  let v7 := ()
+  return v4
+
 def recv0_arm1 (v0 : Bool) : FeM UInt256 := do
   let v1 := (UInt256.ofNat 1)
   let l0 ← locate_bool_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot v0
@@ -3617,19 +3617,6 @@ structure CallData where
   base : UInt256
 deriving Inhabited
 
-structure Sum where
-  a : UInt256
-  b : UInt256
-  c : UInt256
-  d : UInt256
-  e : UInt256
-  f : UInt256
-  g : UInt256
-  h : UInt256
-  i : UInt256
-  j : UInt256
-deriving Inhabited
-
 structure FixedMemBuffer_32 where
   ptr : UInt256
 deriving Inhabited
@@ -3653,21 +3640,6 @@ structure MemSlice_u8 where
   ptr : UInt256
   len : UInt256
 deriving Inhabited
-
-def init : FeM Unit := do
-  return ()
-
-def recv0_arm0 (v0 : UInt256) (v1 : UInt256) (v2 : UInt256) (v3 : UInt256) (v4 : UInt256) (v5 : UInt256) (v6 : UInt256) (v7 : UInt256) (v8 : UInt256) (v9 : UInt256) : FeM UInt256 := do
-  let v10 ← checkedAdd v0 v1
-  let v11 ← checkedAdd v10 v2
-  let v12 ← checkedAdd v11 v3
-  let v13 ← checkedAdd v12 v4
-  let v14 ← checkedAdd v13 v5
-  let v15 ← checkedAdd v14 v6
-  let v16 ← checkedAdd v15 v7
-  let v17 ← checkedAdd v16 v8
-  let v18 ← checkedAdd v17 v9
-  return v18
 
 def new : FeM CallData := do
   let v0 := (UInt256.ofNat 0)
@@ -3793,30 +3765,6 @@ def abi_field_head_size_u256 : FeM UInt256 := do
     let v3 := v2
     let v4 ← HEAD_SIZE
     return v4
-
-def HEAD_SIZE_1 : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
-  let v1 ← abi_field_head_size_u256
-  let v2 ← checkedAdd v0 v1
-  let v3 ← abi_field_head_size_u256
-  let v4 ← checkedAdd v2 v3
-  let v5 ← abi_field_head_size_u256
-  let v6 ← checkedAdd v4 v5
-  let v7 ← abi_field_head_size_u256
-  let v8 ← checkedAdd v6 v7
-  let v9 ← abi_field_head_size_u256
-  let v10 ← checkedAdd v8 v9
-  let v11 ← abi_field_head_size_u256
-  let v12 ← checkedAdd v10 v11
-  let v13 ← abi_field_head_size_u256
-  let v14 ← checkedAdd v12 v13
-  let v15 ← abi_field_head_size_u256
-  let v16 ← checkedAdd v14 v15
-  let v17 ← abi_field_head_size_u256
-  let v18 ← checkedAdd v16 v17
-  let v19 ← abi_field_head_size_u256
-  let v20 ← checkedAdd v18 v19
-  return v20
 
 def from_word_1 (v0 : UInt256) : FeM UInt256 := do
   let v1 := v0
@@ -3953,166 +3901,6 @@ def decode_msg_field_from_Sol_u256_CallData (v0 : CallData) (v1 : UInt256) (v2 :
     let v7 := v6
     let v8 ← decode_field_from_Sol_u256_CallData v0 v1 v2
     return v8
-
-def decode_from_CallData_k5 (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v82 : UInt256) (v101 : UInt256) (v121 : UInt256) : FeM Sum := do
-  let v122 := v121
-  let v123 := (Sum.mk v5 v10 v17 v26 v37 v50 v65 v82 v101 v122)
-  return v123
-
-def decode_from_CallData_k4 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v82 : UInt256) (v97 : UInt256) : FeM Sum := do
-  let v98 ← abi_field_head_size_u256
-  let v99 ← checkedAdd v97 v98
-  let v100 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v99 v3
-  let v101 := v100
-  let v102 := v1
-  let v103 ← abi_field_head_size_u256
-  let v104 ← checkedAdd v102 v103
-  let v105 ← abi_field_head_size_u256
-  let v106 ← checkedAdd v104 v105
-  let v107 ← abi_field_head_size_u256
-  let v108 ← checkedAdd v106 v107
-  let v109 ← abi_field_head_size_u256
-  let v110 ← checkedAdd v108 v109
-  let v111 ← abi_field_head_size_u256
-  let v112 ← checkedAdd v110 v111
-  let v113 ← abi_field_head_size_u256
-  let v114 ← checkedAdd v112 v113
-  let v115 ← abi_field_head_size_u256
-  let v116 ← checkedAdd v114 v115
-  let v117 ← abi_field_head_size_u256
-  let v118 ← checkedAdd v116 v117
-  let v119 ← abi_field_head_size_u256
-  let v120 ← checkedAdd v118 v119
-  let v121 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v120 v3
-  decode_from_CallData_k5 v5 v10 v17 v26 v37 v50 v65 v82 v101 v121
-
-def decode_from_CallData_k3 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v72 : UInt256) (v73 : UInt256) : FeM Sum := do
-  let v74 ← checkedAdd v72 v73
-  let v75 ← abi_field_head_size_u256
-  let v76 ← checkedAdd v74 v75
-  let v77 ← abi_field_head_size_u256
-  let v78 ← checkedAdd v76 v77
-  let v79 ← abi_field_head_size_u256
-  let v80 ← checkedAdd v78 v79
-  let v81 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v80 v3
-  let v82 := v81
-  let v83 := v1
-  let v84 ← abi_field_head_size_u256
-  let v85 ← checkedAdd v83 v84
-  let v86 ← abi_field_head_size_u256
-  let v87 ← checkedAdd v85 v86
-  let v88 ← abi_field_head_size_u256
-  let v89 ← checkedAdd v87 v88
-  let v90 ← abi_field_head_size_u256
-  let v91 ← checkedAdd v89 v90
-  let v92 ← abi_field_head_size_u256
-  let v93 ← checkedAdd v91 v92
-  let v94 ← abi_field_head_size_u256
-  let v95 ← checkedAdd v93 v94
-  let v96 ← abi_field_head_size_u256
-  let v97 ← checkedAdd v95 v96
-  decode_from_CallData_k4 v0 v1 v3 v5 v10 v17 v26 v37 v50 v65 v82 v97
-
-def decode_from_CallData_k2 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v49 : UInt256) : FeM Sum := do
-  let v50 := v49
-  let v51 := v1
-  let v52 ← abi_field_head_size_u256
-  let v53 ← checkedAdd v51 v52
-  let v54 ← abi_field_head_size_u256
-  let v55 ← checkedAdd v53 v54
-  let v56 ← abi_field_head_size_u256
-  let v57 ← checkedAdd v55 v56
-  let v58 ← abi_field_head_size_u256
-  let v59 ← checkedAdd v57 v58
-  let v60 ← abi_field_head_size_u256
-  let v61 ← checkedAdd v59 v60
-  let v62 ← abi_field_head_size_u256
-  let v63 ← checkedAdd v61 v62
-  let v64 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v63 v3
-  let v65 := v64
-  let v66 := v1
-  let v67 ← abi_field_head_size_u256
-  let v68 ← checkedAdd v66 v67
-  let v69 ← abi_field_head_size_u256
-  let v70 ← checkedAdd v68 v69
-  let v71 ← abi_field_head_size_u256
-  let v72 ← checkedAdd v70 v71
-  let v73 ← abi_field_head_size_u256
-  decode_from_CallData_k3 v0 v1 v3 v5 v10 v17 v26 v37 v50 v65 v72 v73
-
-def decode_from_CallData_k1 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v25 : UInt256) : FeM Sum := do
-  let v26 := v25
-  let v27 := v1
-  let v28 ← abi_field_head_size_u256
-  let v29 ← checkedAdd v27 v28
-  let v30 ← abi_field_head_size_u256
-  let v31 ← checkedAdd v29 v30
-  let v32 ← abi_field_head_size_u256
-  let v33 ← checkedAdd v31 v32
-  let v34 ← abi_field_head_size_u256
-  let v35 ← checkedAdd v33 v34
-  let v36 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v35 v3
-  let v37 := v36
-  let v38 := v1
-  let v39 ← abi_field_head_size_u256
-  let v40 ← checkedAdd v38 v39
-  let v41 ← abi_field_head_size_u256
-  let v42 ← checkedAdd v40 v41
-  let v43 ← abi_field_head_size_u256
-  let v44 ← checkedAdd v42 v43
-  let v45 ← abi_field_head_size_u256
-  let v46 ← checkedAdd v44 v45
-  let v47 ← abi_field_head_size_u256
-  let v48 ← checkedAdd v46 v47
-  let v49 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v48 v3
-  decode_from_CallData_k2 v0 v1 v3 v5 v10 v17 v26 v37 v49
-
-def decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Sum := do
-  let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
-  let v7 ← abi_field_head_size_u256
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := v1
-  let v12 ← abi_field_head_size_u256
-  let v13 ← checkedAdd v11 v12
-  let v14 ← abi_field_head_size_u256
-  let v15 ← checkedAdd v13 v14
-  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v3
-  let v17 := v16
-  let v18 := v1
-  let v19 ← abi_field_head_size_u256
-  let v20 ← checkedAdd v18 v19
-  let v21 ← abi_field_head_size_u256
-  let v22 ← checkedAdd v20 v21
-  let v23 ← abi_field_head_size_u256
-  let v24 ← checkedAdd v22 v23
-  let v25 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v24 v3
-  decode_from_CallData_k1 v0 v1 v3 v5 v10 v17 v25
-
-def decode_from_prechecked_head_Sum_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Sum := do
-  let v3 ← decode_from_CallData v0 v1
-  return v3
-
-def decode_runtime_args_Evm_Sol_Sum : FeM Sum := do
-  let mut r0 : CallData := default
-  let v2 ← input
-  let v3 := v2
-  r0 := v3
-  let v4 ← SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
-  let v9 ← HEAD_SIZE_1
-  let v10 ← validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Sum_Sol_CallData v11 v5 v8
-  return v12
 
 def max : FeM UInt256 := do
   let v0 := (UInt256.ofNat 18446744073709551615)
@@ -4676,6 +4464,218 @@ def return_value_Sol_u256 (v1 : UInt256) : FeM Empty := do
     let v60 ← span_ref r3
     let v63 ← return_bytes v60
     nomatch v63
+
+structure Sum where
+  a : UInt256
+  b : UInt256
+  c : UInt256
+  d : UInt256
+  e : UInt256
+  f : UInt256
+  g : UInt256
+  h : UInt256
+  i : UInt256
+  j : UInt256
+deriving Inhabited
+
+def init : FeM Unit := do
+  return ()
+
+def recv0_arm0 (v0 : UInt256) (v1 : UInt256) (v2 : UInt256) (v3 : UInt256) (v4 : UInt256) (v5 : UInt256) (v6 : UInt256) (v7 : UInt256) (v8 : UInt256) (v9 : UInt256) : FeM UInt256 := do
+  let v10 ← checkedAdd v0 v1
+  let v11 ← checkedAdd v10 v2
+  let v12 ← checkedAdd v11 v3
+  let v13 ← checkedAdd v12 v4
+  let v14 ← checkedAdd v13 v5
+  let v15 ← checkedAdd v14 v6
+  let v16 ← checkedAdd v15 v7
+  let v17 ← checkedAdd v16 v8
+  let v18 ← checkedAdd v17 v9
+  return v18
+
+def HEAD_SIZE_1 : FeM UInt256 := do
+  let v0 := (UInt256.ofNat 0)
+  let v1 ← abi_field_head_size_u256
+  let v2 ← checkedAdd v0 v1
+  let v3 ← abi_field_head_size_u256
+  let v4 ← checkedAdd v2 v3
+  let v5 ← abi_field_head_size_u256
+  let v6 ← checkedAdd v4 v5
+  let v7 ← abi_field_head_size_u256
+  let v8 ← checkedAdd v6 v7
+  let v9 ← abi_field_head_size_u256
+  let v10 ← checkedAdd v8 v9
+  let v11 ← abi_field_head_size_u256
+  let v12 ← checkedAdd v10 v11
+  let v13 ← abi_field_head_size_u256
+  let v14 ← checkedAdd v12 v13
+  let v15 ← abi_field_head_size_u256
+  let v16 ← checkedAdd v14 v15
+  let v17 ← abi_field_head_size_u256
+  let v18 ← checkedAdd v16 v17
+  let v19 ← abi_field_head_size_u256
+  let v20 ← checkedAdd v18 v19
+  return v20
+
+def decode_from_CallData_k5 (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v82 : UInt256) (v101 : UInt256) (v121 : UInt256) : FeM Sum := do
+  let v122 := v121
+  let v123 := (Sum.mk v5 v10 v17 v26 v37 v50 v65 v82 v101 v122)
+  return v123
+
+def decode_from_CallData_k4 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v82 : UInt256) (v97 : UInt256) : FeM Sum := do
+  let v98 ← abi_field_head_size_u256
+  let v99 ← checkedAdd v97 v98
+  let v100 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v99 v3
+  let v101 := v100
+  let v102 := v1
+  let v103 ← abi_field_head_size_u256
+  let v104 ← checkedAdd v102 v103
+  let v105 ← abi_field_head_size_u256
+  let v106 ← checkedAdd v104 v105
+  let v107 ← abi_field_head_size_u256
+  let v108 ← checkedAdd v106 v107
+  let v109 ← abi_field_head_size_u256
+  let v110 ← checkedAdd v108 v109
+  let v111 ← abi_field_head_size_u256
+  let v112 ← checkedAdd v110 v111
+  let v113 ← abi_field_head_size_u256
+  let v114 ← checkedAdd v112 v113
+  let v115 ← abi_field_head_size_u256
+  let v116 ← checkedAdd v114 v115
+  let v117 ← abi_field_head_size_u256
+  let v118 ← checkedAdd v116 v117
+  let v119 ← abi_field_head_size_u256
+  let v120 ← checkedAdd v118 v119
+  let v121 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v120 v3
+  decode_from_CallData_k5 v5 v10 v17 v26 v37 v50 v65 v82 v101 v121
+
+def decode_from_CallData_k3 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v50 : UInt256) (v65 : UInt256) (v72 : UInt256) (v73 : UInt256) : FeM Sum := do
+  let v74 ← checkedAdd v72 v73
+  let v75 ← abi_field_head_size_u256
+  let v76 ← checkedAdd v74 v75
+  let v77 ← abi_field_head_size_u256
+  let v78 ← checkedAdd v76 v77
+  let v79 ← abi_field_head_size_u256
+  let v80 ← checkedAdd v78 v79
+  let v81 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v80 v3
+  let v82 := v81
+  let v83 := v1
+  let v84 ← abi_field_head_size_u256
+  let v85 ← checkedAdd v83 v84
+  let v86 ← abi_field_head_size_u256
+  let v87 ← checkedAdd v85 v86
+  let v88 ← abi_field_head_size_u256
+  let v89 ← checkedAdd v87 v88
+  let v90 ← abi_field_head_size_u256
+  let v91 ← checkedAdd v89 v90
+  let v92 ← abi_field_head_size_u256
+  let v93 ← checkedAdd v91 v92
+  let v94 ← abi_field_head_size_u256
+  let v95 ← checkedAdd v93 v94
+  let v96 ← abi_field_head_size_u256
+  let v97 ← checkedAdd v95 v96
+  decode_from_CallData_k4 v0 v1 v3 v5 v10 v17 v26 v37 v50 v65 v82 v97
+
+def decode_from_CallData_k2 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v26 : UInt256) (v37 : UInt256) (v49 : UInt256) : FeM Sum := do
+  let v50 := v49
+  let v51 := v1
+  let v52 ← abi_field_head_size_u256
+  let v53 ← checkedAdd v51 v52
+  let v54 ← abi_field_head_size_u256
+  let v55 ← checkedAdd v53 v54
+  let v56 ← abi_field_head_size_u256
+  let v57 ← checkedAdd v55 v56
+  let v58 ← abi_field_head_size_u256
+  let v59 ← checkedAdd v57 v58
+  let v60 ← abi_field_head_size_u256
+  let v61 ← checkedAdd v59 v60
+  let v62 ← abi_field_head_size_u256
+  let v63 ← checkedAdd v61 v62
+  let v64 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v63 v3
+  let v65 := v64
+  let v66 := v1
+  let v67 ← abi_field_head_size_u256
+  let v68 ← checkedAdd v66 v67
+  let v69 ← abi_field_head_size_u256
+  let v70 ← checkedAdd v68 v69
+  let v71 ← abi_field_head_size_u256
+  let v72 ← checkedAdd v70 v71
+  let v73 ← abi_field_head_size_u256
+  decode_from_CallData_k3 v0 v1 v3 v5 v10 v17 v26 v37 v50 v65 v72 v73
+
+def decode_from_CallData_k1 (v0 : CallData) (v1 : UInt256) (v3 : UInt256) (v5 : UInt256) (v10 : UInt256) (v17 : UInt256) (v25 : UInt256) : FeM Sum := do
+  let v26 := v25
+  let v27 := v1
+  let v28 ← abi_field_head_size_u256
+  let v29 ← checkedAdd v27 v28
+  let v30 ← abi_field_head_size_u256
+  let v31 ← checkedAdd v29 v30
+  let v32 ← abi_field_head_size_u256
+  let v33 ← checkedAdd v31 v32
+  let v34 ← abi_field_head_size_u256
+  let v35 ← checkedAdd v33 v34
+  let v36 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v35 v3
+  let v37 := v36
+  let v38 := v1
+  let v39 ← abi_field_head_size_u256
+  let v40 ← checkedAdd v38 v39
+  let v41 ← abi_field_head_size_u256
+  let v42 ← checkedAdd v40 v41
+  let v43 ← abi_field_head_size_u256
+  let v44 ← checkedAdd v42 v43
+  let v45 ← abi_field_head_size_u256
+  let v46 ← checkedAdd v44 v45
+  let v47 ← abi_field_head_size_u256
+  let v48 ← checkedAdd v46 v47
+  let v49 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v48 v3
+  decode_from_CallData_k2 v0 v1 v3 v5 v10 v17 v26 v37 v49
+
+def decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Sum := do
+  let v2 ← len_CallData v0
+  let v3 := v2
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
+  let v5 := v4
+  let v6 := v1
+  let v7 ← abi_field_head_size_u256
+  let v8 ← checkedAdd v6 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
+  let v10 := v9
+  let v11 := v1
+  let v12 ← abi_field_head_size_u256
+  let v13 ← checkedAdd v11 v12
+  let v14 ← abi_field_head_size_u256
+  let v15 ← checkedAdd v13 v14
+  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v3
+  let v17 := v16
+  let v18 := v1
+  let v19 ← abi_field_head_size_u256
+  let v20 ← checkedAdd v18 v19
+  let v21 ← abi_field_head_size_u256
+  let v22 ← checkedAdd v20 v21
+  let v23 ← abi_field_head_size_u256
+  let v24 ← checkedAdd v22 v23
+  let v25 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v24 v3
+  decode_from_CallData_k1 v0 v1 v3 v5 v10 v17 v25
+
+def decode_from_prechecked_head_Sum_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Sum := do
+  let v3 ← decode_from_CallData v0 v1
+  return v3
+
+def decode_runtime_args_Evm_Sol_Sum : FeM Sum := do
+  let mut r0 : CallData := default
+  let v2 ← input
+  let v3 := v2
+  r0 := v3
+  let v4 ← SELECTOR_SIZE
+  let v5 := v4
+  let v6 := r0
+  let v7 ← len_CallData v6
+  let v8 := v7
+  let v9 ← HEAD_SIZE_1
+  let v10 ← validate_runtime_head v8 v5 v9
+  let v11 := r0
+  let v12 ← decode_from_prechecked_head_Sum_Sol_CallData v11 v5 v8
+  return v12
 
 def recv0_arm0_entry : FeM Empty := do
   nonPayable

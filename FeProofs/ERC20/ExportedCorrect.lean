@@ -1,3 +1,4 @@
+import FeProofs.Lib.ExportedCorrect
 import FeProofs.ERC20.Exported
 import FeProofs.ERC20.ModelCorrect
 import FeProofs.Common.Abi
@@ -12,6 +13,7 @@ decoder), and that each exported arm ends as the hand-written model arm does, up
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open FeProofs.Lib (returnU256_exec withArg)
 
 namespace FeProofs.ERC20.Exported
 
@@ -32,20 +34,20 @@ The std definitions the arms and entries reach unfold under `simp` in this secti
 section Std
 
 attribute [local simp]
-  IS_DYNAMIC HEAD_SIZE abi_field_head_size_u256 HEAD_SIZE_u256 payload_size_u256 
+  IS_DYNAMIC HEAD_SIZE_1 abi_field_head_size_u256 HEAD_SIZE_u256 payload_size_u256 
   dynamic_payload_size_u256 payload_size_u256_1 abi_payload_size_u256 max PANIC_OUT_OF_MEMORY 
-  word_to_usize allocation_len max_1 to_word IS_SIGNED MASK from_word I256_SIGN_BIT SIGN_BIT 
+  word_to_usize allocation_len max_1 to_word IS_SIGNED MASK_1 from_word_1 I256_SIGN_BIT SIGN_BIT 
   U256_MASK sign_extend downcast_saturate_u64_usize MAX_ALLOCATION alloc_bytes new_uninit 
-  zero_bytes new ptr from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds ptr_offset tail 
+  zero_bytes new_1 ptr from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds ptr_offset tail 
   len slice cast_u8_u256 store_word store_word_1 encode_Sol encode_field_Sol_u256 encode_Sol_u256 
-  encode_alloc_Sol_u256 encode_abi_payload_u256 from_raw_parts_ref_u8 span_ref as_topic ptr_u8 
+  encode_alloc_Sol_u256_1 encode_abi_payload_u256 from_raw_parts_ref_u8 span_ref as_topic ptr_u8 
   len_u8 log3 cast_u8_u8 dealloc_u8 drop emit_Evm emit_Evm_Transfer emit_Evm_1 emit_Evm_Approval 
-  new_1 input SELECTOR_SIZE to_word_1 U64_MASK MASK_1 from_word_1 downcast_truncate_u256_u64 size 
-  len_CallData abi_field_head_size_Address HEAD_SIZE_1 validate_runtime_head word_at decode_error 
-  checked_tail_Sol checked_frame_end_Sol decode_from_Sol_CallData 
+  new input SELECTOR_SIZE to_word_1 U64_MASK MASK from_word downcast_truncate_u256_u64 size 
+  len_CallData abi_field_head_size_Address HEAD_SIZE validate_runtime_head word_at decode_error 
+  checked_tail_Sol checked_frame_end_Sol decode_from_Sol_CallData_1 
   decode_from_bounded_Address_Sol_CallData decode_field_from_prechecked_head_Sol_Address_CallData 
   decode_field_from_Sol_Address_CallData decode_msg_field_from_Sol_Address_CallData 
-  decode_from_Sol_CallData_1 decode_from_bounded_u256_Sol_CallData 
+  decode_from_Sol_CallData decode_from_bounded_u256_Sol_CallData 
   decode_field_from_prechecked_head_Sol_u256_CallData decode_field_from_Sol_u256_CallData 
   decode_msg_field_from_Sol_u256_CallData decode_from_CallData 
   decode_from_prechecked_head_Transfer_Sol_CallData decode_runtime_args_Evm_Sol_Transfer 
@@ -58,7 +60,7 @@ attribute [local simp]
   HEAD_SIZE_2 decode_from_CallData_2 decode_from_prechecked_head_TransferFrom_Sol_CallData 
   decode_runtime_args_Evm_Sol_TransferFrom HEAD_SIZE_3 decode_from_CallData_3 
   decode_from_prechecked_head_BalanceOf_Sol_CallData decode_runtime_args_Evm_Sol_BalanceOf 
-  const_u256 abi_payload_size_u256_1 encode_alloc_Sol_u256_1 abi_field_size_u256 
+  const_u256 abi_payload_size_u256_1 encode_alloc_Sol_u256 abi_field_size_u256 
   abi_single_root_size_u256 abi_single_root_head_size_u256 encode_single_root_alloc_Sol_u256 
   encode_return_alloc_Sol_u256 return_value_Sol_u256 HEAD_SIZE_4 decode_from_CallData_4 
   decode_from_prechecked_head_Allowance_Sol_CallData decode_runtime_args_Evm_Sol_Allowance 
@@ -271,27 +273,10 @@ theorem returnBool_exec (b : Bool) (hmem : w.memory.size + 32 < UInt256.size) :
     hroom, returned, encodeBool_eq]
   exact returned_read _ _
 
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_u256 v).exec I w =
-      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
-    hroom, returned]
-  exact returned_read _ _
-
 /-! ### The constructor argument -/
 
 theorem ctorTail_eq (v : UInt256) : ctorTail v = v.toByteArray := by
   rw [ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
-
-/-- Memory after the deployment entry copies the one argument word into a fresh buffer. -/
-def withArg (memory : ByteArray) (v : UInt256) : ByteArray :=
-  v.toByteArray.write 0 (memory ++ ⟨Array.replicate 32 0⟩) memory.size 32
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in

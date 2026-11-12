@@ -1,3 +1,4 @@
+import FeProofs.Lib.ExportedCorrect
 import FeProofs.ScalarStore.Exported
 import FeProofs.ScalarStore.ModelCorrect
 import Fe.EVM.Entry
@@ -14,6 +15,7 @@ encodes return data in fresh buffers.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open FeProofs.Lib (returnU256_exec withArg)
 
 namespace FeProofs.ScalarStore.Exported
 
@@ -69,28 +71,10 @@ theorem decodeGet_exec : decode_runtime_args_Evm_Sol_Get.exec I w = some (.ok (�
 
 /-! ### The return -/
 
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-/-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
-theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_u256 v).exec I w =
-      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
-    hroom, returned]
-  exact returned_read _ _
-
 /-! ### The constructor argument -/
 
 theorem ctorTail_eq (v : UInt256) : ctorTail v = v.toByteArray := by
   rw [ctorTail, word_toBytesBE_toByteArray_eq_toByteArray]
-
-/-- Memory after the deployment entry copies the one argument word into a fresh buffer. -/
-def withArg (memory : ByteArray) (v : UInt256) : ByteArray :=
-  v.toByteArray.write 0 (memory ++ ⟨Array.replicate 32 0⟩) memory.size 32
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in

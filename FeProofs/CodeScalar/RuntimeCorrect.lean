@@ -1,3 +1,4 @@
+import FeProofs.Lib.ExportedCorrect
 import FeProofs.CodeScalar.Exported
 import FeProofs.CodeScalar.ModelCorrect
 import Fe.EVM.Entry
@@ -14,6 +15,7 @@ contract whose deployed code is its runtime bytecode followed by data.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open FeProofs.Lib (returnU256_exec withArg withArg_size)
 
 namespace FeProofs.CodeScalar.Exported
 
@@ -37,7 +39,7 @@ attribute [local simp]
   abi_single_root_size_u256 abi_field_head_size_u256 abi_single_root_head_size_u256 tail len
   encode_field_Sol_u256 encode_single_root_alloc_Sol_u256 encode_return_alloc_Sol_u256
   return_bytes return_value_Sol_u256 with_base decoder_new downcast_truncate_usize_u64 size_1
-  len_MemSlice_u8 word_at read_word_MemSlice_u8 base pos decode_error checked_tail_Sol set_base
+  len_MemSlice_u8 word_at_1 read_word_MemSlice_u8 base pos decode_error checked_tail_Sol set_base
   set_pos decode_payload_Sol_SolDecoder_MemSlice_u8 decode_field_Sol_u256_SolDecoder_MemSlice_u8
   decode_payload_Sol_u256_SolDecoder_MemSlice_u8 checkedAdd checkedSub alloc mstore mstoreBytes
   readPaddedWord zeroMem returnData panicCode memoryBytes
@@ -47,31 +49,6 @@ variable (I : ExecutionEnv) (w : World)
 /-- `decode_runtime_args` at `Get`: nothing to decode, and no head to check. -/
 theorem decodeGet_exec : decode_runtime_args_Evm_Sol_Get.exec I w = some (.ok (⟨⟩, w)) := by
   simp [toNat0]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-/-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
-theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_u256 v).exec I w =
-      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
-    hroom, returned]
-  exact returned_read _ _
-
-/-- Memory after the deployment entry copies the one argument word into a fresh buffer. -/
-def withArg (memory : ByteArray) (v : UInt256) : ByteArray :=
-  v.toByteArray.write 0 (memory ++ ⟨Array.replicate 32 0⟩) memory.size 32
-
-theorem withArg_size (memory : ByteArray) (v : UInt256) :
-    (withArg memory v).size = memory.size + 32 := by
-  have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl
-  unfold withArg
-  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
-    (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
 
 /-- Memory after the deployment entry also writes the immutable word into its fresh buffer. -/
 def withWord (memory : ByteArray) (v : UInt256) : ByteArray :=

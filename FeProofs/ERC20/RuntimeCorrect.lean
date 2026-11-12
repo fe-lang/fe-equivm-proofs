@@ -12,6 +12,7 @@ fresh buffers, and hashes the key of each map entry it reaches in another.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open FeProofs.Lib (returnU256_exec withArg withArg_size)
 
 namespace FeProofs.ERC20.Exported
 
@@ -354,13 +355,6 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
 end Entries
 
 /-! ## Deployment -/
-
-theorem withArg_size (memory : ByteArray) (v : UInt256) :
-    (withArg memory v).size = memory.size + 32 := by
-  have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl
-  unfold withArg
-  rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
-    (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
 
 /-- The exported deployment entry ends as the hand-written model's does, on one argument word. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
