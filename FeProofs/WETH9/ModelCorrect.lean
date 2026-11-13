@@ -622,12 +622,11 @@ theorem withdrawArm_refines {g : UInt256}
 open Strings in
 /-- A string getter from the call of `SolString::load` (pc 860) on `slot`, with return address
     `ret`, from where it jumps to the return encoder (pc 1228, `hjump`): both return the string's
-    ABI encoding, or both revert on a malformed head.  The encoding is shorter than `2 ^ 64`
-    bytes (`hfits`). -/
+    ABI encoding, both panic when it takes `2 ^ 64` bytes or more, and both revert on a malformed
+    head. -/
 theorem stringReturn_refines {g : UInt256} {slot ret : UInt256} {R : List UInt256} {aw : UInt256}
     {rdata : ByteArray} {k C : ℕ}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hfits : stringReturnFits (solcSlotWord σ I slot))
     (hret : (D_J feWETH9Bytecode 0).contains ret = true) (hR : R.length ≤ 990)
     (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
       (UInt256.ofNat 860) (slot :: ret :: R) entryMem aw rdata σ k C)
@@ -640,13 +639,24 @@ theorem stringReturn_refines {g : UInt256} {slot ret : UInt256} {R : List UInt25
     ArmAgrees σ σ₀ g A I (Model.stringReturn slot) := by
   cases hd : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) with
   | ok L =>
-    have hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64 := hfits L hd
-    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd hfit hret hR rd
+    have hd' : solidityDecodeBytesLengthHeader (slotWord I σ slot) = .ok L := hd
+    have hL := decodedLen_lt hd
+    by_cases h32 : 32 + 32 * ((L + 31) / 32) < 2 ^ 64
+    swap
+    · exact agrees_of_rev hcode (loadString_tooLong hd (by omega) hR rd) (f := .panic 0x41)
+        (by simp [Model.stringReturn, World.init, hd',
+          show ¬ 64 + 32 * ((L + 31) / 32) < 18446744073709551616 by omega]) (by simp)
+    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd h32 hret hR rd
     obtain ⟨_, _, _, rd⟩ := hjump _ _ _ _ _ rd
+    by_cases hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64
+    swap
+    · exact agrees_of_rev hcode (encodeReturn_tooLong (n := 32 + 32 * ((L + 31) / 32))
+          (by omega) (by omega) (by omega) rd) (f := .panic 0x41)
+        (by simp [Model.stringReturn, World.init, hd',
+          show ¬ 64 + 32 * ((L + 31) / 32) < 18446744073709551616 from hfit]) (by simp)
     have rd := encodeReturn (n := 32 + 32 * ((L + 31) / 32)) (by rw [hMs]; omega)
       (by rw [hM64]; congr 1; omega) (by omega) (by omega) hsize (by omega) rd
     rw [show 224 + (32 + 32 * ((L + 31) / 32)) = 256 + 32 * ((L + 31) / 32) by omega, hMx] at rd
-    have hd' : solidityDecodeBytesLengthHeader (slotWord I σ slot) = .ok L := hd
     exact agrees_of_ret hcode rd (w' := World.init σ A)
       (by simp [Model.stringReturn, World.init, hd',
         show 64 + 32 * ((L + 31) / 32) < 18446744073709551616 from hfit]) rfl
@@ -660,8 +670,7 @@ theorem stringReturn_refines {g : UInt256} {slot ret : UInt256} {R : List UInt25
 
 theorem nameArm_refines {g : UInt256}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hsel : selIs I (feWETH9SelBytes 0))
-    (hfits : I.weiValue = ⟨0⟩ → stringReturnFits (solcSlotWord σ I ⟨0⟩)) :
+    (hsel : selIs I (feWETH9SelBytes 0)) :
     ArmAgrees σ σ₀ g A I Model.nameArm := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 0) rfl hsel
   obtain ⟨aw, k, C, rd⟩ := feWETH9ReachNameBody (g := Sat256.ofUInt256 g) (σ := σ)
@@ -672,14 +681,13 @@ theorem nameArm_refines {g : UInt256}
     exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
       (by simp [Model.nameArm, exec_nonPayable, hwv]) (by simp)
   rd_run rd to 860 using [hwv]
-  have h := stringReturn_refines hcode hsize (hfits hwv) (by jump_dest) (by simp) rd
+  have h := stringReturn_refines hcode hsize (by jump_dest) (by simp) rd
     fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
   simpa [ArmAgrees, Model.nameArm, exec_nonPayable, hwv] using h
 
 theorem symbolArm_refines {g : UInt256}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hsel : selIs I (feWETH9SelBytes 7))
-    (hfits : I.weiValue = ⟨0⟩ → stringReturnFits (solcSlotWord σ I ⟨1⟩)) :
+    (hsel : selIs I (feWETH9SelBytes 7)) :
     ArmAgrees σ σ₀ g A I Model.symbolArm := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 7) rfl hsel
   obtain ⟨aw, k, C, rd⟩ := feWETH9ReachSymbolBody (g := Sat256.ofUInt256 g) (σ := σ)
@@ -690,18 +698,16 @@ theorem symbolArm_refines {g : UInt256}
     exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
       (by simp [Model.symbolArm, exec_nonPayable, hwv]) (by simp)
   rd_run rd to 860 using [hwv]
-  have h := stringReturn_refines hcode hsize (hfits hwv) (by jump_dest) (by simp) rd
+  have h := stringReturn_refines hcode hsize (by jump_dest) (by simp) rd
     fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
   simpa [ArmAgrees, Model.symbolArm, exec_nonPayable, hwv] using h
 
 /-! ## The runtime entry -/
 
-/-- The bytecode refines the model on calldata below `2 ^ 256` bytes, when a zero-value `name()`
-    or `symbol()` call returns a string whose ABI encoding is shorter than `2 ^ 64` bytes
-    (`feWETH9StorageWF`). -/
-theorem feWETH9RefinesModel (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv)
-    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hwf : feWETH9StorageWF σ I) : RefinesFor .P0 Model.contract σ σ₀ g A I := by
+/-- The bytecode refines the model on every message call. -/
+theorem feWETH9RefinesModel : Refines .P0 feWETH9Bytecode Model.contract := by
+  refine RefinesOn.of_code rfl ?_
+  intro σ σ₀ g A I hcode hsize
   refine RefinesFor.of_gas ?_
   show ArmAgreesFeed σ σ₀ g A I Model.runtime
   have sel : ∀ i, (¬ selIs I (feWETH9SelBytes i)) →
@@ -719,7 +725,7 @@ theorem feWETH9RefinesModel (σ σ₀ : AccountMap) (g : UInt256) (A : Substate)
   by_cases h0 : selIs I (feWETH9SelBytes 0)
   · exact route (fun _ => by simp [Model.runtime, hn4,
       show (Model.nameSelector == I.calldata.extract 0 4) = true from h0])
-      (nameArm_refines hcode hsize h0 (hwf.1 h0)).feed
+      (nameArm_refines hcode hsize h0).feed
   have n0 : (Model.nameSelector == I.calldata.extract 0 4) = false := sel 0 h0
   by_cases h1 : selIs I (feWETH9SelBytes 1)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0,
@@ -754,7 +760,7 @@ theorem feWETH9RefinesModel (σ σ₀ : AccountMap) (g : UInt256) (A : Substate)
   by_cases h7 : selIs I (feWETH9SelBytes 7)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6,
       show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7])
-      (symbolArm_refines hcode hsize h7 (hwf.2 h7)).feed
+      (symbolArm_refines hcode hsize h7).feed
   have n7 : (Model.symbolSelector == I.calldata.extract 0 4) = false := sel 7 h7
   by_cases h8 : selIs I (feWETH9SelBytes 8)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7,

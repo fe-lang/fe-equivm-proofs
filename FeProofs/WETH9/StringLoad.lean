@@ -268,7 +268,7 @@ theorem storedLen_revert (hdec : solidityDecodeBytesLengthHeader head = .revert)
 allocation size checked. -/
 theorem loadHead {slot ret : UInt256} {L : ℕ}
     (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ ee slot) = .ok L)
-    (hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64) (hR : R.length ≤ 990)
+    (hfit : 32 + 32 * ((L + 31) / 32) < 2 ^ 64) (hR : R.length ≤ 990)
     (rd : RD code ee g s0 (UInt256.ofNat 860) (slot :: ret :: R) mem aw rdata σ k C) :
     ∃ aw' k' C', RD code ee g s0 (UInt256.ofNat 898)
       (UInt256.ofNat (32 + 32 * ((L + 31) / 32)) ::
@@ -359,7 +359,7 @@ theorem loadLoop {X : ByteArray} {L : ℕ} {base S : UInt256} (hX : X.size = 256
 from `0xe0`, the length word at `0xe0`, then the string's bytes padded to words. -/
 theorem loadBody {slot ret : UInt256} {L : ℕ}
     (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ ee slot) = .ok L)
-    (hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64) (hR : R.length ≤ 990)
+    (hfit : 32 + 32 * ((L + 31) / 32) < 2 ^ 64) (hR : R.length ≤ 990)
     (rd : RD code ee g s0 (UInt256.ofNat 898)
       (UInt256.ofNat (32 + 32 * ((L + 31) / 32)) ::
         UInt256.ofNat ((L + 31) / 32) :: UInt256.ofNat L :: solcSlotWord σ ee slot :: slot ::
@@ -480,7 +480,7 @@ theorem loadTail {X D : ByteArray} {fmp ret : UInt256} {L : ℕ}
 holds the length word and the padded bytes at `0xe0`, and the free memory pointer past them. -/
 theorem loadString_ok {slot ret : UInt256} {L : ℕ}
     (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ ee slot) = .ok L)
-    (hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64) (hret : (D_J code 0).contains ret = true)
+    (hfit : 32 + 32 * ((L + 31) / 32) < 2 ^ 64) (hret : (D_J code 0).contains ret = true)
     (hR : R.length ≤ 990)
     (rd : RD code ee g s0 (UInt256.ofNat 860) (slot :: ret :: R) entryMem aw rdata σ k C) :
     ∃ M aw' k' C', M.size = 256 + 32 * ((L + 31) / 32) ∧
@@ -534,6 +534,86 @@ theorem encodeReturn {M : ByteArray} {n : ℕ} (hM : M.size = 224 + n)
     lit_toNat (n := n) (by omega), lit_toNat (n := ee.calldata.size) hcd,
     show (UInt256.ofNat 224).toNat = 224 from rfl, ← hM] at rd
   rwa [encoderOutput ee.calldata M hM hn hfit] at rd
+
+/-! ## Strings too long to return
+
+The encoding of a string of `2 ^ 64` bytes or more cannot be allocated: `SolString::load` panics
+with `Panic(0x41)` at its allocation (pc 872) when the length word and the padded bytes do not
+fit, and otherwise the return encoder does at its own (pc 1248). -/
+
+/-- A length a head decodes to is below `2 ^ 255`. -/
+theorem decodedLen_lt {L : ℕ} (hdec : solidityDecodeBytesLengthHeader head = .ok L) :
+    L < 2 ^ 255 := by
+  have hh := u256_toNat_lt head
+  rcases decodeHeader_cases head with ⟨_, _, h⟩ | ⟨_, _, h⟩ | ⟨_, h⟩ <;> rw [h] at hdec <;>
+    cases hdec <;> omega
+
+/-- `strWords_eq` for any length a head decodes to. -/
+theorem strWords_eq_of_lt {L : ℕ} (hL : L < 2 ^ 255) :
+    UInt256.shiftRight (UInt256.ofNat L + UInt256.ofNat 31) (UInt256.ofNat 5) =
+      UInt256.ofNat ((L + 31) / 32) := by
+  apply u256_inj
+  rw [shiftRight_toNat_of_lt _ 5 (by decide), uadd_toNat, lit_toNat (n := L) (by omega),
+    lit_toNat (n := 31) (by omega), Nat.mod_eq_of_lt (by change _ < 2 ^ 256; omega),
+    lit_toNat (by omega)]
+  rfl
+
+/-- `strSize_eq` for any word count such a length gives. -/
+theorem strSize_eq_of_le {W : ℕ} (hW : W ≤ 2 ^ 250) :
+    UInt256.ofNat 32 + UInt256.shiftLeft (UInt256.ofNat W) (UInt256.ofNat 5) =
+      UInt256.ofNat (32 + 32 * W) := by
+  have hsz : UInt256.size = 2 ^ 256 := rfl
+  have hw : (UInt256.ofNat W).toNat = W := lit_toNat (by omega)
+  have hb : (UInt256.ofNat W).toNat * 2 ^ 5 < UInt256.size := by rw [hw]; omega
+  apply u256_inj
+  rw [uadd_toNat, shiftLeft_toNat_of_lt _ 5 (by decide) hb, hw,
+    show (UInt256.ofNat 32).toNat = 32 from rfl, lit_toNat (n := 32 + 32 * W) (by omega),
+    Nat.mod_eq_of_lt (show 32 + W * 2 ^ 5 < UInt256.size by omega)]
+  omega
+
+/-- `SolString::load` (pc 860) on a string whose length word and padded bytes take `2 ^ 64`
+    bytes or more panics at the allocation. -/
+theorem loadString_tooLong {slot ret : UInt256} {L : ℕ}
+    (hdec : solidityDecodeBytesLengthHeader (solcSlotWord σ ee slot) = .ok L)
+    (hbig : 2 ^ 64 ≤ 32 + 32 * ((L + 31) / 32)) (hR : R.length ≤ 990)
+    (rd : RD code ee g s0 (UInt256.ofNat 860) (slot :: ret :: R) mem aw rdata σ k C) :
+    RDrev code g s0 := by
+  have hL := decodedLen_lt hdec
+  rd_step rd
+  obtain ⟨k1, C1, rd⟩ := storedLen_ok hdec (by simp; omega) rd
+  have hc : UInt256.gt (UInt256.ofNat 32 + UInt256.shiftLeft (UInt256.shiftRight
+      (UInt256.ofNat L + UInt256.ofNat 31) (UInt256.ofNat 5)) (UInt256.ofNat 5))
+      (UInt256.shiftRight (UInt256.lnot ⟨0⟩) (UInt256.ofNat 192)) ≠ UInt256.ofNat 0 := by
+    rw [strWords_eq_of_lt hL, strSize_eq_of_le (by omega), ugt_one]
+    · decide
+    · rw [lit_toNat (by omega)]
+      change 2 ^ 64 - 1 < _
+      omega
+  rd_run rd using [hc]
+  exact rd
+
+/-- The `string` return encoder (pc 1228) on `n` bytes whose encoding, with the offset word,
+    takes `2 ^ 64` bytes or more panics at the allocation. -/
+theorem encodeReturn_tooLong {M : ByteArray} {n : ℕ} (hbig : 2 ^ 64 ≤ 32 + n)
+    (hn : 32 + n < 2 ^ 256) (hR : R.length ≤ 1000)
+    (rd : RD code ee g s0 (UInt256.ofNat 1228) (UInt256.ofNat 224 :: UInt256.ofNat n :: R)
+      M aw rdata σ k C) :
+    RDrev code g s0 := by
+  have hS := lit_add_eq (a := 32) (b := n) (by omega)
+  have hcAdd : UInt256.isZero (UInt256.lt (UInt256.ofNat 32 + UInt256.ofNat n)
+      (UInt256.ofNat 32)) ≠ UInt256.ofNat 0 := by
+    rw [hS, ult_zero (by rw [lit_toNat (by omega), lit_toNat (by omega)]; omega)]; decide
+  rd_step rd using [hcAdd]
+  rw [hS] at rd
+  have hcAlloc : UInt256.gt (UInt256.ofNat (32 + n)) (UInt256.shiftRight (UInt256.lnot ⟨0⟩)
+      (UInt256.ofNat 192)) ≠ UInt256.ofNat 0 := by
+    rw [ugt_one]
+    · decide
+    · rw [lit_toNat (by omega)]
+      change 2 ^ 64 - 1 < _
+      omega
+  rd_run rd using [hcAlloc]
+  exact rd
 
 end
 

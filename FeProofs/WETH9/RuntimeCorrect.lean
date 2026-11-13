@@ -574,17 +574,16 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
 /-- The contract as exported: the deployment entry and the runtime entry. -/
 def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 
-/-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes, when a
-    zero-value `name()` or `symbol()` call returns a string whose ABI encoding is shorter than
-    `2 ^ 64` bytes (`feWETH9StorageWF`). -/
-theorem feWETH9RefinesExported (σ σ₀ : AccountMap) (g : UInt256) (A : Substate)
-    (I : ExecutionEnv) (hcode : I.code = feWETH9Bytecode) (hfits : CalldataFits I)
-    (hwf : feWETH9StorageWF σ I) : RefinesFor .P0 contract σ σ₀ g A I := by
+/-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
+theorem feWETH9RefinesExported : RefinesOn .P0 feWETH9Bytecode contract CalldataFits := by
+  refine RefinesOn.of_code rfl ?_
+  intro σ σ₀ g A I hcode hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feWETH9RefinesModel σ σ₀ g A I hcode hsize hwf with h | ⟨feed, h⟩
+  rcases feWETH9RefinesModel σ σ₀ g A I ByteArray.empty
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs (runtime_endsAs I (World.init σ A feed) rfl hfits) h⟩
 
