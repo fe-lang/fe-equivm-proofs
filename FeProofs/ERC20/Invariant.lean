@@ -15,8 +15,7 @@ From deployment on: `deploy_conserves_token`, a successful creation of the creat
 holder establishes the invariant at the new address (the new account's storage starts empty, so
 every holder starts with no tokens), and `every_transaction_conserves`, every transaction keeps
 it, under the hypotheses of `Ethereum.EVM.Invariant.tx_holds`: the sender has no code, the data
-fits a word, the outermost call is admitted, and the token is not in the self-destruct set the
-transaction returns (which follows from an invariant of the substate not proved yet).
+fits a word, and the outermost call is admitted.
 -/
 
 open Ethereum Ethereum.EVM Ethereum.EVM.Invariant Fe Fe.EVM
@@ -144,7 +143,7 @@ theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UI
 /-- **Every transaction conserves.**  A transaction that starts where the token at `a` runs the
     ERC20 bytecode with the holders' balances adding up to the supply, whose sender has no code
     (EIP-3607), whose data fits a word, and whose execution admits every successful frame at `a`,
-    ends where the same holds, if `a` is not in the self-destruct set it returns. -/
+    ends where the same holds. -/
 theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
     (hS : CollisionFree S) {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader}
     {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool}
@@ -152,13 +151,12 @@ theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
     (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
     (hdata : T.base.data.size < UInt256.size)
     (hadmit : TxAdmitted a (Admits S) σ H_f H blocks T S_T)
-    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu))
-    (hsd : a ∉ A.selfDestructSet.toList) :
+    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
     Holds a (Token S) σ' :=
   tx_holds (token_admissible S)
     (frameHyp_of_refinesOn Exported.feERC20RefinesExported
       (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
       (fun _ _ _ h => h.1) (model_keeps a hS))
-    (fun _ h => h) hH hsender hdata hadmit hΥ hsd
+    (fun _ h => h) hH hsender hdata hadmit hΥ
 
 end FeProofs.ERC20

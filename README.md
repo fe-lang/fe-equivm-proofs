@@ -119,17 +119,17 @@ successful frame at the address is admitted (`Admitted`).
 of the model (`refinesOn_keeps`), and the base case from a deployment certificate
 (`refinesDeploy_holds`). The pure layer also covers the transaction around the outermost call
 (`tx_holds`): the sender has no code (EIP-3607, which EVMLean checks outside `Υ`), the outermost
-call is admitted, and the invariant tolerates clearing transient storage. That the account is not
-in the self-destruct set the transaction returns is a hypothesis of `tx_holds`: it follows from
-the account never being among the substate's created accounts, which is not proved.
+call is admitted, and the invariant tolerates clearing transient storage. The account is never
+erased as self-destructed: the same walk proves that no call or creation lists it among the
+accounts the transaction created, which `SELFDESTRUCT` requires.
 
 For the ERC20 token (`FeProofs/ERC20/Invariant.lean`): `deploy_conserves_token`, a successful
 deployment by a holder makes the holders' balances add up to the supply at the new address (its
 storage starts empty, as `Lambda` guarantees); `every_call_conserves` and
 `every_transaction_conserves`, every message call, creation and transaction keeps that, where
 every successful frame at the token has calldata shorter than 2^64 bytes and is covered by the
-holders. `feConstantKeepsStorage` is an instance without a condition. Not proved yet: the
-self-destruct hypothesis above, and invariants that bound the balance from below.
+holders. `feConstantKeepsStorage` is an instance without a condition. Not proved yet: invariants
+that bound the balance from below.
 
 The files of an exported contract:
 
