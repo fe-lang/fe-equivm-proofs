@@ -18,6 +18,12 @@ open FeProofs.Lib (returnU256_exec withArg locateAddress_exec locateAddressMap_e
 
 namespace FeProofs.ERC20.Exported
 
+/- `simp` tries each of its lemmas about a bind or a map on every one in a model, whatever the
+   monad.  These are about other monads, and trying them is half the cost of the arms below. -/
+attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
+  Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
+  Set.fmap_eq_image
+
 /-- Std's address check, `word >> 160 != 0`, is the hand-written one. -/
 theorem shr160_eq_zero_iff (w : UInt256) :
     w >>> UInt256.ofNat 160 = UInt256.ofNat 0 ↔ ¬ NotAddress w := by
