@@ -16,6 +16,7 @@ import FeProofs.PackedStore.RuntimeCorrect
 import FeProofs.ERC20.RuntimeCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
 import FeProofs.ERC20.ConservationBytecode
+import FeProofs.ERC20.Invariant
 import FeProofs.Fixtures.Exported
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
