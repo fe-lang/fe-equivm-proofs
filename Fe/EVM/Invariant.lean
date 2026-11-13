@@ -1406,4 +1406,294 @@ theorem good {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray �
   exact ⟨acc', hacc', hframe σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hH hXi
     acc acc' hacc hacc' hcode⟩
 
+/-! ## Deployment -/
+
+/-- A frame whose code is `INVALID` alone fails. -/
+theorem Xi_invalid_ne_success (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv)
+    (hI : I.code = ⟨#[0xfe]⟩) (result : AccountMap × UInt256 × Substate) (out : ByteArray) :
+    Ξ σ σ₀ g A I ≠ .ok (.success result out) := by
+  intro hXi
+  have hstep : Xstep (D_J I.code 0) (xiState σ σ₀ g A I) = .error .InvalidInstruction := by
+    have hdec : decode (xiState σ σ₀ g A I).executionEnv.code
+        (xiState σ σ₀ g A I).machineState.pc = some (.INVALID, .none) := by
+      show decode I.code ({ val := 0 } : UInt256) = some (.INVALID, .none)
+      rw [hI]
+      decide
+    simp [Xstep, Z, δ, hdec]
+  have hX : X (g.toNat + 1) (D_J I.code 0) (xiState σ σ₀ g A I) = .error .InvalidInstruction := by
+    simp [X, hstep]; rfl
+  simp [Ξ] at hXi
+  change Except.bind (X (g.toNat + 1) (D_J I.code 0) (xiState σ σ₀ g A I)) _ = _ at hXi
+  rw [hX] at hXi
+  cases hXi
+
+
+theorem lambda_addr (L : LambdaCall) : L.run.1 = L.addr := by
+  obtain ⟨σ, σ₀, A, s, o, g, p, v, i, e, ζ, H, bvh, blocks, w⟩ := L
+  simp only [LambdaCall.run, LambdaCall.addr]
+  unfold Lambda
+  simp only
+  split <;> rfl
+
+
+/-- The address a creation targets already has a nonce, code or storage, so its init code is
+    replaced by `INVALID` (EIP-7610). -/
+def LambdaCall.blocked (L : LambdaCall) : Bool :=
+  let ex := L.σ.getD L.addr default
+  ex.nonce ≠ ⟨0⟩ || ex.code.size ≠ 0 || ex.storage != default
+
+theorem LambdaCall.frame_code (L : LambdaCall) :
+    L.frame.2.2.code = if L.blocked then ⟨#[0xfe]⟩ else L.i := by
+  unfold LambdaCall.frame LambdaCall.blocked
+  simp only
+  split_ifs <;> rfl
+
+theorem LambdaCall.frame_storage (L : LambdaCall) (h : L.blocked = false) :
+    (L.frame.1.getD L.addr default).storage = default := by
+  unfold LambdaCall.blocked at h
+  simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not, Decidable.not_not,
+    bne_eq_false_iff_eq] at h
+  unfold LambdaCall.frame
+  simp only
+  split
+  · exact h.2
+  · rw [Std.ExtTreeMap.getD_insert_self]
+    exact h.2
+
+/-- A creation that succeeds ran its init code, from an account with empty storage at the new
+    address, and installed the code the init code returned. -/
+theorem lambda_success {L : LambdaCall} (hz : L.run.2.2.2.2.1 = true) :
+    L.frame.2.2.code = L.i ∧ (L.frame.1.getD L.addr default).storage = default ∧
+    ∃ σSS gSS ASS o,
+      Ξ L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 = .ok (.success (σSS, gSS, ASS) o) ∧
+      L.run.2.1 = σSS.insert L.addr {σSS.getD L.addr default with code := o} := by
+  generalize hr : L.run = r at hz ⊢
+  unfold LambdaCall.run Lambda at hr
+  simp only at hr
+  split at hr
+  · subst hr
+    simp at hz
+  · subst hr
+    simp at hz
+  · rename_i σSS gSS ASS out hXi
+    subst hr
+    have hb : L.blocked = false := by
+      cases hb : L.blocked
+      · rfl
+      · exact absurd hXi (Xi_invalid_ne_success L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2
+          (by rw [L.frame_code, hb]; rfl) _ _)
+    refine ⟨by rw [L.frame_code, hb]; rfl, L.frame_storage hb, σSS, gSS, ASS, out, hXi, ?_⟩
+    simp only at hz
+    show (if _ then L.σ else _) = _
+    rw [if_neg (by intro hc; rw [hc] at hz; simp at hz)]
+    rfl
+
+/-- **Deployment.**  A creation that succeeds ends where `Holds` holds at the address it created, if
+    the account its init code leaves there, with the code the init code returns, satisfies `P`. -/
+theorem deploy_holds {P : Account → Prop} {L : LambdaCall}
+    (hframe : ∀ σSS gSS ASS o,
+      Ξ L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 = .ok (.success (σSS, gSS, ASS) o) →
+      P {σSS.getD L.addr default with code := o})
+    (hz : L.run.2.2.2.2.1 = true) : L.run.1 = L.addr ∧ Holds L.addr P L.run.2.1 := by
+  obtain ⟨-, -, σSS, gSS, ASS, o, hXi, hrun⟩ := lambda_success hz
+  exact ⟨lambda_addr L, hrun ▸ Holds.insert_self (hframe _ _ _ _ hXi)⟩
+
+/-! ## The transaction -/
+
+/-- The outermost message call or creation of a transaction, as `Υ` makes it. -/
+def txCall (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBlocks)
+    (T : Transaction) (S_T : AccountAddress) : ThetaCall ⊕ LambdaCall :=
+  let g₀ : ℕ := EVM.intrinsicGas T
+  let senderAccount := (σ.get? S_T).get!
+  let f :=
+    match T with
+      | .legacy t | .access t => t.gasPrice - .ofNat H_f
+      | .dynamic t | .blob t => min t.maxPriorityFeePerGas (t.maxFeePerGas - .ofNat H_f)
+  let p :=
+    match T with
+      | .legacy t | .access t => t.gasPrice
+      | .dynamic _ | .blob _ => f + .ofNat H_f
+  let senderAccount :=
+    { senderAccount with
+        balance := senderAccount.balance - T.base.gasLimit * p - .ofNat (calcBlobFee H T)
+        nonce := senderAccount.nonce + ⟨1⟩ }
+  let σ₀ := σ.insert S_T senderAccount
+  let accessList := T.getAccessList
+  let AStar_K : List (AccountAddress × UInt256) := do
+    let ⟨Eₐ, Eₛ⟩ ← accessList
+    let eₛ ← Eₛ.toList
+    pure (Eₐ, eₛ)
+  let a :=
+    A0.accessedAccounts.insert S_T
+      |>.insert H.beneficiary
+      |>.union <| Batteries.RBSet.ofList (accessList.map Prod.fst) compare
+  let g := .ofNat <| T.base.gasLimit.toNat - g₀
+  let AStarₐ :=
+    match T.base.recipient with
+      | some t => a.insert t
+      | none => a
+  let AStar :=
+    { A0 with
+      accessedAccounts := AStarₐ
+      accessedStorageKeys := Batteries.RBSet.ofList AStar_K Substate.storageKeysCmp }
+  match T.base.recipient with
+  | none => .inr
+      { σ := σ₀, σ₀ := σ₀, A := AStar, s := S_T, o := S_T, g := g, p := p, v := T.base.value,
+        i := T.base.data, e := 0, ζ := none, H := H, bvh := T.blobVersionedHashes,
+        blocks := blocks, w := true }
+  | some t => .inl
+      { σ := σ₀, σ₀ := σ₀, A := AStar, s := S_T, o := S_T, r := t, c := toExecute σ₀ t, g := g,
+        p := p, v := T.base.value, v' := T.base.value, d := T.base.data, e := 0, H := H,
+        bvh := T.blobVersionedHashes, blocks := blocks, w := true }
+
+section Tx
+
+variable {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray → Prop}
+  {admits : AccountMap → ExecutionEnv → Prop}
+
+theorem Holds.erase_ne {σ : AccountMap} {k : AccountAddress} (hk : k ≠ a) (h : Holds a P σ) :
+    Holds a P (σ.erase k) := by
+  obtain ⟨acc, hacc, hP⟩ := h
+  refine ⟨acc, ?_, hP⟩
+  rw [Std.ExtTreeMap.getElem?_erase]
+  simp [Std.LawfulEqCmp.compare_eq_iff_eq, hk, hacc]
+
+theorem Holds.foldl_erase {l : List AccountAddress} (hl : a ∉ l) {σ : AccountMap}
+    (h : Holds a P σ) : Holds a P (l.foldl Std.ExtTreeMap.erase σ) := by
+  induction l generalizing σ with
+  | nil => exact h
+  | cons x l ih =>
+    simp only [List.mem_cons, not_or] at hl
+    exact ih hl.2 (h.erase_ne (Ne.symm hl.1))
+
+theorem mem_toList_filter {t : Batteries.RBSet AccountAddress compare} {p : AccountAddress → Bool}
+    {x : AccountAddress} (hx : x ∈ (t.filter p).toList) : p x = true := by
+  unfold Batteries.RBSet.filter at hx
+  rw [Batteries.RBSet.foldl_eq_foldl_toList] at hx
+  suffices key : ∀ (l : List AccountAddress) (acc : Batteries.RBSet AccountAddress compare),
+      (∀ y ∈ acc.toList, p y = true) →
+      ∀ y ∈ (l.foldl (fun acc a => bif p a then acc.insert a else acc) acc).toList, p y = true
+    from key _ ∅ (fun y hy => by cases hy) x hx
+  intro l
+  induction l with
+  | nil => intro acc h; exact h
+  | cons v l ih =>
+    intro acc h
+    apply ih
+    cases hv : p v
+    · simpa [hv] using h
+    · intro y hy
+      simp only [hv, cond_true] at hy
+      rcases Batteries.RBSet.mem_toList_insert.mp hy with ⟨hy, -⟩ | rfl
+      · exact h y hy
+      · exact hv
+
+theorem Holds.not_dead (hadm : Admissible P Trusted) {σ : AccountMap} (h : Holds a P σ) :
+    State.dead σ a = false := by
+  obtain ⟨acc, hacc, hP⟩ := h
+  have hc := hadm.code acc hP
+  have hne : acc.code ≠ ByteArray.empty := fun h0 => hc (by rw [h0]; rfl)
+  simp [State.dead, hacc, Option.option, Account.emptyAccount, ByteArray.isEmpty, hne]
+
+theorem Holds.increaseBalance (hadm : Admissible P Trusted) {σ : AccountMap}
+    {k : AccountAddress} {v : UInt256} (h : Holds a P σ) : Holds a P (σ.increaseBalance k v) := by
+  unfold AccountMap.increaseBalance
+  split
+  · rename_i hk
+    refine h.insert_ne fun hka => ?_
+    subst hka
+    obtain ⟨_, hacc, _⟩ := h.get
+    rw [hk] at hacc
+    cases hacc
+  · rename_i acc hk
+    by_cases hka : k = a
+    · subst hka
+      obtain ⟨acc', hacc, hP⟩ := h.get
+      rw [hk] at hacc
+      cases hacc
+      exact Holds.insert_self (hadm.balance _ v hP)
+    · exact h.insert_ne hka
+
+theorem Holds.clearTransient
+    (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty}) {σ : AccountMap}
+    (h : Holds a P σ) :
+    Holds a P (σ.map fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) := by
+  obtain ⟨acc, hacc, hP⟩ := h
+  exact ⟨_, by rw [Std.ExtTreeMap.getElem?_map, hacc]; rfl, htstore acc hP⟩
+
+/-- What `Υ` does after the message call or creation: refund and fee, the self-destruct set and
+    dead accounts removed, transient storage cleared. -/
+theorem Holds.txTail (hadm : Admissible P Trusted)
+    (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty})
+    {X : AccountMap} {A : Substate} (hX : Holds a P X) (hsd : a ∉ A.selfDestructSet.toList) :
+    Holds a P ((Batteries.RBSet.foldl Std.ExtTreeMap.erase
+      (Batteries.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
+      (A.touchedAccounts.filter fun x => State.dead X x)).map
+        fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) := by
+  refine Holds.clearTransient htstore ?_
+  rw [Batteries.RBSet.foldl_eq_foldl_toList]
+  refine Holds.foldl_erase (fun hmem => ?_) ?_
+  · have := mem_toList_filter hmem
+    rw [hX.not_dead hadm] at this
+    cases this
+  · rw [Batteries.RBNode.foldl_eq_foldl_toList]
+    exact Holds.foldl_erase hsd hX
+
+/-- The outermost call or creation of the transaction is admitted. -/
+def TxAdmitted (a : AccountAddress) (admits : AccountMap → ExecutionEnv → Prop)
+    (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBlocks) (T : Transaction)
+    (S_T : AccountAddress) : Prop :=
+  match txCall σ H_f H blocks T S_T with
+  | .inl C => Admitted a admits C
+  | .inr L => AdmittedL a admits L
+
+theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted admits)
+    (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty})
+    {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader} {blocks : ProcessedBlocks}
+    {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool} {gu : UInt256}
+    (hH : Holds a P σ)
+    (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
+    (hdata : T.base.data.size < UInt256.size)
+    (hadmit : TxAdmitted a admits σ H_f H blocks T S_T)
+    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu))
+    (hsd : a ∉ A.selfDestructSet.toList) :
+    Holds a P σ' := by
+  have hSa : S_T ≠ a := by
+    rintro rfl
+    obtain ⟨acc, hacc, hP⟩ := hH
+    exact hadm.code acc hP (by rw [hsender acc hacc]; rfl)
+  unfold TxAdmitted txCall at hadmit
+  unfold Υ at hΥ
+  simp only [bind, Except.bind, pure, Except.pure] at hΥ
+  split at hΥ
+  · rename_i hr
+    simp only [hr] at hadmit hΥ
+    injection hΥ with hΥ
+    injection hΥ with h1 h2
+    injection h2 with h2 _
+    have hL := (good hadm hframe 0).2 _ rfl hadmit (hH.insert_ne hSa)
+      ((hH.insert_ne hSa).pay (Or.inl hSa))
+    rw [← h1]
+    rw [← h2] at hsd
+    refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) hsd
+    all_goals first
+      | exact hL.increaseBalance hadm
+      | exact (hL.increaseBalance hadm).increaseBalance hadm
+  · rename_i t hr
+    simp only [hr] at hadmit hΥ
+    injection hΥ with hΥ
+    injection hΥ with h1 h2
+    injection h2 with h2 _
+    have hC := (good hadm hframe 0).1 _ rfl hadmit hdata
+      (fun ht => by rw [show t = a from ht]; exact codeOk_toExecute hadm (hH.insert_ne hSa))
+      (hH.insert_ne hSa) ((hH.insert_ne hSa).transfer hadm (Or.inl hSa))
+    rw [← h1]
+    rw [← h2] at hsd
+    refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) hsd
+    all_goals first
+      | exact hC.increaseBalance hadm
+      | exact (hC.increaseBalance hadm).increaseBalance hadm
+
+end Tx
+
 end Ethereum.EVM.Invariant

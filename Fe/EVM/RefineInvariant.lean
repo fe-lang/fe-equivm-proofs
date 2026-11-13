@@ -117,4 +117,59 @@ theorem refines_keeps {p : Profile} {bytecode : ByteArray} {m : ContractModel}
     ThetaGood a P Trusted admits e ∧ LambdaGood a P admits e :=
   refinesOn_keeps hcert hadm htrusted (fun _ _ h _ => h) hmodel e
 
+/-- `Agrees.accounts` with the return data: a property of the accounts and output every
+    successful model run ends with holds of those a successful EVM run ends with. -/
+theorem Agrees.accounts_out {p : Profile} {evm : EvmResult}
+    {run : List Supply → Option (Except (Exit World) (ByteArray × World))} {σ' : AccountMap}
+    {g' : UInt256} {A' : Substate} {o : ByteArray} {Q : AccountMap → ByteArray → Prop}
+    (h : Exhausted evm ∨ ∃ feed, Agrees p evm (run feed))
+    (hQ : ∀ feed out w, Succeeds (run feed) out w → Q w.accounts out)
+    (hrun : evm = .ok (.success (σ', g', A') o)) : Q σ' o := by
+  subst hrun
+  rcases h with (hoog | hoog) | ⟨feed, hag⟩
+  · cases hoog
+  · cases hoog
+  cases hm : run feed with
+  | none => rw [hm] at hag; exact hag.elim
+  | some res =>
+    rw [hm] at hag
+    cases res with
+    | error f =>
+      cases f with
+      | revert data => obtain ⟨_, _, h, _⟩ := hag; cases h
+      | panic code => obtain ⟨_, _, h, _⟩ := hag; cases h
+      | static => cases hag
+      | trap => cases hag
+      | oob => cases hag
+      | stop out w =>
+        obtain ⟨_, _, h, _⟩ := hag
+        cases h
+        exact hQ feed _ _ (Or.inr hm)
+    | ok pr =>
+      obtain ⟨out, w⟩ := pr
+      obtain ⟨_, _, h, _⟩ := hag
+      cases h
+      exact hQ feed _ _ (Or.inl hm)
+
+/-- **Deployment from a certificate.**  A creation of `creation ++ args` that succeeds ends where
+    `Holds L.addr P` holds, if every successful run of the model's constructor, at the new
+    address, from an account map where that address has empty storage, leaves there an account
+    that satisfies `P` with the code it returns. -/
+theorem refinesDeploy_holds {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
+    {validArgs : ByteArray → Prop} (hcert : RefinesDeploy p creation runtime m validArgs)
+    {L : LambdaCall} {args : ByteArray} (hargs : validArgs args) (hi : L.i = creation ++ args)
+    (hw : L.w = true) {P : Account → Prop}
+    (hmodel : ∀ (I : Env) σ A feed out (w : World), I.codeOwner = L.addr → I.source = L.s →
+      (σ.getD L.addr default).storage = default →
+      Succeeds ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I
+        (World.init σ A feed)) out w →
+      P {w.accounts.getD L.addr default with code := out})
+    (hz : L.run.2.2.2.2.1 = true) : L.run.1 = L.addr ∧ Holds L.addr P L.run.2.1 := by
+  obtain ⟨hcode, hstor, -⟩ := lambda_success hz
+  refine deploy_holds (fun σSS gSS ASS o hXi => ?_) hz
+  exact Agrees.accounts_out
+    (hcert L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 args hargs (hcode.trans hi) hw)
+    (Q := fun τ out => P {τ.getD L.addr default with code := out})
+    (fun feed out w hrun => hmodel _ _ _ feed out w rfl rfl hstor hrun) hXi
+
 end Fe.EVM
