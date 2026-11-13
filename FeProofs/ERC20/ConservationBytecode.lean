@@ -1,80 +1,80 @@
 import FeProofs.ERC20.Conservation
-import FeProofs.ERC20.ModelCorrect
+import FeProofs.ERC20.RuntimeCorrect
 
 /-!
 # FeERC20: conservation, stated on the bytecode
 
-A successful `transfer` call to the deployed bytecode keeps the holders' balances equal to the
-supply.  The statement mentions the bytecode and the EVM semantics; the model appears only in the
-proof.
+Every successful call of the deployed bytecode keeps the balances of the holders equal to the
+supply, and a successful deployment makes them so.  The statements mention the bytecode and the
+EVM semantics; the models appear only in the proofs, which go through the exported contract: the
+hand-written model conserves (`Conservation.lean`), each exported entry ends as the hand-written
+one does (`runtime_endsAs`, `init_endsAs`), and the bytecode refines the exported contract
+(`feERC20RefinesExported`, `feERC20DeployRefinesExported`).
 -/
 
-open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach Fe Fe.EVM
+open Ethereum Ethereum.EVM Fe Fe.EVM
 
 namespace FeProofs.ERC20
 
-/-- A successful run of the `transfer` entry arm is a successful run of `transfer`. -/
-theorem transferArm_ok {I : ExecutionEnv} {w w' : World} {cd out : ByteArray}
-    (h : (Model.transferArm cd).exec I w = some (.ok (out, w'))) :
-    ∃ r, (Model.transfer (word cd 4) (word cd 36)).exec I w = some (.ok (r, w')) := by
-  by_cases hwv : I.weiValue = ⟨0⟩
-  swap
-  · simp [Model.transferArm, exec_nonPayable, hwv] at h
-  by_cases hhead : BadHead cd 2
-  · simp [Model.transferArm, exec_nonPayable, hwv, hhead] at h
-  by_cases haddr : NotAddress (word cd 4)
-  · simp [Model.transferArm, exec_nonPayable, hwv, hhead, haddr] at h
-  simp only [Model.transferArm, M.exec_bind, exec_nonPayable, hwv, if_true, hhead, haddr,
-    if_false, M.exec_pure] at h
-  cases ht : (Model.transfer (word cd 4) (word cd 36)).exec I w with
-  | none => simp [ht] at h
-  | some res =>
-    cases res with
-    | error f => simp [ht] at h
-    | ok p =>
-      obtain ⟨r, w''⟩ := p
-      simp [ht] at h
-      exact ⟨r, by rw [h.2]⟩
+/-- Every run of the exported runtime entry that returns or stops, on a call that the holders
+    `S` cover, from a world where their balances add up to the supply, ends in a world where
+    they do. -/
+theorem Exported.runtime_conserves {I : ExecutionEnv} {S : List UInt256} {w w' : World}
+    {out : ByteArray} (hmem : w.memory.size + 1024 < UInt256.size) (hfits : CalldataFits I)
+    (hS : CollisionFree S) (hcall : Covers S I) (hcons : Conserved I.codeOwner w.accounts S)
+    (hrun : Succeeds (Exported.contract.runtime.exec I w) out w') :
+    Conserved I.codeOwner w'.accounts S := by
+  obtain ⟨w'', hrun', hacc⟩ := (Exported.runtime_endsAs I w hmem hfits).succeeds hrun
+  exact hacc ▸ FeProofs.ERC20.runtime_conserves hS hcall hcons hrun'
 
-/-- The `transfer` entry arm returns or fails; it never stops the run from inside. -/
-theorem transferArm_noStop (cd : ByteArray) : (Model.transferArm cd).NoStop := by
-  unfold Model.transferArm Model.transfer
-  no_stop
+/-- The exported deployment entry makes the balances of the holders `S` add up to the supply,
+    when the deployer is one of them and each starts with none. -/
+theorem Exported.init_conserves {I : ExecutionEnv} {S : List UInt256} {w w' : World}
+    {v : UInt256} {out : ByteArray} (hmem : w.memory.size + 1024 < UInt256.size)
+    (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
+    (hzero : ∀ a ∈ S, balance I.codeOwner w.accounts a = ⟨0⟩)
+    (hrun : Succeeds ((Exported.contract.init (ctorTail v) >>= fun tail =>
+      pure (feERC20Bytecode ++ tail)).exec I w) out w') :
+    Conserved I.codeOwner w'.accounts S := by
+  obtain ⟨w'', hrun', hacc⟩ := (Exported.init_endsAs v feERC20Bytecode I w hmem).succeeds hrun
+  rw [← hacc]
+  rcases hrun' with hrun' | hrun' <;> simp only [M.exec_bind] at hrun' <;> split at hrun' <;>
+    simp at hrun' <;> rename_i hinit
+  · obtain ⟨-, rfl⟩ := hrun'
+    exact FeProofs.ERC20.init_conserves hS hdeployer hzero hinit
+  · subst hrun'
+    exact absurd hinit (init_noStop _ I w _ _)
 
-/-- On the deployed bytecode: a `transfer` call that succeeds keeps the sum of the balances of
-    the holders `S` equal to the supply, when the caller and the recipient are in `S`, the
-    balance slots of `S` do not collide, and the contract's account exists. -/
-theorem transfer_conserves_bytecode {σ σ₀ σ' : AccountMap} {A A' : Substate} {I : ExecutionEnv}
-    {g g' : UInt256} {o : ByteArray} {acc : Account} {S : List UInt256}
-    (hcode : I.code = feERC20Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hsel : selIs I (feERC20SelBytes 4))
-    (hacc : σ.get? I.codeOwner = some acc) (hS : CollisionFree S)
-    (hsender : UInt256.ofNat I.source.val ∈ S) (hdst : word I.calldata 4 ∈ S)
-    (hcons : Conserved I σ S)
+/-- On the deployed bytecode, every call that succeeds keeps the sum of the balances of the
+    holders `S` equal to the supply, when the holders' balance slots do not collide, the holders
+    cover the call (`Covers`: it moves tokens between holders only and writes no allowance slot
+    that is a balance slot or the supply slot), and its calldata is shorter than `2 ^ 64`
+    bytes. -/
+theorem call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
+    {I : ExecutionEnv} {o : ByteArray} {S : List UInt256}
+    (hcode : I.code = feERC20Bytecode) (hfits : CalldataFits I)
+    (hS : CollisionFree S) (hcall : Covers S I) (hcons : Conserved I.codeOwner σ S)
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    Conserved I σ' S := by
-  rcases transferArm_refines (σ := σ) (σ₀ := σ₀) (A := A) (g := g) hcode hsize hsel with hoog | hag
-  · rw [hrun] at hoog; cases hoog
-  cases hm : (Model.transferArm I.calldata).exec I (World.init σ A) with
-  | none => rw [hm] at hag; exact hag.elim
-  | some res =>
-    rw [hm] at hag
-    cases res with
-    | error f =>
-      cases f with
-      | revert data => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
-      | panic code => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
-      | static => rw [hrun] at hag; cases hag
-      | trap => rw [hrun] at hag; cases hag
-      | oob => rw [hrun] at hag; cases hag
-      | stop out w' => exact absurd hm (transferArm_noStop _ _ _ _ _)
-    | ok p =>
-      obtain ⟨out, w'⟩ := p
-      obtain ⟨g'', A'', h, _⟩ := hag
-      rw [hrun] at h
-      have hσ : σ' = w'.accounts := by injection h with h; injection h with h; injection h with h
-      obtain ⟨r, ht⟩ := transferArm_ok hm
-      rw [hσ]
-      exact transfer_conserves (w := World.init σ A) hacc hS hsender hdst hcons ht
+    Conserved I.codeOwner σ' S :=
+  (Exported.feERC20RefinesExported σ σ₀ g A I ByteArray.empty
+      (by rw [hcode, ByteArray.append_empty]) rfl hfits).accounts
+    (P := (Conserved I.codeOwner · S))
+    (fun _ _ _ hw => Exported.runtime_conserves (by simp [World.init, UInt256.size]) hfits hS
+      hcall hcons hw) hrun
+
+/-- A deployment of the creation bytecode with one argument word `v` that succeeds makes the
+    sum of the balances of the holders `S` equal to the supply, when the holders' balance slots
+    do not collide, the deployer is one of them, and each starts with none. -/
+theorem deploy_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
+    {I : ExecutionEnv} {o : ByteArray} {S : List UInt256} {v : UInt256}
+    (hcode : I.code = feERC20CreationBytecode ++ v.toByteArray) (hperm : I.perm = true)
+    (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
+    (hzero : ∀ a ∈ S, balance I.codeOwner σ a = ⟨0⟩)
+    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
+    Conserved I.codeOwner σ' S :=
+  Exported.feERC20DeployRefinesExported.accounts (P := (Conserved I.codeOwner · S)) ⟨v, rfl⟩
+    (by rw [Exported.ctorTail_eq]; exact hcode) hperm
+    (fun _ _ _ hw => Exported.init_conserves (by simp [World.init, UInt256.size]) hS hdeployer
+      hzero hw) hrun
 
 end FeProofs.ERC20

@@ -98,9 +98,10 @@ adds event logs and revert payloads. `RefinesDeploy` is the same for the creatio
 
 Each has a `…Deploy…` twin for the constructor. All are at `P0`. The certificates of exported
 models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
-`transfer_conserves_bytecode` (`FeProofs/ERC20/ConservationBytecode.lean`) is a property of the
-ERC20 bytecode proved through its model: a successful `transfer` keeps the holders' balances
-equal to the supply.
+`call_conserves` and `deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
+properties of the ERC20 bytecode proved through the exported certificates: every successful call
+keeps the balances of a list of holders equal to the supply, and a successful deployment makes
+them so, under conditions on the holders (`Covers`, `CollisionFree`).
 
 The files of an exported contract:
 
