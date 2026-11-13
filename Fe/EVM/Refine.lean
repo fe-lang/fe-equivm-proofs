@@ -186,39 +186,79 @@ theorem RefinesDeploy.of_unit_closed {p : Profile} {creation runtime : ByteArray
   RefinesDeploy.of_unit hm fun σ σ₀ g A I args hargs hcode hperm =>
     (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
 
-/-- How a certificate is used: a property of the accounts the model can end with, shown for
-    every feed, holds of the accounts the bytecode ends with. -/
-theorem RefinesFor.accounts {p : Profile} {m : ContractModel} {σ σ₀ σ' : AccountMap}
-    {g g' : UInt256} {A A' : Substate} {I : ExecutionEnv} {o : ByteArray}
-    {P : AccountMap → Prop} (h : RefinesFor p m σ σ₀ g A I)
-    (hP : ∀ feed out w, m.runtime.exec I (World.init σ A feed) = some (.ok (out, w))
-      ∨ m.runtime.exec I (World.init σ A feed) = some (.error (.stop out w)) → P w.accounts)
-    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' := by
+/-- A model run ends successfully: it returns, or stops from inside a callee. -/
+def Succeeds (r : Option (Except (Exit World) (ByteArray × World))) (out : ByteArray)
+    (w : World) : Prop :=
+  r = some (.ok (out, w)) ∨ r = some (.error (.stop out w))
+
+/-- A run that ends as another does succeeds when it does, with the same accounts. -/
+theorem EndsAs.succeeds {a b : Option (Except (Exit World) (ByteArray × World))}
+    (h : EndsAs a b) {out : ByteArray} {w' : World} (ha : Succeeds a out w') :
+    ∃ w, Succeeds b out w ∧ w.accounts = w'.accounts := by
+  cases h with
+  | stop_ok hacc _ =>
+    rcases ha with ha | ha <;> cases ha
+    exact ⟨_, Or.inl rfl, hacc.symm⟩
+  | exit f => exact ⟨w', ha.imp (fun h => by cases h) id, rfl⟩
+  | ok_ok hacc _ =>
+    rcases ha with ha | ha <;> cases ha
+    exact ⟨_, Or.inl rfl, hacc.symm⟩
+  | diverge => rcases ha with ha | ha <;> cases ha
+
+/-- A property of the accounts every successful model run ends with, shown for every feed,
+    holds of the accounts a successful EVM run ends with, when it runs out of gas or of stack
+    or agrees with the model under some feed. -/
+theorem Agrees.accounts {p : Profile} {evm : EvmResult}
+    {run : List Supply → Option (Except (Exit World) (ByteArray × World))} {σ' : AccountMap}
+    {g' : UInt256} {A' : Substate} {o : ByteArray} {P : AccountMap → Prop}
+    (h : Exhausted evm ∨ ∃ feed, Agrees p evm (run feed))
+    (hP : ∀ feed out w, Succeeds (run feed) out w → P w.accounts)
+    (hrun : evm = .ok (.success (σ', g', A') o)) : P σ' := by
+  subst hrun
   rcases h with (hoog | hoog) | ⟨feed, hag⟩
-  · rw [hrun] at hoog; cases hoog
-  · rw [hrun] at hoog; cases hoog
-  cases hm : m.runtime.exec I (World.init σ A feed) with
+  · cases hoog
+  · cases hoog
+  cases hm : run feed with
   | none => rw [hm] at hag; exact hag.elim
   | some res =>
     rw [hm] at hag
     cases res with
     | error f =>
       cases f with
-      | revert data => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
-      | panic code => obtain ⟨_, _, h, _⟩ := hag; rw [hrun] at h; cases h
-      | static => rw [hrun] at hag; cases hag
-      | trap => rw [hrun] at hag; cases hag
-      | oob => rw [hrun] at hag; cases hag
+      | revert data => obtain ⟨_, _, h, _⟩ := hag; cases h
+      | panic code => obtain ⟨_, _, h, _⟩ := hag; cases h
+      | static => cases hag
+      | trap => cases hag
+      | oob => cases hag
       | stop out w =>
         obtain ⟨_, _, h, _⟩ := hag
-        rw [hrun] at h
-        have hσ : σ' = w.accounts := by injection h with h; injection h with h; injection h with h
-        exact hσ ▸ hP feed out w (Or.inr hm)
+        injection h with h; injection h with h; injection h with h
+        exact h ▸ hP feed out w (Or.inr hm)
     | ok pr =>
       obtain ⟨out, w⟩ := pr
       obtain ⟨_, _, h, _⟩ := hag
-      rw [hrun] at h
-      have hσ : σ' = w.accounts := by injection h with h; injection h with h; injection h with h
-      exact hσ ▸ hP feed out w (Or.inl hm)
+      injection h with h; injection h with h; injection h with h
+      exact h ▸ hP feed out w (Or.inl hm)
+
+/-- How a certificate is used: a property of the accounts the model can end with, shown for
+    every feed, holds of the accounts the bytecode ends with. -/
+theorem RefinesFor.accounts {p : Profile} {m : ContractModel} {σ σ₀ σ' : AccountMap}
+    {g g' : UInt256} {A A' : Substate} {I : ExecutionEnv} {o : ByteArray}
+    {P : AccountMap → Prop} (h : RefinesFor p m σ σ₀ g A I)
+    (hP : ∀ feed out w, Succeeds (m.runtime.exec I (World.init σ A feed)) out w → P w.accounts)
+    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' :=
+  Agrees.accounts h hP hrun
+
+/-- How a deployment certificate is used: a property of the accounts the constructor can end
+    with, shown for every feed, holds of the accounts a successful deployment ends with. -/
+theorem RefinesDeploy.accounts {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
+    {validArgs : ByteArray → Prop} {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
+    {I : ExecutionEnv} {args o : ByteArray} {P : AccountMap → Prop}
+    (h : RefinesDeploy p creation runtime m validArgs) (hargs : validArgs args)
+    (hcode : I.code = creation ++ args) (hperm : I.perm = true)
+    (hP : ∀ feed out w, Succeeds ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I
+      (World.init σ A feed)) out w → P w.accounts)
+    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' :=
+  Agrees.accounts (h σ σ₀ g A I args hargs hcode hperm) hP hrun
 
 end Fe.EVM
