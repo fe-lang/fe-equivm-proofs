@@ -75,6 +75,65 @@ runtime theorem assumes `feWETH9StorageWF`: on a `name()` or `symbol()` call, th
 encoding is shorter than 2^64 bytes. Fe reverts above that size while the specification returns the
 string. Only the constructor writes those slots, so a deployed contract satisfies it.
 
+## Exported models
+
+The Stele certificates above compare bytecode with a specification written by hand. A second
+set of certificates compares it with a Lean model of the contract that the Fe compiler prints
+(`fe-lean-export`, Fe branch `lean-export`): each `init` and `recv` arm, the entry code that
+decodes calldata and encodes results, and the core and std functions those reach, as definitions
+in a monad over EVMLean's state.
+
+`Refines p bytecode model` (`Fe/EVM/Refine.lean`) says that on every message call the bytecode
+runs out of gas or of stack, or does what the model does, as far as profile `p` observes.
+Profile `P0` compares the outcome, return data and accounts, as EquiVM's relation does; `P1`
+adds event logs and revert payloads. `RefinesDeploy` is the same for the creation bytecode.
+
+| Module | Hand-written model | Exported model |
+| --- | --- | --- |
+| `FeProofs.Constant` | `feConstantRefinesModel` | |
+| `FeProofs.ScalarStore` | `feScalarStoreRefinesModel` | `feScalarStoreRefinesExported` |
+| `FeProofs.CodeScalar` (one immutable `u256` field) | `feCodeScalarRefinesModel` | `feCodeScalarRefinesExported` |
+| `FeProofs.PackedStore` | `fePackedStoreRefinesHandEntry` (exported arms, entry by hand) | `fePackedStoreRefinesExported` |
+| `FeProofs.ERC20` | `feERC20RefinesModel` | `feERC20RefinesExported` |
+
+Each has a `…Deploy…` twin for the constructor. All are at `P0`. The certificates of exported
+models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
+`transfer_conserves_bytecode` (`FeProofs/ERC20/ConservationBytecode.lean`) is a property of the
+ERC20 bytecode proved through its model: a successful `transfer` keeps the holders' balances
+equal to the supply.
+
+The files of an exported contract:
+
+- `Exported.lean`: the exporter's output between two marker lines, and nothing else.
+- `ExportedCorrect.lean` (PackedStore, ERC20): what the exported arms and std code do.
+- `RuntimeCorrect.lean`: the bytecode refines the exported contract.
+- `Model.lean`, `ModelCorrect.lean`: the hand-written model and its certificate, which the
+  exported one is derived from.
+
+`FeProofs/Lib/Exported.lean` has the core and std definitions the exports share, each once, and
+`FeProofs/Lib/ExportedCorrect.lean` theorems about them. A method is named after the type its
+impl is for (`CallData_word_at`, `u256_to_word`). Where `FeProofs.Lib` is open, `simp` unfolds
+these definitions, except the ones `ExportedCorrect.lean` states a theorem for.
+`FeProofs/Fixtures/` has the exporter's output on fixtures without a bytecode proof, with checks
+of what it means.
+
+To update the exported text after a change to the exporter or to std, regenerate the exporter's
+golden files and copy them in:
+
+```sh
+(cd <fe checkout> && LEAN_EXPORT_BLESS=1 cargo test -p fe-lean-export --test golden)
+scripts/sync_exported.py <fe checkout>
+lake build
+```
+
+### Differential tests
+
+`scripts/audit_exports.sh <fe checkout>` exports every contract of Fe's test fixtures and of this
+repository, elaborates each export, and compares model and bytecode in EVMLean
+(`Fe/EVM/Diff.lean`, `Fe/EVM/Generate.lean`) at `P1`: on each call the file's Fe tests make, and
+on sequences of generated calls. It prints the constructs the exporter stopped at and the
+calls that disagree, and writes its output under `.lake/export-corpus/`.
+
 ## Layout
 
 Each contract directory (`FeProofs/<Contract>/`) holds the Fe source, the pinned bytecode, the
@@ -94,6 +153,12 @@ retained pair: the existing private definitions named `*_block_<pc>_shared` reco
 After pruning and running `scripts/static_twins.py`, run `scripts/share_static_prefixes.py` on
 the contract directory to share eligible prefixes with static-mode twins, then run
 `scripts/prune_blocks.py` again to update the block indexes.
+
+`Fe/` is the model library, independent of any contract: the monad of exported code
+(`Core.lean`), the EVM world and its primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`,
+`Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), facts about exported
+entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`), and
+the commands that embed exported text (`ExportAll.lean`).
 
 `FeProofs/Common/` is shared by the contracts:
 
@@ -116,8 +181,10 @@ the contract directory to share eligible prefixes with static-mode twins, then r
 
 `scripts/` has `Audit.lean` (axioms of every capstone), `Unused.lean` (declarations no capstone
 uses), `Dups.lean` (theorems duplicating another, in this project or its dependencies),
-`Tactics.lean` (regressions for the side-goal search of the block-stepping tactics), and the
-cleanup helpers used to shrink the proofs.
+`Tactics.lean` (regressions for the side-goal search of the block-stepping tactics), the
+cleanup helpers used to shrink the proofs, and the scripts of the exported models:
+`sync_exported.py`, `audit_exports.sh` with its helpers (`lean_check_one.sh`, `build_ffi.sh`,
+`tally_blockers.py`, `tally_diff.py`).
 
 ## Checking the proofs
 
