@@ -1,4 +1,4 @@
-import Fe.ExportAll
+import Fe.Embed
 
 /-!
 # Fe model core

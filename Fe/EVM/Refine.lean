@@ -4,8 +4,9 @@ import Fe.EVM.World
 # Refinement of a Fe contract model by EVM bytecode
 
 `Refines p bytecode model`: on every message call the bytecode either runs out of gas or of
-stack, or does what the model does, as far as profile `p` observes.  A model that calls other contracts or
-reads its gas takes those inputs from a feed, and does what the bytecode does under some feed.
+stack, or does what the model does, as far as profile `p` observes.  A model that calls other
+contracts or reads its gas takes those inputs from a feed, and does what the bytecode does under
+some feed.
 -/
 
 namespace Fe.EVM
@@ -138,8 +139,8 @@ def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
 def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
 /-- Deployment: run with any valid argument bytes after it, the creation bytecode runs out of
-    gas or of stack, or does what the model's constructor does, under some feed, and returns the runtime bytecode followed by the
-    immutable fields the constructor computed. -/
+    gas or of stack, or does what the model's constructor does, under some feed, and returns the
+    runtime bytecode followed by the immutable fields the constructor computed. -/
 def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
     (validArgs : ByteArray → Prop) : Prop :=
   ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →

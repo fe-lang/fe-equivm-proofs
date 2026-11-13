@@ -158,7 +158,7 @@ the contract directory to share eligible prefixes with static-mode twins, then r
 (`Core.lean`), the EVM world and its primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`,
 `Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), facts about exported
 entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`), and
-the commands that embed exported text (`ExportAll.lean`).
+the commands that embed exported text (`Embed.lean`).
 
 `FeProofs/Common/` is shared by the contracts:
 
