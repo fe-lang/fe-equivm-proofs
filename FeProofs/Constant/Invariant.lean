@@ -25,11 +25,10 @@ theorem fixed_admissible (st : Storage) : Admissible (Fixed st) (· = feConstant
   trusted _ h := h.1
 
 theorem model_keeps (a : AccountAddress) (st : Storage) :
-    ModelKeeps a (Fixed st) (· = feConstantBytecode) Model.contract
-      fun I => I.calldata.size < UInt256.size := by
-  intro I σ A feed out w _ _ _ _ hH hrun
+    ModelKeeps a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) Model.contract := by
+  intro I σ A feed out w _ _ _ _ _ hH hrun acc acc' hacc hacc' _
   have hsame : ∀ r, Model.runtime.exec I (World.init σ A feed) = r →
-      r = some (.ok (out, w)) ∨ r = some (.error (.stop out w)) → w.accounts = σ := by
+      Succeeds r out w → w.accounts = σ := by
     intro r hr hr'
     by_cases hsel : selIs I (feConstantSelBytes 0)
     · by_cases hwv : I.weiValue = ⟨0⟩
@@ -47,12 +46,18 @@ theorem model_keeps (a : AccountAddress) (st : Storage) :
       · rw [runtime_short (by omega)] at hr
         subst hr
         rcases hr' with h | h <;> cases h
-  exact (hsame _ rfl hrun) ▸ hH
+  rw [hsame _ rfl hrun, hacc] at hacc'
+  cases hacc'
+  obtain ⟨acc0, h0, hP⟩ := hH
+  rw [hacc] at h0
+  cases h0
+  exact hP
 
 /-- Every message call and creation, at any depth, keeps the storage of an account that runs the
     FeConstant bytecode. -/
 theorem feConstantKeepsStorage (a : AccountAddress) (st : Storage) (e : Fin 1025) :
-    ThetaGood a (Fixed st) (· = feConstantBytecode) e ∧ LambdaGood a (Fixed st) e :=
+    ThetaGood a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) e
+      ∧ LambdaGood a (Fixed st) (fun _ _ => True) e :=
   refines_keeps feConstantRefinesModel (fixed_admissible st)
     (fun code h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
     (model_keeps a st) e
