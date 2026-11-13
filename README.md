@@ -103,6 +103,26 @@ properties of the ERC20 bytecode proved through the exported certificates: every
 keeps the balances of a list of holders equal to the supply, and a successful deployment makes
 them so, under conditions on the holders (`Covers`, `CollisionFree`).
 
+### Invariants through reentrant calls
+
+A certificate is about one message call. `Fe/EVM/Invariant.lean` proves, over EVMLean alone, what
+turns it into a statement about the contract among others (`good`): every message call and
+creation, at every depth, keeps an invariant on the account at an address, if each successful
+frame that runs the contract's code there keeps it whenever the calls and creations below that
+frame do. Code elsewhere changes the account only by calling it or by sending it value. The
+conditions: the invariant tolerates any increase of the balance, the account has code, and a
+`DELEGATECALL` from it runs only code the hypothesis covers. An invariant that holds only for
+some calls is stated relative to admission: the conclusion is about executions in which every
+successful frame at the address is admitted (`Admitted`).
+
+`Fe/EVM/RefineInvariant.lean` derives the per-frame hypothesis from a certificate and a property
+of the model (`refinesOn_keeps`). `every_call_conserves` (`FeProofs/ERC20/Invariant.lean`) is the
+instance for the token: every message call and creation keeps the holders' balances equal to the
+supply, where every frame at the token has calldata shorter than 2^64 bytes and is covered by the
+holders. `feConstantKeepsStorage` is the instance without a condition. Not proved yet: the
+transaction around the outermost call, deployment as the base case, and invariants that bound
+the balance from below.
+
 The files of an exported contract:
 
 - `Exported.lean`: the exporter's output between two marker lines, and nothing else.
@@ -157,9 +177,10 @@ the contract directory to share eligible prefixes with static-mode twins, then r
 
 `Fe/` is the model library, independent of any contract: the monad of exported code
 (`Core.lean`), the EVM world and its primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`,
-`Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), facts about exported
-entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`), and
-the commands that embed exported text (`Embed.lean`).
+`Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), invariants through
+reentrant calls (`EVM/Invariant.lean`, which imports EVMLean only, and `RefineInvariant.lean`),
+facts about exported entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`,
+`Generate.lean`), and the commands that embed exported text (`Embed.lean`).
 
 `FeProofs/Common/` is shared by the contracts:
 
