@@ -38,6 +38,13 @@ def LambdaGood (e : Fin 1025) : Prop :=
 def Deeper (d : Fin 1025) : Prop :=
   ∀ e : Fin 1025, d < e → ThetaGood a P Trusted e ∧ LambdaGood a P e
 
+/-- The per-frame hypothesis: a frame at `a` running code that `Trusted` admits keeps `Holds`,
+    provided the message calls and creations it makes do. -/
+def FrameHyp : Prop :=
+  ∀ σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
+    I.calldata.size < UInt256.size → Deeper a P Trusted I.depth →
+    Holds a P σ → Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) → Holds a P σ'
+
 /-- What `P` must allow. -/
 structure Admissible : Prop where
   /-- Value can arrive without a call: by a transfer, a `SELFDESTRUCT`, a block reward. -/
@@ -628,5 +635,130 @@ theorem Xi_holds (hadm : Admissible P Trusted) {σ σ₀ σ' : AccountMap} {g g'
           rcases hXi with ⟨⟨hσ, -, -⟩, -⟩
           rw [← hσ]
           exact X_holds hadm (state := freshState) howner hdeep hH hX
+
+/-! ## Creations and message calls -/
+
+theorem Holds.lambdaStar {σ : AccountMap} {s a' : AccountAddress} {v : UInt256} {x : Account}
+    (ha' : a' ≠ a) (hdebit : Holds a P (debit σ s v)) :
+    Holds a P (match σ.get? s with
+      | none => σ
+      | some ac => (σ.insert s {ac with balance := ac.balance - v}).insert a' x) := by
+  unfold debit at hdebit
+  split
+  · rename_i hs
+    rw [hs] at hdebit
+    exact hdebit
+  · rename_i ac hs
+    rw [hs] at hdebit
+    exact hdebit.insert_ne ha'
+
+theorem Holds.ite {σ τ : AccountMap} {c : Prop} [Decidable c] (hσ : Holds a P σ)
+    (hτ : Holds a P τ) : Holds a P (if c then σ else τ) := by
+  split
+  · exact hσ
+  · exact hτ
+
+/-- A creation keeps `Holds` if the calls and creations below it do.  One that lands on `a`
+    fails, since `a` has code, and leaves the account map as it was. -/
+theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
+    (hdeep : Deeper a P Trusted e) : LambdaGood a P e := by
+  intro σ σ₀ A s o g p v i ζ H bvh blocks w hH hdebit
+  unfold Lambda
+  simp only
+  generalize Fin.ofNat AccountAddress.size (fromByteArrayBigEndian ((KEC (Lambda.L_A s
+    (Option.option ⟨0⟩ (fun x => x.nonce) (σ.get? s) - ⟨1⟩) ζ i)).extract 12 32)) = a'
+  split
+  · exact hH
+  · exact hH
+  · rename_i σSS gSS ASS out hXi
+    by_cases ha' : a' = a
+    · subst ha'
+      obtain ⟨acc, hacc, hP⟩ := id hH
+      have hne : acc.code ≠ ByteArray.empty := by
+        intro h
+        have := hadm.code acc hP
+        simp [h] at this
+      simp [hacc, hne]
+      exact hH
+    · exact Holds.ite hH ((Xi_holds hadm ha' hdeep (Holds.lambdaStar ha' hdebit) hXi).insert_ne ha')
+
+/-- `Θ` on code: its account map is `thetaXiAccountMap` of the code's run, for any write
+    permission.  EVMLean's `code_Theta_accountMap_eq` is the case without it. -/
+theorem code_Theta_accountMap_eq' (σ σ₀ : AccountMap) (A : Substate) (s o r : AccountAddress)
+    (code : ByteArray) (g p v v' : UInt256) (d : ByteArray) (e : Fin 1025) (H : BlockHeader)
+    (bvh : List ByteArray) (blocks : ProcessedBlocks) (w : Bool) :
+    (Θ σ σ₀ A s o r (.Code code) g p v v' d e H bvh blocks w).1 =
+      thetaXiAccountMap σ A (Ξ (sendEth r s v true σ) σ₀ g A
+        { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d, source := s,
+          weiValue := v', depth := e, perm := w, code := code, header := H,
+          blobVersionedHashes := bvh, blocks := blocks }) := by
+  unfold Θ sendEth thetaXiAccountMap thetaXiResult
+  simp
+  rfl
+
+theorem Holds.thetaXi {σ : AccountMap} {A : Substate}
+    {xi : Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate))}
+    (hH : Holds a P σ)
+    (hxi : ∀ {σ' g' A' out}, xi = .ok (.success (σ', g', A') out) → Holds a P σ') :
+    Holds a P (thetaXiAccountMap σ A xi) := by
+  unfold thetaXiAccountMap thetaXiResult
+  split
+  · simpa using hH
+  · simpa using hH
+  · exact Holds.ite hH (hxi rfl)
+
+/-- A message call keeps `Holds` if the calls and creations below it do: by the per-frame
+    hypothesis when it runs code at `a`, by the frame property otherwise. -/
+theorem theta_good (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted)
+    {e : Fin 1025} (hdeep : Deeper a P Trusted e) : ThetaGood a P Trusted e := by
+  intro σ σ₀ A s o r c g p v v' d H bvh blocks w hd hcode hH hpre
+  cases c with
+  | Precompiled pc =>
+    rw [precompiled_Theta_accountMap_eq]
+    rcases precompiled_result_accountMap_empty_or_self pc (sendEth r s v true σ) g A
+      { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+        code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+        blobVersionedHashes := bvh, blocks := blocks } with h | h
+    · simp only [h]
+      simpa using hH
+    · simp only [h]
+      exact Holds.ite hH hpre
+  | Code code =>
+    rw [code_Theta_accountMap_eq']
+    refine hH.thetaXi fun hxi => ?_
+    by_cases hr : r = a
+    · refine hframe _ _ _ _ _ _ _ _ _ ?_ ?_ ?_ ?_ hpre hxi
+      · exact hr
+      · exact hcode hr
+      · exact hd
+      · exact hdeep
+    · exact Xi_holds hadm hr hdeep hpre hxi
+
+/-! ## The theorem -/
+
+/-- **Every message call and creation keeps the invariant.**  If `P` is admissible and every
+    frame at `a` running trusted code keeps `Holds` whenever the calls and creations it makes
+    do, then at every depth every message call and creation does, by induction on the depth
+    still available below it. -/
+theorem good (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted) (e : Fin 1025) :
+    ThetaGood a P Trusted e ∧ LambdaGood a P e := by
+  suffices key : ∀ n, ∀ e : Fin 1025, 1024 - e.val ≤ n →
+      ThetaGood a P Trusted e ∧ LambdaGood a P e from key _ e le_rfl
+  intro n
+  induction n with
+  | zero =>
+    intro e he
+    have hdeep : Deeper a P Trusted e := fun e' he' => by
+      have := e'.isLt
+      rw [Fin.lt_def] at he'
+      omega
+    exact ⟨theta_good hadm hframe hdeep, lambda_good hadm hdeep⟩
+  | succ n ih =>
+    intro e he
+    have hdeep : Deeper a P Trusted e := fun e' he' => ih e' (by
+      have := e'.isLt
+      rw [Fin.lt_def] at he'
+      omega)
+    exact ⟨theta_good hadm hframe hdeep, lambda_good hadm hdeep⟩
 
 end Ethereum.EVM.Invariant
