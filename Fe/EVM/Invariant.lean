@@ -1,6 +1,97 @@
 import Ethereum.Theory.StaticStorage
 import Ethereum.Theory.ReturnDataBound
 
+/-!
+# A contract invariant through reentrant message calls
+
+Over EVMLean alone (no `Fe` module): a contract at address `a` keeps an invariant on its account
+through every message call and creation, at every depth, if each frame that runs its code keeps
+the invariant whenever the calls and creations below that frame do.  This is the theorem the
+standard method rests on: assume the invariant on entry to every public function, re-establish it
+at every normal return and before every external call, since the callee may call back in.
+
+## The statement
+
+`Holds a P σ`: `a`'s account exists in `σ` and satisfies `P : Account → Prop`.  The invariant
+sees `a`'s account only.
+
+`ThetaGood a P Trusted e`: every `Θ` at depth `e` ends where `Holds` holds, if it starts where
+`Holds` holds both before and after its value moves (`sendEth`, as `Θ` moves it), its calldata
+size fits a word, and it runs code `Trusted` admits (or a precompile) when its recipient is `a`.
+`LambdaGood a P e` is the same for `Lambda`, with the creator's payment (`debit`).
+`Deeper a P Trusted d`: both hold at every depth below `d`.
+
+`FrameHyp a P Trusted`, the per-frame hypothesis: every successful `Ξ` with code owner `a`,
+running code `Trusted` admits, with calldata that fits a word, and with `Deeper` at its depth,
+maps an account map where `Holds` holds to one where it holds.  `Deeper` is what "the calls it
+makes keep the invariant" means: the frame may assume it of every message call and creation it
+makes, and must show `Holds` before each one, with any value already taken from `a`.
+
+`good`: from `Admissible P Trusted` and `FrameHyp a P Trusted`, `ThetaGood` and `LambdaGood` hold at
+every depth.  `Fe.EVM.RefineInvariant` derives `FrameHyp` from a certificate of the bytecode.
+
+## The proof
+
+Induction on the depth left below a call (`1024 - e`); fuel plays no part in it.  EVMLean's `Ξ`
+runs `X` with fuel `g + 1`, and `X` runs out of fuel only with an `.error`, after which `Θ` keeps
+the account map it started from, so only successful runs need an argument, and those are
+followed step by step (`X_holds`, by induction on the fuel of that one run).  A frame calls
+`Θ` and `Lambda` one level deeper; at depth 1024 it makes no call, and `Deeper 1024` is vacuous.
+
+- `Xi_holds`, the frame property: a frame whose code owner is not `a` changes `a`'s account only
+  through the calls and creations it makes and by sending value to `a` (a `CALL` with value, a
+  `SELFDESTRUCT` naming `a`).  `SSTORE` and `TSTORE` write the frame's own account.  The
+  instructions that leave the account map alone are EVMLean's `static_step_*_accountMap_eq`.
+- `theta_good`: a call to `a` runs `a`'s code, which `Trusted` admits, and `FrameHyp` applies;
+  any other call runs at another address and `Xi_holds` applies; a precompile leaves the account
+  map as it was or as the value transfer made it.
+- `lambda_good`: a creation at an address other than `a` runs there and `Xi_holds` applies; one
+  at `a` fails, because `a` has code, and leaves the account map as it was.
+
+## The conditions, and why each is needed
+
+`Admissible P Trusted`:
+
+- `balance`: `P` tolerates any increase of the balance, as EVMLean adds (modulo `2 ^ 256`).
+  Value reaches `a` without running its code.  EVMLean adds balances without a bound on their
+  sum, so an invariant such as "the balance covers the supply" is not closed under this
+  addition, though on the real chain the addition cannot wrap.  Such invariants need a bound on
+  the sum of all balances that EVMLean's semantics preserves; that is not proved here.
+- `code`: `a` has code, so no creation can land on `a` (`Lambda` keeps the account map when the
+  target has code or a nonce).
+- `trusted`: a `CALL` or `STATICCALL` to `a` runs the code `a` has, which must be code the
+  per-frame hypothesis covers.
+
+`Trusted` is the condition on `DELEGATECALL`: a frame at `a` may assume `Deeper` only of calls
+that run trusted code when their recipient is `a`.  A `DELEGATECALL` or `CALLCODE` from `a` runs
+other code at `a`, which writes `a`'s storage directly, so the per-frame hypothesis cannot be shown
+for a contract that delegates to code it has no contract for.  `Trusted` may admit such code
+alongside the contract's own, with the per-frame hypothesis shown for it too.
+
+`SELFDESTRUCT` and code replacement follow EVMLean's rules (Cancun and later): `SELFDESTRUCT`
+moves the balance, and removes the account only at the end of a transaction that created it.  No
+instruction replaces code; a creation sets code only at an address without code or nonce.
+
+## What remains
+
+- The transaction, `Υ`.  Its message call or creation is at depth 0, which `good` covers, given a
+  sender other than `a` (EIP-3607: a transaction's sender has no code) and data whose size fits
+  a word.  What follows the call must still be shown to keep `Holds`: the gas refund and the
+  priority fee (balance increases), removing the accounts in the self-destruct set (needs `a` not
+  in the substate's created accounts, an invariant of the substate that is not proved), removing
+  dead accounts (`a` has code, so it is not dead), and clearing transient storage (needs `P`
+  closed under that).
+- Deployment: that the creation of the contract establishes `Holds`.  During it `a` has no code,
+  so the theorem does not apply until the creation returns.
+- Invariants that hold only for some calls.  `FrameHyp` asks for every frame at `a` whose calldata
+  fits a word.  An invariant whose per-frame proof needs a condition on the call (a calldata
+  bound, keys that do not collide) needs the conclusion restricted to executions in which every
+  frame at `a` meets it.  Stating that needs a predicate on the calls an execution makes, which
+  EVMLean's functions do not expose; it could be defined by recursion on the depth, as `Deeper`
+  is, following the steps `Xstep_holds` follows.
+- Balance-monotone invariants, as above.
+-/
+
 namespace Ethereum.EVM.Invariant
 
 variable (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray → Prop)
@@ -67,7 +158,8 @@ theorem Holds.insert_self {σ : AccountMap} {x : Account} (hx : P x) :
     Holds a P (σ.insert a x) :=
   ⟨x, by simp, hx⟩
 
-theorem Holds.get {σ : AccountMap} (h : Holds a P σ) : ∃ acc, σ.get? a = some acc ∧ P acc := by
+theorem Holds.get {σ : AccountMap} (h : Holds a P σ) :
+    ∃ acc, σ.get? a = some acc ∧ P acc := by
   simpa [Std.ExtTreeMap.get?_eq_getElem?] using h
 
 theorem UInt256.sub_zero' (x : UInt256) : x - ⟨0⟩ = x := by
@@ -130,11 +222,13 @@ theorem Holds.sendEth (hadm : Admissible P Trusted) {σ : AccountMap} {r s : Acc
       · exact Holds.insert_ne hsa hτ
   exact h2 _ h1
 
-theorem Holds.of_eq {σ τ : AccountMap} (h : Holds a P σ) (he : τ = σ) : Holds a P τ := he ▸ h
+theorem Holds.of_eq {σ τ : AccountMap} (h : Holds a P σ) (he : τ = σ) : Holds a P τ :=
+  he ▸ h
 
 theorem sstore_accountMap (state : State) (k v : UInt256) :
     (state.sstore k v).accountMap = state.accountMap ∨
-      ∃ x, (state.sstore k v).accountMap = state.accountMap.insert state.executionEnv.codeOwner x := by
+      ∃ x, (state.sstore k v).accountMap =
+        state.accountMap.insert state.executionEnv.codeOwner x := by
   unfold Ethereum.State.sstore
   simp only [Ethereum.State.lookupAccount]
   generalize state.accountMap.get? state.executionEnv.codeOwner = o
@@ -144,7 +238,8 @@ theorem sstore_accountMap (state : State) (k v : UInt256) :
 
 theorem tstore_accountMap (state : State) (k v : UInt256) :
     (state.tstore k v).accountMap = state.accountMap ∨
-      ∃ x, (state.tstore k v).accountMap = state.accountMap.insert state.executionEnv.codeOwner x := by
+      ∃ x, (state.tstore k v).accountMap =
+        state.accountMap.insert state.executionEnv.codeOwner x := by
   unfold Ethereum.State.tstore
   simp only [Ethereum.State.lookupAccount]
   generalize state.accountMap.get? state.executionEnv.codeOwner = o
@@ -385,7 +480,8 @@ theorem step_system (hadm : Admissible P Trusted) {op : Operation.SOp} {gasCost 
     injection h with hstate
     rw [← hstate]
     show Holds a P callState.accountMap
-    exact (call_holds (h := hcall)) hdeep hH (fun hr => absurd hr hself) (hH.sendEth hadm (Or.inr rfl))
+    exact (call_holds (h := hcall)) hdeep hH (fun hr => absurd hr hself)
+      (hH.sendEth hadm (Or.inr rfl))
   · -- CREATE2
     simp [step, bind, Except.bind] at h
     repeat (first | simp at h | split at h)
@@ -444,7 +540,8 @@ theorem step_system (hadm : Admissible P Trusted) {op : Operation.SOp} {gasCost 
                     rw [← h]
                     exact (hH.insert_ne hta).insert_ne howner
               | some targetAcc =>
-                  by_cases hsame : AccountAddress.ofUInt256 targetWord = state.executionEnv.codeOwner
+                  by_cases hsame :
+                    AccountAddress.ofUInt256 targetWord = state.executionEnv.codeOwner
                   · simp [hpop, hcreated, howner', hsame] at h
                     rw [← h]
                     first
@@ -594,7 +691,8 @@ theorem X_holds (hadm : Admissible P Trusted) {f : Nat} {validJumps : Array UInt
                 exact h₁
               | revert =>
                 change
-                  Except.ok (ExecutionResult.revert state₁.machineState.gasAvailable.toUInt256 out) =
+                  Except.ok
+                      (ExecutionResult.revert state₁.machineState.gasAvailable.toUInt256 out) =
                     Except.ok (ExecutionResult.success state' o) at hX
                 injection hX with hres
                 cases hres
@@ -680,7 +778,8 @@ theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
         simp [h] at this
       simp [hacc, hne]
       exact hH
-    · exact Holds.ite hH ((Xi_holds hadm ha' hdeep (Holds.lambdaStar ha' hdebit) hXi).insert_ne ha')
+    · exact Holds.ite hH
+        ((Xi_holds hadm ha' hdeep (Holds.lambdaStar ha' hdebit) hXi).insert_ne ha')
 
 /-- `Θ` on code: its account map is `thetaXiAccountMap` of the code's run, for any write
     permission.  EVMLean's `code_Theta_accountMap_eq` is the case without it. -/
