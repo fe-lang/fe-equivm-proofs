@@ -23,19 +23,6 @@ abbrev ArmAgrees (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : Execu
     (arm : FeM ByteArray) : Prop :=
   Ξ σ σ₀ g A I = .error .OutOfGass ∨ Agrees .P0 (Ξ σ σ₀ g A I) (arm.exec I (World.init σ A))
 
-theorem notAddress_of {w : UInt256} (h : ¬ w.toNat < EVM.addressModulus) : NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
-
-theorem not_notAddress_of {w : UInt256} (h : w.toNat < EVM.addressModulus) : ¬ NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
-
-theorem badHead_of {cd : ByteArray} {n : ℕ} (h : cd.size < 4 + 32 * n ∨ 2 ^ 255 + 4 ≤ cd.size) :
-    BadHead cd n := h
-
-theorem not_badHead_of {cd : ByteArray} {n : ℕ} (hlen : 4 + 32 * n ≤ cd.size)
-    (hhi : cd.size < 2 ^ 255 + 4) : ¬ BadHead cd n := by
-  unfold BadHead; omega
-
 /-! ## `totalSupply()` -/
 
 theorem totalSupplyArm_refines {g : UInt256}

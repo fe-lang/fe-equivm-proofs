@@ -12,7 +12,7 @@ fresh buffers, and hashes the key of each map entry it reaches in another.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
-open FeProofs.Lib (returnU256_exec withArg withArg_size)
+open FeProofs.Lib (returnBool_exec returnU256_exec withArg withArg_size)
 
 namespace FeProofs.ERC20.Exported
 
@@ -88,7 +88,7 @@ theorem transfer_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 �
       (Model.transfer (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (Model.encodeBool r)).exec I w := by
     simp [Model.transferArm, exec_nonPayable, hwv, hgood, ha0]
   rw [eg, eh]
-  exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
+  exact endsAs_alike (fun r w' hm => ⟨_, by rw [encodeBool_eq]; exact returnBool_exec I w' r hm⟩)
     (alike_transfer I w _ _ (by omega)) (by omega)
 
 theorem approve_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
@@ -119,7 +119,7 @@ theorem approve_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤
       (Model.approve (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (Model.encodeBool r)).exec I w := by
     simp [Model.approveArm, exec_nonPayable, hwv, hgood, ha0]
   rw [eg, eh]
-  exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
+  exact endsAs_alike (fun r w' hm => ⟨_, by rw [encodeBool_eq]; exact returnBool_exec I w' r hm⟩)
     (alike_approve I w _ _ (by omega)) (by omega)
 
 theorem transferFrom_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
@@ -155,7 +155,7 @@ theorem transferFrom_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 
       (Model.transferFrom (word I.calldata 4) (word I.calldata 36) (word I.calldata 68) >>= fun r => pure (Model.encodeBool r)).exec I w := by
     simp [Model.transferFromArm, exec_nonPayable, hwv, hgood, ha0, ha1]
   rw [eg, eh]
-  exact endsAs_alike (fun r w' hm => ⟨_, returnBool_exec I w' r hm⟩)
+  exact endsAs_alike (fun r w' hm => ⟨_, by rw [encodeBool_eq]; exact returnBool_exec I w' r hm⟩)
     (alike_transferFrom I w _ _ _ (by omega)) (by omega)
 
 theorem balanceOf_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)

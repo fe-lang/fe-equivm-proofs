@@ -1,4 +1,5 @@
 import Fe.EVM.Refine
+import Fe.EVM.Calls
 import Reasoning.EVMWord
 import Reasoning.Memory
 import Reasoning.Solc
@@ -7,8 +8,9 @@ import Reasoning.Solc
 # Reasoning about an exported runtime entry
 
 Facts that proofs about `fe-lean-export`'s runtime entry share, whatever the contract: word
-arithmetic the std decoder and encoder perform, the selector word, and how an entry that stops
-relates to a hand-written one that returns.
+arithmetic the std decoder and encoder perform, writes into memory the code allocates, the
+selector word, how an entry that stops relates to a hand-written one that returns, and a call
+without data, which leaves memory alone.
 -/
 
 namespace Fe.EVM
@@ -41,6 +43,29 @@ theorem add_zero (a : UInt256) : a + UInt256.ofNat 0 = a := by
   apply u256_inj
   rw [uadd_toNat, toNat0, Nat.add_zero]
   exact Nat.mod_eq_of_lt a.val.isLt
+
+theorem ofNat_add_ofNat {a b : ℕ} (h : a + b < UInt256.size) :
+    UInt256.ofNat a + UInt256.ofNat b = UInt256.ofNat (a + b) := by
+  apply u256_inj
+  rw [uadd_toNat, ulit_toNat' a (by omega), ulit_toNat' b (by omega), Nat.mod_eq_of_lt h,
+    ulit_toNat' _ h]
+
+theorem ofNat_mul_ofNat {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size)
+    (h : a * b < UInt256.size) : UInt256.ofNat a * UInt256.ofNat b = UInt256.ofNat (a * b) := by
+  apply u256_inj
+  rw [umul_toNat _ _ (by rw [ulit_toNat' a ha, ulit_toNat' b hb]; exact h), ulit_toNat' a ha,
+    ulit_toNat' b hb, ulit_toNat' _ h]
+
+theorem ofNat_ne_ofNat_zero {n : ℕ} (h0 : n ≠ 0) (h : n < UInt256.size) :
+    UInt256.ofNat n ≠ UInt256.ofNat 0 := fun he =>
+  h0 (by have := congrArg UInt256.toNat he; rwa [ulit_toNat' n h, toNat0] at this)
+
+theorem ofNat_sub_ofNat {a b : ℕ} (ha : a < UInt256.size) (h : b ≤ a) :
+    UInt256.ofNat a - UInt256.ofNat b = UInt256.ofNat (a - b) := by
+  apply u256_inj
+  rw [show UInt256.ofNat a - UInt256.ofNat b = UInt256.sub _ _ from rfl,
+    usub_toNat (by rw [ulit_toNat' a ha, ulit_toNat' b (by omega)]; exact h),
+    ulit_toNat' a ha, ulit_toNat' b (by omega), ulit_toNat' _ (by omega)]
 
 /-- A length below `2 ^ 64` survives std's cast to `u64`: minus the view's base 0, masked, then
     cut to 64 bits. -/
@@ -113,6 +138,43 @@ theorem returned_size (memory : ByteArray) (v : UInt256) :
         (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]),
     byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
       (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
+
+/-! ## Memory past a known prefix
+
+Exported code allocates fresh memory and writes into it, so its memory is a prefix `M` it does not
+touch followed by a tail `T` whose bytes a proof tracks. -/
+
+/-- A write of `n` bytes of `src` from `s` into the tail, at `k` bytes into it. -/
+theorem write_tail (src M T : ByteArray) {d : ℕ} (s k n : ℕ) (hd : d = M.size + k) (hn : n ≠ 0)
+    (hsrc : s + n ≤ src.size) (hk : k + n ≤ T.size) :
+    src.write s (M ++ T) d n =
+      M ++ (T.extract 0 k ++ src.extract s (s + n) ++ T.extract (k + n) T.size) := by
+  subst hd
+  rw [write_eq_gen_from src (M ++ T) s (M.size + k) n hn hsrc
+      (by rw [ByteArray.size_append]; omega),
+    extract_append_span _ _ _ _ (Nat.zero_le _) (by omega), byteArray_extract_self,
+    extract_append_right_window _ _ _ _ (by omega), ByteArray.size_append,
+    show M.size + k + n - M.size = k + n by omega, show M.size + T.size - M.size = T.size by omega,
+    show M.size + k - M.size = k by omega, ByteArray.append_assoc, ByteArray.append_assoc,
+    ByteArray.append_assoc]
+
+/-- A read of `n` bytes of the tail, at `k` bytes into it. -/
+theorem readWithPadding_tail (M T : ByteArray) {a : ℕ} (k n : ℕ) (ha : a = M.size + k)
+    (hn : 0 < n) (hk : k + n ≤ T.size) :
+    (M ++ T).readWithPadding a n = T.extract k (k + n) := by
+  subst ha
+  rw [readWithPadding_eq_extract_unbounded _ _ _ hn (by rw [ByteArray.size_append]; omega),
+    extract_append_right_window _ _ _ _ (by omega), show M.size + k - M.size = k by omega,
+    show M.size + k + n - M.size = k + n by omega]
+
+/-- The size of `n` fresh zero bytes. -/
+theorem zeros_size (n : ℕ) : (⟨Array.replicate n 0⟩ : ByteArray).size = n := by
+  simp [ByteArray.size]
+
+theorem zeros_extract (n a b : ℕ) :
+    (⟨Array.replicate n 0⟩ : ByteArray).extract a b = ⟨Array.replicate (min b n - a) 0⟩ := by
+  apply ByteArray.ext
+  simp [ByteArray.data_extract]
 
 /-! ## A hashed pair of words -/
 
@@ -291,6 +353,32 @@ theorem alike_of_eq {α : Type} {w : World} {x y : Option (Except (Exit World) (
   | none, _ => exact .diverge
   | some (.error f), _ => exact .exit f
   | some (.ok (a, v)), hkeep => exact .ok rfl rfl (by rw [hkeep a v rfl]; omega)
+
+/-- A call with no input and no output copied, as std's empty buffers make it, neither reads
+    nor changes memory: it is the call a hand-written model makes on empty memory, with memory
+    put back. -/
+theorem call_noData (gasArg addr value argsPtr retPtr : UInt256) (I : ExecutionEnv) (w : World) :
+    (call gasArg addr value argsPtr (UInt256.ofNat 0) retPtr (UInt256.ofNat 0)).exec I w =
+      withMemory w.memory ((call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I
+        { w with memory := ByteArray.empty }) := by
+  have h0 : (⟨0⟩ : UInt256).toNat = 0 := rfl
+  have h0' : (UInt256.ofNat 0).toNat = 0 := rfl
+  have hmin : ∀ o : ByteArray, (min (UInt256.ofNat 0) (UInt256.ofNat o.size)).toNat = 0 := by
+    intro o
+    have hle : UInt256.ofNat 0 ≤ UInt256.ofNat o.size := Nat.zero_le _
+    simp [min, hle, h0']
+  by_cases hs : I.perm = false ∧ value ≠ ⟨0⟩
+  · simp [call, hs]
+  cases hf : w.feed with
+  | nil => simp [call, message, next, hs, hf]
+  | cons s rest =>
+    simp only [call, message, next, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
+      if_neg hs, hf, h0, h0', byteArray_readWithPadding_zero]
+    generalize (if value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
+      I.depth < 1024 then _ else _) = T
+    obtain ⟨σ', g', A', z, o⟩ := T
+    have hmin' : ∀ o : ByteArray, (min (⟨0⟩ : UInt256) (UInt256.ofNat o.size)).toNat = 0 := hmin
+    simp [hmin, hmin', byteArray_write_len_zero]
 
 /-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm'` that
     returns the encoding `enc` of its result, when the two arms end alike up to memory and `ret`

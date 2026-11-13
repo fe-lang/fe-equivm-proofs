@@ -1,11 +1,14 @@
 import FeProofs.Lib.Exported
+import FeProofs.Common.Abi
 import Fe.EVM.Entry
 
 /-!
 # Exported core and std code: what it does
 
-Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: what
-std's `return_value` does, where a map's entry lies, and the memory a deployment entry leaves.
+Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: std's
+address check, what std's `return_value` does at a word, a boolean, a `u8` and a string, what
+`revert_error` of a panic reverts with, what a string's checks do, where a map's entry lies, and
+the memory a deployment entry leaves.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
@@ -16,6 +19,16 @@ attribute [local simp]
   checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
 
 variable (I : ExecutionEnv) (w : World)
+
+/-- Std's address check, `word >> 160 != 0`, is the hand-written one. -/
+theorem shr160_eq_zero_iff (w : UInt256) :
+    w >>> UInt256.ofNat 160 = UInt256.ofNat 0 ↔ ¬ NotAddress w := by
+  unfold NotAddress
+  constructor
+  · intro h hd
+    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using hd) h
+  · intro h
+    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using Nat.lt_of_not_le h)
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
@@ -30,6 +43,183 @@ theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size)
   simp [Evm_return_value_Sol_u256, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
     Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
   exact returned_read _ _
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `return_value` at `bool` ends the call with the word of the boolean.  It changes memory
+    only. -/
+theorem returnBool_exec (b : Bool) (hmem : w.memory.size + 32 < UInt256.size) :
+    (Evm_return_value_Sol_bool b).exec I w =
+      some (.error (.stop (Bool.toUInt256 b).toByteArray
+        { w with memory := returned w.memory (Bool.toUInt256 b) })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [Evm_return_value_Sol_bool, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
+    Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
+  exact returned_read _ _
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `return_value` at `u8` ends the call with the word.  It changes memory only. -/
+theorem returnU8_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
+    (Evm_return_value_Sol_u8 v).exec I w =
+      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [Evm_return_value_Sol_u8, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
+    Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
+  exact returned_read _ _
+
+/-! ## Panics -/
+
+/-- The bytes `revert_error` encodes a panic in: the selector of `Panic(uint256)`, left from the
+    word it was stored as, then the code. -/
+theorem panicBytes (P : ByteArray) (v : UInt256) (hP : P.size = 36)
+    (hsel : P.extract 0 4 = ⟨#[0x4e, 0x48, 0x7b, 0x71]⟩) :
+    (P.extract 0 4 ++ v.toByteArray.extract 0 (0 + 32) ++ P.extract (4 + 32) P.size).extract 0
+      (0 + 36) = ⟨#[0x4e, 0x48, 0x7b, 0x71]⟩ ++ v.toByteArray := by
+  have hv : v.toByteArray.size = 32 := toByteArray_size v
+  rw [hsel, hP, Nat.zero_add, Nat.zero_add, show v.toByteArray.extract 0 32 = v.toByteArray by
+      rw [← hv, byteArray_extract_self],
+    byteArray_extract_empty_of_le _ (le_refl 36), ByteArray.append_empty]
+  rw [show (36 : ℕ) = (⟨#[0x4e, 0x48, 0x7b, 0x71]⟩ ++ v.toByteArray : ByteArray).size by
+      rw [ByteArray.size_append, hv]; rfl, byteArray_extract_self]
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `revert_error` of a panic reverts with Solidity's `Panic(uint256)` encoding of its code, as
+    `panicData` gives it. -/
+theorem revertPanic_exec (p : Panic) (hmem : w.memory.size + 64 < UInt256.size) :
+    (revert_error_Panic p).exec I w = some (.error (.revert (panicData p.code.toNat))) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hp4 : (UInt256.ofNat w.memory.size + UInt256.ofNat 4).toNat = w.memory.size + 4 := by
+    rw [uadd_toNat, hsize, toNat4]; exact Nat.mod_eq_of_lt (by omega)
+  simp [revert_error_Panic, revertData, toNat0, toNat32, toNatMax, toNatU64, Fe.EVM.add_zero,
+    UInt256.size, hsize, add0_32, hp4,
+    show UInt256.ofNat 4 + UInt256.ofNat 32 = UInt256.ofNat 36 from rfl,
+    show (UInt256.ofNat 36).toNat = 36 from rfl, show (UInt256.ofNat 28).toNat = 28 from rfl,
+    show UInt256.ofNat 32 - UInt256.ofNat 0 = UInt256.ofNat 32 from rfl,
+    show w.memory.size + 36 <
+      115792089237316195423570985008687907853269984665640564039457584007913129639936 by
+        unfold UInt256.size at hmem; omega]
+  rw [write_tail _ _ _ 0 0 32 (by simp) (by decide) (by rw [toByteArray_size])
+      (by rw [zeros_size]; omega),
+    write_tail _ _ _ 0 4 32 (by simp) (by decide) (by rw [zeros_size])
+      (by simp [zeros_size]),
+    write_tail _ _ _ 0 4 32 (by simp) (by decide) (by rw [toByteArray_size])
+      (by simp [zeros_size]),
+    readWithPadding_tail _ _ 0 36 (by simp) (by decide) (by simp [zeros_size]),
+    panicBytes _ _ (by simp [zeros_size]) (by decide +kernel)]
+  simp [panicData, u256_ofNat_toNat]
+
+/-! ## Strings in memory -/
+
+set_option maxHeartbeats 4000000 in
+/-- `DynString::from_abi_tail`'s checks pass on a buffer that holds the length word, then
+    `32 * ceil(L / 32)` more bytes: the size is the length word's and the padded bytes', and the
+    length word reads back. -/
+theorem fromAbiTail_exec (M T : ByteArray) (L : ℕ) (hL : L < 2 ^ 255)
+    (hmem : w.memory = M ++ ((UInt256.ofNat L).toByteArray ++ T))
+    (hM : M.size + 64 + 32 * ((L + 31) / 32) < UInt256.size) :
+    (DynString_from_abi_tail (UInt256.ofNat M.size) (UInt256.ofNat L)
+        (UInt256.ofNat (32 + (L + 31) / 32 * 32))).exec I w =
+      some (.ok (⟨UInt256.ofNat M.size, UInt256.ofNat L, UInt256.ofNat (32 + (L + 31) / 32 * 32)⟩,
+        w)) := by
+  have hW : (L + 31) / 32 < 2 ^ 251 := by omega
+  have hsz : UInt256.size = 2 ^ 256 := rfl
+  have hread : uInt256OfByteArray (w.memory.readWithPadding M.size 32) = UInt256.ofNat L := by
+    rw [hmem, readWithPadding_tail _ _ 0 32 (by simp) (by decide) (by simp),
+      extract_append_left _ _ _ _ (by rw [toByteArray_size]), toByteArray_extract_all,
+      uInt256OfByteArray_toByteArray]
+  by_cases h0 : L = 0
+  · subst h0
+    simp [DynString_from_abi_tail, mload, toNat0, toNat32, Fe.EVM.add_zero,
+      ulit_toNat' M.size (by omega), hread,
+      show UInt256.ofNat 32 + UInt256.ofNat 0 = UInt256.ofNat 32 from rfl,
+      show ¬ UInt256.size ≤ 32 by decide]
+  have hdiv : UInt256.ofNat (L - 1) / UInt256.ofNat 32 = UInt256.ofNat ((L - 1) / 32) := by
+    apply u256_inj
+    change (UInt256.div _ _).toNat = _
+    rw [udiv_toNat, ulit_toNat' _ (by omega), toNat32, ulit_toNat' _ (by omega)]
+  have hwords : (L - 1) / 32 + 1 = (L + 31) / 32 := by omega
+  simp [DynString_from_abi_tail, checkedDiv, checkedMul, mload, toNat32, Fe.EVM.add_zero,
+    ulit_toNat' M.size (by omega), hread,
+    ofNat_ne_ofNat_zero h0 (by omega : L < UInt256.size), ulit_toNat' L (by omega),
+    show ¬ L < 1 by omega, show (UInt256.ofNat L).sub (UInt256.ofNat 1) = UInt256.ofNat (L - 1) from
+      ofNat_sub_ofNat (a := L) (b := 1) (by omega) (by omega), hdiv,
+    show (UInt256.ofNat 1).toNat = 1 from rfl, show UInt256.ofNat 32 ≠ ⟨0⟩ by decide,
+    ulit_toNat' ((L - 1) / 32) (by omega), show ¬ UInt256.size ≤ (L + 31) / 32 by omega,
+    ofNat_add_ofNat (a := (L - 1) / 32) (b := 1) (by omega), hwords,
+    ofNat_mul_ofNat (a := (L + 31) / 32) (b := 32) (by omega) (by decide) (by omega),
+    ulit_toNat' ((L + 31) / 32 * 32) (by omega),
+    ofNat_add_ofNat (a := 32) (b := (L + 31) / 32 * 32) (by omega),
+    ulit_toNat' ((L + 31) / 32) (by omega), show ¬ UInt256.size ≤ (L + 31) / 32 * 32 by omega,
+    show ¬ UInt256.size ≤ 32 + (L + 31) / 32 * 32 by omega]
+
+set_option maxHeartbeats 4000000 in
+/-- `return_value` of a string whose `S`-byte encoding is the bytes `B` of memory at `p`: the
+    offset word `0x20` and the encoding, copied after it into a fresh buffer.  A buffer of
+    `2 ^ 64` bytes or more fails with `Panic(0x41)`. -/
+theorem returnDynString_exec (p S : ℕ) (L : UInt256) (B : ByteArray) (hB : B.size = S)
+    (hd : w.memory.extract p (p + S) = B) (hin : p + S ≤ w.memory.size) (hS : 0 < S)
+    (hmem : w.memory.size + 2 ^ 65 < UInt256.size) (hS64 : S < 2 ^ 64) :
+    (Evm_return_value_Sol_DynString ⟨UInt256.ofNat p, L, UInt256.ofNat S⟩).exec I w =
+      if 32 + S < 2 ^ 64 then
+        some (.error (.stop ((UInt256.ofNat 32).toByteArray ++ B)
+          { w with memory := w.memory ++ ((UInt256.ofNat 32).toByteArray ++ B) }))
+      else some (.error (.panic 0x41)) := by
+  have hsz : UInt256.size = 2 ^ 256 := rfl
+  have hmaxa : ¬ UInt256.size - 1 < 18446744073709551615 := by decide
+  by_cases h64 : 32 + S < 2 ^ 64
+  swap
+  · simp [Evm_return_value_Sol_DynString, ulit_toNat' S (by omega), toNat32, toNatMax, toNatU64,
+      hmaxa, show ¬ UInt256.size ≤ 32 + S by omega, show ¬ UInt256.size - 1 < 32 + S by omega,
+      ofNat_add_ofNat (a := 32) (b := S) (by omega), ulit_toNat' (32 + S) (by omega),
+      show 18446744073709551615 < 32 + S by omega, show ¬ 32 + S < 18446744073709551616 by omega,
+      show (UInt256.ofNat 65).toNat = 65 from rfl]
+  have hp2 : w.memory.size + 32 < UInt256.size := by omega
+  simp [Evm_return_value_Sol_DynString, ulit_toNat' S (by omega), toNat32, toNatMax, toNatU64,
+    hmaxa, show ¬ UInt256.size ≤ 32 + S by omega, show ¬ UInt256.size - 1 < 32 + S by omega,
+    ofNat_add_ofNat (a := 32) (b := S) (by omega), ulit_toNat' (32 + S) (by omega),
+    show ¬ 18446744073709551615 < 32 + S by omega, toNat0, Fe.EVM.add_zero,
+    show w.memory.size + (32 + S) < UInt256.size by omega, ulit_toNat' w.memory.size (by omega),
+    ofNat_sub_ofNat (a := 32 + S) (b := 0) (by omega) (by omega),
+    ofNat_sub_ofNat (a := 32 + S) (b := 32) (by omega) (by omega),
+    ofNat_sub_ofNat (a := S) (b := 0) (by omega) (by omega),
+    ofNat_sub_ofNat (a := 32 + S) (b := S) (by omega) (by omega),
+    ofNat_add_ofNat (a := w.memory.size) (b := 32) hp2, ulit_toNat' (w.memory.size + 32) hp2,
+    mcopy, show 32 + S < 18446744073709551616 from h64]
+  have hw : (UInt256.ofNat 32).toByteArray.size = 32 := toByteArray_size _
+  have h1 : (⟨Array.replicate (32 + S) 0⟩ : ByteArray).write 0
+      (w.memory ++ ⟨Array.replicate (32 + S) 0⟩) w.memory.size (32 + S) =
+        w.memory ++ ⟨Array.replicate (32 + S) 0⟩ := by
+    rw [write_tail _ _ _ 0 0 (32 + S) (by simp) (by omega) (by rw [zeros_size]; omega)
+        (by rw [zeros_size]; omega)]
+    simp [zeros_extract, zeros_size]
+  have h2 : (UInt256.ofNat 32).toByteArray.write 0 (w.memory ++ ⟨Array.replicate (32 + S) 0⟩)
+      w.memory.size 32 = w.memory ++ ((UInt256.ofNat 32).toByteArray ++ ⟨Array.replicate S 0⟩) := by
+    rw [write_tail _ _ _ 0 0 32 (by simp) (by decide) (by rw [hw]) (by rw [zeros_size]; omega)]
+    simp [zeros_extract, zeros_size, toByteArray_extract_all]
+  have h3 : (w.memory ++ ((UInt256.ofNat 32).toByteArray ++ ⟨Array.replicate S 0⟩)).write
+      (UInt256.ofNat p).toNat
+      (w.memory ++ ((UInt256.ofNat 32).toByteArray ++ ⟨Array.replicate S 0⟩))
+      (w.memory.size + 32) S = w.memory ++ ((UInt256.ofNat 32).toByteArray ++ B) := by
+    rw [write_tail _ _ _ _ 32 S rfl (by omega)
+        (by simp [hw, zeros_size, ulit_toNat' p (by omega)]; omega) (by simp [hw, zeros_size]),
+      ulit_toNat' p (by omega), extract_append_left _ _ _ _ hin, hd,
+      extract_append_left _ _ _ _ (by rw [hw]), toByteArray_extract_all,
+      byteArray_extract_empty_of_le _ (by simp [hw, zeros_size]), ByteArray.append_empty]
+  have h4 : (w.memory ++ ((UInt256.ofNat 32).toByteArray ++ B)).readWithPadding w.memory.size
+      (32 + S) = (UInt256.ofNat 32).toByteArray ++ B := by
+    rw [readWithPadding_tail _ _ 0 (32 + S) (by simp) (by omega) (by simp [hw, hB]), Nat.zero_add,
+      show 32 + S = ((UInt256.ofNat 32).toByteArray ++ B).size by simp [hw, hB],
+      byteArray_extract_self]
+  simp [h1, h2, h3, h4]
 
 /-! ## Map entries -/
 

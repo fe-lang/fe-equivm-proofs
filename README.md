@@ -95,6 +95,7 @@ adds event logs and revert payloads. `RefinesDeploy` is the same for the creatio
 | `FeProofs.CodeScalar` (one immutable `u256` field) | `feCodeScalarRefinesModel` | `feCodeScalarRefinesExported` |
 | `FeProofs.PackedStore` | `fePackedStoreRefinesHandEntry` (exported arms, entry by hand) | `fePackedStoreRefinesExported` |
 | `FeProofs.ERC20` | `feERC20RefinesModel` | `feERC20RefinesExported` |
+| `FeProofs.WETH9` | `feWETH9RefinesModel` | `feWETH9RefinesExported` |
 
 Each has a `…Deploy…` twin for the constructor. All are at `P0`. The certificates of exported
 models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
@@ -131,10 +132,18 @@ every successful frame at the token has calldata shorter than 2^64 bytes and is 
 holders. `feConstantKeepsStorage` is an instance without a condition. Not proved yet: invariants
 that bound the balance from below.
 
+WETH9's `withdraw` sends value to the caller, who may re-enter. The model takes what it cannot
+compute, the callee's gas and the substate and original account map it is handed, from the feed:
+`call_feed` (`Fe/EVM/Reach.lean`) shows that a `CALL` in a trace is the model's `call` for some
+entry of the feed, and whatever the callee does, to WETH9's storage as well, is in EVMLean's `Θ`
+on both sides. Unlike the Stele certificate, neither WETH9 certificate assumes anything of
+storage: a `name()` or `symbol()` whose ABI encoding takes 2^64 bytes or more panics with
+`Panic(0x41)` in both the bytecode and the model.
+
 The files of an exported contract:
 
 - `Exported.lean`: the exporter's output between two marker lines, and nothing else.
-- `ExportedCorrect.lean` (PackedStore, ERC20): what the exported arms and std code do.
+- `ExportedCorrect.lean` (PackedStore, ERC20, WETH9): what the exported arms and std code do.
 - `RuntimeCorrect.lean`: the bytecode refines the exported contract.
 - `Model.lean`, `ModelCorrect.lean`: the hand-written model and its certificate, which the
   exported one is derived from.

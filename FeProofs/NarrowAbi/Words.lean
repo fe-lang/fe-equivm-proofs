@@ -117,23 +117,6 @@ theorem shiftRight248_toNat (w : UInt256) :
   rw [Nat.shiftRight_eq_div_pow]
   rw [show (↑(⟨248⟩ : UInt256).val : Nat) = 248 by decide]
 
-theorem complement_toNat (w : UInt256) :
-    (UInt256.complement w).toNat = EVM.wordModulus - 1 - w.toNat := by
-  rw [show EVM.wordModulus = UInt256.size by decide]
-  unfold UInt256.complement UInt256.toNat
-  rw [Fin.val_sub, Fin.val_add]
-  change (UInt256.size - ((w.val.val + 1) % UInt256.size)) % UInt256.size =
-    UInt256.size - 1 - w.val.val
-  have hle : w.val.val + 1 ≤ UInt256.size := by omega
-  by_cases heq : w.val.val + 1 = UInt256.size
-  · rw [heq, Nat.mod_self, Nat.sub_zero, Nat.mod_self]
-    omega
-  · have hlt : w.val.val + 1 < UInt256.size := by omega
-    rw [Nat.mod_eq_of_lt hlt]
-    have hpos : 0 < UInt256.size - (w.val.val + 1) := by omega
-    rw [Nat.mod_eq_of_lt (by omega)]
-    omega
-
 theorem sarShiftLeft248_of_lt128 {low : UInt256} (hlow : low.toNat < 128) :
     UInt256.sar ⟨248⟩ (UInt256.shiftLeft low ⟨248⟩) = low := by
   apply u256_inj

@@ -242,7 +242,9 @@ theorem appended_self (A : Substate) : appended A A = #[] := by
   simp [appended]
 
 /-- A message call that is made is `Θ` on the model's accounts.  The hypothesis is the link
-    EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with. -/
+    EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with, once the gas
+    they give the callee is shown to be `forwardedGas` of some cap, as
+    `callValueMade_forwardedGas` (`Reach.lean`) does for a `CALL`. -/
 theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
     {gasArg value value' argsPtr argsLen retPtr retLen g' : UInt256}
     {source recipient t : AccountAddress} {perm z : Bool} {σ' : AccountMap} {A' : Substate}

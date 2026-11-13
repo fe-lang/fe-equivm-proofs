@@ -81,7 +81,7 @@ theorem stringGetter {σ σ₀ A I} {g : UInt256} {t : TransitionDecl} {field : 
   cases hd : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) with
   | ok L =>
     have hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64 := hfits L hd
-    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd hfit hret hR rd
+    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd (by omega) hret hR rd
     obtain ⟨_, _, _, rd⟩ := hjump _ _ _ _ _ rd
     have rd := encodeReturn (n := 32 + 32 * ((L + 31) / 32)) (by rw [hMs]; omega)
       (by rw [hM64]; congr 1; omega) (by omega) (by omega) hsize (by omega) rd
