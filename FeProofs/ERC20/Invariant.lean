@@ -77,4 +77,81 @@ theorem every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : Colli
     (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
     (fun _ _ _ h => h.1) (model_keeps a hS) e
 
+/-! ## Deployment -/
+
+theorem storageAt_eq_getD (c : AccountAddress) (σ : AccountMap) (s : UInt256) :
+    storageAt c σ s = (σ.getD c default).storage.getD s ⟨0⟩ := by
+  unfold storageAt
+  rcases h : σ[c]? with _ | acc
+  · rw [Std.ExtTreeMap.get?_eq_getElem?, h,
+      Std.ExtTreeMap.getD_eq_fallback (t := σ) (by simpa using h)]
+    exact Std.ExtTreeMap.getD_empty.symm
+  · rw [Std.ExtTreeMap.get?_eq_getElem?, h, Std.ExtTreeMap.getD_eq_getD_getElem? (t := σ), h]
+    rfl
+
+theorem conserved_iff_getD {c : AccountAddress} {σ : AccountMap} {S : List UInt256} :
+    Conserved c σ S ↔ ConservedAcc S (σ.getD c default) := by
+  simp only [Conserved, balanceSum, balance, supply, storageAt_eq_getD, ConservedAcc]
+
+/-- The exported constructor, run at the new address from empty storage by a deployer among the
+    holders, leaves the ERC20 bytecode with the holders' balances adding up to the supply. -/
+theorem deploy_model {S : List UInt256} (hS : CollisionFree S) (v : UInt256) (c s : AccountAddress)
+    (hdeployer : UInt256.ofNat s.val ∈ S) (I : Env) (σ : AccountMap) (A : Substate)
+    (feed : List Supply) (out : ByteArray) (w : World) (hc : I.codeOwner = c) (hs : I.source = s)
+    (hempty : (σ.getD c default).storage = default)
+    (hrun : Succeeds ((Exported.contract.init (ctorTail v) >>= fun tail =>
+      pure (feERC20Bytecode ++ tail)).exec I (World.init σ A feed)) out w) :
+    Token S {w.accounts.getD c default with code := out} := by
+  have hmem : (World.init σ A feed).memory.size + 1024 < UInt256.size := by
+    simp [World.init, UInt256.size]
+  have hzero : ∀ h ∈ S, balance I.codeOwner (World.init σ A feed).accounts h = ⟨0⟩ := by
+    intro h _
+    rw [balance, storageAt_eq_getD, hc]
+    simp only [World.init, hempty]
+    rfl
+  have hcons := Exported.init_conserves hmem hS (hs ▸ hdeployer) hzero hrun
+  rw [hc, conserved_iff_getD] at hcons
+  refine ⟨?_, hcons⟩
+  obtain ⟨w'', hrun', -⟩ := (Exported.init_endsAs v feERC20Bytecode I _ hmem).succeeds hrun
+  rcases hrun' with hrun' | hrun' <;> simp only [M.exec_bind] at hrun' <;> split at hrun' <;>
+    simp at hrun' <;> rename_i hinit
+  · exact hrun'.1.symm
+  · subst hrun'
+    exact absurd hinit (init_noStop _ I _ _ _)
+
+/-- **Deployment conserves.**  A creation of the ERC20 creation bytecode with argument `v` that
+    succeeds, made by a holder in `S` with write permission, ends with the new address running the
+    ERC20 bytecode and the holders' balances adding up to the supply.  The new address starts with
+    empty storage: `Lambda` creates only at an address without nonce, code or storage. -/
+theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UInt256}
+    {L : LambdaCall} (hi : L.i = feERC20CreationBytecode ++ v.toByteArray) (hw : L.w = true)
+    (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
+    L.run.1 = L.addr ∧ Holds L.addr (Token S) L.run.2.1 :=
+  refinesDeploy_holds Exported.feERC20DeployRefinesExported (args := ctorTail v) ⟨v, rfl⟩
+    (by rw [Exported.ctorTail_eq]; exact hi) hw
+    (fun I σ A feed out w hc hs hempty hrun =>
+      deploy_model hS v L.addr L.s hdeployer I σ A feed out w hc hs hempty hrun) hz
+
+/-! ## Transactions -/
+
+/-- **Every transaction conserves.**  A transaction that starts where the token at `a` runs the
+    ERC20 bytecode with the holders' balances adding up to the supply, whose sender has no code
+    (EIP-3607), whose data fits a word, and whose execution admits every successful frame at `a`,
+    ends where the same holds, if `a` is not in the self-destruct set it returns. -/
+theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
+    (hS : CollisionFree S) {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader}
+    {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool}
+    {gu : UInt256} (hH : Holds a (Token S) σ)
+    (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
+    (hdata : T.base.data.size < UInt256.size)
+    (hadmit : TxAdmitted a (Admits S) σ H_f H blocks T S_T)
+    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu))
+    (hsd : a ∉ A.selfDestructSet.toList) :
+    Holds a (Token S) σ' :=
+  tx_holds (token_admissible S)
+    (frameHyp_of_refinesOn Exported.feERC20RefinesExported
+      (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
+      (fun _ _ _ h => h.1) (model_keeps a hS))
+    (fun _ h => h) hH hsender hdata hadmit hΥ hsd
+
 end FeProofs.ERC20
