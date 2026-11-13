@@ -1,4 +1,5 @@
 import Fe.EVM.Refine
+import Fe.EVM.Calls
 import Reasoning.EVMWord
 import Reasoning.Memory
 import Reasoning.Solc
@@ -291,6 +292,32 @@ theorem alike_of_eq {α : Type} {w : World} {x y : Option (Except (Exit World) (
   | none, _ => exact .diverge
   | some (.error f), _ => exact .exit f
   | some (.ok (a, v)), hkeep => exact .ok rfl rfl (by rw [hkeep a v rfl]; omega)
+
+/-- A call with no input and no output copied, as std's empty buffers make it, neither reads
+    nor changes memory: it is the call a hand-written model makes on empty memory, with memory
+    put back. -/
+theorem call_noData (gasArg addr value argsPtr retPtr : UInt256) (I : ExecutionEnv) (w : World) :
+    (call gasArg addr value argsPtr (UInt256.ofNat 0) retPtr (UInt256.ofNat 0)).exec I w =
+      withMemory w.memory ((call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I
+        { w with memory := ByteArray.empty }) := by
+  have h0 : (⟨0⟩ : UInt256).toNat = 0 := rfl
+  have h0' : (UInt256.ofNat 0).toNat = 0 := rfl
+  have hmin : ∀ o : ByteArray, (min (UInt256.ofNat 0) (UInt256.ofNat o.size)).toNat = 0 := by
+    intro o
+    have hle : UInt256.ofNat 0 ≤ UInt256.ofNat o.size := Nat.zero_le _
+    simp [min, hle, h0']
+  by_cases hs : I.perm = false ∧ value ≠ ⟨0⟩
+  · simp [call, hs]
+  cases hf : w.feed with
+  | nil => simp [call, message, next, hs, hf]
+  | cons s rest =>
+    simp only [call, message, next, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
+      if_neg hs, hf, h0, h0', byteArray_readWithPadding_zero]
+    generalize (if value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
+      I.depth < 1024 then _ else _) = T
+    obtain ⟨σ', g', A', z, o⟩ := T
+    have hmin' : ∀ o : ByteArray, (min (⟨0⟩ : UInt256) (UInt256.ofNat o.size)).toNat = 0 := hmin
+    simp [hmin, hmin', byteArray_write_len_zero]
 
 /-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm'` that
     returns the encoding `enc` of its result, when the two arms end alike up to memory and `ret`

@@ -108,7 +108,8 @@ def withdraw (wad : UInt256) : FeM Unit := do
   let bal ← sload (balanceSlot src)
   if bal.toNat < wad.toNat then M.panic 0x01
   sstore (balanceSlot src) (bal - wad)
-  let ok ← call (if wad = ⟨0⟩ then ⟨2300⟩ else ⟨0⟩) src wad ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩
+  let gas := if wad = ⟨0⟩ then UInt256.ofNat 2300 else UInt256.ofNat 0
+  let ok ← call gas src wad ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩
   if ok = ⟨0⟩ then M.panic 0x01
   emit #[withdrawalTopic, src] wad.toByteArray
 

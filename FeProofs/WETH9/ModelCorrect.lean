@@ -532,7 +532,7 @@ theorem withdrawCall_refines {g gas aw : UInt256} {mem : ByteArray} {k C : ℕ}
     (hhead : ¬ BadHead I.calldata 1)
     (hnlt : ¬ (slotWord I σ (Model.balanceSlot (UInt256.ofNat I.source.val))).toNat <
       (word I.calldata 4).toNat)
-    (hgas : (if word I.calldata 4 = ⟨0⟩ then ⟨2300⟩ else ⟨0⟩) = gas)
+    (hgas : (if word I.calldata 4 = ⟨0⟩ then UInt256.ofNat 2300 else UInt256.ofNat 0) = gas)
     (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
       (UInt256.ofNat 561)
       [gas, UInt256.ofNat I.source.val, word I.calldata 4, inOff, ⟨0⟩, outOff, ⟨0⟩, gas,
@@ -612,8 +612,9 @@ theorem withdrawArm_refines {g : UInt256}
       keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide)] at rd
     rd_step rd
     exact withdrawCall_refines hcode hperm hwv hhead hnlt (by first
-      | (rw [if_pos (show word I.calldata 4 = ⟨0⟩ from hval.trans hz)]; rfl)
-      | rw [if_neg (show ¬ word I.calldata 4 = ⟨0⟩ from fun h => hz (hval.symm.trans h))])
+      | (rw [if_pos (show word I.calldata 4 = ⟨0⟩ from hval.trans hz)]; try rfl)
+      | (rw [if_neg (show ¬ word I.calldata 4 = ⟨0⟩ from fun h => hz (hval.symm.trans h))]
+         try rfl))
       rd
 
 /-! ## `name()` and `symbol()` -/
