@@ -19,8 +19,8 @@ inductive Profile where
   | P0
   | P1
 
-/-- The return data of a panic, Solidity's `Panic(uint256)`.  To confirm against Fe's lowering
-    when the first panic path is ported. -/
+/-- The return data of a panic, Solidity's `Panic(uint256)`: what std's `revert_error` of a
+    panic reverts with (`revertPanic_exec` in `FeProofs/Lib/ExportedCorrect.lean`). -/
 def panicData (code : Nat) : ByteArray :=
   ⟨#[0x4e, 0x48, 0x7b, 0x71]⟩ ++ (UInt256.ofNat code).toByteArray
 
