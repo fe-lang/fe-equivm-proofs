@@ -14,6 +14,7 @@ import FeProofs.ScalarStore.RuntimeCorrect
 import FeProofs.PackedStore.RuntimeCorrect
 import FeProofs.ERC20.RuntimeCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
+import FeProofs.WETH9.RuntimeCorrect
 import FeProofs.ERC20.ConservationBytecode
 import FeProofs.Fixtures.Exported
 import FeProofs.Fixtures.Decode
