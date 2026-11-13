@@ -473,7 +473,8 @@ theorem fallbackFrom771_refines {g aw : UInt256} {R : List UInt256} {k C : ℕ}
 /-- Calldata shorter than a selector, or matching none, runs the payable fallback. -/
 theorem fallback_refines {g : UInt256}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
-    (hnm : ∀ i, i < 11 → (feWETH9SelBytes i == I.calldata.extract 0 4) = false) :
+    (hnm : 4 ≤ I.calldata.size →
+      ∀ i, i < 11 → (feWETH9SelBytes i == I.calldata.extract 0 4) = false) :
     ArmAgrees σ σ₀ g A I Model.depositArm := by
   have rd := RD.initState (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A) hcode
   by_cases hsz : 4 ≤ I.calldata.size
@@ -488,7 +489,7 @@ theorem fallback_refines {g : UInt256}
         (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) sel =
           UInt256.ofNat 0 := by
     intro i sel hi e
-    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    simp only [hnm hsz i hi, Bool.false_eq_true, if_false] at e
     rw [uInt256_eq_comm]
     exact e
   have n0 := miss 0 _ (by omega) (nameEvmSelector hsz)
@@ -614,6 +615,198 @@ theorem withdrawArm_refines {g : UInt256}
       | (rw [if_pos (show word I.calldata 4 = ⟨0⟩ from hval.trans hz)]; rfl)
       | rw [if_neg (show ¬ word I.calldata 4 = ⟨0⟩ from fun h => hz (hval.symm.trans h))])
       rd
+
+/-! ## `name()` and `symbol()` -/
+
+open Strings in
+/-- A string getter from the call of `SolString::load` (pc 860) on `slot`, with return address
+    `ret`, from where it jumps to the return encoder (pc 1228, `hjump`): both return the string's
+    ABI encoding, or both revert on a malformed head.  The encoding is shorter than `2 ^ 64`
+    bytes (`hfits`). -/
+theorem stringReturn_refines {g : UInt256} {slot ret : UInt256} {R : List UInt256} {aw : UInt256}
+    {rdata : ByteArray} {k C : ℕ}
+    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
+    (hfits : stringReturnFits (solcSlotWord σ I slot))
+    (hret : (D_J feWETH9Bytecode 0).contains ret = true) (hR : R.length ≤ 990)
+    (rd : RD feWETH9Bytecode I (Sat256.ofUInt256 g) (initState σ σ₀ (Sat256.ofUInt256 g) A I)
+      (UInt256.ofNat 860) (slot :: ret :: R) entryMem aw rdata σ k C)
+    (hjump : ∀ M aw k C n, RD feWETH9Bytecode I (Sat256.ofUInt256 g)
+        (initState σ σ₀ (Sat256.ofUInt256 g) A I) ret
+        (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw rdata σ k C →
+      ∃ aw' k' C', RD feWETH9Bytecode I (Sat256.ofUInt256 g)
+        (initState σ σ₀ (Sat256.ofUInt256 g) A I) (UInt256.ofNat 1228)
+        (UInt256.ofNat 224 :: UInt256.ofNat n :: R) M aw' rdata σ k' C') :
+    ArmAgrees σ σ₀ g A I (Model.stringReturn slot) := by
+  cases hd : solidityDecodeBytesLengthHeader (solcSlotWord σ I slot) with
+  | ok L =>
+    have hfit : 64 + 32 * ((L + 31) / 32) < 2 ^ 64 := hfits L hd
+    obtain ⟨M, _, _, _, hMs, hM64, hMx, rd⟩ := loadString_ok hd hfit hret hR rd
+    obtain ⟨_, _, _, rd⟩ := hjump _ _ _ _ _ rd
+    have rd := encodeReturn (n := 32 + 32 * ((L + 31) / 32)) (by rw [hMs]; omega)
+      (by rw [hM64]; congr 1; omega) (by omega) (by omega) hsize (by omega) rd
+    rw [show 224 + (32 + 32 * ((L + 31) / 32)) = 256 + 32 * ((L + 31) / 32) by omega, hMx] at rd
+    have hd' : solidityDecodeBytesLengthHeader (slotWord I σ slot) = .ok L := hd
+    exact agrees_of_ret hcode rd (w' := World.init σ A)
+      (by simp [Model.stringReturn, World.init, hd',
+        show 64 + 32 * ((L + 31) / 32) < 18446744073709551616 from hfit]) rfl
+  | revert =>
+    have hd' : solidityDecodeBytesLengthHeader (slotWord I σ slot) = .revert := hd
+    exact agrees_of_rev hcode (loadString_revert hd hR rd) (f := .revert (panicData 0x22))
+      (by simp [Model.stringReturn, World.init, hd']) (by simp)
+  | error =>
+    rcases decodeHeader_cases (solcSlotWord σ I slot) with
+      ⟨_, _, h⟩ | ⟨_, _, h⟩ | ⟨_, h⟩ <;> rw [h] at hd <;> cases hd
+
+theorem nameArm_refines {g : UInt256}
+    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
+    (hsel : selIs I (feWETH9SelBytes 0))
+    (hfits : I.weiValue = ⟨0⟩ → stringReturnFits (solcSlotWord σ I ⟨0⟩)) :
+    ArmAgrees σ σ₀ g A I Model.nameArm := by
+  have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 0) rfl hsel
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachNameBody (g := Sat256.ofUInt256 g) (σ := σ)
+    (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · rd_run rd using [hwv, isZero_eq_zero_of_ne hwv]
+    exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
+      (by simp [Model.nameArm, exec_nonPayable, hwv]) (by simp)
+  rd_run rd to 860 using [hwv]
+  have h := stringReturn_refines hcode hsize (hfits hwv) (by jump_dest) (by simp) rd
+    fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
+  simpa [ArmAgrees, Model.nameArm, exec_nonPayable, hwv] using h
+
+theorem symbolArm_refines {g : UInt256}
+    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
+    (hsel : selIs I (feWETH9SelBytes 7))
+    (hfits : I.weiValue = ⟨0⟩ → stringReturnFits (solcSlotWord σ I ⟨1⟩)) :
+    ArmAgrees σ σ₀ g A I Model.symbolArm := by
+  have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feWETH9SelBytes 7) rfl hsel
+  obtain ⟨aw, k, C, rd⟩ := feWETH9ReachSymbolBody (g := Sat256.ofUInt256 g) (σ := σ)
+    (σ₀ := σ₀) (A := A) hcode hsz hsize hsel
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · rd_run rd using [hwv, isZero_eq_zero_of_ne hwv]
+    exact agrees_of_rev hcode rd (f := .revert ByteArray.empty)
+      (by simp [Model.symbolArm, exec_nonPayable, hwv]) (by simp)
+  rd_run rd to 860 using [hwv]
+  have h := stringReturn_refines hcode hsize (hfits hwv) (by jump_dest) (by simp) rd
+    fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
+  simpa [ArmAgrees, Model.symbolArm, exec_nonPayable, hwv] using h
+
+/-! ## The runtime entry -/
+
+/-- The bytecode refines the model on calldata below `2 ^ 256` bytes, when a zero-value `name()`
+    or `symbol()` call returns a string whose ABI encoding is shorter than `2 ^ 64` bytes
+    (`feWETH9StorageWF`). -/
+theorem feWETH9RefinesModel (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv)
+    (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
+    (hwf : feWETH9StorageWF σ I) : RefinesFor .P0 Model.contract σ σ₀ g A I := by
+  refine RefinesFor.of_gas ?_
+  show ArmAgreesFeed σ σ₀ g A I Model.runtime
+  have sel : ∀ i, (¬ selIs I (feWETH9SelBytes i)) →
+      (feWETH9SelBytes i == I.calldata.extract 0 4) = false := fun i h => by simpa [selIs] using h
+  have route : ∀ {arm : FeM ByteArray},
+      (∀ feed, Model.runtime.exec I (World.init σ A feed) = arm.exec I (World.init σ A feed)) →
+      ArmAgreesFeed σ σ₀ g A I arm → ArmAgreesFeed σ σ₀ g A I Model.runtime := by
+    intro arm e h
+    simpa only [ArmAgreesFeed, e] using h
+  by_cases hsz : 4 ≤ I.calldata.size
+  swap
+  · exact route (fun _ => by simp [Model.runtime, show I.calldata.size < 4 by omega])
+      (fallback_refines hcode hsize (fun h => absurd h hsz)).feed
+  have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
+  by_cases h0 : selIs I (feWETH9SelBytes 0)
+  · exact route (fun _ => by simp [Model.runtime, hn4,
+      show (Model.nameSelector == I.calldata.extract 0 4) = true from h0])
+      (nameArm_refines hcode hsize h0 (hwf.1 h0)).feed
+  have n0 : (Model.nameSelector == I.calldata.extract 0 4) = false := sel 0 h0
+  by_cases h1 : selIs I (feWETH9SelBytes 1)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0,
+      show (Model.approveSelector == I.calldata.extract 0 4) = true from h1])
+      (approveArm_refines hcode hsize h1).feed
+  have n1 : (Model.approveSelector == I.calldata.extract 0 4) = false := sel 1 h1
+  by_cases h2 : selIs I (feWETH9SelBytes 2)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1,
+      show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h2])
+      (totalSupplyArm_refines hcode hsize h2).feed
+  have n2 : (Model.totalSupplySelector == I.calldata.extract 0 4) = false := sel 2 h2
+  by_cases h3 : selIs I (feWETH9SelBytes 3)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2,
+      show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h3])
+      (transferFromArm_refines hcode hsize h3).feed
+  have n3 : (Model.transferFromSelector == I.calldata.extract 0 4) = false := sel 3 h3
+  by_cases h4 : selIs I (feWETH9SelBytes 4)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3,
+      show (Model.withdrawSelector == I.calldata.extract 0 4) = true from h4])
+      (withdrawArm_refines hcode hsize h4)
+  have n4 : (Model.withdrawSelector == I.calldata.extract 0 4) = false := sel 4 h4
+  by_cases h5 : selIs I (feWETH9SelBytes 5)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4,
+      show (Model.decimalsSelector == I.calldata.extract 0 4) = true from h5])
+      (decimalsArm_refines hcode hsize h5).feed
+  have n5 : (Model.decimalsSelector == I.calldata.extract 0 4) = false := sel 5 h5
+  by_cases h6 : selIs I (feWETH9SelBytes 6)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5,
+      show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h6])
+      (balanceOfArm_refines hcode hsize h6).feed
+  have n6 : (Model.balanceOfSelector == I.calldata.extract 0 4) = false := sel 6 h6
+  by_cases h7 : selIs I (feWETH9SelBytes 7)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6,
+      show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7])
+      (symbolArm_refines hcode hsize h7 (hwf.2 h7)).feed
+  have n7 : (Model.symbolSelector == I.calldata.extract 0 4) = false := sel 7 h7
+  by_cases h8 : selIs I (feWETH9SelBytes 8)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7,
+      show (Model.transferSelector == I.calldata.extract 0 4) = true from h8])
+      (transferArm_refines hcode hsize h8).feed
+  have n8 : (Model.transferSelector == I.calldata.extract 0 4) = false := sel 8 h8
+  by_cases h9 : selIs I (feWETH9SelBytes 9)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8,
+      show (Model.depositSelector == I.calldata.extract 0 4) = true from h9])
+      (depositArm_refines hcode hsize h9).feed
+  have n9 : (Model.depositSelector == I.calldata.extract 0 4) = false := sel 9 h9
+  by_cases h10 : selIs I (feWETH9SelBytes 10)
+  · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8, n9,
+      show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h10])
+      (allowanceArm_refines hcode hsize h10).feed
+  have n10 : (Model.allowanceSelector == I.calldata.extract 0 4) = false := sel 10 h10
+  exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10])
+    (fallback_refines hcode hsize
+      fun _ => feWETH9NoSelectorMatches h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10).feed
+
+/-! ## Deployment -/
+
+open Ctor in
+/-- Deployment, with no argument bytes and for any initial storage: both write the two strings
+    and `decimals`, or both revert on a string head whose length contradicts its flag. -/
+theorem feWETH9DeployRefinesModel :
+    RefinesDeploy .P0 feWETH9CreationBytecode feWETH9Bytecode Model.contract
+      (· = ByteArray.empty) := by
+  refine RefinesDeploy.of_unit_closed (init := fun _ => Model.init) (fun _ => rfl) ?_
+  rintro σ σ₀ g A I args rfl hcode hperm
+  have hcode' : I.code = ctorCode := hcode
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode' (feWETH9CtorRev hcode' hwv)
+      (f := .revert ByteArray.empty) (by simp [Model.init, exec_nonPayable, hwv]) (by simp)
+  obtain ⟨hbad0, hok0⟩ := feWETH9CtorEvm (σ := σ) (σ₀ := σ₀) (A := A) (g := Sat256.ofUInt256 g)
+    hcode' hwv hperm
+  by_cases hb0 : strHeadBad (solcSlotWord σ I ⟨0⟩)
+  · exact agrees_of_rev hcode' (hbad0 hb0) (f := .revert (panicData 0x22))
+      (by simp [Model.init, Model.storeString, World.init, exec_nonPayable, hwv,
+        show strHeadBad (slotWord I σ Model.nameSlot) from hb0]) (by simp)
+  obtain ⟨hbad1, hok1⟩ := hok0 hb0
+  have hn0 : ¬ strHeadBad (slotWord I σ Model.nameSlot) := hb0
+  by_cases hb1 : strHeadBad (solcSlotWord (nameMap σ I) I ⟨1⟩)
+  · exact agrees_of_rev hcode' (hbad1 hb1) (f := .revert (panicData 0x22))
+      (by simp [Model.init, Model.storeString, World.init, exec_nonPayable, hwv, hperm, hn0,
+        show strHeadBad (slotWord I (strWriteMap I σ Model.nameSlot Model.nameBytes)
+          Model.symbolSlot) from hb1]) (by simp)
+  have hn1 : ¬ strHeadBad (slotWord I (strWriteMap I σ Model.nameSlot Model.nameBytes)
+    Model.symbolSlot) := hb1
+  exact agrees_of_ret hcode' (hok1 hb1) (w' := { World.init σ A with accounts := ctorMap σ I })
+    (by simp [Model.init, Model.storeString, World.init, exec_nonPayable, exec_sstore, hwv,
+      hperm, hn0, hn1]; rfl) rfl
 
 end FeProofs.WETH9
 
