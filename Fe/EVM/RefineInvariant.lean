@@ -8,7 +8,12 @@ import Fe.EVM.Refine
 an invariant `Holds a P` of the contract at `a`, given the per-frame hypothesis `FrameHyp`: an
 admitted frame at `a` running the contract's code keeps it whenever the admitted calls and
 creations below the frame do.  This file derives that hypothesis from a certificate
-`RefinesOn p bytecode m admits'` and a statement about the model alone.
+`RefinesOn p bytecode m admits'` and a statement about the model alone, and the base case
+(`refinesDeploy_holds`) from a deployment certificate `RefinesDeploy` and a statement about the
+model's constructor: run at the new address, from an account map where that address has empty
+storage, it leaves there an account that satisfies `P` with the code it returns.  The certificate
+equates the creation's return data with the model's, `runtime` followed by the immutables, and
+`Lambda` installs that code (`Agrees.accounts_out`, `lambda_success`).
 
 ## The model-level statement
 

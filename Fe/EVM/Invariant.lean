@@ -56,6 +56,31 @@ hold at every depth.  With `admits := fun _ _ => True` every execution is admitt
 (`admitted_of_all`), and the theorem is about every message call and creation.
 `Fe.EVM.RefineInvariant` derives `FrameHyp` from a certificate of the bytecode.
 
+`tx_holds`, the transaction: `Υ` keeps `Holds` if the outermost call or creation, as `Υ` makes it
+(`txCall`), is admitted (`TxAdmitted`), and three more conditions hold:
+- The sender has no code.  `Υ` does not check this; EIP-3607 makes such a transaction invalid,
+  and EVMLean's conformance runner rejects it (`SENDER_NOT_EOA`) before calling `Υ`.  Since `a`
+  has code, the sender is not `a`, so the upfront payment and the gas refund do not touch `a`.
+- The transaction's data size fits a word, as a frame's calldata must.
+- `a` is not in the self-destruct set `Υ` returns (`hsd`).  `Υ` erases the accounts in that set.
+  `SELFDESTRUCT` adds the running account only when the substate lists it among the accounts
+  this transaction created, and a creation lists `a` only if `a` had no code, nonce or storage;
+  so `hsd` follows from an invariant of the substate (`a` never among the created accounts) that
+  is not proved here.  It needs the walk generalized from account maps to account maps and
+  substates, with a lemma per instruction group on what it does to the substate, which EVMLean
+  does not provide.
+`P` must also tolerate clearing the transient storage, which `Υ` does at the end; this is a
+hypothesis of `tx_holds` only, since nothing inside a transaction clears it.  The priority fee
+and refund are balance increases, and `a`, having code, is never a dead account.
+
+`deploy_holds`, the base case: a creation that succeeds ends with `Holds` at the address it
+created, if the account its init code leaves there, with the code the init code returns, satisfies
+`P`.  `lambda_success` says what a successful creation did: the target had no nonce, code or
+storage (EIP-7610; otherwise the init code is `INVALID` and fails), so the init code ran from an
+account with empty storage, and `Lambda` installed the returned code over the account the init
+code left.  During the creation `a` has no code yet, so the theorems above apply only from then
+on.
+
 ## The proof
 
 Induction on the depth left below a call (`1024 - e`, `good_core`); fuel plays no part in it.
@@ -104,16 +129,9 @@ instruction replaces code; a creation sets code only at an address without code 
 
 ## What remains
 
-- The transaction, `Υ`.  Its message call or creation is at depth 0, which `good` covers, given a
-  sender other than `a` (EIP-3607: a transaction's sender has no code) and data whose size fits
-  a word.  What follows the call must still be shown to keep `Holds`: the gas refund and the
-  priority fee (balance increases), removing the accounts in the self-destruct set (needs `a` not
-  in the substate's created accounts, an invariant of the substate that is not proved), removing
-  dead accounts (`a` has code, so it is not dead), and clearing transient storage (needs `P`
-  closed under that).  Admission of the transaction is `Admitted` of its depth-0 call.
-- Deployment: that the creation of the contract establishes `Holds`.  During it `a` has no code,
-  so the theorem does not apply until the creation returns.
+- The substate invariant behind `tx_holds`'s hypothesis `hsd`, as above.
 - Balance-monotone invariants, as above.
+- A sequence of transactions, or a block, is the iteration of `tx_holds`; it is not stated.
 -/
 
 namespace Ethereum.EVM.Invariant

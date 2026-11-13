@@ -10,6 +10,13 @@ each successful frame at `a` is admitted: its calldata is shorter than `2 ^ 64` 
 holders cover it (`Covers`).  An instance of `Fe.EVM.refinesOn_keeps`, from the certificate of the
 exported model (`feERC20RefinesExported`) and its conservation (`Exported.runtime_conserves`).
 The token makes no external call, so its model never uses `Deeper`.
+
+From deployment on: `deploy_conserves_token`, a successful creation of the creation bytecode by a
+holder establishes the invariant at the new address (the new account's storage starts empty, so
+every holder starts with no tokens), and `every_transaction_conserves`, every transaction keeps
+it, under the hypotheses of `Ethereum.EVM.Invariant.tx_holds`: the sender has no code, the data
+fits a word, the outermost call is admitted, and the token is not in the self-destruct set the
+transaction returns (which follows from an invariant of the substate not proved yet).
 -/
 
 open Ethereum Ethereum.EVM Ethereum.EVM.Invariant Fe Fe.EVM
