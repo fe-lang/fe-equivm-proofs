@@ -174,4 +174,22 @@ theorem decodeCalldata_uint256_uint256_none_huge {cd : ByteArray} {x y : Ident}
     decodeCalldata [x, y] [abiUInt256, abiUInt256] cd = none :=
   decodeCalldata_scalar_none_huge (by decide) rfl hhuge
 
+/-- `~~~w`, the bitwise complement. -/
+theorem complement_toNat (w : UInt256) :
+    (UInt256.complement w).toNat = EVM.wordModulus - 1 - w.toNat := by
+  rw [show EVM.wordModulus = UInt256.size by decide]
+  unfold UInt256.complement UInt256.toNat
+  rw [Fin.val_sub, Fin.val_add]
+  change (UInt256.size - ((w.val.val + 1) % UInt256.size)) % UInt256.size =
+    UInt256.size - 1 - w.val.val
+  have hle : w.val.val + 1 ≤ UInt256.size := by omega
+  by_cases heq : w.val.val + 1 = UInt256.size
+  · rw [heq, Nat.mod_self, Nat.sub_zero, Nat.mod_self]
+    omega
+  · have hlt : w.val.val + 1 < UInt256.size := by omega
+    rw [Nat.mod_eq_of_lt hlt]
+    have hpos : 0 < UInt256.size - (w.val.val + 1) := by omega
+    rw [Nat.mod_eq_of_lt (by omega)]
+    omega
+
 end FeProofs

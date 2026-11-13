@@ -43,6 +43,29 @@ theorem add_zero (a : UInt256) : a + UInt256.ofNat 0 = a := by
   rw [uadd_toNat, toNat0, Nat.add_zero]
   exact Nat.mod_eq_of_lt a.val.isLt
 
+theorem ofNat_add_ofNat {a b : ℕ} (h : a + b < UInt256.size) :
+    UInt256.ofNat a + UInt256.ofNat b = UInt256.ofNat (a + b) := by
+  apply u256_inj
+  rw [uadd_toNat, ulit_toNat' a (by omega), ulit_toNat' b (by omega), Nat.mod_eq_of_lt h,
+    ulit_toNat' _ h]
+
+theorem ofNat_mul_ofNat {a b : ℕ} (ha : a < UInt256.size) (hb : b < UInt256.size)
+    (h : a * b < UInt256.size) : UInt256.ofNat a * UInt256.ofNat b = UInt256.ofNat (a * b) := by
+  apply u256_inj
+  rw [umul_toNat _ _ (by rw [ulit_toNat' a ha, ulit_toNat' b hb]; exact h), ulit_toNat' a ha,
+    ulit_toNat' b hb, ulit_toNat' _ h]
+
+theorem ofNat_ne_ofNat_zero {n : ℕ} (h0 : n ≠ 0) (h : n < UInt256.size) :
+    UInt256.ofNat n ≠ UInt256.ofNat 0 := fun he =>
+  h0 (by have := congrArg UInt256.toNat he; rwa [ulit_toNat' n h, toNat0] at this)
+
+theorem ofNat_sub_ofNat {a b : ℕ} (ha : a < UInt256.size) (h : b ≤ a) :
+    UInt256.ofNat a - UInt256.ofNat b = UInt256.ofNat (a - b) := by
+  apply u256_inj
+  rw [show UInt256.ofNat a - UInt256.ofNat b = UInt256.sub _ _ from rfl,
+    usub_toNat (by rw [ulit_toNat' a ha, ulit_toNat' b (by omega)]; exact h),
+    ulit_toNat' a ha, ulit_toNat' b (by omega), ulit_toNat' _ (by omega)]
+
 /-- A length below `2 ^ 64` survives std's cast to `u64`: minus the view's base 0, masked, then
     cut to 64 bits. -/
 theorem truncate_size (n : Nat) (h : n < 2 ^ 64) :
@@ -146,6 +169,11 @@ theorem readWithPadding_tail (M T : ByteArray) {a : ℕ} (k n : ℕ) (ha : a = M
 /-- The size of `n` fresh zero bytes. -/
 theorem zeros_size (n : ℕ) : (⟨Array.replicate n 0⟩ : ByteArray).size = n := by
   simp [ByteArray.size]
+
+theorem zeros_extract (n a b : ℕ) :
+    (⟨Array.replicate n 0⟩ : ByteArray).extract a b = ⟨Array.replicate (min b n - a) 0⟩ := by
+  apply ByteArray.ext
+  simp [ByteArray.data_extract]
 
 /-! ## A hashed pair of words -/
 
