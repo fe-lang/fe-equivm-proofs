@@ -5,12 +5,13 @@ import Reasoning.Memory
 /-!
 # The std ABI encoder, as exported
 
-`FeProofs.Fixtures.Encode.revert_u256` is `std::evm::revert<u256>` as `fe-lean-export` prints it
+`FeProofs.Lib.revert_u256` is `std::evm::revert<u256>` as `fe-lean-export` prints it
 from std: size the encoding, allocate and zero a buffer, write the word through a raw pointer,
 and revert with the buffer's bytes.  This file proves what that code does.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM Reasoning.Theory
+open scoped FeProofs.Lib
 
 namespace FeProofs.Fixtures.Encode
 
@@ -33,7 +34,7 @@ theorem revert_exec (value : UInt256) (I : ExecutionEnv) (w : World)
     ulit_toNat' _ (by omega)
   have hroom := hmem
   simp only [UInt256.size] at hroom
-  simp [recv0_arm0, HEAD_SIZE, payload_size_u256, IS_DYNAMIC, abi_field_size_u256, abi_single_root_size_u256, max, PANIC_OUT_OF_MEMORY, word_to_usize, allocation_len, max_1, to_word, IS_SIGNED, MASK, from_word, I256_SIGN_BIT, SIGN_BIT, U256_MASK, sign_extend, downcast_saturate_u64_usize, MAX_ALLOCATION, alloc_bytes, new_uninit, zero_bytes, new, ptr, from_raw_parts, abi_field_head_size_u256, abi_single_root_head_size_u256, PANIC_INDEX_OUT_OF_BOUNDS, index_out_of_bounds, ptr_offset, tail, len, slice, cast_u8_u256, store_word, store_word_1, encode_Sol, encode_field_Sol_u256, encode_single_root_alloc_Sol_u256, len_1, revert_u256, checkedAdd, checkedSub, alloc, mstore, zeroMem, revertData, panicCode,
+  simp [recv0_arm0, checkedAdd, checkedSub, alloc, mstore, zeroMem, revertData, panicCode,
     hmax, h32, h0, h64, hsub, hsize, add_zero, UInt256.size, hroom]
   -- The buffer is the 32 zero bytes `alloc` appended; the word written there reads back.
   have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl

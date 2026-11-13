@@ -1,10 +1,11 @@
 import FeProofs.Lib.Exported
+import Fe.EVM.Entry
 
 /-!
 # Exported core and std code: what it does
 
 Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: what
-std's `return_value` does, and the memory a deployment entry leaves.
+std's `return_value` does, where a map's entry lies, and the memory a deployment entry leaves.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
@@ -12,23 +13,6 @@ open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
 namespace FeProofs.Lib
 
 attribute [local simp]
-  new input SELECTOR_SIZE to_word IS_SIGNED U64_MASK MASK SIGN_BIT U256_MASK sign_extend from_word
-  downcast_truncate_u256_u64 size len_CallData from_word_1 validate_runtime_head IS_DYNAMIC
-  HEAD_SIZE_1 max to_word_1 MASK_1 I256_SIGN_BIT downcast_saturate_u64_usize MAX_ALLOCATION
-  PANIC_OUT_OF_MEMORY alloc_bytes alloc_uninit_32 zero_bytes alloc_32 ptr_32 from_raw_parts
-  PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds word_to_usize ptr_offset slice cast_u8_u256
-  store_word store_word_1 encode_Sol downcast_unchecked_u256_usize from_raw_parts_ref_u8 ptr_u8
-  len_u8 return_data alloc_uninit_64 alloc_64 ptr_64 new_uninit new_1 ptr span_ref const_u256
-  payload_size_u256 abi_payload_size_u256 max_1 allocation_len encode_alloc_Sol_u256
-  abi_field_size_u256 abi_single_root_size_u256 abi_field_head_size_u256
-  abi_single_root_head_size_u256 tail len encode_field_Sol_u256 encode_single_root_alloc_Sol_u256
-  encode_return_alloc_Sol_u256 return_bytes return_value_Sol_u256 word_at decode_error
-  checked_tail_Sol checked_frame_end_Sol decode_from_Sol_CallData
-  decode_from_bounded_u256_Sol_CallData decode_field_from_prechecked_head_Sol_u256_CallData
-  decode_field_from_Sol_u256_CallData decode_msg_field_from_Sol_u256_CallData with_base
-  decoder_new downcast_truncate_usize_u64 size_1 len_MemSlice_u8 word_at_1 read_word_MemSlice_u8
-  base pos set_base set_pos decode_payload_Sol_SolDecoder_MemSlice_u8
-  decode_field_Sol_u256_SolDecoder_MemSlice_u8 decode_payload_Sol_u256_SolDecoder_MemSlice_u8
   checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
 
 variable (I : ExecutionEnv) (w : World)
@@ -37,15 +21,73 @@ set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
 /-- `return_value` at `u256` ends the call with the word's 32 bytes.  It changes memory only. -/
 theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_u256 v).exec I w =
+    (Evm_return_value_Sol_u256 v).exec I w =
       some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
   have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
     ulit_toNat' _ (by omega)
   have hroom := hmem
   simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
-    hroom, returned]
+  simp [Evm_return_value_Sol_u256, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
+    Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
   exact returned_read _ _
+
+/-! ## Map entries -/
+
+/-- Std's `mapping_slot` at a `u256` key stores the key and the map's root in a fresh buffer and
+    hashes it. -/
+theorem mappingSlotU256_exec (root key : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
+    (mapping_slot_u256 root key).exec I w =
+      some (.ok (mapSlot key root, { w with memory := keyed w.memory key root })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hnext : (UInt256.ofNat w.memory.size + UInt256.ofNat 32).toNat = w.memory.size + 32 := by
+    rw [uadd_toNat, hsize, toNat32]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [mapping_slot_u256, keccak256, toNat0, toNat32, toNat64, toNatMax, toNatU64, add32_32,
+    hsize, hnext, UInt256.size, hroom, keyed]
+  exact keyed_slot w.memory key root
+
+/-- Std's `mapping_slot` at an address key does the same. -/
+theorem mappingSlotAddress_exec (root key : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
+    (mapping_slot_Address root key).exec I w =
+      some (.ok (mapSlot key root, { w with memory := keyed w.memory key root })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hnext : (UInt256.ofNat w.memory.size + UInt256.ofNat 32).toNat = w.memory.size + 32 := by
+    rw [uadd_toNat, hsize, toNat32]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [mapping_slot_Address, keccak256, toNat0, toNat32, toNat64, toNatMax, toNatU64, add32_32,
+    hsize, hnext, UInt256.size, hroom, keyed]
+  exact keyed_slot w.memory key root
+
+/-- `locate` of a map entry: the entry's slot, at no offset. -/
+theorem locateU256_exec (p : Place) (root key : UInt256)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (StorageMap_locate_u256_u256 p root key).exec I w =
+      some (.ok (⟨mapSlot key root, UInt256.ofNat 0⟩,
+        { w with memory := keyed w.memory key root })) := by
+  simp [StorageMap_locate_u256_u256, mappingSlotU256_exec I w root key hmem]
+
+theorem locateAddress_exec (p : Place) (root key : UInt256)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (StorageMap_locate_Address_u256 p root key).exec I w =
+      some (.ok (⟨mapSlot key root, UInt256.ofNat 0⟩,
+        { w with memory := keyed w.memory key root })) := by
+  simp [StorageMap_locate_Address_u256, mappingSlotAddress_exec I w root key hmem]
+
+/-- `locate` of an entry that is itself a map: the slot of that map. -/
+theorem locateAddressMap_exec (p : Place) (root key : UInt256)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (StorageMap_locate_Address_StorageMap_Address_u256 p root key).exec I w =
+      some (.ok (⟨mapSlot key root, UInt256.ofNat 0⟩,
+        { w with memory := keyed w.memory key root })) := by
+  simp [StorageMap_locate_Address_StorageMap_Address_u256, mappingSlotAddress_exec I w root key hmem]
+
+/-! ## Deployment -/
 
 /-- Memory after a deployment entry copies its one argument word into a fresh buffer. -/
 def withArg (memory : ByteArray) (v : UInt256) : ByteArray :=

@@ -1,5 +1,4 @@
 import FeProofs.Lib.Exported
-import FeProofs.ScalarStore.Model
 
 /-!
 # FeScalarStore: exported arms
@@ -7,8 +6,8 @@ import FeProofs.ScalarStore.Model
 The definitions below are the output of `fe-lean-export` on `FeScalarStore.fe` (Fe branch
 `lean-export`, golden file `tests/golden/scalar_store.lean`), copied in by
 `scripts/sync_exported.py`.  The core and std definitions they call are shared with the other
-exported contracts, in `FeProofs/Lib/Exported.lean`.  The theorems show each arm equals the
-hand-written model arm, so the certificate for the model covers the exported code.
+exported contracts, in `FeProofs/Lib/Exported.lean`.  `RuntimeCorrect.lean` proves that the
+bytecode refines the contract these definitions make.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
@@ -20,7 +19,7 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: scalar_store
 
-export Lib (CallData MemSlice_u8.mk SELECTOR_SIZE abi_field_head_size_u256 decode_msg_field_from_Sol_u256_CallData decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder_new input len_CallData return_value_Sol_u256 size tail validate_runtime_head)
+export Lib (CallData Evm_input Evm_return_value_Sol_u256 MemSlice_u8.mk Sol_SELECTOR_SIZE Sol_decoder_new Sol_validate_runtime_head abi_field_head_size_u256 decode_msg_field_from_Sol_u256_CallData len_CallData tuple_decode_payload_Sol_u256_SolDecoder_MemSlice_u8)
 
 def Field.stored : Place :=
   .storage (UInt256.ofNat 0)
@@ -47,30 +46,30 @@ def recv0_arm1 (v0 : UInt256) : FeM Unit := do
   let v1 := ()
   return ()
 
-def HEAD_SIZE : FeM UInt256 := do
+def Get_HEAD_SIZE : FeM UInt256 := do
   let v0 := (UInt256.ofNat 0)
   return v0
 
-def decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
+def Get_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
   let v2 := (Get.mk)
   return v2
 
 def decode_from_prechecked_head_Get_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Get := do
-  let v3 ← decode_from_CallData v0 v1
+  let v3 ← Get_decode_from_CallData v0 v1
   return v3
 
 def decode_runtime_args_Evm_Sol_Get : FeM Get := do
   let mut r0 : CallData := default
-  let v2 ← input
+  let v2 ← Evm_input
   let v3 := v2
   r0 := v3
-  let v4 ← SELECTOR_SIZE
+  let v4 ← Sol_SELECTOR_SIZE
   let v5 := v4
   let v6 := r0
   let v7 ← len_CallData v6
   let v8 := v7
-  let v9 ← HEAD_SIZE
-  let v10 ← validate_runtime_head v8 v5 v9
+  let v9 ← Get_HEAD_SIZE
+  let v10 ← Sol_validate_runtime_head v8 v5 v9
   let v11 := r0
   let v12 ← decode_from_prechecked_head_Get_Sol_CallData v11 v5 v8
   return v12
@@ -79,15 +78,15 @@ def recv0_arm0_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Get
   let result ← recv0_arm0
-  return_value_Sol_u256 result
+  Evm_return_value_Sol_u256 result
 
-def HEAD_SIZE_2 : FeM UInt256 := do
+def Set_HEAD_SIZE : FeM UInt256 := do
   let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_u256
   let v2 ← checkedAdd v0 v1
   return v2
 
-def decode_from_CallData_1 (v0 : CallData) (v1 : UInt256) : FeM Set := do
+def Set_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Set := do
   let v2 ← len_CallData v0
   let v3 := v2
   let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
@@ -96,21 +95,21 @@ def decode_from_CallData_1 (v0 : CallData) (v1 : UInt256) : FeM Set := do
   return v6
 
 def decode_from_prechecked_head_Set_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Set := do
-  let v3 ← decode_from_CallData_1 v0 v1
+  let v3 ← Set_decode_from_CallData v0 v1
   return v3
 
 def decode_runtime_args_Evm_Sol_Set : FeM Set := do
   let mut r0 : CallData := default
-  let v2 ← input
+  let v2 ← Evm_input
   let v3 := v2
   r0 := v3
-  let v4 ← SELECTOR_SIZE
+  let v4 ← Sol_SELECTOR_SIZE
   let v5 := v4
   let v6 := r0
   let v7 ← len_CallData v6
   let v8 := v7
-  let v9 ← HEAD_SIZE_2
-  let v10 ← validate_runtime_head v8 v5 v9
+  let v9 ← Set_HEAD_SIZE
+  let v10 ← Sol_validate_runtime_head v8 v5 v9
   let v11 := r0
   let v12 ← decode_from_prechecked_head_Set_Sol_CallData v11 v5 v8
   return v12
@@ -139,8 +138,8 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
   let size := UInt256.ofNat args.size
   let tail ← alloc size
   mstoreBytes tail args
-  let decoder ← decoder_new
-  let (decoded, _) ← decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder (MemSlice_u8.mk tail size)
+  let decoder ← Sol_decoder_new
+  let (decoded, _) ← tuple_decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder (MemSlice_u8.mk tail size)
   let _ ← init decoded
   return ByteArray.empty
 
@@ -150,17 +149,5 @@ end
 
 /- The proofs name the library's other definitions too. -/
 export_all FeProofs.Lib
-
-theorem init_eq (initial : UInt256) : init initial = Model.initBody initial := by
-  simp [init, Field.stored, Model.initBody, Model.storedSlot]
-  rfl
-
-theorem recv0_arm0_eq : recv0_arm0 = Model.get := by
-  simp [recv0_arm0, Field.stored, Model.get, Model.storedSlot]
-  rfl
-
-theorem recv0_arm1_eq (value : UInt256) : recv0_arm1 value = Model.set value := by
-  simp [recv0_arm1, Field.stored, Model.set, Model.storedSlot]
-  rfl
 
 end FeProofs.ScalarStore.Exported

@@ -82,7 +82,7 @@ theorem transfer_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 â‰
     simp [Model.transferArm, exec_nonPayable, hwv, hgood, ha0]
     exact .exit _
   have eg : (entry recv0_arm0_entry).exec I w =
-      (entry (recv0_arm0 (word I.calldata 4) (word I.calldata 36) >>= return_value_Sol_bool)).exec I w := by
+      (entry (recv0_arm0 (word I.calldata 4) (word I.calldata 36) >>= Evm_return_value_Sol_bool)).exec I w := by
     simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeTransfer_exec I w hlo hfits, hshort, ha0]
   have eh : (Model.transferArm I.calldata).exec I w =
       (Model.transfer (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (Model.encodeBool r)).exec I w := by
@@ -113,7 +113,7 @@ theorem approve_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 â‰¤
     simp [Model.approveArm, exec_nonPayable, hwv, hgood, ha0]
     exact .exit _
   have eg : (entry recv0_arm1_entry).exec I w =
-      (entry (recv0_arm1 (word I.calldata 4) (word I.calldata 36) >>= return_value_Sol_bool)).exec I w := by
+      (entry (recv0_arm1 (word I.calldata 4) (word I.calldata 36) >>= Evm_return_value_Sol_bool)).exec I w := by
     simp [entry, recv0_arm1_entry, exec_nonPayable, hwv, decodeApprove_exec I w hlo hfits, hshort, ha0]
   have eh : (Model.approveArm I.calldata).exec I w =
       (Model.approve (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (Model.encodeBool r)).exec I w := by
@@ -149,7 +149,7 @@ theorem transferFrom_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 
     simp [Model.transferFromArm, exec_nonPayable, hwv, hgood, ha0, ha1]
     exact .exit _
   have eg : (entry recv0_arm2_entry).exec I w =
-      (entry (recv0_arm2 (word I.calldata 4) (word I.calldata 36) (word I.calldata 68) >>= return_value_Sol_bool)).exec I w := by
+      (entry (recv0_arm2 (word I.calldata 4) (word I.calldata 36) (word I.calldata 68) >>= Evm_return_value_Sol_bool)).exec I w := by
     simp [entry, recv0_arm2_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w hlo hfits, hshort, ha0, ha1]
   have eh : (Model.transferFromArm I.calldata).exec I w =
       (Model.transferFrom (word I.calldata 4) (word I.calldata 36) (word I.calldata 68) >>= fun r => pure (Model.encodeBool r)).exec I w := by
@@ -180,7 +180,7 @@ theorem balanceOf_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 â
     simp [Model.balanceOfArm, exec_nonPayable, hwv, hgood, ha0]
     exact .exit _
   have eg : (entry recv0_arm3_entry).exec I w =
-      (entry (recv0_arm3 (word I.calldata 4) >>= return_value_Sol_u256)).exec I w := by
+      (entry (recv0_arm3 (word I.calldata 4) >>= Evm_return_value_Sol_u256)).exec I w := by
     simp [entry, recv0_arm3_entry, exec_nonPayable, hwv, decodeBalanceOf_exec I w hlo hfits, hshort, ha0]
   have eh : (Model.balanceOfArm I.calldata).exec I w =
       (Model.balanceOf (word I.calldata 4) >>= fun r => pure (r.toByteArray)).exec I w := by
@@ -216,7 +216,7 @@ theorem allowance_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 â
     simp [Model.allowanceArm, exec_nonPayable, hwv, hgood, ha0, ha1]
     exact .exit _
   have eg : (entry recv0_arm4_entry).exec I w =
-      (entry (recv0_arm4 (word I.calldata 4) (word I.calldata 36) >>= return_value_Sol_u256)).exec I w := by
+      (entry (recv0_arm4 (word I.calldata 4) (word I.calldata 36) >>= Evm_return_value_Sol_u256)).exec I w := by
     simp [entry, recv0_arm4_entry, exec_nonPayable, hwv, decodeAllowance_exec I w hlo hfits, hshort, ha0, ha1]
   have eh : (Model.allowanceArm I.calldata).exec I w =
       (Model.allowance (word I.calldata 4) (word I.calldata 36) >>= fun r => pure (r.toByteArray)).exec I w := by
@@ -234,7 +234,7 @@ theorem totalSupply_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     simp [Model.totalSupplyArm, exec_nonPayable, hwv]
     exact .exit _
   have eg : (entry recv0_arm5_entry).exec I w =
-      (entry (recv0_arm5 >>= return_value_Sol_u256)).exec I w := by
+      (entry (recv0_arm5 >>= Evm_return_value_Sol_u256)).exec I w := by
     simp [entry, recv0_arm5_entry, exec_nonPayable, hwv, decodeTotalSupply_exec]
   have eh : Model.totalSupplyArm.exec I w = (Model.totalSupply >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.totalSupplyArm, exec_nonPayable, hwv]

@@ -1,5 +1,4 @@
 import FeProofs.Lib.Exported
-import FeProofs.CodeScalar.Model
 
 /-!
 # FeCodeScalar: exported contract
@@ -7,8 +6,8 @@ import FeProofs.CodeScalar.Model
 The definitions below are the output of `fe-lean-export` on `FeCodeScalar.fe` (Fe branch
 `lean-export`, golden file `tests/golden/code_scalar.lean`), copied in by
 `scripts/sync_exported.py`.  The core and std definitions they call are shared with the other
-exported contracts, in `FeProofs/Lib/Exported.lean`.  The theorems show the arm and `init` are
-the hand-written model's.
+exported contracts, in `FeProofs/Lib/Exported.lean`.  `RuntimeCorrect.lean` proves that the
+bytecode refines the contract these definitions make.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
@@ -20,7 +19,7 @@ set_option linter.unusedVariables false
 
 -- BEGIN fe-lean-export: code_scalar
 
-export Lib (CallData MemSlice_u8.mk SELECTOR_SIZE decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder_new input len_CallData return_value_Sol_u256 size tail validate_runtime_head)
+export Lib (CallData Evm_input Evm_return_value_Sol_u256 MemSlice_u8.mk Sol_SELECTOR_SIZE Sol_decoder_new Sol_validate_runtime_head len_CallData tuple_decode_payload_Sol_u256_SolDecoder_MemSlice_u8)
 
 structure Get where
 deriving Inhabited
@@ -37,30 +36,30 @@ def recv0_arm0 : FeM UInt256 := do
   let v0 := e0
   return v0
 
-def HEAD_SIZE : FeM UInt256 := do
+def Get_HEAD_SIZE : FeM UInt256 := do
   let v0 := (UInt256.ofNat 0)
   return v0
 
-def decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
+def Get_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
   let v2 := (Get.mk)
   return v2
 
 def decode_from_prechecked_head_Get_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Get := do
-  let v3 ← decode_from_CallData v0 v1
+  let v3 ← Get_decode_from_CallData v0 v1
   return v3
 
 def decode_runtime_args_Evm_Sol_Get : FeM Get := do
   let mut r0 : CallData := default
-  let v2 ← input
+  let v2 ← Evm_input
   let v3 := v2
   r0 := v3
-  let v4 ← SELECTOR_SIZE
+  let v4 ← Sol_SELECTOR_SIZE
   let v5 := v4
   let v6 := r0
   let v7 ← len_CallData v6
   let v8 := v7
-  let v9 ← HEAD_SIZE
-  let v10 ← validate_runtime_head v8 v5 v9
+  let v9 ← Get_HEAD_SIZE
+  let v10 ← Sol_validate_runtime_head v8 v5 v9
   let v11 := r0
   let v12 ← decode_from_prechecked_head_Get_Sol_CallData v11 v5 v8
   return v12
@@ -69,7 +68,7 @@ def recv0_arm0_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Get
   let result ← recv0_arm0
-  return_value_Sol_u256 result
+  Evm_return_value_Sol_u256 result
 
 def runtime : FeM Empty := do
   let size ← calldatasize
@@ -87,8 +86,8 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
   let size := UInt256.ofNat args.size
   let tail ← alloc size
   mstoreBytes tail args
-  let decoder ← decoder_new
-  let (decoded, _) ← decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder (MemSlice_u8.mk tail size)
+  let decoder ← Sol_decoder_new
+  let (decoded, _) ← tuple_decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder (MemSlice_u8.mk tail size)
   let words ← alloc (UInt256.ofNat 32)
   let (_, e0) ← init decoded default
   mstore (words + UInt256.ofNat (0 * 32)) e0
@@ -100,13 +99,5 @@ end
 
 /- The proofs name the library's other definitions too. -/
 export_all FeProofs.Lib
-
-/-- The exported arm reads the immutable word as the model does. -/
-theorem recv0_arm0_eq : recv0_arm0 = Model.get := by
-  simp [recv0_arm0, Model.get]
-
-/-- `init` sets the immutable field to its argument. -/
-theorem init_eq (initial unset : UInt256) : init initial unset = pure ((), initial) := by
-  simp [init]
 
 end FeProofs.CodeScalar.Exported

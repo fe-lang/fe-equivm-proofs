@@ -1,5 +1,5 @@
 import FeProofs.Lib.ExportedCorrect
-import FeProofs.PackedStore.ExportedCorrect
+import FeProofs.PackedStore.HandEntry
 import Fe.EVM.Entry
 
 /-!
@@ -8,10 +8,11 @@ import Fe.EVM.Entry
 `Exported.lean` ends with the runtime entry as `fe-lean-export` prints it: each arm's entry
 decodes the message with std's `decode_runtime_args`, runs the arm and returns through std's
 `return_value`, and `runtime` dispatches on the selector.  This file shows that entry ends as
-the hand-written one of `ExportedCorrect.lean` does, so the certificate for that one carries over.
+the hand-written one of `HandEntry.lean` does, so the certificate for that one carries over.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open scoped FeProofs.Lib
 open FeProofs.Lib (returnU256_exec)
 
 namespace FeProofs.PackedStore.Exported
@@ -23,29 +24,15 @@ The std definitions the entry reaches unfold under `simp` in this section. -/
 section Std
 
 attribute [local simp]
-  new input SELECTOR_SIZE to_word IS_SIGNED U64_MASK MASK_1 SIGN_BIT sign_extend from_word_1 
-  downcast_truncate_u256_u64 size len_CallData HEAD_SIZE from_word validate_runtime_head 
-  decode_from_CallData decode_from_prechecked_head_Get0_Sol_CallData 
-  decode_runtime_args_Evm_Sol_Get0 IS_DYNAMIC HEAD_SIZE_1 max to_word_1 MASK I256_SIGN_BIT 
-  downcast_saturate_u64_usize MAX_ALLOCATION PANIC_OUT_OF_MEMORY alloc_bytes alloc_uninit_32 
-  zero_bytes alloc_32 ptr_32 from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds 
-  word_to_usize ptr_offset slice cast_u8_u256 store_word store_word_1 encode_Sol 
-  downcast_unchecked_u256_usize from_raw_parts_ref_u8 ptr_u8 len_u8 return_data alloc_uninit_64 
-  alloc_64 ptr_64 new_uninit new_1 ptr span_ref const_u256 payload_size_u256 
-  abi_payload_size_u256 max_1 allocation_len encode_alloc_Sol_u256 abi_field_size_u256 
-  abi_single_root_size_u256 abi_field_head_size_u256 abi_single_root_head_size_u256 tail len 
-  encode_field_Sol_u256 encode_single_root_alloc_Sol_u256 encode_return_alloc_Sol_u256 
-  return_bytes return_value_Sol_u256 decode_from_CallData_1 
-  decode_from_prechecked_head_Get1_Sol_CallData decode_runtime_args_Evm_Sol_Get1 HEAD_SIZE_2 
-  word_at decode_error checked_tail_Sol checked_frame_end_Sol decode_from_Sol_CallData 
-  decode_from_bounded_u256_Sol_CallData decode_field_from_prechecked_head_Sol_u256_CallData 
-  decode_field_from_Sol_u256_CallData decode_msg_field_from_Sol_u256_CallData 
-  decode_from_CallData_2 decode_from_prechecked_head_Set0_Sol_CallData 
-  decode_runtime_args_Evm_Sol_Set0 decode_from_CallData_3 
-  decode_from_prechecked_head_Set1_Sol_CallData decode_runtime_args_Evm_Sol_Set1 HEAD_SIZE_3 
-  decode_from_CallData_4 decode_from_prechecked_head_SetBoth_Sol_CallData 
-  decode_runtime_args_Evm_Sol_SetBoth
-  u256Mask checkedAdd checkedSub alloc mstore zeroMem returnData panicCode
+  Get0_HEAD_SIZE Get1_HEAD_SIZE Get0_decode_from_CallData
+  decode_from_prechecked_head_Get0_Sol_CallData decode_runtime_args_Evm_Sol_Get0
+  Get1_decode_from_CallData decode_from_prechecked_head_Get1_Sol_CallData
+  decode_runtime_args_Evm_Sol_Get1 Set0_HEAD_SIZE Set1_HEAD_SIZE Set0_decode_from_CallData
+  decode_from_prechecked_head_Set0_Sol_CallData decode_runtime_args_Evm_Sol_Set0
+  Set1_decode_from_CallData decode_from_prechecked_head_Set1_Sol_CallData
+  decode_runtime_args_Evm_Sol_Set1 SetBoth_HEAD_SIZE SetBoth_decode_from_CallData
+  decode_from_prechecked_head_SetBoth_Sol_CallData decode_runtime_args_Evm_Sol_SetBoth u256Mask
+  checkedAdd checkedSub alloc mstore zeroMem returnData panicCode
 
 /-! ## The decoders -/
 

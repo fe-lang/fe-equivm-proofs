@@ -13,7 +13,8 @@ decoder), and that each exported arm ends as the hand-written model arm does, up
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
-open FeProofs.Lib (returnU256_exec withArg)
+open scoped FeProofs.Lib
+open FeProofs.Lib (returnU256_exec withArg locateAddress_exec locateAddressMap_exec)
 
 namespace FeProofs.ERC20.Exported
 
@@ -34,42 +35,18 @@ The std definitions the arms and entries reach unfold under `simp` in this secti
 section Std
 
 attribute [local simp]
-  IS_DYNAMIC HEAD_SIZE_1 abi_field_head_size_u256 HEAD_SIZE_u256 payload_size_u256 
-  dynamic_payload_size_u256 payload_size_u256_1 abi_payload_size_u256 max PANIC_OUT_OF_MEMORY 
-  word_to_usize allocation_len max_1 to_word IS_SIGNED MASK_1 from_word_1 I256_SIGN_BIT SIGN_BIT 
-  U256_MASK sign_extend downcast_saturate_u64_usize MAX_ALLOCATION alloc_bytes new_uninit 
-  zero_bytes new_1 ptr from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds ptr_offset tail 
-  len slice cast_u8_u256 store_word store_word_1 encode_Sol encode_field_Sol_u256 encode_Sol_u256 
-  encode_alloc_Sol_u256_1 encode_abi_payload_u256 from_raw_parts_ref_u8 span_ref as_topic ptr_u8 
-  len_u8 log3 cast_u8_u8 dealloc_u8 drop emit_Evm emit_Evm_Transfer emit_Evm_1 emit_Evm_Approval 
-  new input SELECTOR_SIZE to_word_1 U64_MASK MASK from_word downcast_truncate_u256_u64 size 
-  len_CallData abi_field_head_size_Address HEAD_SIZE validate_runtime_head word_at decode_error 
-  checked_tail_Sol checked_frame_end_Sol decode_from_Sol_CallData_1 
-  decode_from_bounded_Address_Sol_CallData decode_field_from_prechecked_head_Sol_Address_CallData 
-  decode_field_from_Sol_Address_CallData decode_msg_field_from_Sol_Address_CallData 
-  decode_from_Sol_CallData decode_from_bounded_u256_Sol_CallData 
-  decode_field_from_prechecked_head_Sol_u256_CallData decode_field_from_Sol_u256_CallData 
-  decode_msg_field_from_Sol_u256_CallData decode_from_CallData 
-  decode_from_prechecked_head_Transfer_Sol_CallData decode_runtime_args_Evm_Sol_Transfer 
-  alloc_uninit_32 alloc_32 ptr_32 encode_Sol_1 downcast_unchecked_u256_usize return_data 
-  alloc_uninit_64 alloc_64 ptr_64 const_bool payload_size_bool abi_payload_size_bool 
-  encode_alloc_Sol_bool abi_field_size_bool abi_single_root_size_bool abi_field_head_size_bool 
-  abi_single_root_head_size_bool encode_field_Sol_bool encode_single_root_alloc_Sol_bool 
-  encode_return_alloc_Sol_bool return_bytes return_value_Sol_bool decode_from_CallData_1 
-  decode_from_prechecked_head_Approve_Sol_CallData decode_runtime_args_Evm_Sol_Approve 
-  HEAD_SIZE_2 decode_from_CallData_2 decode_from_prechecked_head_TransferFrom_Sol_CallData 
-  decode_runtime_args_Evm_Sol_TransferFrom HEAD_SIZE_3 decode_from_CallData_3 
-  decode_from_prechecked_head_BalanceOf_Sol_CallData decode_runtime_args_Evm_Sol_BalanceOf 
-  const_u256 abi_payload_size_u256_1 encode_alloc_Sol_u256 abi_field_size_u256 
-  abi_single_root_size_u256 abi_single_root_head_size_u256 encode_single_root_alloc_Sol_u256 
-  encode_return_alloc_Sol_u256 return_value_Sol_u256 HEAD_SIZE_4 decode_from_CallData_4 
-  decode_from_prechecked_head_Allowance_Sol_CallData decode_runtime_args_Evm_Sol_Allowance 
-  HEAD_SIZE_5 decode_from_CallData_5 decode_from_prechecked_head_TotalSupply_Sol_CallData 
-  decode_runtime_args_Evm_Sol_TotalSupply with_base decoder_new downcast_truncate_usize_u64 
-  size_1 len_MemSlice_u8 word_at_1 read_word_MemSlice_u8 base pos set_base set_pos 
-  decode_payload_Sol_SolDecoder_MemSlice_u8 decode_field_Sol_u256_SolDecoder_MemSlice_u8 
-  decode_payload_Sol_u256_SolDecoder_MemSlice_u8
-  encoded_len downcast_saturate_u256_usize write_key write_key_1 keccak256_1
+  Transfer_emit_Evm emit_Evm_Transfer Approval_emit_Evm emit_Evm_Approval Transfer_HEAD_SIZE
+  Approve_HEAD_SIZE Transfer_decode_from_CallData
+  decode_from_prechecked_head_Transfer_Sol_CallData decode_runtime_args_Evm_Sol_Transfer
+  Approve_decode_from_CallData decode_from_prechecked_head_Approve_Sol_CallData
+  decode_runtime_args_Evm_Sol_Approve TransferFrom_HEAD_SIZE TransferFrom_decode_from_CallData
+  decode_from_prechecked_head_TransferFrom_Sol_CallData decode_runtime_args_Evm_Sol_TransferFrom
+  BalanceOf_HEAD_SIZE BalanceOf_decode_from_CallData
+  decode_from_prechecked_head_BalanceOf_Sol_CallData decode_runtime_args_Evm_Sol_BalanceOf
+  Allowance_HEAD_SIZE Allowance_decode_from_CallData
+  decode_from_prechecked_head_Allowance_Sol_CallData decode_runtime_args_Evm_Sol_Allowance
+  TotalSupply_HEAD_SIZE TotalSupply_decode_from_CallData
+  decode_from_prechecked_head_TotalSupply_Sol_CallData decode_runtime_args_Evm_Sol_TotalSupply
   checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData logData
   panicCode keccak256
 
@@ -136,42 +113,6 @@ theorem emitApproval_exec (e : Approval) :
   · have hroom := hmem
     simp only [UInt256.size] at hroom
     simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, UInt256.size, hroom]
-
-/-! ### Map entries -/
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-/-- Std's `mapping_slot` stores the key and the map's root in a fresh buffer and hashes it: the
-    slot the hand-written model computes. -/
-theorem mappingSlot_exec (root key : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
-    (mapping_slot_Address root key).exec I w =
-      some (.ok (Fe.EVM.mapSlot key root, { w with memory := keyed w.memory key root })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hnext : (UInt256.ofNat w.memory.size + UInt256.ofNat 32).toNat = w.memory.size + 32 := by
-    rw [uadd_toNat, hsize, toNat32]
-    exact Nat.mod_eq_of_lt (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [mapping_slot_Address, toNat0, toNat32, toNat64, toNatMax, toNatU64, add32_32, hsize,
-    hnext, UInt256.size, hroom, keyed]
-  exact keyed_slot w.memory key root
-
-/-- `locate` of a balance: the entry's slot, at no offset. -/
-theorem locateBalance_exec (p : Place) (root key : UInt256)
-    (hmem : w.memory.size + 64 < UInt256.size) :
-    (locate_Address_u256 p root key).exec I w =
-      some (.ok (⟨Fe.EVM.mapSlot key root, UInt256.ofNat 0⟩,
-        { w with memory := keyed w.memory key root })) := by
-  simp [locate_Address_u256, mappingSlot_exec I w root key hmem]
-
-/-- `locate` of an owner's allowances: the slot of that map. -/
-theorem locateAllowances_exec (p : Place) (root key : UInt256)
-    (hmem : w.memory.size + 64 < UInt256.size) :
-    (locate_Address_StorageMap_Address_u256 p root key).exec I w =
-      some (.ok (⟨Fe.EVM.mapSlot key root, UInt256.ofNat 0⟩,
-        { w with memory := keyed w.memory key root })) := by
-  simp [locate_Address_StorageMap_Address_u256, mappingSlot_exec I w root key hmem]
 
 /-! ### Decoders -/
 
@@ -262,7 +203,7 @@ theorem encodeBool_eq (b : Bool) : Model.encodeBool b = (Bool.toUInt256 b).toByt
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
 theorem returnBool_exec (b : Bool) (hmem : w.memory.size + 32 < UInt256.size) :
-    (return_value_Sol_bool b).exec I w =
+    (Evm_return_value_Sol_bool b).exec I w =
       some (.error (.stop (Model.encodeBool b)
         { w with memory := returned w.memory (Bool.toUInt256 b) })) := by
   have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
@@ -367,9 +308,9 @@ theorem init_exec (initialSupply : UInt256) (hmem : w.memory.size + 96 < UInt256
       withMemory (returned (keyedAll w.memory [(sender I, Model.balancesRoot)]) initialSupply)
         ((Model.initBody initialSupply).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (disch := room) [ofNat0, balancesPlace, totalSupplyPlace, caller_1, zero, init,
+    simp (disch := room) [ofNat0, balancesPlace, totalSupplyPlace, Evm_caller, init,
       Model.initBody, Model.balanceSlot, Model.balancesRoot, Model.totalSupplySlot,
-      locateBalance_exec, emitTransfer_ok, hp, exec_sstore, exec_emit]
+      locateAddress_exec, emitTransfer_ok, hp, exec_sstore, exec_emit]
 
 set_option maxHeartbeats 4000000 in
 theorem transfer_exec (dst value : UInt256) (hmem : w.memory.size + 352 < UInt256.size) :
@@ -379,8 +320,8 @@ theorem transfer_exec (dst value : UInt256) (hmem : w.memory.size + 352 < UInt25
           (dst, Model.balancesRoot), (dst, Model.balancesRoot)]) value)
         ((Model.transfer dst value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (disch := room) [balancesPlace, caller_1, recv0_arm0, Model.transfer,
-      Model.balanceSlot, Model.balancesRoot, locateBalance_exec, emitTransfer_ok, hp,
+    simp (disch := room) [balancesPlace, Evm_caller, recv0_arm0, Model.transfer,
+      Model.balanceSlot, Model.balancesRoot, locateAddress_exec, emitTransfer_ok, hp,
       checkedSub, checkedAdd, exec_sstore, exec_emit, M.ite_bind, M.exec_ite,
       apply_ite (withMemory _)] <;>
     agree
@@ -392,8 +333,8 @@ theorem approve_exec (spender value : UInt256) (hmem : w.memory.size + 160 < UIn
           (spender, Fe.EVM.mapSlot (sender I) Model.allowancesRoot)]) value)
         ((Model.approve spender value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (disch := room) [allowancesPlace, caller_1, recv0_arm1, Model.approve,
-      Model.allowanceSlot, Model.allowancesRoot, locateBalance_exec, locateAllowances_exec,
+    simp (disch := room) [allowancesPlace, Evm_caller, recv0_arm1, Model.approve,
+      Model.allowanceSlot, Model.allowancesRoot, locateAddress_exec, locateAddressMap_exec,
       emitApproval_ok, hp, exec_sstore, exec_emit]
 
 set_option maxHeartbeats 4000000 in
@@ -407,10 +348,10 @@ theorem transferFrom_exec (src dst value : UInt256)
           (dst, Model.balancesRoot)]) value)
         ((Model.transferFrom src dst value).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (maxSteps := 2000000) (disch := room) [balancesPlace, allowancesPlace, caller_1,
+    simp (maxSteps := 2000000) (disch := room) [balancesPlace, allowancesPlace, Evm_caller,
       recv0_arm2,
       Model.transferFrom, Model.balanceSlot, Model.balancesRoot, Model.allowanceSlot,
-      Model.allowancesRoot, locateBalance_exec, locateAllowances_exec, emitTransfer_ok, hp,
+      Model.allowancesRoot, locateAddress_exec, locateAddressMap_exec, emitTransfer_ok, hp,
       checkedSub, checkedAdd, exec_sstore, exec_emit, M.ite_bind, M.exec_ite,
       apply_ite (withMemory _)] <;>
     agree
@@ -420,7 +361,7 @@ theorem balanceOf_exec (owner : UInt256) (hmem : w.memory.size + 64 < UInt256.si
       withMemory (keyedAll w.memory [(owner, Model.balancesRoot)])
         ((Model.balanceOf owner).exec I w) := by
   simp (disch := room) [balancesPlace, recv0_arm3, Model.balanceOf, Model.balanceSlot,
-    Model.balancesRoot, locateBalance_exec]
+    Model.balancesRoot, locateAddress_exec]
 
 theorem allowance_exec (owner spender : UInt256) (hmem : w.memory.size + 128 < UInt256.size) :
     (recv0_arm4 owner spender).exec I w =
@@ -428,7 +369,7 @@ theorem allowance_exec (owner spender : UInt256) (hmem : w.memory.size + 128 < U
           (spender, Fe.EVM.mapSlot owner Model.allowancesRoot)])
         ((Model.allowance owner spender).exec I w) := by
   simp (disch := room) [allowancesPlace, recv0_arm4, Model.allowance, Model.allowanceSlot,
-    Model.allowancesRoot, locateBalance_exec, locateAllowances_exec]
+    Model.allowancesRoot, locateAddress_exec, locateAddressMap_exec]
 
 theorem totalSupply_exec : recv0_arm5.exec I w = Model.totalSupply.exec I w := by
   simp [totalSupplyPlace, recv0_arm5, Model.totalSupply, Model.totalSupplySlot]

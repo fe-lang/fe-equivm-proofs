@@ -15,9 +15,26 @@ encodes return data in fresh buffers.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
+open scoped FeProofs.Lib
 open FeProofs.Lib (returnU256_exec withArg)
 
 namespace FeProofs.ScalarStore.Exported
+
+/-! ## The arms
+
+Each exported arm is the hand-written model's. -/
+
+theorem init_eq (initial : UInt256) : init initial = Model.initBody initial := by
+  simp [init, Field.stored, Model.initBody, Model.storedSlot]
+  rfl
+
+theorem recv0_arm0_eq : recv0_arm0 = Model.get := by
+  simp [recv0_arm0, Field.stored, Model.get, Model.storedSlot]
+  rfl
+
+theorem recv0_arm1_eq (value : UInt256) : recv0_arm1 value = Model.set value := by
+  simp [recv0_arm1, Field.stored, Model.set, Model.storedSlot]
+  rfl
 
 /-! ## Std code
 
@@ -26,27 +43,10 @@ The std definitions the entries reach unfold under `simp` in this section. -/
 section Std
 
 attribute [local simp]
-  new input SELECTOR_SIZE to_word IS_SIGNED U64_MASK MASK SIGN_BIT U256_MASK sign_extend from_word
-  downcast_truncate_u256_u64 size len_CallData HEAD_SIZE from_word_1 validate_runtime_head
-  decode_from_CallData decode_from_prechecked_head_Get_Sol_CallData
-  decode_runtime_args_Evm_Sol_Get IS_DYNAMIC HEAD_SIZE_1 max to_word_1 MASK_1 I256_SIGN_BIT
-  downcast_saturate_u64_usize MAX_ALLOCATION PANIC_OUT_OF_MEMORY alloc_bytes alloc_uninit_32
-  zero_bytes alloc_32 ptr_32 from_raw_parts PANIC_INDEX_OUT_OF_BOUNDS index_out_of_bounds
-  word_to_usize ptr_offset slice cast_u8_u256 store_word store_word_1 encode_Sol
-  downcast_unchecked_u256_usize from_raw_parts_ref_u8 ptr_u8 len_u8 return_data alloc_uninit_64
-  alloc_64 ptr_64 new_uninit new_1 ptr span_ref const_u256 payload_size_u256
-  abi_payload_size_u256 max_1 allocation_len encode_alloc_Sol_u256 abi_field_size_u256
-  abi_single_root_size_u256 abi_field_head_size_u256 abi_single_root_head_size_u256 tail len
-  encode_field_Sol_u256 encode_single_root_alloc_Sol_u256 encode_return_alloc_Sol_u256
-  return_bytes return_value_Sol_u256 HEAD_SIZE_2 word_at decode_error checked_tail_Sol
-  checked_frame_end_Sol decode_from_Sol_CallData decode_from_bounded_u256_Sol_CallData
-  decode_field_from_prechecked_head_Sol_u256_CallData decode_field_from_Sol_u256_CallData
-  decode_msg_field_from_Sol_u256_CallData decode_from_CallData_1
-  decode_from_prechecked_head_Set_Sol_CallData decode_runtime_args_Evm_Sol_Set with_base
-  decoder_new downcast_truncate_usize_u64 size_1 len_MemSlice_u8 word_at_1 read_word_MemSlice_u8
-  base pos set_base set_pos decode_payload_Sol_SolDecoder_MemSlice_u8
-  decode_field_Sol_u256_SolDecoder_MemSlice_u8 decode_payload_Sol_u256_SolDecoder_MemSlice_u8
-  checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
+  Get_HEAD_SIZE Get_decode_from_CallData decode_from_prechecked_head_Get_Sol_CallData
+  decode_runtime_args_Evm_Sol_Get Set_HEAD_SIZE Set_decode_from_CallData
+  decode_from_prechecked_head_Set_Sol_CallData decode_runtime_args_Evm_Sol_Set checkedAdd
+  checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
 
 variable (I : ExecutionEnv) (w : World)
 
@@ -123,7 +123,7 @@ theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.cal
       simp [recv0_arm0_entry, exec_nonPayable, hwv]), runtime_get_value hlo h0 h1 hwv]
     exact .exit _
   have eg : (entry recv0_arm0_entry).exec I w =
-      (entry (Model.get >>= return_value_Sol_u256)).exec I w := by
+      (entry (Model.get >>= Evm_return_value_Sol_u256)).exec I w := by
     simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeGet_exec, recv0_arm0_eq]
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.runtime, exec_nonPayable, hwv, hn4, sel0_not h0, sel1 h1]

@@ -1,5 +1,5 @@
 import FeProofs.PackedStore.Correct
-import FeProofs.PackedStore.Exported
+import FeProofs.PackedStore.ExportedCorrect
 import Fe.EVM.Reach
 
 /-!

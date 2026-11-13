@@ -6,8 +6,10 @@ Usage: scripts/sync_exported.py <fe checkout>
 Each target file holds the exporter's output between a `-- BEGIN fe-lean-export: <name>` line
 and the next `-- END fe-lean-export` line.  `<name>` is the golden file
 `crates/lean-export/tests/golden/<name>.lean` of the Fe checkout.  `lib` is the core and std
-definitions the certified contracts share; each contract's golden file starts with the `export`
+definitions the contracts and fixtures share; every other golden file starts with the `export`
 of the ones it names, from a namespace `Lib`.
+
+A changed export can rename what a proof names: build after syncing.
 """
 import pathlib
 import re
