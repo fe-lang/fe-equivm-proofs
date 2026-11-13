@@ -2987,9 +2987,10 @@ def Evm_return_value_Sol_u8 (v1 : UInt256) : FeM Empty := do
 end
 
 /-! `simp` runs through these definitions where `FeProofs.Lib` is open, except the ones
-    `ExportedCorrect.lean` states a theorem for: returning a word, a mapping's slot, and where
-    an entry lies. -/
-simp_exported except Evm_return_value_Sol_u256 mapping_slot_u256 mapping_slot_Address
+    `ExportedCorrect.lean` states a theorem for: returning a word, a boolean or a `u8`, a
+    mapping's slot, and where an entry lies. -/
+simp_exported except Evm_return_value_Sol_u256 Evm_return_value_Sol_bool Evm_return_value_Sol_u8
+  mapping_slot_u256 mapping_slot_Address
   StorageMap_locate_u256_u256 StorageMap_locate_Address_u256
   StorageMap_locate_Address_StorageMap_Address_u256
 

@@ -5,7 +5,7 @@ import Fe.EVM.Entry
 # Exported core and std code: what it does
 
 Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: what
-std's `return_value` does, where a map's entry lies, and the memory a deployment entry leaves.
+std's `return_value` does at a word, a boolean and a `u8`, where a map's entry lies, and the memory a deployment entry leaves.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
@@ -28,6 +28,36 @@ theorem returnU256_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size)
   have hroom := hmem
   simp only [UInt256.size] at hroom
   simp [Evm_return_value_Sol_u256, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
+    Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
+  exact returned_read _ _
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `return_value` at `bool` ends the call with the word of the boolean.  It changes memory
+    only. -/
+theorem returnBool_exec (b : Bool) (hmem : w.memory.size + 32 < UInt256.size) :
+    (Evm_return_value_Sol_bool b).exec I w =
+      some (.error (.stop (Bool.toUInt256 b).toByteArray
+        { w with memory := returned w.memory (Bool.toUInt256 b) })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [Evm_return_value_Sol_bool, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
+    Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
+  exact returned_read _ _
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `return_value` at `u8` ends the call with the word.  It changes memory only. -/
+theorem returnU8_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
+    (Evm_return_value_Sol_u8 v).exec I w =
+      some (.error (.stop v.toByteArray { w with memory := returned w.memory v })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  simp [Evm_return_value_Sol_u8, toNat0, toNat32, toNatMax, toNatU64, sub32_0,
     Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
   exact returned_read _ _
 

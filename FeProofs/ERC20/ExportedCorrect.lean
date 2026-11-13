@@ -206,20 +206,6 @@ theorem decodeTotalSupply_exec :
 theorem encodeBool_eq (b : Bool) : Model.encodeBool b = (Bool.toUInt256 b).toByteArray := by
   cases b <;> rfl
 
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem returnBool_exec (b : Bool) (hmem : w.memory.size + 32 < UInt256.size) :
-    (Evm_return_value_Sol_bool b).exec I w =
-      some (.error (.stop (Model.encodeBool b)
-        { w with memory := returned w.memory (Bool.toUInt256 b) })) := by
-  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
-    ulit_toNat' _ (by omega)
-  have hroom := hmem
-  simp only [UInt256.size] at hroom
-  simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
-    hroom, returned, encodeBool_eq]
-  exact returned_read _ _
-
 /-! ### The constructor argument -/
 
 theorem ctorTail_eq (v : UInt256) : ctorTail v = v.toByteArray := by
