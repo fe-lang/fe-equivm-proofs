@@ -8,8 +8,9 @@ import Fe.EVM.Entry
 # FeWETH9: what the exported code does
 
 `Exported.lean` is the exporter's output and nothing else.  This file proves what it does: the
-std code it calls (event encodings, calldata decoders), and that each exported arm ends as the
-hand-written model's arm does, up to memory.
+std code it calls (event encodings, calldata decoders), that each exported arm ends as the
+hand-written model's arm does, up to memory, that a string getter's load and return end as the
+model's `stringReturn` does, and that the constructor ends as the model's does.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM

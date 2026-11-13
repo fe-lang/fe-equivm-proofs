@@ -8,8 +8,9 @@ import Reasoning.Solc
 # Reasoning about an exported runtime entry
 
 Facts that proofs about `fe-lean-export`'s runtime entry share, whatever the contract: word
-arithmetic the std decoder and encoder perform, the selector word, and how an entry that stops
-relates to a hand-written one that returns.
+arithmetic the std decoder and encoder perform, writes into memory the code allocates, the
+selector word, how an entry that stops relates to a hand-written one that returns, and a call
+without data, which leaves memory alone.
 -/
 
 namespace Fe.EVM
