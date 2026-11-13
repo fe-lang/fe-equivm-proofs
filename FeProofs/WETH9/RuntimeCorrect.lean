@@ -69,9 +69,6 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-theorem namePlace : Field.store.field Layout.Weth9Store 0 = .storage Model.nameSlot := rfl
-theorem symbolPlace : Field.store.field Layout.Weth9Store 1 = .storage Model.symbolSlot := rfl
-
 /-- A value-carrying call of a non-payable arm reverts in both. -/
 theorem nonPayable_endsAs {m : FeM Empty} {arm : FeM ByteArray}
     (hm : m.exec I w = some (.error (.revert ByteArray.empty)))
@@ -590,5 +587,15 @@ theorem feWETH9RefinesExported (σ σ₀ : AccountMap) (g : UInt256) (A : Substa
   rcases feWETH9RefinesModel σ σ₀ g A I hcode hsize hwf with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs (runtime_endsAs I (World.init σ A feed) rfl hfits) h⟩
+
+/-- Deployment with no argument bytes, for any initial storage, refines the exported deployment
+    entry. -/
+theorem feWETH9DeployRefinesExported :
+    RefinesDeploy .P0 feWETH9CreationBytecode feWETH9Bytecode contract (· = ByteArray.empty) := by
+  intro σ σ₀ g A I args hargs hcode hperm
+  rcases feWETH9DeployRefinesModel σ σ₀ g A I args hargs hcode hperm with h | ⟨feed, h⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨feed, Agrees.of_endsAs
+      (init_endsAs I (World.init σ A feed) args feWETH9Bytecode rfl hperm) h⟩
 
 end FeProofs.WETH9.Exported

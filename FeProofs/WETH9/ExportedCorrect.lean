@@ -16,7 +16,7 @@ open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
 open scoped FeProofs.Lib
 open FeProofs.Lib (locateAddress_exec locateAddressMap_exec revertPanic_exec fromAbiTail_exec
   returnDynString_exec)
-open Stele (solidityDecodeBytesLengthHeader solidityBytesDataBaseSlot)
+open Stele (solidityDecodeBytesLengthHeader solidityBytesDataBaseSlot solidityShortBytesWord)
 
 namespace FeProofs.WETH9.Exported
 
@@ -287,6 +287,8 @@ variable (I : ExecutionEnv) (w : World)
 
 /-! The exported layout places the fields of `Weth9Store` at the model's slots. -/
 
+theorem namePlace : Field.store.field Layout.Weth9Store 0 = .storage Model.nameSlot := rfl
+theorem symbolPlace : Field.store.field Layout.Weth9Store 1 = .storage Model.symbolSlot := rfl
 theorem decimalsPlace :
     Field.store.field Layout.Weth9Store 2 = .storage Model.decimalsSlot := rfl
 theorem balanceOfPlace :
@@ -780,5 +782,242 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
       ⟨_, _, h⟩ | ⟨_, _, h⟩ | ⟨_, h⟩ <;> rw [h] at hd <;> cases hd
 
 end Strings
+
+/-! ## The constructor
+
+`SolString::store` of a short string checks the old head with `stored_len`, stores the new head,
+and zeroes the data words of a long old value, as EquiVM's `strWriteMap` writes them; the low
+byte of the `decimals` slot is replaced in place. -/
+
+section Constructor
+
+variable (I : ExecutionEnv) (w : World)
+
+theorem clearLoop_exec (slot : UInt256) (hperm : I.perm = true) (n : ℕ) (hn : n < 2 ^ 251)
+    (r0 r1 : UInt256) :
+    ∀ k i (wd : World), i + k = n →
+      (SolString_store.b10 (.storage slot) (UInt256.ofNat n) r0 r1 (UInt256.ofNat i)).exec I wd =
+        some (.ok ((), { wd with
+          accounts := clearDataWordsForwardFrom I.codeOwner wd.accounts
+            (solidityBytesDataBaseSlot slot) (UInt256.ofNat i) k })) := by
+  intro k
+  induction k with
+  | zero =>
+    intro i wd hik
+    obtain rfl : i = n := by omega
+    rw [SolString_store.b10.eq_1]
+    simp
+    rfl
+  | succ k ih =>
+    intro i wd hik
+    rw [SolString_store.b10.eq_1]
+    simp [ulit_toNat' i (by unfold UInt256.size; omega), ulit_toNat' n (by unfold UInt256.size; omega),
+      show i < n by omega, Payload_locate, Layout.SolString, Fe.EVM.add_zero, keccakWords_single,
+      exec_sstore, hperm, lit_add_eq (a := i) (b := 1) (by omega),
+      ih (i + 1) _ (by omega), clearDataWordsForwardFrom]
+    rw [show ({ val := 1 } : UInt256) + UInt256.ofNat i = UInt256.ofNat (i + 1) by
+      rw [u256_add_comm]; exact lit_add_eq (a := i) (b := 1) (by omega)]
+    rfl
+
+/-- A head whose length contradicts its flag is the one EquiVM's decoder reverts on. -/
+theorem strHeadBad_iff (S : UInt256) :
+    strHeadBad S ↔ solidityDecodeBytesLengthHeader S = .revert := by
+  unfold strHeadBad strHeadLen solidityDecodeBytesLengthHeader
+  by_cases h : S.land ⟨1⟩ = ⟨0⟩ <;> simp [h] <;> split <;> simp_all
+
+theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0 < bytes.size) (hb : bytes.size < 32)
+    (hword : leadWord (uInt256OfByteArray (bytes.readWithPadding 0 32)) bytes.size |||
+      UInt256.ofNat (bytes.size * 2) = solidityShortBytesWord bytes)
+    (hread : w.memory.readWithPadding (p + 32) bytes.size = bytes)
+    (hp : p + 64 < UInt256.size) (hmem : w.memory.size + 64 < UInt256.size) :
+    (SolString_store (.storage slot)
+        ⟨UInt256.ofNat p, UInt256.ofNat bytes.size, UInt256.ofNat 64⟩).exec I w =
+      (Model.storeString slot bytes).exec I w := by
+  have hh := u256_toNat_lt (slotWord I w.accounts slot)
+  have hsz : UInt256.size = 2 ^ 256 := rfl
+  by_cases hbad : strHeadBad (slotWord I w.accounts slot)
+  · have hrev := (strHeadBad_iff _).mp hbad
+    simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
+      storedLen_exec I w _ hmem, hrev, hbad]
+  rcases decodeHeader_cases (slotWord I w.accounts slot) with
+    ⟨ho, hge, hok⟩ | ⟨he, hlt, hok⟩ | ⟨_, hrev⟩
+  · have hfl : slotWord I w.accounts slot &&& UInt256.ofNat 1 = UInt256.ofNat 1 := headFlag_odd ho
+    have hp32 : (UInt256.ofNat p + UInt256.ofNat 32).toNat = p + 32 := by
+      rw [lit_add_eq (by unfold UInt256.size at hp; omega), ulit_toNat' _ (by omega)]
+    by_cases hperm : I.perm = true
+    · simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
+        storedLen_exec I w _ hmem, hok, hbad, hfl, hperm, payload_word, exec_sstore,
+        ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
+        show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
+        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
+        ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
+        ulit_toNat' bytes.size (by omega), Nat.min_eq_left hb.le,
+        wordCount_exec I w _ (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size),
+        fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
+        ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword]
+      have hold : strOldWords (slotWord I w.accounts slot) =
+          ((slotWord I w.accounts slot).toNat / 2 + 31) / 32 := by
+        have hf1 : UInt256.land (slotWord I w.accounts slot) ⟨1⟩ = ⟨1⟩ := headFlag_odd ho
+        unfold strOldWords strHeadLen
+        rw [hf1, if_neg (by decide), if_neg (by decide), udiv_toNat]
+        rfl
+      rw [clearLoop_exec I slot hperm (((slotWord I w.accounts slot).toNat / 2 + 31) / 32)
+        (by omega) _ _ (((slotWord I w.accounts slot).toNat / 2 + 31) / 32) 0 _ (by omega),
+        strWriteMap, show strOldWords (Reasoning.Reach.solcSlotWord w.accounts I slot) = _ from hold]
+      rfl
+    · have hpf : I.perm = false := by simpa using hperm
+      simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
+        storedLen_exec I w _ hmem, hok, hbad, hfl, payload_word, exec_sstore,
+        ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
+        show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
+        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
+        ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
+        Nat.min_eq_left hb.le,
+        fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
+        ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword, hpf,
+        wordCount_exec I w _ (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size)]
+  · have hfl : slotWord I w.accounts slot &&& UInt256.ofNat 1 = UInt256.ofNat 0 := headFlag_even he
+    have hp32 : (UInt256.ofNat p + UInt256.ofNat 32).toNat = p + 32 := by
+      rw [lit_add_eq (by unfold UInt256.size at hp; omega), ulit_toNat' _ (by omega)]
+    by_cases hperm : I.perm = true
+    · simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
+        storedLen_exec I w _ hmem, hok, hbad, hfl, payload_word, exec_sstore,
+        ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
+        show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
+        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
+        ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
+        Nat.min_eq_left hb.le,
+        fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
+        ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword, hperm]
+      have hold : strOldWords (Reasoning.Reach.solcSlotWord w.accounts I slot) = 0 := by
+        have hf0 : UInt256.land (Reasoning.Reach.solcSlotWord w.accounts I slot) ⟨1⟩ = ⟨0⟩ :=
+          headFlag_even he
+        unfold strOldWords
+        rw [if_pos hf0]
+      rw [clearLoop_exec I slot hperm 0 (by omega) _ _ 0 0 _ rfl, strWriteMap, hold]
+      rfl
+    · have hpf : I.perm = false := by simpa using hperm
+      simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
+        storedLen_exec I w _ hmem, hok, hbad, hfl, payload_word, exec_sstore,
+        ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
+        show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
+        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
+        ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
+        Nat.min_eq_left hb.le,
+        fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
+        ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword, hpf]
+  · exact absurd ((strHeadBad_iff _).mpr hrev) hbad
+
+/-- A string literal shorter than a word: its length word, then its bytes and zeros to a word,
+    in fresh memory. -/
+theorem stringLiteral_exec (bytes : ByteArray) (hb0 : 0 < bytes.size) (hb : bytes.size < 32)
+    (hmem : w.memory.size + 64 < UInt256.size) :
+    (stringLiteral bytes).exec I w = some (.ok (UInt256.ofNat w.memory.size, { w with
+      memory := w.memory ++ ((UInt256.ofNat bytes.size).toByteArray ++
+        (bytes ++ ⟨Array.replicate (32 - bytes.size) 0⟩)) })) := by
+  have hW : 32 + (bytes.size + 31) / 32 * 32 = 64 := by omega
+  have hp : (UInt256.ofNat w.memory.size + UInt256.ofNat 32).toNat = w.memory.size + 32 := by
+    rw [lit_add_eq (by unfold UInt256.size at hmem; omega), ulit_toNat' _ (by omega)]
+  simp [stringLiteral, alloc, mstore, mstoreBytes, hW, show (UInt256.ofNat 64).toNat = 64 from rfl,
+    hmem, ulit_toNat' w.memory.size (by omega), hp]
+  rw [write_tail _ _ _ 0 0 32 (by simp) (by decide) (by rw [toByteArray_size])
+      (by rw [zeros_size]; omega),
+    write_tail _ _ _ 0 32 bytes.size rfl (by omega) (by omega)
+      (by simp [zeros_size]; omega)]
+  simp [zeros_size, zeros_extract, toByteArray_extract_all]
+  rw [extract_append_left _ _ _ _ (by rw [toByteArray_size]), toByteArray_extract_all,
+    extract_append_right_window _ _ _ _ (by rw [toByteArray_size]; omega), toByteArray_size,
+    zeros_extract, ByteArray.append_assoc,
+    show min (64 - 32) 32 - (32 + bytes.size - 32) = 32 - bytes.size by omega]
+
+/-- A short string literal's bytes read back. -/
+theorem literal_read (M bytes : ByteArray) (hb : bytes.size < 32) :
+    (M ++ ((UInt256.ofNat bytes.size).toByteArray ++
+      (bytes ++ ⟨Array.replicate (32 - bytes.size) 0⟩))).readWithPadding (M.size + 32)
+        bytes.size = bytes := by
+  rcases Nat.eq_zero_or_pos bytes.size with h0 | hpos
+  · rw [h0, byteArray_readWithPadding_zero]
+    exact (ByteArray.size_eq_zero_iff.mp h0).symm
+  rw [readWithPadding_tail _ _ 32 bytes.size rfl hpos (by simp [zeros_size]),
+    extract_append_right_window _ _ _ _ (by rw [toByteArray_size]), toByteArray_size,
+    Nat.sub_self, show 32 + bytes.size - 32 = bytes.size by omega,
+    extract_append_left _ _ _ _ (le_refl _), byteArray_extract_self]
+
+/-- The words the constructor stores for `"Wrapped Ether"` and `"WETH"`. -/
+theorem nameWord_eq : leadWord (uInt256OfByteArray (Model.nameBytes.readWithPadding 0 32))
+    Model.nameBytes.size ||| UInt256.ofNat (Model.nameBytes.size * 2) =
+      solidityShortBytesWord Model.nameBytes := by decide +kernel
+
+theorem symbolWord_eq : leadWord (uInt256OfByteArray (Model.symbolBytes.readWithPadding 0 32))
+    Model.symbolBytes.size ||| UInt256.ofNat (Model.symbolBytes.size * 2) =
+      solidityShortBytesWord Model.symbolBytes := by decide +kernel
+
+theorem writeDecimals_exec :
+    (SolSlot_write_u8 (.storage Model.decimalsSlot) (UInt256.ofNat 0) (UInt256.ofNat 18)).exec I w =
+      (sstore Model.decimalsSlot (UInt256.lor (UInt256.ofNat 18) (UInt256.land
+        (UInt256.lnot (UInt256.ofNat 255)) (slotWord I w.accounts Model.decimalsSlot)))).exec I w := by
+  have hmask : UInt256.ofNat 1 <<< UInt256.ofNat 8 = UInt256.ofNat 256 := by decide
+  have hmul : UInt256.ofNat 0 * UInt256.ofNat 8 = UInt256.ofNat 0 := by decide
+  have hsub : (UInt256.ofNat 256).sub (UInt256.ofNat 0) = UInt256.ofNat 256 := by decide
+  have hsub1 : (UInt256.ofNat 256).sub (UInt256.ofNat 1) = UInt256.ofNat 255 := by decide
+  simp [SolSlot_write_u8, Layout.SolSlot, Layout.Payload, Fe.EVM.add_zero, checkedMul, checkedSub,
+    toNat0, toNat32, hmask, hmul, hsub, hsub1, show UInt256.size ≠ 0 by decide,
+    show (UInt256.ofNat 256).toNat = 256 from rfl, show (UInt256.ofNat 8).toNat = 8 from rfl,
+    show (UInt256.ofNat 1).toNat = 1 from rfl, show UInt256.ofNat 8 ≠ UInt256.ofNat 256 by decide,
+    show UInt256.ofNat 255 <<< UInt256.ofNat 0 = UInt256.ofNat 255 by decide,
+    show UInt256.ofNat 18 <<< UInt256.ofNat 0 &&& UInt256.ofNat 255 = UInt256.ofNat 18 by decide,
+    complement_eq_lnot]
+  have e1 : ∀ a b : UInt256, a &&& b = UInt256.land a b := fun _ _ => rfl
+  have e2 : ∀ a b : UInt256, a ||| b = UInt256.lor a b := fun _ _ => rfl
+  rw [e2, e1, u256_lor_comm, u256_land_comm]
+
+theorem storeString_model (slot : UInt256) (bytes : ByteArray) (hperm : I.perm = true) :
+    (Model.storeString slot bytes).exec I w =
+      if strHeadBad (slotWord I w.accounts slot) then some (.error (.revert (panicData 0x22)))
+      else some (.ok ((), { w with accounts := strWriteMap I w.accounts slot bytes })) := by
+  by_cases hb : strHeadBad (slotWord I w.accounts slot) <;> simp [Model.storeString, hb, hperm]
+
+/-- The exported deployment entry ends as the model's constructor does, on the empty memory a
+    call starts with and with write permission, as a creation has. -/
+theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty) (hperm : I.perm = true) :
+    EndsAs ((init_entry args >>= fun tail => pure (rt ++ tail)).exec I w)
+      ((Model.contract.init args >>= fun tail => pure (rt ++ tail)).exec I w) := by
+  by_cases hwv : I.weiValue = ⟨0⟩
+  swap
+  · simp [init_entry, Model.contract, Model.init, exec_nonPayable, hwv]
+    exact .exit _
+  have hfold : (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray) =
+      Model.nameBytes := rfl
+  have hfold' : (⟨#[87, 69, 84, 72]⟩ : ByteArray) = Model.symbolBytes := rfl
+  have h13 : UInt256.ofNat 13 = UInt256.ofNat Model.nameBytes.size := rfl
+  have h4 : UInt256.ofNat 4 = UInt256.ofNat Model.symbolBytes.size := rfl
+  simp only [init_entry, Model.contract, Model.init, Fe.M.exec_bind, exec_nonPayable, hwv, if_pos,
+    init, hfold, hfold', namePlace, symbolPlace, decimalsPlace, h13, h4]
+  rw [stringLiteral_exec I w Model.nameBytes (by decide) (by decide) (by rw [hw]; decide)]
+  simp only []
+  rw [storeString_exec I _ Model.nameSlot w.memory.size Model.nameBytes (by decide) (by decide)
+    nameWord_eq (literal_read _ _ (by decide)) (by rw [hw]; decide)
+    (by simp [hw, toByteArray_size, zeros_size]; decide),
+    storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
+  by_cases hb0 : strHeadBad (slotWord I w.accounts Model.nameSlot)
+  · simp [hb0]
+    exact .exit _
+  simp [hb0, DynString_drop]
+  rw [stringLiteral_exec I _ Model.symbolBytes (by decide) (by decide)
+    (by simp [hw, toByteArray_size, zeros_size]; decide)]
+  simp only []
+  rw [storeString_exec I _ Model.symbolSlot _ Model.symbolBytes (by decide) (by decide)
+    symbolWord_eq (literal_read _ _ (by decide))
+    (by simp [hw, toByteArray_size, zeros_size]; decide)
+    (by simp [hw, toByteArray_size, zeros_size]; decide),
+    storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
+  by_cases hb1 : strHeadBad (slotWord I (strWriteMap I w.accounts Model.nameSlot Model.nameBytes)
+    Model.symbolSlot)
+  · simp [hb1]
+    exact .exit _
+  simp [hb1, writeDecimals_exec, exec_sstore, hperm]
+  exact .ok_ok rfl rfl
+
+end Constructor
 
 end FeProofs.WETH9.Exported
