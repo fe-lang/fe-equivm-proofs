@@ -1,13 +1,14 @@
 import FeProofs.Lib.Exported
+import FeProofs.Common.Abi
 import Fe.EVM.Entry
 
 /-!
 # Exported core and std code: what it does
 
-Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: what
-std's `return_value` does at a word, a boolean, a `u8` and a string, what `revert_error` of a
-panic reverts with, what a string's checks do, where a map's entry lies, and the memory a
-deployment entry leaves.
+Facts about the shared definitions of `Exported.lean` that the contracts' proofs use: std's
+address check, what std's `return_value` does at a word, a boolean, a `u8` and a string, what
+`revert_error` of a panic reverts with, what a string's checks do, where a map's entry lies, and
+the memory a deployment entry leaves.
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
@@ -18,6 +19,16 @@ attribute [local simp]
   checkedAdd checkedSub alloc mstore mstoreBytes readPaddedWord zeroMem returnData panicCode
 
 variable (I : ExecutionEnv) (w : World)
+
+/-- Std's address check, `word >> 160 != 0`, is the hand-written one. -/
+theorem shr160_eq_zero_iff (w : UInt256) :
+    w >>> UInt256.ofNat 160 = UInt256.ofNat 0 ↔ ¬ NotAddress w := by
+  unfold NotAddress
+  constructor
+  · intro h hd
+    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using hd) h
+  · intro h
+    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using Nat.lt_of_not_le h)
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
@@ -99,11 +110,11 @@ theorem revertPanic_exec (p : Panic) (hmem : w.memory.size + 64 < UInt256.size) 
   rw [write_tail _ _ _ 0 0 32 (by simp) (by decide) (by rw [toByteArray_size])
       (by rw [zeros_size]; omega),
     write_tail _ _ _ 0 4 32 (by simp) (by decide) (by rw [zeros_size])
-      (by simp [zeros_size, toByteArray_size]),
+      (by simp [zeros_size]),
     write_tail _ _ _ 0 4 32 (by simp) (by decide) (by rw [toByteArray_size])
-      (by simp [zeros_size, toByteArray_size]),
-    readWithPadding_tail _ _ 0 36 (by simp) (by decide) (by simp [zeros_size, toByteArray_size]),
-    panicBytes _ _ (by simp [zeros_size, toByteArray_size]) (by decide +kernel)]
+      (by simp [zeros_size]),
+    readWithPadding_tail _ _ 0 36 (by simp) (by decide) (by simp [zeros_size]),
+    panicBytes _ _ (by simp [zeros_size]) (by decide +kernel)]
   simp [panicData, u256_ofNat_toNat]
 
 /-! ## Strings in memory -/
@@ -122,7 +133,7 @@ theorem fromAbiTail_exec (M T : ByteArray) (L : ℕ) (hL : L < 2 ^ 255)
   have hW : (L + 31) / 32 < 2 ^ 251 := by omega
   have hsz : UInt256.size = 2 ^ 256 := rfl
   have hread : uInt256OfByteArray (w.memory.readWithPadding M.size 32) = UInt256.ofNat L := by
-    rw [hmem, readWithPadding_tail _ _ 0 32 (by simp) (by decide) (by simp [toByteArray_size]),
+    rw [hmem, readWithPadding_tail _ _ 0 32 (by simp) (by decide) (by simp),
       extract_append_left _ _ _ _ (by rw [toByteArray_size]), toByteArray_extract_all,
       uInt256OfByteArray_toByteArray]
   by_cases h0 : L = 0

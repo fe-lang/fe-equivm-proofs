@@ -69,8 +69,9 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-/-- A value-carrying call of a non-payable arm reverts in both. -/
-theorem nonPayable_endsAs {m : FeM Empty} {arm : FeM ByteArray}
+/-- An entry and an arm that both revert with no data end alike: a call with value of a
+    non-payable arm, or calldata the arm's decoder rejects. -/
+theorem revert_endsAs {m : FeM Empty} {arm : FeM ByteArray}
     (hm : m.exec I w = some (.error (.revert ByteArray.empty)))
     (harm : arm.exec I w = some (.error (.revert ByteArray.empty))) :
     EndsAs ((entry m).exec I w) (arm.exec I w) := by
@@ -81,10 +82,11 @@ theorem name_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv0_arm0_entry).exec I w) (Model.nameArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm0_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm0_entry, exec_nonPayable, hwv])
       (by simp [Model.nameArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm0_entry).exec I w = (entry (SolString_load (.storage Model.nameSlot) >>=
-      Evm_return_value_Sol_DynString)).exec I w := by
+  have eg : (entry recv0_arm0_entry).exec I w =
+      (entry (SolString_load (.storage Model.nameSlot) >>= Evm_return_value_Sol_DynString)).exec
+        I w := by
     simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeName_exec, recv0_arm0, namePlace]
   have eh : Model.nameArm.exec I w = (Model.stringReturn Model.nameSlot).exec I w := by
     simp [Model.nameArm, exec_nonPayable, hwv]
@@ -95,22 +97,16 @@ theorem symbol_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv0_arm7_entry).exec I w) (Model.symbolArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm7_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm7_entry, exec_nonPayable, hwv])
       (by simp [Model.symbolArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm7_entry).exec I w = (entry (SolString_load (.storage Model.symbolSlot) >>=
-      Evm_return_value_Sol_DynString)).exec I w := by
+  have eg : (entry recv0_arm7_entry).exec I w =
+      (entry (SolString_load (.storage Model.symbolSlot) >>= Evm_return_value_Sol_DynString)).exec
+        I w := by
     simp [entry, recv0_arm7_entry, exec_nonPayable, hwv, decodeSymbol_exec, recv0_arm7, symbolPlace]
   have eh : Model.symbolArm.exec I w = (Model.stringReturn Model.symbolSlot).exec I w := by
     simp [Model.symbolArm, exec_nonPayable, hwv]
   rw [eg, eh]
   exact stringReturn_endsAs I w _ hw
-
-/-- A short head reverts in both. -/
-theorem revert_endsAs {m : FeM Empty} {arm : FeM ByteArray}
-    (hm : m.exec I w = some (.error (.revert ByteArray.empty)))
-    (harm : arm.exec I w = some (.error (.revert ByteArray.empty))) :
-    EndsAs ((entry m).exec I w) (arm.exec I w) :=
-  nonPayable_endsAs I w hm harm
 
 theorem approve_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
@@ -118,7 +114,7 @@ theorem approve_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm1_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm1_entry, exec_nonPayable, hwv])
       (by simp [Model.approveArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
@@ -144,7 +140,7 @@ theorem totalSupply_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv0_arm2_entry).exec I w) (Model.totalSupplyArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm2_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm2_entry, exec_nonPayable, hwv])
       (by simp [Model.totalSupplyArm, exec_nonPayable, hwv])
   have eg : (entry recv0_arm2_entry).exec I w =
       (entry (recv0_arm2 >>= Evm_return_value_Sol_u256)).exec I w := by
@@ -162,7 +158,7 @@ theorem transferFrom_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.cal
   have hbad := badHead_iff I.calldata 3 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm3_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm3_entry, exec_nonPayable, hwv])
       (by simp [Model.transferFromArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 100
   · exact revert_endsAs I w (by
@@ -185,7 +181,8 @@ theorem transferFrom_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.cal
     simp [entry, recv0_arm3_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w hlo hfits,
       hshort, ha0, ha1]
   have eh : (Model.transferFromArm I.calldata).exec I w = (Model.transferFrom (word I.calldata 4)
-      (word I.calldata 36) (word I.calldata 68) >>= fun r => pure (Model.encodeBool r)).exec I w := by
+      (word I.calldata 36) (word I.calldata 68) >>= fun r => pure (Model.encodeBool r)).exec
+        I w := by
     simp [Model.transferFromArm, exec_nonPayable, hwv, hgood, ha0, ha1]
   rw [eg, eh]
   exact endsAs_alike (fun r w' hm => ⟨_, by rw [encodeBool_eq]; exact returnBool_exec I w' r hm⟩)
@@ -197,7 +194,7 @@ theorem withdraw_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldat
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm4_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm4_entry, exec_nonPayable, hwv])
       (by simp [Model.withdrawArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 36
   · exact revert_endsAs I w (by
@@ -220,7 +217,7 @@ theorem decimals_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv0_arm5_entry).exec I w) (Model.decimalsArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm5_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm5_entry, exec_nonPayable, hwv])
       (by simp [Model.decimalsArm, exec_nonPayable, hwv])
   have eg : (entry recv0_arm5_entry).exec I w =
       (entry (recv0_arm5 >>= Evm_return_value_Sol_u8)).exec I w := by
@@ -238,7 +235,7 @@ theorem balanceOf_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.callda
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm6_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm6_entry, exec_nonPayable, hwv])
       (by simp [Model.balanceOfArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 36
   · exact revert_endsAs I w (by
@@ -267,7 +264,7 @@ theorem transfer_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldat
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm8_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm8_entry, exec_nonPayable, hwv])
       (by simp [Model.transferArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
@@ -323,7 +320,7 @@ theorem allowance_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.callda
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact nonPayable_endsAs I w (by simp [recv0_arm10_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv0_arm10_entry, exec_nonPayable, hwv])
       (by simp [Model.allowanceArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
@@ -385,7 +382,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact name_endsAs I w hw
   have n0 := miss 0 h0
-  have w0 : selWord I.calldata ≠ UInt256.ofNat 0x06fdde03 := selWord_miss (nameEvmSelector hsz) n0
+  have w0 : selWord I.calldata ≠ UInt256.ofNat 0x06fdde03 :=
+    selWord_miss (nameEvmSelector hsz) n0
   by_cases h1 : selIs I (feWETH9SelBytes 1)
   · have hw' := selWord_hit (approveEvmSelector hsz) h1
     have eg : (entry runtime).exec I w = (entry recv0_arm1_entry).exec I w := by
@@ -397,7 +395,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact approve_endsAs I w hw hsz hfits
   have n1 := miss 1 h1
-  have w1 : selWord I.calldata ≠ UInt256.ofNat 0x095ea7b3 := selWord_miss (approveEvmSelector hsz) n1
+  have w1 : selWord I.calldata ≠ UInt256.ofNat 0x095ea7b3 :=
+    selWord_miss (approveEvmSelector hsz) n1
   by_cases h2 : selIs I (feWETH9SelBytes 2)
   · have hw' := selWord_hit (totalSupplyEvmSelector hsz) h2
     have eg : (entry runtime).exec I w = (entry recv0_arm2_entry).exec I w := by
@@ -410,7 +409,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact totalSupply_endsAs I w hw
   have n2 := miss 2 h2
-  have w2 : selWord I.calldata ≠ UInt256.ofNat 0x18160ddd := selWord_miss (totalSupplyEvmSelector hsz) n2
+  have w2 : selWord I.calldata ≠ UInt256.ofNat 0x18160ddd :=
+    selWord_miss (totalSupplyEvmSelector hsz) n2
   by_cases h3 : selIs I (feWETH9SelBytes 3)
   · have hw' := selWord_hit (transferFromEvmSelector hsz) h3
     have eg : (entry runtime).exec I w = (entry recv0_arm3_entry).exec I w := by
@@ -424,7 +424,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact transferFrom_endsAs I w hw hsz hfits
   have n3 := miss 3 h3
-  have w3 : selWord I.calldata ≠ UInt256.ofNat 0x23b872dd := selWord_miss (transferFromEvmSelector hsz) n3
+  have w3 : selWord I.calldata ≠ UInt256.ofNat 0x23b872dd :=
+    selWord_miss (transferFromEvmSelector hsz) n3
   by_cases h4 : selIs I (feWETH9SelBytes 4)
   · have hw' := selWord_hit (withdrawEvmSelector hsz) h4
     have eg : (entry runtime).exec I w = (entry recv0_arm4_entry).exec I w := by
@@ -439,7 +440,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact withdraw_endsAs I w hw hsz hfits
   have n4 := miss 4 h4
-  have w4 : selWord I.calldata ≠ UInt256.ofNat 0x2e1a7d4d := selWord_miss (withdrawEvmSelector hsz) n4
+  have w4 : selWord I.calldata ≠ UInt256.ofNat 0x2e1a7d4d :=
+    selWord_miss (withdrawEvmSelector hsz) n4
   by_cases h5 : selIs I (feWETH9SelBytes 5)
   · have hw' := selWord_hit (decimalsEvmSelector hsz) h5
     have eg : (entry runtime).exec I w = (entry recv0_arm5_entry).exec I w := by
@@ -455,7 +457,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact decimals_endsAs I w hw
   have n5 := miss 5 h5
-  have w5 : selWord I.calldata ≠ UInt256.ofNat 0x313ce567 := selWord_miss (decimalsEvmSelector hsz) n5
+  have w5 : selWord I.calldata ≠ UInt256.ofNat 0x313ce567 :=
+    selWord_miss (decimalsEvmSelector hsz) n5
   by_cases h6 : selIs I (feWETH9SelBytes 6)
   · have hw' := selWord_hit (balanceOfEvmSelector hsz) h6
     have eg : (entry runtime).exec I w = (entry recv0_arm6_entry).exec I w := by
@@ -472,7 +475,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact balanceOf_endsAs I w hw hsz hfits
   have n6 := miss 6 h6
-  have w6 : selWord I.calldata ≠ UInt256.ofNat 0x70a08231 := selWord_miss (balanceOfEvmSelector hsz) n6
+  have w6 : selWord I.calldata ≠ UInt256.ofNat 0x70a08231 :=
+    selWord_miss (balanceOfEvmSelector hsz) n6
   by_cases h7 : selIs I (feWETH9SelBytes 7)
   · have hw' := selWord_hit (symbolEvmSelector hsz) h7
     have eg : (entry runtime).exec I w = (entry recv0_arm7_entry).exec I w := by
@@ -490,7 +494,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact symbol_endsAs I w hw
   have n7 := miss 7 h7
-  have w7 : selWord I.calldata ≠ UInt256.ofNat 0x95d89b41 := selWord_miss (symbolEvmSelector hsz) n7
+  have w7 : selWord I.calldata ≠ UInt256.ofNat 0x95d89b41 :=
+    selWord_miss (symbolEvmSelector hsz) n7
   by_cases h8 : selIs I (feWETH9SelBytes 8)
   · have hw' := selWord_hit (transferEvmSelector hsz) h8
     have eg : (entry runtime).exec I w = (entry recv0_arm8_entry).exec I w := by
@@ -509,7 +514,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact transfer_endsAs I w hw hsz hfits
   have n8 := miss 8 h8
-  have w8 : selWord I.calldata ≠ UInt256.ofNat 0xa9059cbb := selWord_miss (transferEvmSelector hsz) n8
+  have w8 : selWord I.calldata ≠ UInt256.ofNat 0xa9059cbb :=
+    selWord_miss (transferEvmSelector hsz) n8
   by_cases h9 : selIs I (feWETH9SelBytes 9)
   · have hw' := selWord_hit (depositEvmSelector hsz) h9
     have eg : (entry runtime).exec I w = (entry recv0_arm9_entry).exec I w := by
@@ -529,7 +535,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact deposit_endsAs I w hw
   have n9 := miss 9 h9
-  have w9 : selWord I.calldata ≠ UInt256.ofNat 0xd0e30db0 := selWord_miss (depositEvmSelector hsz) n9
+  have w9 : selWord I.calldata ≠ UInt256.ofNat 0xd0e30db0 :=
+    selWord_miss (depositEvmSelector hsz) n9
   by_cases h10 : selIs I (feWETH9SelBytes 10)
   · have hw' := selWord_hit (allowanceEvmSelector hsz) h10
     have eg : (entry runtime).exec I w = (entry recv0_arm10_entry).exec I w := by
@@ -550,7 +557,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     rw [eg, eh]
     exact allowance_endsAs I w hw hsz hfits
   have n10 := miss 10 h10
-  have w10 : selWord I.calldata ≠ UInt256.ofNat 0xdd62ed3e := selWord_miss (allowanceEvmSelector hsz) n10
+  have w10 : selWord I.calldata ≠ UInt256.ofNat 0xdd62ed3e :=
+    selWord_miss (allowanceEvmSelector hsz) n10
   have eg : (entry runtime).exec I w = (entry recv1_arm0_entry).exec I w := by
     simp [entry, runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10]
   have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by

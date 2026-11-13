@@ -34,19 +34,6 @@ theorem ArmAgrees.feed {g : UInt256} {arm : FeM ByteArray} (h : ArmAgrees σ σ�
     ArmAgreesFeed σ σ₀ g A I arm :=
   h.imp id fun h => ⟨[], h⟩
 
-theorem notAddress_of {w : UInt256} (h : ¬ w.toNat < EVM.addressModulus) : NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
-
-theorem not_notAddress_of {w : UInt256} (h : w.toNat < EVM.addressModulus) : ¬ NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
-
-theorem badHead_of {cd : ByteArray} {n : ℕ} (h : cd.size < 4 + 32 * n ∨ 2 ^ 255 + 4 ≤ cd.size) :
-    BadHead cd n := h
-
-theorem not_badHead_of {cd : ByteArray} {n : ℕ} (hlen : 4 + 32 * n ≤ cd.size)
-    (hhi : cd.size < 2 ^ 255 + 4) : ¬ BadHead cd n := by
-  unfold BadHead; omega
-
 /-- `agrees_of_ret` for a model run that returns `o` and some world with the accounts `σ'`. -/
 theorem agrees_of_ret' {g : Sat256} {code o : ByteArray} {σ' : AccountMap}
     {r : Option (Except (Exit World) (ByteArray × World))}
@@ -56,8 +43,6 @@ theorem agrees_of_ret' {g : Sat256} {code o : ByteArray} {σ' : AccountMap}
   obtain ⟨w', hm, hw⟩ := hm
   exact agrees_of_ret hcode h hm hw
 
-/-- The maximum word, as the bytecode computes it. -/
-theorem lnot_zero : UInt256.lnot ⟨0⟩ = UInt256.ofNat (UInt256.size - 1) := by decide
 
 /-! ## `totalSupply()` -/
 
@@ -292,8 +277,10 @@ theorem transferArm_refines {g : UInt256}
   u256_lits at rd
   rw [toByteArray_write32_read_back _ _ 0 (Nat.zero_le _)] at rd
   exact agrees_of_ret' hcode rd
-    (by simp [Model.transferArm, Model.transferFrom, Model.encodeBool, World.init,
-      exec_nonPayable, exec_sstore, exec_emit, hwv, hhead, haddr, hb, hval, hnlt, hperm]; exact ⟨rfl, rfl⟩)
+    (by
+      simp [Model.transferArm, Model.transferFrom, Model.encodeBool, World.init, exec_nonPayable,
+        exec_sstore, exec_emit, hwv, hhead, haddr, hb, hval, hnlt, hperm]
+      exact ⟨rfl, rfl⟩)
 
 /-! ## `transferFrom(address,address,uint256)` -/
 
@@ -380,7 +367,7 @@ theorem transferFromArm_refines {g : UInt256}
       (solcSlotWord σ I (FeProofs.mapSlot (addrWord I.source)
         (FeProofs.mapSlot (calldataWord I.calldata 4) ⟨4⟩))) = ⟨1⟩ by
           rw [hmaxw]; exact u256_eq_refl _) (by decide))]
-    rw [lnot_zero] at hmaxw
+    rw [uint256_lnot_zero_max] at hmaxw
     by_cases hperm : I.perm = true
     swap
     · have hpf : I.perm = false := by simpa using hperm
@@ -397,7 +384,7 @@ theorem transferFromArm_refines {g : UInt256}
         hne, ha, hmaxw, hperm]; exact ⟨rfl, rfl⟩)
   have hmax : solcSlotWord σ I (FeProofs.mapSlot (addrWord I.source)
       (FeProofs.mapSlot (calldataWord I.calldata 4) ⟨4⟩)) ≠ UInt256.ofNat (UInt256.size - 1) := by
-    rw [← lnot_zero]; exact hmaxw
+    rw [← uint256_lnot_zero_max]; exact hmaxw
   rd_run rd to 1351 using [slot_hint (u256_eq_of_ne (Ne.symm hmaxw))]
   by_cases hallow : (calldataWord I.calldata 68).toNat ≤
       (solcSlotWord σ I (FeProofs.mapSlot (addrWord I.source)

@@ -14,7 +14,8 @@ decoder), and that each exported arm ends as the hand-written model arm does, up
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
 open scoped FeProofs.Lib
-open FeProofs.Lib (returnU256_exec withArg locateAddress_exec locateAddressMap_exec)
+open FeProofs.Lib (returnU256_exec withArg locateAddress_exec locateAddressMap_exec
+  shr160_eq_zero_iff)
 
 namespace FeProofs.ERC20.Exported
 
@@ -23,16 +24,6 @@ namespace FeProofs.ERC20.Exported
 attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
   Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
   Set.fmap_eq_image
-
-/-- Std's address check, `word >> 160 != 0`, is the hand-written one. -/
-theorem shr160_eq_zero_iff (w : UInt256) :
-    w >>> UInt256.ofNat 160 = UInt256.ofNat 0 ↔ ¬ NotAddress w := by
-  unfold NotAddress
-  constructor
-  · intro h hd
-    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using hd) h
-  · intro h
-    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using Nat.lt_of_not_le h)
 
 /-! ## Std code
 

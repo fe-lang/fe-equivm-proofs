@@ -15,7 +15,7 @@ hand-written model's arm does, up to memory.
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
 open scoped FeProofs.Lib
 open FeProofs.Lib (locateAddress_exec locateAddressMap_exec revertPanic_exec fromAbiTail_exec
-  returnDynString_exec)
+  returnDynString_exec shr160_eq_zero_iff)
 open Stele (solidityDecodeBytesLengthHeader solidityBytesDataBaseSlot solidityShortBytesWord)
 
 namespace FeProofs.WETH9.Exported
@@ -25,16 +25,6 @@ namespace FeProofs.WETH9.Exported
 attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
   Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
   Set.fmap_eq_image
-
-/-- Std's address check, `word >> 160 != 0`, is the hand-written one. -/
-theorem shr160_eq_zero_iff (w : UInt256) :
-    w >>> UInt256.ofNat 160 = UInt256.ofNat 0 ↔ ¬ NotAddress w := by
-  unfold NotAddress
-  constructor
-  · intro h hd
-    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using hd) h
-  · intro h
-    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using Nat.lt_of_not_le h)
 
 /-! ## Std code
 
@@ -76,7 +66,8 @@ variable (I : ExecutionEnv) (w : World)
 
 /-- The topics the compiler evaluates for the events are the hashes of their signatures. -/
 theorem approvalTopic_eq : Model.approvalTopic =
-    UInt256.ofNat 63486140976153616755203102783360879283472101686154884697241723088393386309925 := by
+    UInt256.ofNat
+      63486140976153616755203102783360879283472101686154884697241723088393386309925 := by
   native_decide
 
 theorem transferTopic_eq : Model.transferTopic =
@@ -90,7 +81,8 @@ theorem depositTopic_eq : Model.depositTopic =
   native_decide
 
 theorem withdrawalTopic_eq : Model.withdrawalTopic =
-    UInt256.ofNat 57810043145978950376228313794938171962422655018555593468903716172405399886693 := by
+    UInt256.ofNat
+      57810043145978950376228313794938171962422655018555593468903716172405399886693 := by
   native_decide
 
 set_option maxRecDepth 100000 in
@@ -194,7 +186,8 @@ theorem decodeApprove_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.siz
       else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
       else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
   have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36, headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
+  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
+    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
   by_cases h : I.calldata.size < 68 <;>
     by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
     simp [h, ha, word]
@@ -207,7 +200,8 @@ theorem decodeTransfer_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.si
       else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
       else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
   have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36, headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
+  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
+    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
   by_cases h : I.calldata.size < 68 <;>
     by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
     simp [h, ha, word]
@@ -246,7 +240,8 @@ theorem decodeAllowance_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.s
       else if NotAddress (word I.calldata 36) then some (.error (.revert ByteArray.empty))
       else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
   have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36, headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
+  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
+    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
   by_cases h : I.calldata.size < 68 <;>
     by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
     by_cases hb : NotAddress (uInt256OfByteArray (I.calldata.readBytes 36 32)) <;>
@@ -399,11 +394,13 @@ theorem transferFrom_alike (src dst wad : UInt256) (hmem : w.memory.size + 864 <
     alike
   by_cases hs : src = sender I
   · subst hs
-    by_cases hp : I.perm = true <;> simp (maxSteps := 4000000) (disch := room) [hp, hb, Nat.not_lt.mp hb] <;> alike
+    by_cases hp : I.perm = true <;>
+      simp (maxSteps := 4000000) (disch := room) [hp, hb, Nat.not_lt.mp hb] <;> alike
   by_cases hm : slotWord I w.accounts (Fe.EVM.mapSlot (sender I) (Fe.EVM.mapSlot src ⟨4⟩)) =
     UInt256.ofNat 115792089237316195423570985008687907853269984665640564039457584007913129639935
   · by_cases hp : I.perm = true <;>
-      simp (maxSteps := 4000000) (disch := room) [hp, hb, Nat.not_lt.mp hb, hs, hm, maxWord_eq] <;> alike
+      simp (maxSteps := 4000000) (disch := room)
+        [hp, hb, Nat.not_lt.mp hb, hs, hm, maxWord_eq] <;> alike
   by_cases ha : (slotWord I w.accounts (Fe.EVM.mapSlot (sender I)
     (Fe.EVM.mapSlot src ⟨4⟩))).toNat < wad.toNat
   · simp (maxSteps := 4000000) (disch := room) [hb, Nat.not_lt.mp hb, hs, hm, ha,
@@ -511,12 +508,12 @@ theorem storedLen_exec (head : UInt256) (hmem : w.memory.size + 64 < UInt256.siz
   · rw [hrev]
     rcases hbad with ⟨ho, hlt⟩ | ⟨he, hge⟩
     · have hf : head &&& UInt256.ofNat 1 = UInt256.ofNat 1 := headFlag_odd ho
-      simp [stored_len, checkedDiv, M.exec_ite, toNat32, hf, hdiv, hne,
+      simp [stored_len, checkedDiv, toNat32, hf, hdiv, hne,
         ulit_toNat' (head.toNat / 2) (by unfold UInt256.size; omega), hlt,
         revertPanic_exec I w _ hmem, h34]
     · have hf : head &&& UInt256.ofNat 1 = UInt256.ofNat 0 := headFlag_even he
-      simp [stored_len, checkedDiv, M.exec_ite, toNat32, hf, hdiv, hne, h10, hlow,
-        ulit_toNat' (head.toNat % 256 / 2) (by unfold UInt256.size; omega), Nat.not_lt.mpr hge,
+      simp [stored_len, checkedDiv, toNat32, hf, hdiv, hne, h10, hlow,
+        ulit_toNat' (head.toNat % 256 / 2) (by unfold UInt256.size; omega), 
         revertPanic_exec I w _ hmem, h34, hge]
 
 /-- `~~~a` is `UInt256.lnot a`. -/
@@ -551,7 +548,8 @@ theorem wordCount_exec (L : ℕ) (hL : L + 31 < UInt256.size) :
       UInt256.ofNat ((L + 31) / 32) := by
     apply u256_inj
     change (UInt256.div _ _).toNat = _
-    rw [udiv_toNat, uadd_toNat, ulit_toNat' L (by omega), show (UInt256.ofNat 31).toNat = 31 from rfl,
+    rw [udiv_toNat, uadd_toNat, ulit_toNat' L (by omega),
+      show (UInt256.ofNat 31).toNat = 31 from rfl,
       Nat.mod_eq_of_lt hL, toNat32, ulit_toNat' _ (by omega)]
   simp [word_count, checkedDiv, hdiv, show UInt256.ofNat 32 ≠ ⟨0⟩ by decide]
 
@@ -601,14 +599,16 @@ theorem loadLoop_exec (slot : UInt256) (L : ℕ) (hL : L < 2 ^ 255) (b3 : UInt25
       ofNat_mul_ofNat (a := i) (b := 32) (by omega) (by decide) (by omega),
       ofNat_sub_ofNat (a := L) (b := i * 32) (by omega) (by omega),
       fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v (L - i * 32) (by omega),
-      Payload_locate, Layout.SolString, Fe.EVM.add_zero, lit_add_eq (a := 32) (b := i * 32) (by omega),
+      Payload_locate, Layout.SolString, Fe.EVM.add_zero,
+      lit_add_eq (a := 32) (b := i * 32) (by omega),
       lit_add_eq (a := M.size) (b := 32 + i * 32) (by omega),
       lit_add_eq (a := i) (b := 1) (by omega), mstore,
       ulit_toNat' (M.size + (32 + i * 32)) (by omega)]
     rw [ih (i + 1) _ (by omega) ?_]
     rw [hmem, show ∀ D Z : ByteArray, M ++ ((UInt256.ofNat L).toByteArray ++ (D ++ Z)) =
-        (M ++ ((UInt256.ofNat L).toByteArray ++ D)) ++ Z by intro D Z; simp only [ByteArray.append_assoc],
-      write_tail _ _ _ 0 0 32 (by simp [toByteArray_size]; omega) (by decide)
+        (M ++ ((UInt256.ofNat L).toByteArray ++ D)) ++ Z by
+          intro D Z; simp only [ByteArray.append_assoc],
+      write_tail _ _ _ 0 0 32 (by simp; omega) (by decide)
         (by rw [toByteArray_size]) (by rw [zeros_size]; omega)]
     simp only [zeros_size, zeros_extract, Nat.zero_add, toByteArray_extract_all,
       show min 0 (32 * (k + 1)) - 0 = 0 by omega,
@@ -644,7 +644,8 @@ theorem solStringLoad_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 65 < UIn
     have hmaxa : ¬ UInt256.size - 1 < 18446744073709551615 := by decide
     by_cases h64 : 32 + (L + 31) / 32 * 32 < 2 ^ 64
     · simp [SolString_load, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
-        storedLen_exec I w _ (by omega), hok, wordCount_exec I w _ (by omega : L + 31 < UInt256.size),
+        storedLen_exec I w _ (by omega), hok,
+        wordCount_exec I w _ (by omega : L + 31 < UInt256.size),
         ofNat_mul_ofNat (a := (L + 31) / 32) (b := 32) (by omega) (by decide) (by omega),
         lit_add_eq (a := 32) (b := (L + 31) / 32 * 32) (by omega), toNatMax, toNatU64,
         ulit_toNat' _ hsize, hmaxa, show ¬ UInt256.size - 1 < 32 + (L + 31) / 32 * 32 by omega,
@@ -654,7 +655,8 @@ theorem solStringLoad_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 65 < UIn
       rw [loadLoop_exec I slot L hL255 _ w.memory (by omega) ((L + 31) / 32) 0 _ (by omega) ?hm,
         fromAbiTail_exec I _ w.memory _ L hL255 rfl (by omega),
         if_pos (show 32 + (L + 31) / 32 * 32 < 18446744073709551616 from h64)]
-      · have hlong : loadWords I w.accounts slot L ((L + 31) / 32) = loaded w.accounts I slot L := by
+      · have hlong :
+            loadWords I w.accounts slot L ((L + 31) / 32) = loaded w.accounts I slot L := by
           rw [loadWords, leadWords_eq _ L (by omega), loaded, strBytes, if_neg (by omega)]
           rfl
         simp [hlong]
@@ -663,7 +665,8 @@ theorem solStringLoad_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 65 < UIn
         simp [zeros_size, zeros_extract, toByteArray_extract_all, loadWords, wordsBytes,
           Nat.mul_comm 32]
     · simp [SolString_load, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
-        storedLen_exec I w _ (by omega), hok, wordCount_exec I w _ (by omega : L + 31 < UInt256.size),
+        storedLen_exec I w _ (by omega), hok,
+        wordCount_exec I w _ (by omega : L + 31 < UInt256.size),
         ofNat_mul_ofNat (a := (L + 31) / 32) (b := 32) (by omega) (by decide) (by omega),
         lit_add_eq (a := 32) (b := (L + 31) / 32 * 32) (by omega), toNatMax, toNatU64,
         ulit_toNat' _ hsize, hmaxa, show ¬ UInt256.size - 1 < 32 + (L + 31) / 32 * 32 by omega,
@@ -679,7 +682,8 @@ theorem solStringLoad_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 65 < UIn
     by_cases h0 : L = 0
     · subst h0
       simp [SolString_load, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
-        storedLen_exec I w _ (by omega), hok, wordCount_exec I w _ (by omega : 0 + 31 < UInt256.size),
+        storedLen_exec I w _ (by omega), hok,
+        wordCount_exec I w _ (by omega : 0 + 31 < UInt256.size),
         toNatMax, toNatU64, hmaxa, alloc, mstore, hfl, ulit_toNat' w.memory.size (by omega),
         show w.memory.size + 32 < UInt256.size by omega,
         show UInt256.ofNat 0 * UInt256.ofNat 32 = UInt256.ofNat 0 from rfl,
@@ -717,14 +721,16 @@ theorem solStringLoad_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 65 < UIn
       rw [write_tail _ _ _ 0 0 32 (by simp) (by decide) (by rw [toByteArray_size])
           (by rw [zeros_size]; omega),
         write_tail _ _ _ 0 32 32 rfl (by decide) (by rw [toByteArray_size])
-          (by simp [zeros_size, toByteArray_size])]
+          (by simp [zeros_size])]
       simp [zeros_size, zeros_extract, toByteArray_extract_all]
       rw [extract_append_left _ _ _ _ (by rw [toByteArray_size]), toByteArray_extract_all]
-    have hs : (leadWord (slotWord I w.accounts slot) L).toByteArray = loaded w.accounts I slot L := by
+    have hs :
+        (leadWord (slotWord I w.accounts slot) L).toByteArray = loaded w.accounts I slot L := by
       rw [leadWord_toByteArray, loaded, strBytes, if_pos (by omega), Nat.min_eq_left (by omega), hW]
       rfl
     have ht := fromAbiTail_exec I { w with memory := w.memory ++ ((UInt256.ofNat L).toByteArray ++
-      (leadWord (slotWord I w.accounts slot) L).toByteArray) } w.memory _ L (by omega) rfl (by omega)
+      (leadWord (slotWord I w.accounts slot) L).toByteArray) } w.memory _ L (by omega) rfl
+      (by omega)
     simp only [hW] at ht
     rw [hm, ht, hs]
 
@@ -755,7 +761,7 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
       exact .exit _
     have hB : ((UInt256.ofNat L).toByteArray ++ loaded w.accounts I slot L).size =
         32 + (L + 31) / 32 * 32 := by
-      simp [loaded, toByteArray_size, strBytes_size, zpad_size]; omega
+      simp [loaded, strBytes_size]; omega
     simp only []
     rw [if_pos h32]
     simp only []
@@ -767,7 +773,8 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
       (by simp only [ByteArray.size_append, hB]; omega) (by omega)
       (by simp only [ByteArray.size_append, hB, hw]; simp; omega) h32]
     by_cases h64 : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
-    · simp [Model.stringReturn, hd, show 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 from h64,
+    · simp [Model.stringReturn, hd,
+        show 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 from h64,
         show 64 + 32 * ((L + 31) / 32) < 18446744073709551616 by omega]
       exact .stop_ok rfl rfl
     · simp [Model.stringReturn, hd,
@@ -811,7 +818,8 @@ theorem clearLoop_exec (slot : UInt256) (hperm : I.perm = true) (n : ℕ) (hn : 
   | succ k ih =>
     intro i wd hik
     rw [SolString_store.b10.eq_1]
-    simp [ulit_toNat' i (by unfold UInt256.size; omega), ulit_toNat' n (by unfold UInt256.size; omega),
+    simp [ulit_toNat' i (by unfold UInt256.size; omega),
+      ulit_toNat' n (by unfold UInt256.size; omega),
       show i < n by omega, Payload_locate, Layout.SolString, Fe.EVM.add_zero, keccakWords_single,
       exec_sstore, hperm, lit_add_eq (a := i) (b := 1) (by omega),
       ih (i + 1) _ (by omega), clearDataWordsForwardFrom]
@@ -823,9 +831,10 @@ theorem clearLoop_exec (slot : UInt256) (hperm : I.perm = true) (n : ℕ) (hn : 
 theorem strHeadBad_iff (S : UInt256) :
     strHeadBad S ↔ solidityDecodeBytesLengthHeader S = .revert := by
   unfold strHeadBad strHeadLen solidityDecodeBytesLengthHeader
-  by_cases h : S.land ⟨1⟩ = ⟨0⟩ <;> simp [h] <;> split <;> simp_all
+  by_cases h : S.land ⟨1⟩ = ⟨0⟩ <;> simp [h]
 
-theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0 < bytes.size) (hb : bytes.size < 32)
+theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0 < bytes.size)
+    (hb : bytes.size < 32)
     (hword : leadWord (uInt256OfByteArray (bytes.readWithPadding 0 32)) bytes.size |||
       UInt256.ofNat (bytes.size * 2) = solidityShortBytesWord bytes)
     (hread : w.memory.readWithPadding (p + 32) bytes.size = bytes)
@@ -847,12 +856,13 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
     by_cases hperm : I.perm = true
     · simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
         storedLen_exec I w _ hmem, hok, hbad, hfl, hperm, payload_word, exec_sstore,
-        ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
+        toNat0, show ¬ bytes.size = 0 by omega,
         show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
         show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
         ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
         ulit_toNat' bytes.size (by omega), Nat.min_eq_left hb.le,
-        wordCount_exec I w _ (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size),
+        wordCount_exec I w _
+          (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size),
         fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
         ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword]
       have hold : strOldWords (slotWord I w.accounts slot) =
@@ -863,7 +873,8 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
         rfl
       rw [clearLoop_exec I slot hperm (((slotWord I w.accounts slot).toNat / 2 + 31) / 32)
         (by omega) _ _ (((slotWord I w.accounts slot).toNat / 2 + 31) / 32) 0 _ (by omega),
-        strWriteMap, show strOldWords (Reasoning.Reach.solcSlotWord w.accounts I slot) = _ from hold]
+        strWriteMap,
+        show strOldWords (Reasoning.Reach.solcSlotWord w.accounts I slot) = _ from hold]
       rfl
     · have hpf : I.perm = false := by simpa using hperm
       simp [SolString_store, Model.storeString, Layout.SolString, Layout.Payload, Fe.EVM.add_zero,
@@ -875,7 +886,8 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
         Nat.min_eq_left hb.le,
         fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
         ofNat_mul_ofNat (a := bytes.size) (b := 2) (by omega) (by decide) (by omega), hword, hpf,
-        wordCount_exec I w _ (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size)]
+        wordCount_exec I w _
+          (by omega : (slotWord I w.accounts slot).toNat / 2 + 31 < UInt256.size)]
   · have hfl : slotWord I w.accounts slot &&& UInt256.ofNat 1 = UInt256.ofNat 0 := headFlag_even he
     have hp32 : (UInt256.ofNat p + UInt256.ofNat 32).toNat = p + 32 := by
       rw [lit_add_eq (by unfold UInt256.size at hp; omega), ulit_toNat' _ (by omega)]
@@ -884,7 +896,6 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
         storedLen_exec I w _ hmem, hok, hbad, hfl, payload_word, exec_sstore,
         ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
         show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
-        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
         ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
         Nat.min_eq_left hb.le,
         fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
@@ -901,7 +912,6 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
         storedLen_exec I w _ hmem, hok, hbad, hfl, payload_word, exec_sstore,
         ulit_toNat' bytes.size (by omega), toNat0, show ¬ bytes.size = 0 by omega,
         show bytes.size < 32 from hb, readPaddedWord, hp32, hread, toNat32,
-        show UInt256.ofNat 1 ≠ UInt256.ofNat 0 by decide,
         ofNat_sub_ofNat (a := bytes.size) (b := 0) (by omega) (by omega),
         Nat.min_eq_left hb.le,
         fun (w' : World) (v : UInt256) => leadingBytes_exec I w' v bytes.size (by omega),
@@ -955,7 +965,8 @@ theorem symbolWord_eq : leadWord (uInt256OfByteArray (Model.symbolBytes.readWith
 theorem writeDecimals_exec :
     (SolSlot_write_u8 (.storage Model.decimalsSlot) (UInt256.ofNat 0) (UInt256.ofNat 18)).exec I w =
       (sstore Model.decimalsSlot (UInt256.lor (UInt256.ofNat 18) (UInt256.land
-        (UInt256.lnot (UInt256.ofNat 255)) (slotWord I w.accounts Model.decimalsSlot)))).exec I w := by
+        (UInt256.lnot (UInt256.ofNat 255)) (slotWord I w.accounts Model.decimalsSlot)))).exec
+        I w := by
   have hmask : UInt256.ofNat 1 <<< UInt256.ofNat 8 = UInt256.ofNat 256 := by decide
   have hmul : UInt256.ofNat 0 * UInt256.ofNat 8 = UInt256.ofNat 0 := by decide
   have hsub : (UInt256.ofNat 256).sub (UInt256.ofNat 0) = UInt256.ofNat 256 := by decide
@@ -979,7 +990,8 @@ theorem storeString_model (slot : UInt256) (bytes : ByteArray) (hperm : I.perm =
 
 /-- The exported deployment entry ends as the model's constructor does, on the empty memory a
     call starts with and with write permission, as a creation has. -/
-theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty) (hperm : I.perm = true) :
+theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty)
+    (hperm : I.perm = true) :
     EndsAs ((init_entry args >>= fun tail => pure (rt ++ tail)).exec I w)
       ((Model.contract.init args >>= fun tail => pure (rt ++ tail)).exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -997,19 +1009,19 @@ theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty) (hpe
   simp only []
   rw [storeString_exec I _ Model.nameSlot w.memory.size Model.nameBytes (by decide) (by decide)
     nameWord_eq (literal_read _ _ (by decide)) (by rw [hw]; decide)
-    (by simp [hw, toByteArray_size, zeros_size]; decide),
+    (by simp [hw, zeros_size]; decide),
     storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
   by_cases hb0 : strHeadBad (slotWord I w.accounts Model.nameSlot)
   · simp [hb0]
     exact .exit _
   simp [hb0, DynString_drop]
   rw [stringLiteral_exec I _ Model.symbolBytes (by decide) (by decide)
-    (by simp [hw, toByteArray_size, zeros_size]; decide)]
+    (by simp [hw, zeros_size]; decide)]
   simp only []
   rw [storeString_exec I _ Model.symbolSlot _ Model.symbolBytes (by decide) (by decide)
     symbolWord_eq (literal_read _ _ (by decide))
-    (by simp [hw, toByteArray_size, zeros_size]; decide)
-    (by simp [hw, toByteArray_size, zeros_size]; decide),
+    (by simp [hw, zeros_size]; decide)
+    (by simp [hw, zeros_size]; decide),
     storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
   by_cases hb1 : strHeadBad (slotWord I (strWriteMap I w.accounts Model.nameSlot Model.nameBytes)
     Model.symbolSlot)

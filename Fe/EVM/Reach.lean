@@ -85,6 +85,23 @@ theorem agrees_of_static
   · exact Or.inr (Xi_error_of_X (g := g.toUInt256)
       (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hst))
 
+/-! ## Decoding -/
+
+/-- A calldata word at or above `2 ^ 160` is not an address. -/
+theorem notAddress_of {w : UInt256} (h : ¬ w.toNat < EVM.addressModulus) : NotAddress w := by
+  simpa [NotAddress, EVM.addressModulus] using h
+
+theorem not_notAddress_of {w : UInt256} (h : w.toNat < EVM.addressModulus) : ¬ NotAddress w := by
+  simpa [NotAddress, EVM.addressModulus] using h
+
+/-- Calldata too short for `n` words, or so long that the signed length check rejects it. -/
+theorem badHead_of {cd : ByteArray} {n : ℕ} (h : cd.size < 4 + 32 * n ∨ 2 ^ 255 + 4 ≤ cd.size) :
+    BadHead cd n := h
+
+theorem not_badHead_of {cd : ByteArray} {n : ℕ} (hlen : 4 + 32 * n ≤ cd.size)
+    (hhi : cd.size < 2 ^ 255 + 4) : ¬ BadHead cd n := by
+  unfold BadHead; omega
+
 /-- The model's storage write is the account-map update the trace lemmas use. -/
 theorem storeWord_eq_sstoreAccountMap (owner : AccountAddress) (σ : AccountMap)
     (slot val : UInt256) : storeWord owner σ slot val = sstoreAccountMap owner σ slot val := rfl
