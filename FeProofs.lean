@@ -8,6 +8,7 @@ import FeProofs.Deposit.Correct
 import FeProofs.ERC20.Correct
 import FeProofs.WETH9.Correct
 import FeProofs.Constant.ModelCorrect
+import FeProofs.Constant.Invariant
 import FeProofs.ScalarStore.ModelCorrect
 import FeProofs.ScalarStore.Exported
 import FeProofs.ScalarStore.RuntimeCorrect
