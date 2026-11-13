@@ -115,6 +115,38 @@ theorem returned_size (memory : ByteArray) (v : UInt256) :
     byteArray_write_size_of_inBounds _ _ _ _ (by rw [hzeros])
       (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
 
+/-! ## Memory past a known prefix
+
+Exported code allocates fresh memory and writes into it, so its memory is a prefix `M` it does not
+touch followed by a tail `T` whose bytes a proof tracks. -/
+
+/-- A write of `n` bytes of `src` from `s` into the tail, at `k` bytes into it. -/
+theorem write_tail (src M T : ByteArray) {d : ℕ} (s k n : ℕ) (hd : d = M.size + k) (hn : n ≠ 0)
+    (hsrc : s + n ≤ src.size) (hk : k + n ≤ T.size) :
+    src.write s (M ++ T) d n =
+      M ++ (T.extract 0 k ++ src.extract s (s + n) ++ T.extract (k + n) T.size) := by
+  subst hd
+  rw [write_eq_gen_from src (M ++ T) s (M.size + k) n hn hsrc
+      (by rw [ByteArray.size_append]; omega),
+    extract_append_span _ _ _ _ (Nat.zero_le _) (by omega), byteArray_extract_self,
+    extract_append_right_window _ _ _ _ (by omega), ByteArray.size_append,
+    show M.size + k + n - M.size = k + n by omega, show M.size + T.size - M.size = T.size by omega,
+    show M.size + k - M.size = k by omega, ByteArray.append_assoc, ByteArray.append_assoc,
+    ByteArray.append_assoc]
+
+/-- A read of `n` bytes of the tail, at `k` bytes into it. -/
+theorem readWithPadding_tail (M T : ByteArray) {a : ℕ} (k n : ℕ) (ha : a = M.size + k)
+    (hn : 0 < n) (hk : k + n ≤ T.size) :
+    (M ++ T).readWithPadding a n = T.extract k (k + n) := by
+  subst ha
+  rw [readWithPadding_eq_extract_unbounded _ _ _ hn (by rw [ByteArray.size_append]; omega),
+    extract_append_right_window _ _ _ _ (by omega), show M.size + k - M.size = k by omega,
+    show M.size + k + n - M.size = k + n by omega]
+
+/-- The size of `n` fresh zero bytes. -/
+theorem zeros_size (n : ℕ) : (⟨Array.replicate n 0⟩ : ByteArray).size = n := by
+  simp [ByteArray.size]
+
 /-! ## A hashed pair of words -/
 
 /-- Memory after two words are stored in a fresh 64-byte buffer: what std's `mapping_slot`
