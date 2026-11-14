@@ -322,7 +322,8 @@ def opAt (code : ByteArray) (pc : Nat) : Option (Operation × Option Nat × Nat)
   (Hints.decodeAt code pc).filter fun (_, _, next) => next ≤ code.size
 
 /-- `true` if `t` is a valid jump destination of the code. -/
-def validJump (code : ByteArray) (t : Nat) : Bool := (D_J code 0).contains (UInt256.ofNat t)
+def validJump (code : ByteArray) (t : Nat) : Bool :=
+  t < code.size && (D_J code 0).contains (UInt256.ofNat t)
 
 /-- The number of the `DUP` or `SWAP`: `DUPn` copies the `n`-th item, `SWAPn` swaps the first
     with the `n + 1`-th. -/
@@ -545,6 +546,7 @@ def inClass (f : FuncHint) : Bool :=
     with an empty entry stack. -/
 def checkSection (code : CodeSection) (entry : String) : Except String Unit := do
   let some low := code.lowering | throw "no lowering record"
+  unless code.bytecode.size < UInt256.size do throw "the code does not fit a word"
   let [hint] := low.funcs | throw "not one function"
   unless hint.name == entry && inClass hint do throw s!"{hint.name} is outside the class"
   let some f := low.machine.func? entry | throw "no machine IR of the entry"
