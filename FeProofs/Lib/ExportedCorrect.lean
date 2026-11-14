@@ -74,6 +74,64 @@ theorem returnU8_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) :
     Fe.EVM.add_zero, hsize, UInt256.size, hroom, returned]
   exact returned_read _ _
 
+/-- Three words written into a fresh 96-byte buffer at the end of memory read back as their
+    concatenation. -/
+theorem returned3_read (memory : ByteArray) (a b c : UInt256) :
+    (c.toByteArray.write 0 (b.toByteArray.write 0 (a.toByteArray.write 0
+        ((⟨Array.replicate 96 0⟩ : ByteArray).write 0 (memory ++ ⟨Array.replicate 96 0⟩)
+          memory.size 96) memory.size 32) (memory.size + 32) 32)
+        (memory.size + 64) 32).readWithPadding memory.size 96 =
+      a.toByteArray ++ b.toByteArray ++ c.toByteArray := by
+  have hz : (⟨Array.replicate 96 0⟩ : ByteArray).size = 96 := rfl
+  set m := memory.size
+  set B0 := (⟨Array.replicate 96 0⟩ : ByteArray).write 0 (memory ++ ⟨Array.replicate 96 0⟩) m 96
+  have h0 : B0.size = m + 96 := by
+    rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
+      ByteArray.size_append, hz]
+  set B1 := a.toByteArray.write 0 B0 m 32
+  have h1 : B1.size = m + 96 := by rw [write32_size_of_end_le _ _ _ (by omega), h0]
+  set B2 := b.toByteArray.write 0 B1 (m + 32) 32
+  have h2 : B2.size = m + 96 := by rw [write32_size_of_end_le _ _ _ (by omega), h1]
+  have hs := toByteArray_size
+  rw [show (96 : ℕ) = 32 + 64 from rfl,
+    byteArray_readWithPadding_split _ _ 32 64 (by omega) (by omega) (by omega) (by omega) (by omega)
+      (by rw [write32_size_of_end_le _ _ _ (by omega), h2]),
+    show (64 : ℕ) = 32 + 32 from rfl,
+    byteArray_readWithPadding_split _ _ 32 32 (by omega) (by omega) (by omega) (by omega) (by omega)
+      (by rw [write32_size_of_end_le _ _ _ (by omega), h2])]
+  rw [write32_read_below _ _ _ _ (by rw [hs]) (by omega) (by omega),
+    write32_read_below _ _ _ _ (by rw [hs]) (by omega) (by omega),
+    toByteArray_write32_read_back _ _ _ (by omega),
+    write32_read_below _ _ (m + 64) (m + 32) (by rw [hs]) (by omega) (by omega),
+    toByteArray_write32_read_back _ _ _ (by omega),
+    show m + 32 + 32 = m + 64 by omega, toByteArray_write32_read_back _ _ _ (by omega),
+    ByteArray.append_assoc]
+
+set_option maxRecDepth 100000 in
+set_option maxHeartbeats 4000000 in
+/-- `return_value` at `(bool, u256, u256)` ends the call with the three words of the tuple, the
+    96-byte ABI encoding.  It changes memory only. -/
+theorem returnTriple_exec (t : Bool × UInt256 × UInt256)
+    (hmem : w.memory.size + 96 < UInt256.size) :
+    ∃ memory, (Evm_return_value_Sol_tuple_bool_u256_u256 t).exec I w =
+      some (.error (.stop ((Bool.toUInt256 t.1).toByteArray ++ t.2.1.toByteArray ++
+        t.2.2.toByteArray) { w with memory := memory })) := by
+  have hsize : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
+    ulit_toNat' _ (by omega)
+  have hroom := hmem
+  simp only [UInt256.size] at hroom
+  have s96_32' : UInt256.ofNat 96 - UInt256.ofNat 32 = UInt256.ofNat 64 := rfl
+  have s96_64' : UInt256.ofNat 96 - UInt256.ofNat 64 = UInt256.ofNat 32 := rfl
+  have s96_96 : UInt256.ofNat 96 - UInt256.ofNat 96 = UInt256.ofNat 0 := rfl
+  have s32_0 : UInt256.ofNat 32 - UInt256.ofNat 0 = UInt256.ofNat 32 := rfl
+  have s96_0' : UInt256.ofNat 96 - UInt256.ofNat 0 = UInt256.ofNat 96 := rfl
+  simp [Evm_return_value_Sol_tuple_bool_u256_u256, toNat0, toNat32, toNat64, toNat96, toNatMax,
+    toNatU64, add32_32, add64_32, s96_96, s96_32', s96_64', s32_0, s96_0', Fe.EVM.add_zero, hsize,
+    UInt256.size, hroom]
+  rw [ofNat_add_ofNat (by omega), ulit_toNat' _ (by omega), ofNat_add_ofNat (by omega),
+    ulit_toNat' _ (by omega)]
+  exact returned3_read _ _ _ _
+
 /-! ## Panics -/
 
 /-- The bytes `revert_error` encodes a panic in: the selector of `Panic(uint256)`, left from the

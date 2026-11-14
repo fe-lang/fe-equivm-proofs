@@ -21,6 +21,7 @@ import FeProofs.ERC20.Invariant
 import FeProofs.WETH9.Invariant
 import FeProofs.Fixtures.Exported
 import FeProofs.Ecrecover.Exported
+import FeProofs.Ecrecover.Contract
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
