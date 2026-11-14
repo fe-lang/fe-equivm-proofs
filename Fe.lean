@@ -20,4 +20,5 @@ import Fe.Sonatina.Check
 import Fe.Sonatina.CheckSound
 import Fe.Sonatina.CheckStep
 import Fe.Sonatina.CheckEvent
+import Fe.Sonatina.CheckBlock
 import Fe.Sonatina.Diff
