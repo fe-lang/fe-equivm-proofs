@@ -328,9 +328,10 @@ section's IR reads none) and a corpus directory.
 
 The verdict evaluates by the kernel (`decide +kernel`) and by `native_decide` (0.4 s). On a
 loaded machine the kernel takes 11.5 to 17.1 s for both FeScalarStore sections against 6.3 to
-7.9 s for the checker of stage D's first commit measured alongside; the well-formedness checks
-and the total order on operands account for it. Kernel evaluation needs the expressions non-nested and the checker
-structurally recursive, which is why `Expr` has fixed arities.
+7.9 s for the checker of stage D's first commit measured alongside, most likely from the
+well-formedness checks and the total order on operands (not measured apart). Kernel evaluation
+needs the expressions non-nested and the checker structurally recursive, which is why `Expr` has
+fixed arities.
 
 What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P1`; it is not
 yet proved. On the statement:
