@@ -1,4 +1,5 @@
 import FeProofs.Precompiles.Secp256k1.Table
+import FeProofs.Precompiles.Field.Checked
 
 /-!
 # Ecrecover: `combination`
@@ -280,12 +281,6 @@ namespace FeProofs.Ecrecover
 open FeProofs.Precompiles
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
-theorem range_has_eq {k lo hi : ℕ} (hk : k < 2 ^ 256) (hl : lo < 2 ^ 256) (hh : hi < 2 ^ 256) :
-    Lib.range_has (UInt256.ofNat k) (UInt256.ofNat lo) (UInt256.ofNat hi) =
-      pure (decide (lo ≤ k ∧ k < hi)) := by
-  simp only [Lib.range_has, toNat_lit hk, toNat_lit hl, toNat_lit hh]
-  by_cases h1 : lo ≤ k <;> by_cases h2 : k < hi <;> simp [h1, h2]
-
 theorem has16 (r : Range_Known_1_Known_16) {k : ℕ} (hk : k < 2 ^ 256) :
     Range_has_1_16 r (UInt256.ofNat k) = pure (decide (1 ≤ k ∧ k < 16)) := by
   simp only [Range_has_1_16, range_has_eq (lo := 1) (hi := 16) hk (by decide) (by decide), bind_pure]
@@ -293,12 +288,6 @@ theorem has16 (r : Range_Known_1_Known_16) {k : ℕ} (hk : k < 2 ^ 256) :
 theorem has4 (r : Range_Known_1_Known_4) {k : ℕ} (hk : k < 2 ^ 256) :
     Range_has_1_4 r (UInt256.ofNat k) = pure (decide (1 ≤ k ∧ k < 4)) := by
   simp only [Range_has_1_4, range_has_eq (lo := 1) (hi := 4) hk (by decide) (by decide), bind_pure]
-
-theorem next_eq {k : ℕ} (hk : k + 1 < 2 ^ 256) :
-    Lib.usize_wrapping_add (UInt256.ofNat k) (UInt256.ofNat 1) = pure (UInt256.ofNat (k + 1)) := by
-  simp only [Lib.usize_wrapping_add]
-  congr 1
-  exact Fe.EVM.ofNat_add_ofNat hk
 
 theorem next16 (r : Range_Known_1_Known_16) {k : ℕ} (hk : k + 1 < 2 ^ 256) :
     Range_next_1_16 r (UInt256.ofNat k) = pure (UInt256.ofNat (k + 1)) := by
@@ -389,13 +378,6 @@ def TabGood (G Q : W.toAffine.Point) (t : ℕ → Point_Mont_Base) (D : ℕ → 
 theorem arr_at {p : ℕ} (hp : p < 3) :
     #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12][p]! = UInt256.ofNat (4 * (p + 1)) := by
   interval_cases p <;> rfl
-
-theorem checkedAdd_small {a b : ℕ} (h : a + b < 2 ^ 256) :
-    checkedAdd (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a + b)) := by
-  unfold checkedAdd
-  rw [toNat_lit (by omega), toNat_lit (by omega), if_neg (by change ¬ 2 ^ 256 ≤ _; omega)]
-  congr 1
-  exact Fe.EVM.ofNat_add_ofNat h
 
 /-- The inner loop of the table, at outer step `p` and column `j`. -/
 theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3)
