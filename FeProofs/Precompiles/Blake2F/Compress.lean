@@ -408,4 +408,36 @@ theorem F_get (d : ByteArray) (j : Fin 8) :
     BLAKE2.toArray_get _ (by omega), outW, ← UInt64.xor_assoc]
   simp [hArr, hOf]
 
+/-- The words of `F` on the decoded input, which `compressInput` encodes. -/
+def outArr (d : ByteArray) : Array UInt64 :=
+  BLAKE2.F (roundsOf d) (hArr d) (mArr d) (BLAKE2.word d 196) (BLAKE2.word d 204)
+    (decide (byteAt d 212 = 1))
+
+theorem flag_eq (d : ByteArray) : decide (d[212]! = 1) = decide (byteAt d 212 = 1) := by
+  apply decide_eq_decide.mpr
+  rw [← byte_get]
+  constructor
+  · intro e; rw [e]; rfl
+  · intro e; exact UInt8.toNat_inj.mp (by rw [e]; rfl)
+
+/-- `compressInput` is the 64 little-endian bytes of `outArr`. -/
+theorem compressInput_eq (d : ByteArray) :
+    BLAKE2.compressInput d = ByteArray.mk (Array.ofFn fun i : Fin 64 =>
+      ((outArr d)[i.val / 8]! >>> (8 * (i.val % 8)).toUInt64).toUInt8) := by
+  unfold BLAKE2.compressInput outArr
+  rw [byte_get, byte_get, byte_get, byte_get, flag_eq]
+  rfl
+
+/-- **`compress` is BLAKE2 F.**  On a buffer holding 213 bytes `d` whose final byte is 0 or 1,
+`compress_MemBuffer` returns, with the world unchanged, the eight words that `compressInput d`
+encodes, each as a word. -/
+theorem compress_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
+    (h : Holds b d w.memory) (hd : d.size = 213) (hf : byteAt d 212 ≤ 1) :
+    (compress_MemBuffer b).exec I w =
+      some (.ok (Vector.ofFn fun j : Fin 8 => lw ((outArr d)[j.val]!), w)) := by
+  rw [compress_spec h hd hf]
+  congr 4
+  funext j
+  rw [outArr, F_get]
+
 end FeProofs.Blake2F
