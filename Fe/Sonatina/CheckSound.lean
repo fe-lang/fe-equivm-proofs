@@ -9,9 +9,11 @@ import Reasoning.EVMWord
 What `check` is to imply, and the first lemmas of its proof.
 
 `Sound s` is the statement `check_sound` is to prove of every sidecar `s` with `check s = true`:
-the runtime bytes refine the machine IR's runtime, and the init bytes its constructor.  It is
-at profile `P0` here; `P1` holds by the same proof once the block lemmas carry the substate (logs)
-and the revert output, which EVMLean's `XstepN_X_halt_success` and `XstepN_X_halt_revert` give.
+the runtime bytes refine the machine IR's runtime, and the init bytes its constructor, at
+profile `P1`: logs and revert payloads too.  The proof steps the bytes by `Xstep` (EVMLean's
+`step_*` lemmas, `CheckStep.lean`), whose states hold the substate's logs and the output, so `P1`
+costs over `P0` only the logs in the state relation (`step_log0` to `step_log4` against the
+IR's `logData`) and the revert payload, read from memory as the return data is.
 
 `Expr.eval` is the meaning of the checker's expressions in a frame: an atom is the word the
 environment `env` gives the machine value, a constant itself, an operation what `Xstep`
@@ -31,8 +33,8 @@ def _root_.Fe.Sonatina.Sidecar.code (s : Sidecar) (name : String) : ByteArray :=
 
 /-- What `check s = true` is to imply. -/
 def Sound (s : Sidecar) : Prop :=
-  RefinesOn .P0 (s.code "runtime") (s.model .machine) CalldataFits
-    ∧ RefinesDeploy .P0 (s.code "init") .empty (s.model .machine) (fun _ => True)
+  RefinesOn .P1 (s.code "runtime") (s.model .machine) CalldataFits
+    ∧ RefinesDeploy .P1 (s.code "init") .empty (s.model .machine) (fun _ => True)
 
 /-- A pure opcode `evalOp` does not compute, as `Xstep` pushes it in the frame `ee`: `EXP`, and
     the opcodes of the environment. -/

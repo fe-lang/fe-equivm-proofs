@@ -330,13 +330,15 @@ The verdict evaluates by the kernel (`decide +kernel`, 3.1 s for both FeScalarSt
 by `native_decide` (0.12 s). Kernel evaluation needs the expressions non-nested and the checker
 structurally recursive, which is why `Expr` has fixed arities.
 
-What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P0`; it is not
-proved. On the statement:
+What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P1`; it is not
+yet proved. On the statement:
 
-- `P1` is provable from EVMLean's `X` and `Xstep`: `XstepN_X_halt_success` gives the final state,
-  whose substate holds the logs, and `XstepN_X_halt_revert` the revert output. EquiVM's `RD`
-  hides both, so a proof built on its cursor lemmas concludes `P0` only; one built on its per-opcode
-  `*_xstep` lemmas and `XstepN` reaches `P1`.
+- `P1` costs little over `P0`. The proof steps the bytes by `Xstep` through EVMLean's `step_*`
+  lemmas, whose states hold the substate (logs) and the output, so `P1` adds to the state
+  relation only the log series against the IR world's `logs` (`step_log0`..`step_log4` against
+  `logData`, which builds the same entry and fails the same way under a static call) and the
+  revert payload, read from memory as the return data is. EquiVM's `RD` hides both, so a proof
+  built on its cursor lemmas would conclude `P0` only.
 - Running out of gas or stack is `Exhausted`, which `RefinesFor` excuses: every per-opcode step is
   an `if gas < cost then OutOfGass` or overflows to `StackOverflow`, and either error ends `Ξ`.
   The bytes' gas never meets the model's steps: the runner is a least fixpoint, so the theorem
@@ -346,14 +348,31 @@ proved. On the statement:
   `n` steps, `XstepN_X_continue` turns that into `X`, and `XOk` holds of a frame whose steps the
   class makes call-free (`stepOk` is `True` for every opcode but calls and creations).
 
-Proved so far: that constant folding is sound (`foldConst_eval`). Left, in order: the soundness
-of operand normalization (commutativity of the six operations, `GT` as swapped `LT`); per-opcode
-lemmas relating one symbolic step to `Xstep` for each opcode `run` accepts, from EquiVM's
-`*_xstep`; the block lemma by induction on `run`'s fuel; the IR side, `runBlocks` unfolded on
-the block's events (needs per-instruction lemmas: the interpreter's arithmetic on 256-bit values
-is EVMLean's); the section, from the entry block at offset 0 with an empty stack and the free
-pointer prologue, by induction on the bytecode's steps; deployment (`CODECOPY` of the runtime and
-`RETURN`, the constructor arguments read from the code); then the model half for FeScalarStore.
+Proved so far:
+
+1. Operand normalization and the reading of jumps (`CheckSound.lean`): `mkOp_eval` (constant
+   folding, commuted operands, `GT` as swapped `LT`, three `ISZERO`s as one) and `way_sound`,
+   that the way `Exit.way` reads a conditional jump is where the exit goes (`Exit.next`) when the
+   condition's value says the jump is taken, the constant-branch rule and `br_table` cases among
+   it; `selected_sound` for a `br_table` with every case ruled out.
+2. Per-opcode steps (`CheckStep.lean`): one `Xstep` from any code `Moves` (runs out of gas or
+   stack, or moves to the next pc and stack, the frame otherwise unchanged but for gas) for every
+   opcode `run` moves the stack over: `pure_moves` for all of `pureOps` at once by `opEval`,
+   `dup_moves`/`swap_moves` for every `DUPn`/`SWAPn`, and `PUSHn`, `PUSH0`, `POP`, `JUMPDEST`,
+   `JUMP`, `JUMPI`. The opcodes on state and the halts use EVMLean's `step_*` lemmas as they are.
+
+Left, in order: the block lemma by induction on `run`'s fuel, stated with `XstepN`; the IR side,
+`runBlocks` unfolded one block at a time, with per-instruction lemmas (the interpreter's
+arithmetic on words is EVMLean's: `BinOp.eval` at 256 bits against `evalOp`, the signed ones
+through `signed`); the section, from the entry block at offset 0 with an empty stack and the free
+pointer prologue; deployment (`CODECOPY` of the runtime and `RETURN`, the constructor arguments
+read from the code); `check_sound`; then the model half for FeScalarStore.
+
+Two checker changes the proof needed: `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`,
+`MULMOD` and `EXP` their values (an expression using one had none, so no frame satisfied a path
+through it), and the checker rejects a machine IR value or immediate that is not a word (the
+interpreter computes `add` at the operands' width, the bytes at 256 bits). Neither changes a
+verdict on the fixtures or the corpus.
 
 ## What is hard
 

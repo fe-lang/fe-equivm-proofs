@@ -5,8 +5,9 @@ import Fe.Sonatina.Hints
 
 `check s` decides that each section of the sidecar `s` is emitted from its machine IR, for the
 class of sections the first checker covers: one function a section (no internal calls), no
-memory spills, no dynamic frames, no dynamic stack pointer, no call preserves, and only the
-instructions `exprOf`, `eventOf` and `haltOf` translate.  The hints are inputs: a wrong one makes
+memory spills, no dynamic frames, no dynamic stack pointer, no call preserves, every value and
+immediate a word (as the EVM computes on words), and only the instructions `exprOf`, `eventOf`
+and `haltOf` translate.  The hints are inputs: a wrong one makes
 `check` false.
 
 For each machine block `B`, it runs two symbolic executions into one language of words:
@@ -188,10 +189,10 @@ def Ctx.ofFunc (f : Func) (symbols : List (String × Nat × Nat)) : Ctx :=
     | [(id, _)] => some (id, s.inst)
     | _ => none, symbols⟩
 
-/-- The expression of an operand, given that of a value. -/
+/-- The expression of an operand, given that of a value; an immediate must be a word. -/
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
   | .var id => expand id
-  | .imm _ value => some (.const value)
+  | .imm bits value => if bits == 256 && value < UInt256.size then some (.const value) else none
   | .undef _ => none
 
 /-- The expression of a pure instruction. -/
@@ -264,7 +265,7 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .br cond nz z => do return .br (← c.operand depth cond) nz z
   | .brTable s (some default) cases => do
     let cases ← cases.mapM fun (o, dest) => match o with
-      | .imm _ v => if v < UInt256.size then some (v, dest) else none
+      | .imm 256 v => if v < UInt256.size then some (v, dest) else none
       | _ => none
     return .table (← c.operand depth s) default cases []
   | .evmReturn a l => do return .halt .RETURN [← c.operand depth a, ← c.operand depth l]
@@ -464,6 +465,9 @@ def checkSection (code : CodeSection) (entry : String) : Except String Unit := d
   unless hint.name == entry && inClass hint do throw s!"{hint.name} is outside the class"
   let some f := low.machine.func? entry | throw "no machine IR of the entry"
   let some entryBlock := f.blocks.head? | throw "no entry block"
+  unless f.blocks.all fun b =>
+      b.phis.all (·.ty.bits == 256) && b.body.all (·.dsts.all (·.2.bits == 256)) do
+    throw "a value is not a word"
   let c := Ctx.ofFunc f code.symbols
   let place (b : Nat) := Hints.place low 16 (.block hint.name b)
   unless place entryBlock.id == some 0 do throw "the entry block is not at offset 0"
