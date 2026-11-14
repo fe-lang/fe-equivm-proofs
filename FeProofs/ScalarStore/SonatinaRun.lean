@@ -1,4 +1,5 @@
 import FeProofs.ScalarStore.Sonatina
+import Fe.Sonatina.Run
 
 /-!
 # FeScalarStore's machine IR, run
@@ -109,7 +110,6 @@ theorem runtimeFunc_eq : (((sidecar.section? "runtime").bind (·.lowering)).map 
     low.machine.func? "contract_runtime_root_FeScalarStore") = some (some runtimeFunc) := by
   rfl
 
-
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /-- Calldata shorter than a selector: the machine IR reverts with no data. -/
@@ -118,14 +118,91 @@ theorem ir_short (h : I.calldata.size < 4) :
   have h' : I.calldata.size % UInt256.size = I.calldata.size :=
     Nat.mod_eq_of_lt (by unfold UInt256.size; omega)
   simp only [UInt256.size] at h'
-  rw [runBlocks.eq_1]
-  simp [runtimeFunc, Func.block?, enter, Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst,
-    EvmOp.run, Fe.EVM.calldatasize, evalPair, evalInt, evalOperand, Fe.Sonatina.word, Val.as,
-    Ty.bits, CmpOp.eval, Sonatina.bool, Check.toNat_ofNat, UInt256.size, h', h]
-  rw [runBlocks.eq_1]
-  simp [Func.block?, enter, Fe.Sonatina.bind, runBody.eq_1]
-  rw [runBlocks.eq_1]
-  simp [Func.block?, enter, Fe.Sonatina.bind, runBody.eq_1, revertData, evalWord,
-    evalInt, evalOperand, Check.toNat_ofNat, Reasoning.Theory.byteArray_readWithPadding_zero]
+  repeat ir_step [runtimeFunc]
+
+/-- The selector of `set(uint256)`, as the machine IR computes it. -/
+abbrev SetSel : Prop := (uInt256OfByteArray (I.calldata.readBytes 0 32)).toNat >>> 224 = 1627277233
+
+/-- The selector of `get()`, as the machine IR computes it. -/
+abbrev GetSel : Prop := (uInt256OfByteArray (I.calldata.readBytes 0 32)).toNat >>> 224 = 1833756220
+
+section Arms
+
+variable {I} (hsz : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64)
+include hsz hfits
+
+/-- `set(uint256)` with call value: the machine IR reverts with no data. -/
+theorem ir_set_value (hsel : SetSel I) (hwv : I.weiValue ≠ ⟨0⟩) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
+  repeat ir_step [runtimeFunc]
+
+/-- `set(uint256)` on calldata too short for its argument: the machine IR reverts with no
+    data. -/
+theorem ir_set_head (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hshort : I.calldata.size < 36) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hlt : (I.calldata.size : Int) - 4 < 32 := by omega
+  repeat ir_step [runtimeFunc]
+
+/-- `set(uint256)` with its argument: the machine IR stores it at slot 0 and stops with no
+    data. -/
+theorem ir_set (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hlong : 36 ≤ I.calldata.size)
+    (hperm : I.perm = true) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.stop ByteArray.empty
+      { w with
+        accounts := storeWord I.codeOwner w.accounts ⟨0⟩
+          (uInt256OfByteArray (I.calldata.readBytes 4 32)) })) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hlt : ¬ (I.calldata.size : Int) - 4 < 32 := by omega
+  repeat ir_step [runtimeFunc]
+
+/-- `set(uint256)` with its argument in a static call: the machine IR fails. -/
+theorem ir_set_static (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hlong : 36 ≤ I.calldata.size)
+    (hperm : I.perm = false) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error .static) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hlt : ¬ (I.calldata.size : Int) - 4 < 32 := by omega
+  repeat ir_step [runtimeFunc]
+
+/-- `get()` with call value: the machine IR reverts with no data. -/
+theorem ir_get_value (hsel : GetSel I) (hwv : I.weiValue ≠ ⟨0⟩) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
+  repeat ir_step [runtimeFunc]
+
+/-- `get()`: the machine IR stores the word at slot 0 at address 0 and returns it. -/
+theorem ir_get (hsel : GetSel I) (hwv : I.weiValue = ⟨0⟩) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.stop
+      (slotWord I w.accounts ⟨0⟩).toByteArray
+      { w with memory := (slotWord I w.accounts ⟨0⟩).toByteArray.write 0 w.memory 0 32 })) := by
+  obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
+  have hb := Reasoning.Theory.toByteArray_write32_read_back w.memory (slotWord I w.accounts ⟨0⟩) 0
+    (Nat.zero_le _)
+  repeat ir_step [runtimeFunc]
+
+/-- A selector of neither arm: the machine IR reverts with no data. -/
+theorem ir_noMatch (h0 : ¬ SetSel I) (h1 : ¬ GetSel I) :
+    (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
+  obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
+  unfold SetSel at h0
+  unfold GetSel at h1
+  have h0' := Ne.symm h0
+  have h1' := Ne.symm h1
+  repeat ir_step [runtimeFunc]
+
+end Arms
+
+/-- The machine IR's runtime: the runtime function from its entry block.  The runtime section
+    names no free pointer, so there is no prologue. -/
+theorem ir_runtime {I : ExecutionEnv} {w : World}
+    {r : Option (Except (Fe.Exit World) (List Val × World))}
+    (h : ∀ m ic, (runBlocks m ic runtimeFunc ∅ none 0).exec I w = r) :
+    (sidecar.model .machine).runtime.exec I w = Check.endRun r := by
+  rw [show (sidecar.model .machine).runtime = sidecar.runSection "runtime" .machine from rfl,
+    Check.runSection_eq (f := runtimeFunc) rfl rfl rfl rfl rfl rfl rfl]
+  simp [Check.pre, h]
 
 end FeProofs.ScalarStore.Sonatina
