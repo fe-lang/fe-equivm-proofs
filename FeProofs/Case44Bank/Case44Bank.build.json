@@ -1,0 +1,1 @@
+{"contract": "Case44Bank", "compiler": {"kind": "fe", "commit": "4e385c1ae7", "branch": "fevm-precompiles", "repository": "https://github.com/sbillig/fe", "sonatina": "bd20fac3", "optimize": 1, "evmVersion": "osaka"}}
