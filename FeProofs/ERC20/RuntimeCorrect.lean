@@ -381,9 +381,6 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
 
 /-! ## The certificate -/
 
-/-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
-
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feERC20RefinesExported : RefinesOn .P0 feERC20Bytecode contract CalldataFits := by
   refine RefinesOn.of_code rfl ?_
