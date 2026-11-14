@@ -12,8 +12,9 @@ memory, calldata, logs, return data and message calls are the model library's ow
 exported model is.  `Sidecar.model` is the contract model of an object: its `init` and
 `runtime` sections, each run from its entry function.
 
-The interpreter is fuel-bounded: each function call and each block entered takes one unit of
-its own budget, and a run out of fuel does not terminate.  So does a run that reaches what the
+The runner is a least fixpoint (`partial_fixpoint`): a run that loops for ever does not
+terminate, whatever the bytecode's gas, so a certificate never fails for want of the model's
+fuel.  A run does not terminate either when it reaches what the
 semantics leaves undefined or this subset does not cover (`stuck`): an ill-typed operand, a
 missing block, `unreachable`, a section entry that returns.  A run that does not terminate
 agrees with no result of the bytecode, so a gap in the semantics makes a comparison fail, not
@@ -43,14 +44,10 @@ inductive Val where
 /-- The values a function has defined. -/
 abbrev Env := Std.TreeMap Nat Val
 
-/-- How an instruction runs a callee: from its name and arguments to its results. -/
-abbrev Callee := String → List Val → FeM (List Val)
-
-/-- What an instruction needs besides its operands: how to run a callee, the offset and size of
+/-- What an instruction needs besides its operands: the offset and size of
     each symbol of the running section, and the address below which `evm_malloc` places
     nothing. -/
 structure Ctx where
-  call : Callee
   symbol : String → Option (Nat × Nat)
   heap : Nat
   /-- The struct types of the module, for the size of an `alloca`. -/
@@ -336,7 +333,8 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
     let (_, i) ← evalInt env index
     return [fields.getD i (.int 256 0)]
   | .keccakWords words => do return [word (keccakOfWords (← words.mapM (evalWord env)))]
-  | .call callee args => do c.call callee (← args.mapM (evalOperand env))
+  -- A call is the runner's (`runBody`).
+  | .call _ _ => stuck
 
 /-- Bind each value to its id. -/
 def bind (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) : FeM Env :=
@@ -352,53 +350,60 @@ def enter (env : Env) (prev : Option Nat) (b : Block) : FeM Env := do
     evalOperand env o
   bind env (b.phis.map fun phi => (phi.dst, phi.ty)) vals
 
-/-- Run `f` from block `id`, entered from `prev`, for at most `fuel` blocks. -/
-def runBlocks (c : Ctx) (f : Func) : Nat → Env → Option Nat → Nat → FeM (List Val)
-  | 0, _, _, _ => stuck
-  | fuel + 1, env, prev, id => do
-    let some b := f.block? id | stuck
-    let env ← enter env prev b
-    let env ← b.body.foldlM (init := env) fun env s => do
-      bind env s.dsts (← runInst c env s.inst)
-    match b.term with
-    | .jump dest => runBlocks c f fuel env (some id) dest
-    | .br cond nz z => do
-      let (_, v) ← evalInt env cond
-      runBlocks c f fuel env (some id) (if v != 0 then nz else z)
-    | .brTable s default cases => do
-      let (_, v) ← evalInt env s
-      let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
-      match (vals.find? (·.1 == v)).map (·.2) <|> default with
-      | some dest => runBlocks c f fuel env (some id) dest
-      | none => stuck
-    | .ret values => values.mapM (evalOperand env)
-    | .evmReturn a l => do
-      let e ← returnData (← evalWord env a) (← evalWord env l)
-      nomatch e
-    | .evmRevert a l => do
-      let e ← revertData (← evalWord env a) (← evalWord env l)
-      nomatch e
-    | .evmStop => do
-      let e ← stopCall
-      nomatch e
-    | .evmInvalid => do
-      let e ← trap
-      nomatch e
-    | .unreachable => stuck
+mutual
 
-/-- Run function `name` of `m` on `args`: at most `fuel` calls deep, each running at most `fuel`
-    blocks, with the symbols of the running section and allocations from `heap`. -/
-def runFunc (m : Module) (symbol : String → Option (Nat × Nat)) (heap : Nat) : Nat → Callee
-  | 0, _, _ => stuck
-  | fuel + 1, name, args => do
-    let some f := m.func? name | stuck
-    let some entry := f.blocks.head? | stuck
-    let env ← bind {} f.params args
-    let c : Ctx := ⟨fun g vs => runFunc m symbol heap fuel g vs, symbol, heap, m.structs⟩
-    runBlocks c f fuel env none entry.id
+/-- Run statements, calling functions of `m`. -/
+def runBody (m : Module) (c : Ctx) (env : Env) : List Stmt → FeM Env
+  | [] => pure env
+  | s :: rest => do
+    let vals ← match s.inst with
+      | .call callee args => do runFunc m c callee (← args.mapM (evalOperand env))
+      | inst => runInst c env inst
+    runBody m c (← bind env s.dsts vals) rest
+partial_fixpoint
 
-/-- The fuel a section runs with. -/
-def defaultFuel : Nat := 1000000
+/-- Run `f` from block `id`, entered from `prev`. -/
+def runBlocks (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Option Nat) (id : Nat) :
+    FeM (List Val) := do
+  let some b := f.block? id | stuck
+  let env ← enter env prev b
+  let env ← runBody m c env b.body
+  match b.term with
+  | .jump dest => runBlocks m c f env (some id) dest
+  | .br cond nz z => do
+    let (_, v) ← evalInt env cond
+    runBlocks m c f env (some id) (if v != 0 then nz else z)
+  | .brTable s default cases => do
+    let (_, v) ← evalInt env s
+    let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
+    match (vals.find? (·.1 == v)).map (·.2) <|> default with
+    | some dest => runBlocks m c f env (some id) dest
+    | none => stuck
+  | .ret values => values.mapM (evalOperand env)
+  | .evmReturn a l => do
+    let e ← returnData (← evalWord env a) (← evalWord env l)
+    nomatch e
+  | .evmRevert a l => do
+    let e ← revertData (← evalWord env a) (← evalWord env l)
+    nomatch e
+  | .evmStop => do
+    let e ← stopCall
+    nomatch e
+  | .evmInvalid => do
+    let e ← trap
+    nomatch e
+  | .unreachable => stuck
+partial_fixpoint
+
+/-- Run function `name` of `m` on `args`. -/
+def runFunc (m : Module) (c : Ctx) (name : String) (args : List Val) : FeM (List Val) := do
+  let some f := m.func? name | stuck
+  let some entry := f.blocks.head? | stuck
+  let env ← bind {} f.params args
+  runBlocks m c f env none entry.id
+partial_fixpoint
+
+end
 
 /-- Which IR of a sidecar runs: the module after optimization, which every section shares, or
     a section's own module after the backend's IR pipeline (`source`) or machine lowering. -/
@@ -416,8 +421,8 @@ def Sidecar.moduleAt (s : Sidecar) (code : CodeSection) : Level → Option Modul
     entry ends the call itself: one that returns is stuck.  At the machine level the run starts
     with what the section entry's code does before the machine IR: it stores the initial free
     pointer the lowering record names. -/
-def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt)
-    (fuel : Nat := defaultFuel) : FeM ByteArray := do
+def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt) :
+    FeM ByteArray := do
   let some obj := s.module.objects.find? (·.name == s.object) | stuck
   let some sec := obj.sections.find? (·.name == name) | stuck
   let some code := s.section? name | stuck
@@ -427,14 +432,13 @@ def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt)
   if level == .machine then
     if let some ptr := code.lowering.bind (·.entryFreePtr) then
       mstore (UInt256.ofNat 0x40) (UInt256.ofNat ptr)
-  let _ ← runFunc m (code.symbols.lookup ·) m.fixedEnd fuel sec.entry []
+  let _ ← runFunc m ⟨(code.symbols.lookup ·), m.fixedEnd, m.structs⟩ sec.entry []
   stuck
 
 /-- The contract model the IR of the level gives.  The constructor reads its arguments from
     the running code, as the init section does, and ends with the whole deployed code. -/
-def Sidecar.model (s : Sidecar) (level : Level := .postOpt) (fuel : Nat := defaultFuel) :
-    ContractModel where
-  init _ := s.runSection "init" level fuel
-  runtime := s.runSection "runtime" level fuel
+def Sidecar.model (s : Sidecar) (level : Level := .postOpt) : ContractModel where
+  init _ := s.runSection "init" level
+  runtime := s.runSection "runtime" level
 
 end Fe.Sonatina

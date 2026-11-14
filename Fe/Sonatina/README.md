@@ -68,10 +68,12 @@ use of a global or an enum are parse errors; enum and global declarations are sk
 
 `Interp.lean` runs it in `FeM`, the monad of exported models, over EVMLean's state; every EVM
 instruction is the model library's primitive (`sload`, `call`, `logData`, …). Values are typed
-integers held unsigned below `2 ^ bits`, or lists of struct fields. Each call and each block
-entered takes fuel; a run out of fuel, or one that reaches something undefined (`unreachable`, an
-ill-typed operand, an entry function that returns), does not terminate, which agrees with no EVM
-result. Where Sonatina leaves a choice: `undef` reads as zero, division by zero gives zero,
+integers held unsigned below `2 ^ bits`, or lists of struct fields. The runner is a least
+fixpoint (`partial_fixpoint`, the same as exported loops): a run that loops for ever, or reaches
+something undefined (`unreachable`, an ill-typed operand, an entry function that returns), does
+not terminate, which agrees with no EVM result. (It was fuel-bounded before, which made the
+checker's theorem false for a bytecode run, given enough gas, of more blocks than the fuel; the
+fixpoint has no such bound, and the kernel no longer evaluates the runner.) Where Sonatina leaves a choice: `undef` reads as zero, division by zero gives zero,
 `evm_malloc` gives fresh zeroed memory at the end of memory and above every constant-address range
 the module accesses, and `sym_addr`/`sym_size` read the compiled section's symbol table, which the
 IR does not determine. The second rule is Sonatina's: compiler-managed memory is kept out of every
@@ -323,6 +325,4 @@ agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_imp
 ## Not looked into
 
 Enum, object and array instructions; globals and data sections; contracts that create others
-(external embeds); the native and wasm backends; gas; how fast the kernel evaluates the
-interpreter beyond small runs (`decide +kernel` decides a call of FeConstant's `answer()` and
-FeScalarStore's `get()` in seconds).
+(external embeds); the native and wasm backends; gas.

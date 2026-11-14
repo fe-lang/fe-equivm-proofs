@@ -409,9 +409,17 @@ def parseLowering (json : Json) : P Lowering := do
                   parseSlot } : BlockHint)
     let spills ← (← f.getObjValAs? (Array Json) "spills").toList.mapM fun s => do
       return (← s.getObjValAs? Nat "value", ← parseLocation (← s.getObjVal? "location"))
+    let frame ← f.getObjVal? "frame"
+    let (stable, _) ← variant (← frame.getObjVal? "stable")
+    let frame : FrameHint :=
+      { dynamicFrame := stable == "dynamic_frame"
+        lazyFrame := ← frame.getObjValAs? Bool "lazy_frame"
+        dynSpInit := (← frame.getObjValAs? (Option String) "dyn_sp_entry_init").isSome
+          || (← frame.getObjValAs? Nat "dyn_sp_init_calls") != 0
+        callPreserves := (← frame.getObjValAs? (Array Json) "call_preserves").size }
     return ({ name := ← f.getObjValAs? String "name"
               offset := ← f.getObjValAs? (Option Nat) "offset"
-              blocks, spills } : FuncHint)
+              blocks, spills, frame } : FuncHint)
   let units ← (← json.getObjValAs? (Array Json) "units").toList.mapM fun u => do
     return (← u.getObjValAs? String "name", ← u.getObjValAs? Nat "offset",
       ← u.getObjValAs? Nat "size")
@@ -426,7 +434,7 @@ def parseLowering (json : Json) : P Lowering := do
            funcs, units, redirects }
 
 /-- The sidecar version this reader reads. -/
-def sidecarVersion : Nat := 2
+def sidecarVersion : Nat := 3
 
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
 def parseSidecar (text : String) : P Sidecar := do

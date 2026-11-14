@@ -216,11 +216,22 @@ inductive CodeLabel where
   | inst
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
+/-- What a function's code does with memory beyond its machine IR: a dynamic frame (stable
+    objects in it, or a frame entered and left), the dynamic stack pointer initialized at entry
+    or before calls, and scratch objects saved around calls (their number). -/
+structure FrameHint where
+  dynamicFrame : Bool
+  lazyFrame : Bool
+  dynSpInit : Bool
+  callPreserves : Nat
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
 structure FuncHint where
   name : String
   offset : Option Nat
   blocks : List BlockHint
   spills : List (Nat × SpillLocation)
+  frame : FrameHint
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
 /-- How the backend lowered a section: the IR machine lowering read (`source`), the machine IR
