@@ -55,12 +55,12 @@ variable (I : ExecutionEnv) (w : World)
 /-- The topic the compiler evaluates for `Transfer` is the hash of its signature. -/
 theorem transferTopic_eq : Model.transferTopic =
     UInt256.ofNat 100389287136786176327247604509743168900146139575972864366142685224231313322991 := by
-  native_decide
+  decide +kernel
 
 /-- The topic the compiler evaluates for `Approval` is the hash of its signature. -/
 theorem approvalTopic_eq : Model.approvalTopic =
     UInt256.ofNat 63486140976153616755203102783360879283472101686154884697241723088393386309925 := by
-  native_decide
+  decide +kernel
 
 /-- The event code the compiler generates for `Transfer`: a log entry with the signature hash
     and the two addresses as topics and the value as data, encoded in a fresh buffer.  Under a
