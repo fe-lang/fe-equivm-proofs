@@ -197,6 +197,16 @@ repository, elaborates each export, and compares model and bytecode in EVMLean
 on sequences of generated calls. It prints the constructs the exporter stopped at and the
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
+### Sonatina IR
+
+`Fe/Sonatina/` has a semantics of Sonatina IR, the IR the Fe compiler's EVM backend compiles: the
+IR of an object is a contract model (`Sidecar.model`), compared with the bytecode compiled from
+it as exported models are. `fe build --emit sidecar` (Fe branch `sidecar`) writes the IR together
+with the bytes and symbols of each section from one compilation. `scripts/SonatinaDiff.lean` runs
+the certified contracts, `scripts/audit_sonatina.sh <fe checkout>` every contract of Fe's test
+fixtures. `Fe/Sonatina/README.md` describes the subset and the design for splitting a certificate
+at the IR.
+
 ## Layout
 
 Each contract directory (`FeProofs/<Contract>/`) holds the Fe source, the pinned bytecode, the
