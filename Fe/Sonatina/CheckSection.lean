@@ -3,11 +3,16 @@ import Ethereum.Theory.ProgressLemmas
 import Ethereum.Theory.GasLemmas
 
 /-!
-# Towards the section
+# The section
 
-The pieces the section theorem joins: `XstepN_X_error` and `XstepN_fuel` take a run of steps
-to the iterator `X` within its fuel, and `checkSection_ok` and `checkBlock_ok` take out of an
-accepted section the facts the checker established of its function and of each block.
+`section_run`, the section theorem: from the start of any block of a checked section's
+function (`AtBlock`), the bytes' iterator `X` agrees at profile `P1` (`XAgrees`) with the IR's
+run of the function from that block, the prologue `pre` first for the entry block.  It is an
+induction on `X`'s fuel and on `zeroRank`, each block by `block_step`, which joins the block
+lemma `run_ends` and the IR's run of the statements `body_run` with the IR's `enter` and
+terminator.  `XstepN_X_error` and `XstepN_fuel` take steps to `X` within its fuel;
+`checkSection_ok` and `checkBlock_ok` take out of an accepted section what the checker
+established.
 -/
 
 namespace Fe.Sonatina.Check
@@ -752,6 +757,7 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
         b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true)
     (hchk : ∀ b ∈ f.blocks, checkBlock code low hint f eb (placeOf low hint)
         (zeroRank f (placeOf low hint) f.blocks.length) b = .ok ())
+    (hpred : ∀ x ∈ f.blocks, eb.id ∉ x.term.succs)
     {b : Block} {prev : Option Nat} {env : Env} {w : World} {st : State}
     (hat : AtBlock low hint f I b prev env w st) :
     Final (D_J I.code 0) st
@@ -759,7 +765,7 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
       ∃ S env' w' st' n, Reach (D_J I.code 0) st st' n ∧
         (n = 0 → zeroRank f (placeOf low hint) f.blocks.length S.id <
           zeroRank f (placeOf low hint) f.blocks.length b.id) ∧
-        AtBlock low hint f I S (some b.id) env' w' st' ∧
+        AtBlock low hint f I S (some b.id) env' w' st' ∧ S.id ≠ eb.id ∧
         (pre low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
           (runBlocks low.machine ic f env' (some b.id) S.id).exec I w' := by
   obtain ⟨hmem, hblk, henv, hw, hb, pc, envB, ws, rest, hhb, hpc, hstpc, henter, hstk, hslots,
@@ -918,11 +924,12 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
           ∃ S' env'' w'' st'' n', Reach (D_J I.code 0) st st'' n' ∧
             (n' = 0 → zeroRank f (placeOf low hint) f.blocks.length S'.id <
               zeroRank f (placeOf low hint) f.blocks.length b.id) ∧
-            AtBlock low hint f I S' (some b.id) env'' w'' st'' ∧
+            AtBlock low hint f I S' (some b.id) env'' w'' st'' ∧ S'.id ≠ eb.id ∧
             (runBlocks low.machine ic f env' (some b.id) d).exec I w' =
               (runBlocks low.machine ic f env'' (some b.id) S'.id).exec I w'' := fun d hd => by
         obtain ⟨hat', hdS⟩ := key d hd
-        exact ⟨Sb, env', w', st', n, hreach, hlow, hat', by rw [hdS]⟩
+        exact ⟨Sb, env', w', st', n, hreach, hlow, hat',
+          fun h => hpred b hmem (h ▸ hdS ▸ exitOf_succ hex hd), by rw [hdS]⟩
       right
       cases ht : b.term with
       | jump d =>
@@ -1004,5 +1011,54 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
       · simp at hargs; subst hargs
         obtain ⟨n, hxs⟩ := hh
         exact .inl ⟨n, _, hxs, .inr (.inr (.inr ⟨rfl, by simp [ht, trap]⟩))⟩
+
+theorem XstepN_pos {D : Array UInt256} {s : State} {x : Except ExecutionException
+    (State × Option (HaltCause × ByteArray))} {n : Nat} (h : XstepN D s x n) : 0 < n := by
+  cases h <;> omega
+
+/-- The section theorem: from a block's start, the bytes run as the IR's run of the section's
+    function goes on from it, at profile `P1`. -/
+theorem section_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : Func}
+    {eb : Block} {I : ExecutionEnv} {tail : ByteArray} {ic : Fe.Sonatina.Ctx}
+    (hI : I.code = code.bytecode ++ tail) (hsize : code.bytecode.size < UInt256.size)
+    (hsym : ic.symbol = (code.symbols.lookup ·))
+    (hbits : (f.blocks.all fun b => b.phis.all (·.ty.bits == 256) &&
+        b.body.all (·.dsts.all (·.2.bits == 256))) = true)
+    (hnd : nodup (f.blocks.flatMap fun b =>
+        b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true)
+    (hchk : ∀ b ∈ f.blocks, checkBlock code low hint f eb (placeOf low hint)
+        (zeroRank f (placeOf low hint) f.blocks.length) b = .ok ())
+    (hpred : ∀ x ∈ f.blocks, eb.id ∉ x.term.succs) :
+    ∀ fuel (b : Block) prev env w st, st.machineState.gasAvailable.toNat < fuel →
+      AtBlock low hint f I b prev env w st →
+      XAgrees (X fuel (D_J I.code 0) st)
+        ((pre low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w) := by
+  intro fuel
+  induction fuel using Nat.strong_induction_on with
+  | _ fuel ihf =>
+  intro b
+  generalize hr : zeroRank f (placeOf low hint) f.blocks.length b.id = r
+  induction r using Nat.strong_induction_on generalizing b with
+  | _ r ihr =>
+  intro prev env w st hg hat
+  rcases block_step hI hsize hsym hbits hnd hchk hpred hat with hfin |
+    ⟨S, env', w', st', n, hreach, hlow, hat', hne, hIR⟩
+  · exact hfin.agrees hg
+  · rw [hIR]
+    have hpreS : (pre low eb S >>= fun _ => runBlocks low.machine ic f env' (some b.id) S.id) =
+        runBlocks low.machine ic f env' (some b.id) S.id := by
+      simp [pre, hne]
+    rcases hreach with ⟨rfl, rfl⟩ | hx
+    · have := ihr _ (hr ▸ hlow rfl) S rfl (some b.id) env' w' _ hg hat'
+      rwa [hpreS] at this
+    · have hn := XstepN_fuel hx hg
+      have hpos := XstepN_pos hx
+      have hg' := XstepN_gas_lt_fuel_of_Xstep_ret_none (f := fuel - n) (D_J I.code 0)
+        (by rw [Nat.sub_add_cancel hn]; exact hg) hx
+      have hX := XstepN_X_continue (f := fuel - n) (D_J I.code 0) hx rfl
+      rw [Nat.sub_add_cancel hn] at hX
+      rw [hX]
+      have := ihf (fuel - n) (by omega) S (some b.id) env' w' st' hg' hat'
+      rwa [hpreS] at this
 
 end Fe.Sonatina.Check
