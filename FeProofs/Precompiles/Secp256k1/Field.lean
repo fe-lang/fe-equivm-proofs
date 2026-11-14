@@ -1,4 +1,5 @@
 import FeProofs.Precompiles.Secp256k1.Mont
+import FeProofs.Precompiles.Field.Cube
 import Ethereum.Secp256k1.Spec
 import Mathlib.FieldTheory.Finite.Basic
 
@@ -13,8 +14,8 @@ is restated on it (`Mont_mul_Base_repB` and the rest).  The curve layer works ov
 
 Then the square root `recover` takes: `p ≡ 3 (mod 4)`, so `β = α ^ ((p + 1) / 4)` has
 `β ^ 2 = α` exactly when `α` is a square (`sqrt_iff`).  As `x ^ 3 + 7` has no root modulo `p`
-(`cube_add_seven_ne_zero`, by a fast modular power checked by `decide`), such a `β` is not
-zero, its negation has the other parity, and the code's choice between them is the point
+(`cube_add_seven_ne_zero`, by `Cube.lean` and a modular power checked by `decide`), such a `β`
+is not zero, its negation has the other parity, and the code's choice between them is the point
 `liftX x v` of the specification (`liftX_eq`); with no root, `liftX` is `none` (`liftX_none`).
 -/
 
@@ -172,29 +173,6 @@ theorem sqrt_iff (α : Fp) : (α ^ ((Secp256k1.p + 1) / 4)) ^ 2 = α ↔ IsSquar
     · rw [show 2 * ((Secp256k1.p + 1) / 4 * 2) = (Secp256k1.p - 1) + 2 by norm_num [Secp256k1.p], pow_add,
         ZMod.pow_card_sub_one_eq_one ht, one_mul]
 
-/-- `b ^ e mod m` by square-and-multiply over `f` bits, times `acc`. -/
-def powMod (m : ℕ) : ℕ → ℕ → ℕ → ℕ → ℕ
-  | 0, _, _, acc => acc
-  | f + 1, b, e, acc => powMod m f (b * b % m) (e / 2) (if e % 2 = 1 then acc * b % m else acc)
-
-theorem powMod_eq (m : ℕ) :
-    ∀ f b e acc, e < 2 ^ f → (powMod m f b e acc : ZMod m) = acc * (b : ZMod m) ^ e
-  | 0, b, e, acc, he => by
-    obtain rfl : e = 0 := by simpa using he
-    simp [powMod]
-  | f + 1, b, e, acc, he => by
-    rw [powMod, powMod_eq m f _ _ _ (by rw [pow_succ] at he; omega)]
-    have hsplit : e = 2 * (e / 2) + e % 2 := (Nat.div_add_mod e 2).symm
-    rcases Nat.mod_two_eq_zero_or_one e with h | h
-    · rw [if_neg (by omega)]
-      conv_rhs => rw [hsplit, h]
-      push_cast [ZMod.natCast_mod]
-      ring
-    · rw [if_pos h]
-      conv_rhs => rw [hsplit, h]
-      push_cast [ZMod.natCast_mod]
-      ring
-
 /-- `-7` is not a cube modulo `p`: its `(p - 1) / 3`-th power is not one. -/
 theorem neg_seven_pow_ne_one :
     powMod Secp256k1.p 256 (Secp256k1.p - 7) ((Secp256k1.p - 1) / 3) 1 % Secp256k1.p ≠ 1 := by
@@ -202,24 +180,8 @@ theorem neg_seven_pow_ne_one :
 
 /-- `x ^ 3 + 7` has no root modulo `p`: secp256k1 has no point of order two. -/
 theorem cube_add_seven_ne_zero (x : Fp) : x ^ 3 + 7 ≠ 0 := by
-  intro h
-  have hx : x ≠ 0 := by
-    rintro rfl
-    have h7 : ((7 : ℕ) : Fp) ≠ 0 := Secp256k1.Spec.natCast_ne_zero (by decide) (by decide)
-    exact h7 (by simpa using h)
-  have hc : x ^ 3 = ((Secp256k1.p - 7 : ℕ) : Fp) := by
-    rw [Nat.cast_sub (by decide), ZMod.natCast_self, zero_sub]
-    linear_combination h
-  apply neg_seven_pow_ne_one
-  have hm := powMod_eq Secp256k1.p 256 (Secp256k1.p - 7) ((Secp256k1.p - 1) / 3) 1
-    (by norm_num [Secp256k1.p])
-  rw [← hc, ← pow_mul,
-    show 3 * ((Secp256k1.p - 1) / 3) = Secp256k1.p - 1 by norm_num [Secp256k1.p],
-    ZMod.pow_card_sub_one_eq_one hx, Nat.cast_one, mul_one] at hm
-  have h1 : ((powMod Secp256k1.p 256 (Secp256k1.p - 7) ((Secp256k1.p - 1) / 3) 1 : ℕ) : Fp) =
-      ((1 : ℕ) : Fp) := by rw [hm, Nat.cast_one]
-  exact ((ZMod.natCast_eq_natCast_iff' _ _ _).mp h1).trans
-    (Nat.mod_eq_of_lt (show 1 < Secp256k1.p by decide))
+  simpa using cube_add_ne_zero (c := 7) (by decide) (by decide) (by norm_num [Secp256k1.p])
+    (by norm_num [Secp256k1.p]) neg_seven_pow_ne_one x
 
 /-! ## The point with a given abscissa and parity -/
 
