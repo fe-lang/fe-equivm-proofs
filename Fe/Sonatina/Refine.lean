@@ -57,4 +57,11 @@ theorem RefinesDeploy.of_implements {p : Profile} {creation runtime irRuntime : 
   · obtain ⟨feed', hend⟩ := hm I σ A feed args hargs hperm
     exact Or.inr ⟨feed', Agrees.of_endsAs hend hag⟩
 
+/-- Ending as is transitive: a run that ends as one that ends as a third ends as the third. -/
+theorem _root_.Fe.EVM.EndsAs.trans {a b c : Option (Except (Exit World) (ByteArray × World))}
+    (h₁ : EndsAs a b) (h₂ : EndsAs b c) : EndsAs a c := by
+  cases h₁ <;> cases h₂ <;> first
+    | exact .diverge | exact .exit _
+    | (constructor <;> simp_all)
+
 end Fe.Sonatina

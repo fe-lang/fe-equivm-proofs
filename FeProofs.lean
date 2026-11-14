@@ -12,6 +12,7 @@ import FeProofs.Constant.Invariant
 import FeProofs.ScalarStore.ModelCorrect
 import FeProofs.ScalarStore.Exported
 import FeProofs.ScalarStore.RuntimeCorrect
+import FeProofs.ScalarStore.Sonatina
 import FeProofs.PackedStore.RuntimeCorrect
 import FeProofs.ERC20.RuntimeCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
