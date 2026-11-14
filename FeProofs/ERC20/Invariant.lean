@@ -139,7 +139,7 @@ theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UI
     L.run.1 = L.addr ∧ Holds L.addr (Token S) L.run.2.1 :=
   refinesDeploy_holds Exported.feERC20DeployRefinesExported (args := ctorTail v) ⟨v, rfl⟩
     (by rw [Exported.ctorTail_eq]; exact hi) hw
-    (fun I σ A feed out w hc hs hempty hrun =>
+    (fun I σ A feed out w hc hs _ hempty hrun =>
       deploy_model hS v L.addr L.s hdeployer I σ A feed out w hc hs hempty hrun) hz
 
 /-! ## Transactions -/

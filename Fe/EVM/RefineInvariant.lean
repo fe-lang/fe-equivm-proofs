@@ -250,14 +250,14 @@ theorem Agrees.accounts_out {p : Profile} {evm : EvmResult}
 
 /-- **Deployment from a certificate.**  A creation of `creation ++ args` that succeeds ends where
     `Holds L.addr P` holds, if every successful run of the model's constructor, at the new
-    address, from an account map where that address has empty storage, leaves there an account
-    that satisfies `P` with the code it returns. -/
+    address, with write permission, from an account map where that address has empty storage,
+    leaves there an account that satisfies `P` with the code it returns. -/
 theorem refinesDeploy_holds {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
     {validArgs : ByteArray → Prop} (hcert : RefinesDeploy p creation runtime m validArgs)
     {L : LambdaCall} {args : ByteArray} (hargs : validArgs args) (hi : L.i = creation ++ args)
     (hw : L.w = true) {P : Account → Prop}
     (hmodel : ∀ (I : Env) σ A feed out (w : World), I.codeOwner = L.addr → I.source = L.s →
-      (σ.getD L.addr default).storage = default →
+      I.perm = true → (σ.getD L.addr default).storage = default →
       Succeeds ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I
         (World.init σ A feed)) out w →
       P {w.accounts.getD L.addr default with code := out})
@@ -267,6 +267,6 @@ theorem refinesDeploy_holds {p : Profile} {creation runtime : ByteArray} {m : Co
   exact Agrees.accounts_out
     (hcert L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 args hargs (hcode.trans hi) hw)
     (Q := fun τ out => P {τ.getD L.addr default with code := out})
-    (fun feed out w hrun => hmodel _ _ _ feed out w rfl rfl hstor hrun) hXi
+    (fun feed out w hrun => hmodel _ _ _ feed out w rfl rfl hw hstor hrun) hXi
 
 end Fe.EVM
