@@ -61,4 +61,11 @@ theorem next_eq {k : ℕ} (hk : k + 1 < 2 ^ 256) :
   congr 1
   exact Fe.EVM.ofNat_add_ofNat hk
 
+theorem checkedMul_small {a b : ℕ} (ha : a < 2 ^ 256) (hb : b < 2 ^ 256) (h : a * b < 2 ^ 256) :
+    checkedMul (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a * b)) := by
+  unfold checkedMul
+  rw [toNat_lit ha, toNat_lit hb, if_neg (by change ¬ 2 ^ 256 ≤ _; omega)]
+  congr 1
+  exact Fe.EVM.ofNat_mul_ofNat ha hb h
+
 end FeProofs.Precompiles
