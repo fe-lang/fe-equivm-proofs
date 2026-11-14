@@ -309,6 +309,49 @@ agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_imp
 `Refines` of the model. The runtime's immutables are none for these contracts
 (`model.immutables = 0`).
 
+## The checker as built
+
+`Check.lean` is the first checker. `check s` covers sections of one function (no internal call)
+with no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses
+only the pure, read, write and halting instructions `Check.lean` translates (no external call, no
+`gas`, no `create`). It accepts both sections of FeConstant, FeScalarStore and FeERC20. On the
+corpus it accepts 332 of 430 sections; it rejects 40 as more than one function, 33 for an
+instruction outside the class, and 25 whose bytes it does not match. Those 25 are unclassified:
+they may be patterns the matcher does not know (as the commuted operands and constant branches
+were, which raised the count from 282) or wrong hints. `scripts/SonatinaCheck.lean` runs the
+fixtures, mutations of their hints (a dropped, added or swapped entry slot, offsets moved by a
+byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
+section's IR reads none) and a corpus directory.
+
+The verdict evaluates by the kernel (`decide +kernel`, 3.1 s for both FeScalarStore sections) and
+by `native_decide` (0.12 s). Kernel evaluation needs the expressions non-nested and the checker
+structurally recursive, which is why `Expr` has fixed arities.
+
+What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P0`; it is not
+proved. On the statement:
+
+- `P1` is provable from EVMLean's `X` and `Xstep`: `XstepN_X_halt_success` gives the final state,
+  whose substate holds the logs, and `XstepN_X_halt_revert` the revert output. EquiVM's `RD`
+  hides both, so a proof built on its cursor lemmas concludes `P0` only; one built on its per-opcode
+  `*_xstep` lemmas and `XstepN` reaches `P1`.
+- Running out of gas or stack is `Exhausted`, which `RefinesFor` excuses: every per-opcode step is
+  an `if gas < cost then OutOfGass` or overflows to `StackOverflow`, and either error ends `Ξ`.
+  The bytes' gas never meets the model's steps: the runner is a least fixpoint, so the theorem
+  needs no relation between the two. With the fuel-bounded runner of stages B and C it was false
+  for a run of more blocks than the fuel.
+- `XstepN` is a path: the block lemmas can state that the bytes reach the successor's offset in
+  `n` steps, `XstepN_X_continue` turns that into `X`, and `XOk` holds of a frame whose steps the
+  class makes call-free (`stepOk` is `True` for every opcode but calls and creations).
+
+Proved so far: that constant folding is sound (`foldConst_eval`). Left, in order: the soundness
+of operand normalization (commutativity of the six operations, `GT` as swapped `LT`); per-opcode
+lemmas relating one symbolic step to `Xstep` for each opcode `run` accepts, from EquiVM's
+`*_xstep`; the block lemma by induction on `run`'s fuel; the IR side, `runBlocks` unfolded on
+the block's events (needs per-instruction lemmas: the interpreter's arithmetic on 256-bit values
+is EVMLean's); the section, from the entry block at offset 0 with an empty stack and the free
+pointer prologue, by induction on the bytecode's steps; deployment (`CODECOPY` of the runtime and
+`RETURN`, the constructor arguments read from the code); then the model half for FeScalarStore.
+
 ## What is hard
 
 - Memory, beyond the first class: spill and scratch words must not alias memory the machine IR
