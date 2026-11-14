@@ -15,3 +15,4 @@ import Fe.Sonatina.Syntax
 import Fe.Sonatina.Parse
 import Fe.Sonatina.Interp
 import Fe.Sonatina.Refine
+import Fe.Sonatina.Diff
