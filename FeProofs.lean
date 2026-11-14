@@ -40,6 +40,7 @@ import FeProofs.Precompiles.Exported.Modexp
 import FeProofs.Case44Bank.Bytecode
 import FeProofs.Case44Bank.Exported
 import FeProofs.Precompiles.Ripemd160.Contract
+import FeProofs.Precompiles.Bn254.MulContract
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
