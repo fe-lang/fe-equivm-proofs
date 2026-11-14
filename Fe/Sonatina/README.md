@@ -326,8 +326,8 @@ fixtures, mutations of their hints (a dropped, added or swapped entry slot, offs
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
 
-The verdict evaluates by the kernel (`decide +kernel`, 3.1 s for both FeScalarStore sections) and
-by `native_decide` (0.12 s). Kernel evaluation needs the expressions non-nested and the checker
+The verdict evaluates by the kernel (`decide +kernel`, 10.5 s for both FeScalarStore sections,
+3.1 s before the total order on operands and the word checks) and by `native_decide` (0.4 s). Kernel evaluation needs the expressions non-nested and the checker
 structurally recursive, which is why `Expr` has fixed arities.
 
 What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P1`; it is not
