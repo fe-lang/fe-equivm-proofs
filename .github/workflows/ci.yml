@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main, fe-model]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Fe's own CI builds with stable Rust; this is the stable release the pinned commit was
+  # checked with.
+  RUST_TOOLCHAIN: "1.99.0"
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  proofs:
+    name: Proofs
+    runs-on: ubuntu-latest
+    # Estimated: about 40 minutes with cold caches, under 10 with warm ones.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Install elan
+        run: scripts/install_elan.sh
+      # The dependencies, Mathlib's prebuilt files among them, change only with the toolchain or
+      # the manifest.  Saved after a successful build only, so that the entry is complete.
+      - name: Restore Lean dependencies
+        id: deps
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/packages
+          key: lean-deps-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+      # This repository's modules: Lake rebuilds those whose sources or imports changed since
+      # the nearest earlier build.
+      - name: Restore Lean build
+        id: build-cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
+      - name: Build
+        id: build
+        timeout-minutes: 150
+        run: scripts/check_build.sh
+      # Also after a failed or timed-out build, so that the next run resumes from it.
+      - name: Save Lean build
+        if: always() && steps.build-cache.outputs.cache-hit != 'true' && (steps.build.outcome == 'success' || steps.build.outcome == 'failure')
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/build
+          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+      - name: Save Lean dependencies
+        if: steps.deps.outputs.cache-hit != 'true'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/packages
+          key: ${{ steps.deps.outputs.cache-primary-key }}
+      - name: Check axioms
+        run: scripts/check_audit.sh
+
+  exports:
+    name: Exported models
+    runs-on: ubuntu-latest
+    # Estimated: about 60 minutes with cold caches, 40 with warm ones.
+    timeout-minutes: 150
+    env:
+      # A runner core is slower than a laptop's: give each audited file more time than the
+      # default ten minutes, so that a slow runner does not fail a file that elaborates.
+      LEAN_TIMEOUT: 2400
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - name: Install elan
+        run: scripts/install_elan.sh
+      # The proofs job saves these.
+      - name: Restore Lean dependencies
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/packages
+          key: lean-deps-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}
+      - name: Restore Lean build
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .lake/build
+          key: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
+      - name: Build the model library
+        run: scripts/check_build.sh Fe
+      - name: Check out Fe
+        run: scripts/fetch_fe.sh .lake/fe
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      # Keyed on Fe's Cargo.lock and the compiler version.  Caches the third-party crates;
+      # Fe's own crates build in every run.
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: .lake/fe -> target
+          cache-on-failure: true
+      - name: Check the exported text
+        run: scripts/check_sync.sh .lake/fe
+      - name: Check the export audit
+        run: scripts/check_corpus.sh .lake/fe
+      - name: Upload the export audit
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: export-corpus
+          path: .lake/export-corpus/2*/
+          if-no-files-found: ignore
+          retention-days: 14
