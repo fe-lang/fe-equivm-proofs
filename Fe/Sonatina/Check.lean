@@ -66,13 +66,18 @@ def writeOps : List Operation :=
 def haltOps : List Operation := [.RETURN, .REVERT, .STOP, .INVALID]
 
 /-- A pure arithmetic or logic opcode on words, operands top first, as `Xstep` computes it;
-    `none` for the opcodes of the environment. -/
+    `none` for `EXP`, which the checker does not fold, and the opcodes of the environment. -/
 def evalOp : Operation → List UInt256 → Option UInt256
   | .ADD, [a, b] => some (a + b)
   | .SUB, [a, b] => some (UInt256.sub a b)
   | .MUL, [a, b] => some (UInt256.mul a b)
   | .DIV, [a, b] => some (UInt256.div a b)
+  | .SDIV, [a, b] => some (UInt256.sdiv a b)
   | .MOD, [a, b] => some (UInt256.mod a b)
+  | .SMOD, [a, b] => some (UInt256.smod a b)
+  | .SIGNEXTEND, [a, b] => some (UInt256.signextend a b)
+  | .ADDMOD, [a, b, c] => some (UInt256.addMod a b c)
+  | .MULMOD, [a, b, c] => some (UInt256.mulMod a b c)
   | .SHL, [a, b] => some (UInt256.shiftLeft b a)
   | .SHR, [a, b] => some (UInt256.shiftRight b a)
   | .SAR, [a, b] => some (UInt256.sar a b)

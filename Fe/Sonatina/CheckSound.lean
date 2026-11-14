@@ -34,8 +34,10 @@ def Sound (s : Sidecar) : Prop :=
   RefinesOn .P0 (s.code "runtime") (s.model .machine) CalldataFits
     ∧ RefinesDeploy .P0 (s.code "init") .empty (s.model .machine) (fun _ => True)
 
-/-- An opcode of the environment, as `Xstep` pushes it in the frame `ee`. -/
+/-- A pure opcode `evalOp` does not compute, as `Xstep` pushes it in the frame `ee`: `EXP`, and
+    the opcodes of the environment. -/
 def envOp (ee : ExecutionEnv) : Operation → List UInt256 → Option UInt256
+  | .EXP, [a, b] => some (UInt256.exp a b)
   | .CALLVALUE, [] => some ee.weiValue
   | .CALLER, [] => some (.ofNat ee.source.val)
   | .ADDRESS, [] => some (.ofNat ee.codeOwner.val)

@@ -18,4 +18,5 @@ import Fe.Sonatina.Refine
 import Fe.Sonatina.Hints
 import Fe.Sonatina.Check
 import Fe.Sonatina.CheckSound
+import Fe.Sonatina.CheckStep
 import Fe.Sonatina.Diff
