@@ -292,8 +292,7 @@ theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ
     have te := top20 hs.ce hm.lt hs.er.1 (Or.inr hs.er.2)
     by_cases hz : g 0 = 0 ∧ g 1 = 0 ∧ g 2 = 0 ∧ g 3 = 0 ∧ g 4 = 0
     · -- `g = 0`: `f = ±1`, and `normalize` returns `± d`.
-      simp only [hz, decide_true, Bool.not_true, Bool.false_eq_true, if_false, checkIndex, idx_lits,
-        lt5, if_true, pure_bind, vec5, vget5]
+      simp only [hz, checkIndex, idx_lits, lt5, if_true, pure_bind, vec5, vget5]
       obtain ⟨out, hout, hco, h0, h1, hc⟩ := normalize_spec d m (f 4) hs.cd hm.canon
         (R64_of_lim hs.lf 4) hm.pos hm.lt hs.dr.1 hs.dr.2
       simp only [vec5] at hout
