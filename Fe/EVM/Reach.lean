@@ -13,7 +13,7 @@ conclude at profile `P0` only.
 
 A `CALL` inside a trace is EVMLean's `Θ` on gas, a substate and an original account map the
 trace does not expose; `call_feed` gives the entry of the feed with which the model's `call`
-makes the same message call.
+makes the same message call, and says what the model records of it.
 -/
 
 namespace Fe.EVM
@@ -315,7 +315,12 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
           logs := logs
           memory := o.write 0 w.memory retPtr.toNat (min retLen (.ofNat o.size)).toNat
           returnData := o
-          feed := rest })) ∧
+          feed := rest
+          calls := if value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance))
+              ∧ I.depth < 1024 then
+            w.calls ++ [Made.theta (messageCall I w s gasArg I.codeOwner (.ofUInt256 target)
+              (.ofUInt256 target) value value argsPtr argsLen I.perm)]
+            else w.calls })) ∧
       RD code I g s0 (pc + ⟨1⟩) ((if z then ⟨1⟩ else ⟨0⟩) :: t)
         (o.write 0 mem outOffset.toNat (min outSize (UInt256.ofNat o.size)).toNat)
         aw' o σ' k' C' := by
@@ -341,8 +346,11 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
     let s : Supply := ⟨cap, AIn, s0.σ₀⟩
     rw [accountAddress_roundtrip, ← hargs, ← hacc] at hΘ
     refine ⟨s, z, o, σ', w.logs ++ appended AIn A', _, k', C', ?_, rd⟩
+    have hmade' : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance))
+        ∧ I.depth < 1024 := by simp only [hacc, hopt]; exact ⟨hmade.1, hmade.2⟩
     rw [hcall, message_made (w := { w with feed := s :: rest }) (s := s) (rest := rest) rfl
-      (by simp only [hacc, hopt]; exact ⟨hmade.1, hmade.2⟩) hΘ]
+      hmade' hΘ, if_pos hmade']
+    rfl
   · have hnot : ¬ (value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
         I.depth < 1024) := by
       rw [hacc, hopt]; exact hmade
@@ -371,7 +379,7 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
     refine ⟨s₀, false, ByteArray.empty, σ, w.logs ++ appended s₀.substate s₀.substate, _, k', C',
       ?_, rd⟩
     rw [hcall, message_notMade (w := { w with feed := s₀ :: rest }) (s := s₀) (rest := rest) rfl
-      hnot, ← hacc]
+      hnot, if_neg hnot, ← hacc]
     rfl
 
 end Fe.EVM

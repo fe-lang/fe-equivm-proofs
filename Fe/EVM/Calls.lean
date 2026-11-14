@@ -13,11 +13,16 @@ their result.
 What stays loose: a callee gets some gas no more than the call's gas argument, plus the stipend
 when value moves; `gas()` reads some word; the substate and the original account map handed to
 a callee are whatever the feed holds.
+
+Each call and creation made is recorded in the world's ghost field `calls`, as the inputs passed
+to `Θ` (`messageCall`) or `Lambda`, so a statement about the model can speak of the calls it makes
+(`call_made`).  One not made records nothing, as `callOk` and `createOk` ask nothing of it.  No
+other operation touches the record (`KeepsCalls`, `keeps_calls` in `World.lean`).
 -/
 
 namespace Fe.EVM
 
-open Ethereum Ethereum.EVM
+open Ethereum Ethereum.EVM Ethereum.EVM.Invariant
 
 /-! ## The feed -/
 
@@ -57,30 +62,49 @@ def forwardedGas (cap gasArg value : UInt256) : UInt256 :=
 def appended (before after : Substate) : LogSeries :=
   after.logSeries.extract before.logSeries.size
 
+/-- The inputs of the message call `message` makes, from the world before it and the feed's
+    entry `s`. -/
+def messageCall (I : Env) (w : World) (s : Supply) (gasArg : UInt256)
+    (source recipient t : AccountAddress) (value value' argsPtr argsLen : UInt256) (perm : Bool) :
+    ThetaCall where
+  σ := w.accounts
+  σ₀ := s.orig
+  A := s.substate
+  s := source
+  o := I.sender
+  r := recipient
+  c := toExecute w.accounts t
+  g := forwardedGas s.gas gasArg value
+  p := .ofNat I.gasPrice
+  v := value
+  v' := value'
+  d := w.memory.readWithPadding argsPtr.toNat argsLen.toNat
+  e := I.depth + 1
+  H := I.header
+  bvh := I.blobVersionedHashes
+  blocks := I.blocks
+  w := perm
+
 /-- The message call the EVM makes for `CALL`, `STATICCALL` and `DELEGATECALL`: `source` calls
     `recipient`, running the code at `t`, moving `value` and showing the callee `value'`.  It
     takes one entry of the feed, whether or not a call is made: without the funds, or at depth
     1024, none is, and the result is zero with empty return data.  Returns one if the callee
     succeeded and zero otherwise; the first `retLen` bytes of the return data go to memory at
-    `retPtr`. -/
+    `retPtr`.  A call made is recorded. -/
 def message (gasArg : UInt256) (source recipient t : AccountAddress) (value value' : UInt256)
     (argsPtr argsLen retPtr retLen : UInt256) (perm : Bool) : FeM UInt256 := do
   let I ← read
   let s ← next
   let w ← get
-  let σ := w.accounts
-  let (σ', _, A', z, o) :=
-    if value ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024 then
-      Θ σ s.orig s.substate source I.sender recipient (toExecute σ t)
-        (forwardedGas s.gas gasArg value) (.ofNat I.gasPrice) value value'
-        (w.memory.readWithPadding argsPtr.toNat argsLen.toNat) (I.depth + 1) I.header
-        I.blobVersionedHashes I.blocks perm
-    else (σ, ⟨0⟩, s.substate, false, ByteArray.empty)
+  let T := messageCall I w s gasArg source recipient t value value' argsPtr argsLen perm
+  let made := value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
+  let (σ', _, A', z, o) := if made then T.run else (w.accounts, ⟨0⟩, s.substate, false, .empty)
   set { w with
     accounts := σ'
     logs := w.logs ++ appended s.substate A'
     memory := o.write 0 w.memory retPtr.toNat (min retLen (.ofNat o.size)).toNat
-    returnData := o }
+    returnData := o
+    calls := if made then w.calls ++ [Made.theta T] else w.calls }
   return if z then ⟨1⟩ else ⟨0⟩
 
 /-- `call(gas, addr, value, args_offset, args_len, ret_offset, ret_len)`: call the account
@@ -118,7 +142,7 @@ def delegatecall (gas addr argsPtr argsLen retPtr retLen : UInt256) : FeM UInt25
     the feed's next entry.  Returns the new contract's address, or zero when the creation fails
     or is not made: for want of funds, at depth 1024, or with this contract's nonce at its
     limit.  Under a static call it fails.  Init code above 49152 bytes runs out of gas on the
-    EVM, so the model does not terminate. -/
+    EVM, so the model does not terminate.  A creation made is recorded. -/
 def createWith (salt : Option ByteArray) (value ptr len : UInt256) : FeM UInt256 := do
   let I ← read
   if I.perm = false then Fe.M.fail .static
@@ -132,15 +156,18 @@ def createWith (salt : Option ByteArray) (value ptr len : UInt256) : FeM UInt256
     if h : self.nonce.toNat < 2 ^ 64 - 1
         ∧ value ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
         ∧ init.size ≤ 49152 then
-      match Lambda (σ.insert I.codeOwner { self with nonce := self.nonce + ⟨1⟩ }) s.orig s.substate
-          I.codeOwner I.sender s.gas (.ofNat I.gasPrice) value init
-          ⟨I.depth.val + 1, Nat.succ_lt_succ h.2.2.1⟩ salt I.header I.blobVersionedHashes
-          I.blocks I.perm with
+      let L : LambdaCall :=
+        { σ := σ.insert I.codeOwner { self with nonce := self.nonce + ⟨1⟩ }, σ₀ := s.orig
+          A := s.substate, s := I.codeOwner, o := I.sender, g := s.gas, p := .ofNat I.gasPrice
+          v := value, i := init, e := ⟨I.depth.val + 1, Nat.succ_lt_succ h.2.2.1⟩, ζ := salt
+          H := I.header, bvh := I.blobVersionedHashes, blocks := I.blocks, w := I.perm }
+      match L.run with
       | (a, σ', _, A', z, o) =>
         set { w with
           accounts := σ'
           logs := w.logs ++ appended s.substate A'
-          returnData := if z then ByteArray.empty else o }
+          returnData := if z then ByteArray.empty else o
+          calls := w.calls ++ [Made.lambda L] }
         return if z then UInt256.ofNat a else ⟨0⟩
     else
       set { w with returnData := ByteArray.empty }
@@ -241,9 +268,9 @@ theorem forwardedGas_Ccallgas (t r : AccountAddress) (value gasArg : UInt256) (�
 theorem appended_self (A : Substate) : appended A A = #[] := by
   simp [appended]
 
-/-- A message call that is made is `Θ` on the model's accounts.  The hypothesis is the link
-    EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with, once the gas
-    they give the callee is shown to be `forwardedGas` of some cap, as
+/-- A message call that is made is `Θ` on the model's accounts, and is recorded.  The hypothesis
+    is the link EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with,
+    once the gas they give the callee is shown to be `forwardedGas` of some cap, as
     `callValueMade_forwardedGas` (`Reach.lean`) does for a `CALL`. -/
 theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
     {gasArg value value' argsPtr argsLen retPtr retLen g' : UInt256}
@@ -262,13 +289,18 @@ theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
           logs := w.logs ++ appended s.substate A'
           memory := o.write 0 w.memory retPtr.toNat (min retLen (.ofNat o.size)).toNat
           returnData := o
-          feed := rest })) := by
+          feed := rest
+          calls := w.calls ++ [Made.theta (messageCall I w s gasArg source recipient t value value'
+            argsPtr argsLen perm)] })) := by
   simp only [message, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
-    if_pos hmade, ← hΘ]
+    if_pos hmade]
+  rw [show (messageCall I { w with feed := rest } s gasArg source recipient t value value' argsPtr
+    argsLen perm).run = (σ', g', A', z, o) from hΘ.symm]
+  rfl
 
 /-- A message call that is not made, for want of funds or at depth 1024, fails and changes
-    nothing but the return data and the feed: no log is appended, and the write to memory has
-    length zero. -/
+    nothing but the return data and the feed: no log is appended, the write to memory has length
+    zero, and nothing is recorded. -/
 theorem message_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
     {gasArg value value' argsPtr argsLen retPtr retLen : UInt256}
     {source recipient t : AccountAddress} {perm : Bool} (hfeed : w.feed = s :: rest)
@@ -284,6 +316,103 @@ theorem message_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
   simp only [message, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
     if_neg hnot]
   rfl
+
+/-- A `call` that is made runs `Θ` on the inputs `messageCall` gives, from the world before the
+    call and the feed's next entry, and records them. -/
+theorem call_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
+    {gasArg addr value argsPtr argsLen retPtr retLen g' : UInt256} {z : Bool} {σ' : AccountMap}
+    {A' : Substate} {o : ByteArray} (hfeed : w.feed = s :: rest)
+    (hperm : I.perm = true ∨ value = ⟨0⟩)
+    (hmade : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024)
+    (hΘ : (σ', g', A', z, o) = (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr)
+      (.ofUInt256 addr) value value argsPtr argsLen I.perm).run) :
+    (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w =
+      some (.ok (if z then ⟨1⟩ else ⟨0⟩,
+        { w with
+          accounts := σ'
+          logs := w.logs ++ appended s.substate A'
+          memory := o.write 0 w.memory retPtr.toNat (min retLen (.ofNat o.size)).toNat
+          returnData := o
+          feed := rest
+          calls := w.calls ++ [Made.theta (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr)
+            (.ofUInt256 addr) value value argsPtr argsLen I.perm)] })) := by
+  have hns : ¬ (I.perm = false ∧ value ≠ ⟨0⟩) := by
+    rintro ⟨hp, hv⟩
+    rcases hperm with h | h
+    · rw [hp] at h; cases h
+    · exact hv h
+  simp only [call, M.exec_bind, M.exec_read, if_neg hns]
+  exact message_made hfeed hmade hΘ
+
+/-- A `call` that is not made records nothing. -/
+theorem call_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
+    {gasArg addr value argsPtr argsLen retPtr retLen : UInt256} (hfeed : w.feed = s :: rest)
+    (hperm : I.perm = true ∨ value = ⟨0⟩)
+    (hnot : ¬ (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024)) :
+    (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w =
+      some (.ok (⟨0⟩,
+        { w with
+          logs := w.logs ++ appended s.substate s.substate
+          memory := ByteArray.empty.write 0 w.memory retPtr.toNat
+            (min retLen (.ofNat ByteArray.empty.size)).toNat
+          returnData := ByteArray.empty
+          feed := rest })) := by
+  have hns : ¬ (I.perm = false ∧ value ≠ ⟨0⟩) := by
+    rintro ⟨hp, hv⟩
+    rcases hperm with h | h
+    · rw [hp] at h; cases h
+    · exact hv h
+  simp only [call, M.exec_bind, M.exec_read, if_neg hns]
+  exact message_notMade hfeed hnot
+
+/-- What a `call` that returns did: it was not made, and changed neither the accounts nor the
+    record, or it was made, its accounts are what `Θ` returned, and it is recorded. -/
+theorem call_cases {I : Env} {w w' : World}
+    {gasArg addr value argsPtr argsLen retPtr retLen x : UInt256}
+    (h : (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w = some (.ok (x, w'))) :
+    (w'.accounts = w.accounts ∧ w'.calls = w.calls) ∨
+      ∃ s rest, w.feed = s :: rest
+        ∧ (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024)
+        ∧ w'.accounts = (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr)
+            value value argsPtr argsLen I.perm).run.1
+        ∧ w'.calls = w.calls ++ [Made.theta (messageCall I w s gasArg I.codeOwner
+            (.ofUInt256 addr) (.ofUInt256 addr) value value argsPtr argsLen I.perm)] := by
+  by_cases hs : I.perm = false ∧ value ≠ ⟨0⟩
+  · simp [call, hs] at h
+  have hperm : I.perm = true ∨ value = ⟨0⟩ := by
+    cases hp : I.perm
+    · exact Or.inr (Classical.byContradiction fun hv => hs ⟨hp, hv⟩)
+    · exact Or.inl rfl
+  cases hf : w.feed with
+  | nil => simp [call, message, next, hs, hf] at h
+  | cons s rest =>
+    by_cases hmade : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance))
+        ∧ I.depth < 1024
+    · rcases hr : (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value
+          value argsPtr argsLen I.perm).run with ⟨σ', g', A', z, o⟩
+      rw [call_made hf hperm hmade hr.symm] at h
+      simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.2]
+      exact Or.inr ⟨s, rest, rfl, hmade, by rw [hr], rfl⟩
+    · rw [call_notMade hf hperm hmade] at h
+      simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.2]
+      exact Or.inl ⟨rfl, rfl⟩
+
+/-- A property of the accounts that holds before a `call`, and after every call it makes, holds
+    after it. -/
+theorem call_keeps {Inv : AccountMap → Prop} {I : Env} {w w' : World}
+    {gasArg addr value argsPtr argsLen retPtr retLen x : UInt256}
+    (h : (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w = some (.ok (x, w')))
+    (hbefore : Inv w.accounts)
+    (hmade : ∀ s rest, w.feed = s :: rest →
+      (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024) →
+      Inv (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value value
+        argsPtr argsLen I.perm).run.1) :
+    Inv w'.accounts := by
+  rcases call_cases h with ⟨ha, -⟩ | ⟨s, rest, hf, hm, ha, -⟩
+  · rw [ha]; exact hbefore
+  · rw [ha]; exact hmade s rest hf hm
 
 /-- A message call without write permission leaves every account's storage as it was, whatever
     the callee and the feed: EVMLean's `Theta_static_accountStorageStateEq`, on the model. -/

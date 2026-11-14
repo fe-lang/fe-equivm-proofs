@@ -1,5 +1,6 @@
 import Ethereum.Semantics
 import Fe.Core
+import Fe.EVM.FrameCalls
 
 /-!
 # The EVM world of a Fe model
@@ -10,7 +11,7 @@ between two representations of storage.
 
 namespace Fe.EVM
 
-open Ethereum
+open Ethereum Ethereum.EVM.Invariant
 
 /-- What the context supplies each time the model consults it: once for `gas()`, once for each
     message call or creation.  The model counts no gas and keeps no substate, so it cannot
@@ -25,6 +26,16 @@ structure Supply where
   /-- The account map the transaction started from, which prices the callee's `SSTORE`s. -/
   orig : AccountMap
 
+/-- A message call or a creation the model made: the inputs it passed to `Θ` or to `Lambda`. -/
+inductive Made where
+  | theta (T : ThetaCall)
+  | lambda (L : LambdaCall)
+
+/-- The made call or creation satisfies the condition `Q` on calls and creations. -/
+def Made.Ok (Q : CallPreds) : Made → Prop
+  | .theta T => Q.theta T
+  | .lambda L => Q.lambda L
+
 /-- The part of the EVM state a contract's model reads and writes. -/
 structure World where
   accounts : AccountMap
@@ -37,6 +48,10 @@ structure World where
   /-- What the context has yet to supply.  A model that makes no call and reads no gas never
       looks at it. -/
   feed : List Supply := []
+  /-- A ghost record of the message calls and creations made, in order: the inputs passed to `Θ`
+      and `Lambda`.  A call or creation that is not made (short of funds, at depth 1024) records
+      nothing.  The model never reads it; it says what calls the model makes. -/
+  calls : List Made := []
 
 /-- The world a message call starts in, with the feed the context will supply. -/
 def World.init (σ : AccountMap) (A : Substate) (feed : List Supply := []) : World :=
@@ -583,6 +598,136 @@ macro "keeps_memory" : tactic =>
     | assumption
     | with_reducible apply KeepsMemory.ite
     | with_reducible apply KeepsMemory.bind
+    | intro (_ : _))
+
+/-! ## The operations make no call -/
+
+/-- The computation records no call or creation, whether it returns or stops the run from
+    inside: every operation but `message` and `createWith` (`Calls.lean`) and what runs them. -/
+def KeepsCalls {α : Type} (m : FeM α) : Prop :=
+  ∀ I w, (∀ a w', m.exec I w = some (.ok (a, w')) → w'.calls = w.calls) ∧
+    ∀ data w', m.exec I w = some (.error (.stop data w')) → w'.calls = w.calls
+
+theorem KeepsCalls.pure {α : Type} (a : α) : KeepsCalls (pure a : FeM α) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; rw [h.2]
+
+theorem KeepsCalls.fail {α : Type} {f : Exit World} (hf : ∀ data w, f ≠ .stop data w) :
+    KeepsCalls (Fe.M.fail f : FeM α) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; exact absurd h (hf _ _)
+
+theorem KeepsCalls.revert {α : Type} (data : ByteArray) :
+    KeepsCalls (Fe.M.revert data : FeM α) := KeepsCalls.fail (by simp)
+
+theorem KeepsCalls.panic {α : Type} (code : Nat) : KeepsCalls (Fe.M.panic code : FeM α) :=
+  KeepsCalls.fail (by simp)
+
+theorem KeepsCalls.fail_static {α : Type} : KeepsCalls (Fe.M.fail .static : FeM α) :=
+  KeepsCalls.fail (by simp)
+
+theorem KeepsCalls.stop {α : Type} (data : ByteArray) : KeepsCalls (Fe.M.stop data : FeM α) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; rw [h.2]
+
+theorem KeepsCalls.diverge {α : Type} : KeepsCalls (Fe.M.diverge : FeM α) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h
+
+theorem KeepsCalls.read : KeepsCalls (read : FeM Env) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; rw [h.2]
+
+theorem KeepsCalls.get : KeepsCalls (get : FeM World) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; rw [h.2]
+
+theorem KeepsCalls.modify {f : World → World} (hf : ∀ w, (f w).calls = w.calls) :
+    KeepsCalls (modify f : FeM PUnit) := by
+  intro I w; constructor <;> intro _ _ h <;> simp at h; rw [← h, hf]
+
+theorem KeepsCalls.bind {α β : Type} {m : FeM α} {k : α → FeM β} (hm : KeepsCalls m)
+    (hk : ∀ a, KeepsCalls (k a)) : KeepsCalls (m >>= k) := by
+  intro I w
+  rw [M.exec_bind]
+  cases hr : m.exec I w with
+  | none => constructor <;> intro _ _ h <;> cases h
+  | some r =>
+    cases r with
+    | error f =>
+      constructor <;> intro _ _ h <;> simp only [Option.some.injEq, reduceCtorEq,
+        Except.error.injEq] at h
+      subst h
+      exact (hm I w).2 _ _ hr
+    | ok p =>
+      obtain ⟨a, v⟩ := p
+      have hv := (hm I w).1 a v hr
+      exact ⟨fun b w' h => ((hk a I v).1 b w' h).trans hv,
+        fun d w' h => ((hk a I v).2 d w' h).trans hv⟩
+
+theorem KeepsCalls.ite {α : Type} (c : Prop) [Decidable c] {a b : FeM α} (ha : KeepsCalls a)
+    (hb : KeepsCalls b) : KeepsCalls (if c then a else b) := by
+  split <;> assumption
+
+theorem KeepsCalls.dite {α : Type} (c : Prop) [Decidable c] {a : c → FeM α} {b : ¬ c → FeM α}
+    (ha : ∀ h, KeepsCalls (a h)) (hb : ∀ h, KeepsCalls (b h)) :
+    KeepsCalls (if h : c then a h else b h) := by
+  split
+  · exact ha _
+  · exact hb _
+
+theorem keepsCalls_sload (slot : UInt256) : KeepsCalls (sload slot) := by
+  unfold sload; exact KeepsCalls.bind KeepsCalls.read fun _ =>
+    KeepsCalls.bind KeepsCalls.get fun _ => KeepsCalls.pure _
+
+theorem keepsCalls_sstore (slot val : UInt256) : KeepsCalls (sstore slot val) := by
+  unfold sstore
+  exact KeepsCalls.bind KeepsCalls.read fun _ =>
+    KeepsCalls.ite _ (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
+
+theorem keepsCalls_emit (topics : Array UInt256) (data : ByteArray) :
+    KeepsCalls (emit topics data) := by
+  unfold emit
+  exact KeepsCalls.bind KeepsCalls.read fun _ =>
+    KeepsCalls.ite _ (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
+
+theorem keepsCalls_caller : KeepsCalls caller := by
+  unfold caller; exact KeepsCalls.bind KeepsCalls.read fun _ => KeepsCalls.pure _
+
+theorem keepsCalls_callvalue : KeepsCalls callvalue := by
+  unfold callvalue; exact KeepsCalls.bind KeepsCalls.read fun _ => KeepsCalls.pure _
+
+theorem keepsCalls_calldata : KeepsCalls calldata := by
+  unfold calldata; exact KeepsCalls.bind KeepsCalls.read fun _ => KeepsCalls.pure _
+
+theorem keepsCalls_selfbalance : KeepsCalls selfbalance := by
+  unfold selfbalance
+  exact KeepsCalls.bind KeepsCalls.get fun _ => KeepsCalls.bind KeepsCalls.read fun _ =>
+    KeepsCalls.pure _
+
+theorem keepsCalls_nonPayable : KeepsCalls nonPayable := by
+  unfold nonPayable
+  exact KeepsCalls.bind KeepsCalls.read fun _ =>
+    KeepsCalls.ite _ (KeepsCalls.revert _) (KeepsCalls.pure _)
+
+/-- Prove `KeepsCalls` for a computation built from binds, conditionals and the operations of
+    this file.  Unfold the definitions it should look into first. -/
+macro "keeps_calls" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact keepsCalls_sload _
+    | with_reducible exact keepsCalls_sstore _ _
+    | with_reducible exact keepsCalls_emit _ _
+    | with_reducible exact keepsCalls_caller
+    | with_reducible exact keepsCalls_callvalue
+    | with_reducible exact keepsCalls_calldata
+    | with_reducible exact keepsCalls_selfbalance
+    | with_reducible exact keepsCalls_nonPayable
+    | with_reducible exact KeepsCalls.pure _
+    | with_reducible exact KeepsCalls.revert _
+    | with_reducible exact KeepsCalls.panic _
+    | with_reducible exact KeepsCalls.fail_static
+    | with_reducible exact KeepsCalls.stop _
+    | with_reducible exact KeepsCalls.diverge
+    | with_reducible exact KeepsCalls.read
+    | with_reducible exact KeepsCalls.get
+    | assumption
+    | with_reducible apply KeepsCalls.ite
+    | with_reducible apply KeepsCalls.dite
+    | with_reducible apply KeepsCalls.bind
     | intro (_ : _))
 
 end Fe.EVM
