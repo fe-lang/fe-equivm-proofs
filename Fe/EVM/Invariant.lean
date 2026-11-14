@@ -746,6 +746,7 @@ theorem step_sets {op : Operation} {gasCost : ℕ} {arg : Option (UInt256 × Nat
   all_goals cases op <;> simp [step] at h
   all_goals first
     | (have hs := sets_execUnOp h; exact hs)
+    | (split at h <;> first | contradiction | (have hs := sets_execUnOp h; exact hs))
     | (have hs := sets_execBinOp h; exact hs)
     | (have hs := sets_execTriOp h; exact hs)
     | (have hs := sets_machineStateOp h; exact hs)
