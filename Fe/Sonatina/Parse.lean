@@ -150,7 +150,8 @@ def evmOps : List (String × EvmOp × Nat) :=
    ("evm_gas_limit", .gasLimit, 0), ("evm_chain_id", .chainId, 0),
    ("evm_self_balance", .selfBalance, 0), ("evm_base_fee", .baseFee, 0),
    ("evm_blob_hash", .blobHash, 1), ("evm_blob_base_fee", .blobBaseFee, 0),
-   ("evm_gas", .gas, 0), ("evm_code_load", .codeLoad, 1), ("evm_sload", .sload, 1),
+   ("evm_gas", .gas, 0), ("evm_code_load", .codeLoad, 1), ("evm_mload", .mload, 1),
+   ("evm_mstore", .mstore, 2), ("evm_sload", .sload, 1),
    ("evm_sstore", .sstore, 2),
    ("evm_tload", .tload, 1), ("evm_tstore", .tstore, 2), ("evm_keccak256", .keccak256, 2),
    ("evm_mcopy", .mcopy, 3), ("evm_mstore8", .mstore8, 2), ("evm_log0", .log 0, 2),
@@ -196,6 +197,7 @@ def parseInst (name : String) (args : List String) : P Inst := do
     return .mstore (← parseOperand addr) (← parseOperand value) (← parseTy ty)
   | "memzero", [dest, len] => return .memzero (← parseOperand dest) (← parseOperand len)
   | "evm_malloc", [size] => return .malloc (← parseOperand size)
+  | "alloca", [ty] => return .alloca (← parseTy ty)
   | "sym_addr", [s] => return .symAddr (← symbol s)
   | "sym_size", [s] => return .symSize (← symbol s)
   | "insert_value", [agg, index, value] =>
@@ -359,16 +361,88 @@ def hexBytes (digits : String) : P ByteArray := do
     | _, _ => throw "odd number of hex digits"
   go digits.toList ByteArray.empty
 
+/-- The variant of an enum as serde writes it: a string for a variant without data, else an
+    object of one field, the variant's name. -/
+def variant (json : Json) : P (String × Json) :=
+  match json with
+  | .str name => pure (name, .null)
+  | .obj fields =>
+    match fields.toList with
+    | [(name, value)] => pure (name, value)
+    | _ => throw s!"expected one variant, got {json.compress}"
+  | _ => throw s!"expected a variant, got {json.compress}"
+
+def parseSlot (json : Json) : P Slot := do
+  match ← variant json with
+  | ("value", v) => return .value (← v.getNat?)
+  | ("imm", v) => match (← v.getStr?).toNat? with
+    | some n => return .imm n
+    | none => throw s!"bad immediate {v.compress}"
+  | ("func_return", _) => return .funcReturn
+  | ("call_return", _) => return .callReturn
+  | (name, _) => throw s!"unknown stack slot {name}"
+
+def parseLocation (json : Json) : P SpillLocation := do
+  match ← variant json with
+  | ("memory", v) => return .memory (← v.getNat?)
+  | ("frame", v) => return .frame (← v.getNat?)
+  | ("rematerialized", _) => return .rematerialized
+  | (name, _) => throw s!"unknown spill location {name}"
+
+def parseLabel (json : Json) : P CodeLabel := do
+  match ← variant json with
+  | ("block", v) =>
+    return .block (← v.getObjValAs? String "func") (← v.getObjValAs? Nat "block")
+  | ("func", v) => return .func (← v.getStr?)
+  | ("unit", v) => return .unit (← v.getStr?)
+  | ("inst", _) => return .inst
+  | (name, _) => throw s!"unknown code label {name}"
+
+def parseLowering (json : Json) : P Lowering := do
+  let funcs ← (← json.getObjValAs? (Array Json) "funcs").toList.mapM fun f => do
+    let blocks ← (← f.getObjValAs? (Array Json) "blocks").toList.mapM fun b => do
+      return ({ block := ← b.getObjValAs? Nat "block"
+                sources := ← b.getObjValAs? (List Nat) "sources"
+                offset := ← b.getObjValAs? (Option Nat) "offset"
+                aliasOf := ← b.getObjValAs? (Option Nat) "alias"
+                entryStack := ← (← b.getObjValAs? (Array Json) "entry_stack").toList.mapM
+                  parseSlot } : BlockHint)
+    let spills ← (← f.getObjValAs? (Array Json) "spills").toList.mapM fun s => do
+      return (← s.getObjValAs? Nat "value", ← parseLocation (← s.getObjVal? "location"))
+    return ({ name := ← f.getObjValAs? String "name"
+              offset := ← f.getObjValAs? (Option Nat) "offset"
+              blocks, spills } : FuncHint)
+  let units ← (← json.getObjValAs? (Array Json) "units").toList.mapM fun u => do
+    return (← u.getObjValAs? String "name", ← u.getObjValAs? Nat "offset",
+      ← u.getObjValAs? Nat "size")
+  let redirects ← (← json.getObjValAs? (Array Json) "redirects").toList.mapM fun r => do
+    return (← parseLabel (← r.getObjVal? "from"), ← parseLabel (← r.getObjVal? "to"))
+  return { source := ← parseModule (← json.getObjValAs? String "source_ir")
+           machine := ← parseModule (← json.getObjValAs? String "machine_ir")
+           codeSize := ← json.getObjValAs? Nat "code_size"
+           arenaBase := ← json.getObjValAs? Nat "arena_base"
+           dynBase := ← json.getObjValAs? Nat "dyn_base"
+           entryFreePtr := ← json.getObjValAs? (Option Nat) "entry_free_ptr"
+           funcs, units, redirects }
+
+/-- The sidecar version this reader reads. -/
+def sidecarVersion : Nat := 2
+
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
 def parseSidecar (text : String) : P Sidecar := do
   let json ← Json.parse text
+  let version ← json.getObjValAs? Nat "version"
+  unless version == sidecarVersion do throw s!"sidecar version {version}, not {sidecarVersion}"
   let module ← parseModule (← json.getObjValAs? String "ir")
   let sections ← (← json.getObjValAs? (Array Json) "sections").toList.mapM fun s => do
     let symbols ← (← s.getObjValAs? (Array Json) "symbols").toList.mapM fun sym =>
       return (← sym.getObjValAs? String "symbol", ← sym.getObjValAs? Nat "offset",
         ← sym.getObjValAs? Nat "size")
     let bytecode ← hexBytes (← s.getObjValAs? String "bytecode")
-    return (⟨← s.getObjValAs? String "name", bytecode, symbols⟩ : CodeSection)
+    let lowering ← match ← s.getObjVal? "lowering" with
+      | .null => pure none
+      | l => some <$> parseLowering l
+    return (⟨← s.getObjValAs? String "name", bytecode, symbols, lowering⟩ : CodeSection)
   return ⟨← json.getObjValAs? String "object", module, sections⟩
 
 end Fe.Sonatina.Parse

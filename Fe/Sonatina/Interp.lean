@@ -53,6 +53,8 @@ structure Ctx where
   call : Callee
   symbol : String → Option (Nat × Nat)
   heap : Nat
+  /-- The struct types of the module, for the size of an `alloca`. -/
+  structs : List (String × List Ty)
 
 /-- A run past what the semantics defines: it does not terminate. -/
 def stuck {α : Type} : FeM α := Fe.M.diverge
@@ -70,6 +72,13 @@ def fitsSigned (bits : Nat) (n : Int) : Bool := -(2 ^ (bits - 1) : Int) ≤ n &&
 def word (v : UInt256) : Val := .int 256 v.toNat
 
 def bool (b : Bool) : Val := .int 1 (if b then 1 else 0)
+
+/-- The value as one of the type its definition declares: an integer of another width is
+    reduced to it, as the machine IR's `i256` comparison results are. -/
+def Val.as (v : Val) (ty : Ty) : Val :=
+  match v, ty with
+  | .int _ value, .int _ | .int _ value, .ptr _ => .int ty.bits (value % 2 ^ ty.bits)
+  | v, _ => v
 
 def Val.zero : Ty → Val
   | .int bits => .int bits 0
@@ -187,6 +196,8 @@ def EvmOp.run (op : EvmOp) (args : List UInt256) : FeM (List Val) :=
   | .blobBaseFee, [] => one Fe.EVM.blobbasefee
   | .gas, [] => one Fe.EVM.gas
   | .codeLoad, [o] => one (Fe.EVM.cload o)
+  | .mload, [a] => one (Fe.EVM.mload a)
+  | .mstore, [a, v] => none' (Fe.EVM.mstore a v)
   | .sload, [k] => one (Fe.EVM.sload k)
   | .sstore, [k, v] => none' (Fe.EVM.sstore k v)
   | .tload, [k] => one (Fe.EVM.tload k)
@@ -216,6 +227,7 @@ def Inst.fixedEnds : Inst → List (Option Nat)
   | .evm op args =>
     match op, args with
     | .mstore8, [p, _] => [constRange p (.imm 256 1)]
+    | .mload, [a] | .mstore, [a, _] => [constRange a (.imm 256 32)]
     | .calldataCopy, [d, _, l] | .codeCopy, [d, _, l] | .returnDataCopy, [d, _, l]
     | .extCodeCopy, [_, d, _, l] | .keccak256, [d, l] | .create, [_, d, l]
     | .create2, [_, d, l, _] => [constRange d l]
@@ -240,6 +252,27 @@ def Module.fixedEnd (m : Module) : Nat :=
       | .evmReturn a l | .evmRevert a l => [Inst.fixedEnds.constRange a l]
       | _ => []
   ((ends.filterMap id).foldl max 0 + 31) / 32 * 32
+
+/-- Fresh zero bytes at the end of memory and above `heap`: their address. -/
+def allocate (heap size : Nat) : FeM Nat := do
+  let w ← get
+  let base := max w.memory.size heap
+  unless base + size < UInt256.size do Fe.M.diverge
+  let fresh : ByteArray := ⟨Array.replicate (base + size - w.memory.size) 0⟩
+  set { w with memory := w.memory ++ fresh }
+  return base
+
+/-- Bytes enough for a value of the type, each scalar a word: more than Sonatina's layout
+    gives, which is all an allocation needs. A struct nested past 16 levels takes none. -/
+def Ty.size (structs : List (String × List Ty)) (ty : Ty) : Nat :=
+  go 16 ty
+where
+  go : Nat → Ty → Nat
+    | 0, _ => 0
+    | _ + 1, .int _ | _ + 1, .ptr _ => 32
+    | depth + 1, .array elem len => len * go depth elem
+    | depth + 1, .struct name => ((structs.lookup name).getD []).foldl (· + go depth ·) 0
+    | _ + 1, .unit => 0
 
 /-- Run an instruction to the values it defines. -/
 def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
@@ -284,14 +317,8 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
   | .memzero dest len => do
     zeroMem (← evalWord env dest) (← evalWord env len)
     return []
-  | .malloc size => do
-    let size := (← evalWord env size).toNat
-    let w ← get
-    let base := max w.memory.size c.heap
-    unless base + size < UInt256.size do Fe.M.diverge
-    let fresh : ByteArray := ⟨Array.replicate (base + size - w.memory.size) 0⟩
-    set { w with memory := w.memory ++ fresh }
-    return [.int 256 base]
+  | .malloc size => do return [.int 256 (← allocate c.heap (← evalWord env size).toNat)]
+  | .alloca ty => do return [.int 256 (← allocate c.heap (ty.size c.structs))]
   | .symAddr s => do
     let some (offset, _) := c.symbol s | stuck
     return [.int 256 offset]
@@ -314,7 +341,7 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
 /-- Bind each value to its id. -/
 def bind (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) : FeM Env :=
   if dsts.length == vals.length then
-    pure ((dsts.zip vals).foldl (fun env ((id, _), v) => env.insert id v) env)
+    pure ((dsts.zip vals).foldl (fun env ((id, ty), v) => env.insert id (v.as ty)) env)
   else stuck
 
 /-- Enter block `b` from block `prev`: each phi takes, at once, its operand for `prev`. -/
@@ -367,26 +394,47 @@ def runFunc (m : Module) (symbol : String → Option (Nat × Nat)) (heap : Nat) 
     let some f := m.func? name | stuck
     let some entry := f.blocks.head? | stuck
     let env ← bind {} f.params args
-    let c : Ctx := ⟨fun g vs => runFunc m symbol heap fuel g vs, symbol, heap⟩
+    let c : Ctx := ⟨fun g vs => runFunc m symbol heap fuel g vs, symbol, heap, m.structs⟩
     runBlocks c f fuel env none entry.id
 
 /-- The fuel a section runs with. -/
 def defaultFuel : Nat := 1000000
 
-/-- Run section `name` of the sidecar's object from its entry.  The entry ends the call itself:
-    one that returns is stuck. -/
-def Sidecar.runSection (s : Sidecar) (name : String) (fuel : Nat := defaultFuel) :
-    FeM ByteArray := do
+/-- Which IR of a sidecar runs: the module after optimization, which every section shares, or
+    a section's own module after the backend's IR pipeline (`source`) or machine lowering. -/
+inductive Level where
+  | postOpt | source | machine
+  deriving Repr, BEq, Inhabited
+
+/-- The module section `code` runs at the level. -/
+def Sidecar.moduleAt (s : Sidecar) (code : CodeSection) : Level → Option Module
+  | .postOpt => some s.module
+  | .source => code.lowering.map (·.source)
+  | .machine => code.lowering.map (·.machine)
+
+/-- Run section `name` of the sidecar's object from its entry, in the IR of the level.  The
+    entry ends the call itself: one that returns is stuck.  At the machine level the run starts
+    with what the section entry's code does before the machine IR: it stores the initial free
+    pointer the lowering record names. -/
+def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt)
+    (fuel : Nat := defaultFuel) : FeM ByteArray := do
   let some obj := s.module.objects.find? (·.name == s.object) | stuck
   let some sec := obj.sections.find? (·.name == name) | stuck
   let some code := s.section? name | stuck
-  let _ ← runFunc s.module (code.symbols.lookup ·) s.module.fixedEnd fuel sec.entry []
+  let some m := s.moduleAt code level | stuck
+  -- The section entry's code stores the initial free pointer before the machine IR's first
+  -- instruction, which reads it.
+  if level == .machine then
+    if let some ptr := code.lowering.bind (·.entryFreePtr) then
+      mstore (UInt256.ofNat 0x40) (UInt256.ofNat ptr)
+  let _ ← runFunc m (code.symbols.lookup ·) m.fixedEnd fuel sec.entry []
   stuck
 
-/-- The contract model the IR gives.  The constructor reads its arguments from the running
-    code, as the init section does, and ends with the whole deployed code. -/
-def Sidecar.model (s : Sidecar) (fuel : Nat := defaultFuel) : ContractModel where
-  init _ := s.runSection "init" fuel
-  runtime := s.runSection "runtime" fuel
+/-- The contract model the IR of the level gives.  The constructor reads its arguments from
+    the running code, as the init section does, and ends with the whole deployed code. -/
+def Sidecar.model (s : Sidecar) (level : Level := .postOpt) (fuel : Nat := defaultFuel) :
+    ContractModel where
+  init _ := s.runSection "init" level fuel
+  runtime := s.runSection "runtime" level fuel
 
 end Fe.Sonatina

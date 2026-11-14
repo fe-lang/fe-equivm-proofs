@@ -7,9 +7,10 @@ fail, not pass.
 
 | Module | Contents |
 | --- | --- |
-| `Syntax.lean` | IR modules, functions, blocks, instructions; `Sidecar` (IR and compiled sections) |
+| `Syntax.lean` | IR modules, functions, blocks, instructions; `Sidecar` (IR, sections, lowering) |
 | `Parse.lean` | the reader of Sonatina's text form and of sidecar JSON; `sonatina_sidecar` |
-| `Interp.lean` | the interpreter in `FeM`; `Sidecar.model : ContractModel` |
+| `Interp.lean` | the interpreter in `FeM`; `Sidecar.model level : ContractModel` at each IR level |
+| `Hints.lean` | cheap checks of the lowering record against the bytes |
 | `Refine.lean` | `Implements`, and the composition `RefinesOn.of_implements` |
 | `Diff.lean` | IR against bytecode, with `Fe/EVM/Diff.lean` and `Generate.lean` |
 | `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20 and the deposit contract |
@@ -56,12 +57,14 @@ Fe).
 
 `Syntax.lean` covers what the certified contracts use: integer arithmetic, comparisons, overflow
 reporting arithmetic (`uaddo`), `clz`, `ctz`, casts, `select`, word `mload`/`mstore`, `memzero`,
-`evm_malloc`, structs and arrays by `insert_value`/`extract_value`, `sym_addr`/`sym_size`,
-`evm_keccak256_words`, calls, and every EVM instruction the model library has a primitive for:
-storage, transient storage, calldata, code, logs, the environment, `gas`, message calls and
-creations. Other instructions (`gep`, `alloca`, `obj.*`, `enum.*`, narrow memory accesses), object
-reference types, and any use of a global or an enum are parse errors; enum and global
-declarations are skipped.
+`evm_malloc`, `alloca`, structs and arrays by `insert_value`/`extract_value`,
+`sym_addr`/`sym_size`, `evm_keccak256_words`, calls, the machine IR's `evm_mload`/`evm_mstore`, and
+every EVM instruction the model library has a primitive for: storage, transient storage, calldata,
+code, logs, the environment, `gas`, message calls and creations. The same subset covers the IR
+after optimization, a section's IR after the backend's pipeline and its machine IR; a value takes
+the width its definition declares, so the machine IR's `i256` comparison results are words. Other
+instructions (`gep`, `obj.*`, `enum.*`, narrow memory accesses), object reference types, and any
+use of a global or an enum are parse errors; enum and global declarations are skipped.
 
 `Interp.lean` runs it in `FeM`, the monad of exported models, over EVMLean's state; every EVM
 instruction is the model library's primitive (`sload`, `call`, `logData`, …). Values are typed
@@ -141,16 +144,46 @@ the agent's proof.
 
 ## The split
 
-**Bytecode implements IR.** For a sidecar `s` and hints `h`, a decision procedure
-`check s h : Bool`, proved once:
+The bytes of a section are emitted from its **machine IR**: the module `lower_section_to_machine`
+builds from the section IR after the backend's pipeline, optimized again on its own. It is still
+Sonatina IR, of a smaller instruction set (`EvmMachineInstSet`): each instruction is one EVM
+opcode, allocations are constant addresses or free-pointer arithmetic, and every type is `i256`.
+What the bytes add to it is stack scheduling, block layout and jumps, spills, internal calls, and a
+few things the section entry and calls do that no instruction says: the initial free pointer,
+the dynamic stack pointer and frames of recursive functions, and saving scratch objects around
+calls. The certificate splits there.
+
+Why not at the section IR before machine lowering, the IR machine lowering reads: between it and
+the machine IR run the memory placement (allocations become addresses), the lowering of casts,
+comparisons and aggregates, and eight optimization passes (SCCP, GVN, ADCE, known-bits, CFG
+cleanup, switch lowering, copy coalescing). A checker from it would have to validate those
+optimizations; one from the machine IR checks a translation that is one-to-one in instructions.
+The section IR stays in the sidecar, with the map from machine blocks to its blocks, as a reading
+aid and as the place to state the memory plan's intent.
+
+The differential tests are the evidence that the machine IR, with the section entry's initial free
+pointer, is what the bytes implement: it agrees with the bytecode on every comparison the IR after
+optimization agrees on (see the results below).
+
+**Bytecode implements machine IR.** A decision procedure over a sidecar `s`, proved once:
 
 ```lean
-theorem check_sound (hc : check s h = true) :
-    RefinesOn p (s.code "runtime") s.model CalldataFits
-      ∧ RefinesDeploy p (s.code "init") .empty s.model (fun _ => True)
+/-- Each section's bytes implement its machine IR under the section's lowering hints. -/
+def check (s : Sidecar) : Bool
+
+theorem check_sound {s : Sidecar} (hc : check s = true) :
+    RefinesOn .P1 (s.code "runtime") (s.model .machine) CalldataFits
+      ∧ RefinesDeploy .P1 (s.code "init") .empty (s.model .machine) (fun _ => True)
 ```
 
-**IR implements model.** Proved per contract, over SSA values and explicit loads and stores:
+`s.code name` is the section's bytes, `s.model .machine` the contract model `Interp.lean` gives
+the machine IR (the init section returns the whole deployed code, hence `.empty`). `true` implies
+that on every message call the runtime bytes run out of gas or stack, or end as the machine IR's
+run ends under some feed, at profile `P1`: same outcome, return data, accounts, logs and revert
+payload. The hints are inputs to `check`, never hypotheses of `check_sound`.
+
+**Machine IR implements model.** Proved per contract, over SSA values, explicit `evm_mload` and
+`evm_mstore` at constant or free-pointer addresses, storage, calls and logs:
 
 ```lean
 def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Prop :=
@@ -158,52 +191,132 @@ def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Pro
     (ir.runtime.exec I (World.init σ A feed))
 ```
 
-`RefinesOn.of_implements` and `RefinesDeploy.of_implements` (`Refine.lean`, proved) compose them
-into the existing `RefinesOn`/`Refines` and `RefinesDeploy`. Memory may differ between the two runs
-(`EndsAs`), so the IR's allocation addresses never enter the model-to-IR proof.
+`RefinesOn.of_implements` and `RefinesDeploy.of_implements` (`Refine.lean`, proved) compose the
+two into `RefinesOn`/`Refines` and `RefinesDeploy` of the hand-written or exported model. The stack,
+pcs and jump destinations never appear in the second half; memory addresses do, as constants.
+
+## Test results
+
+`SONATINA_LEVELS="post-opt source machine" scripts/audit_sonatina.sh <fe>` over Fe's test fixtures
+and this repository's contracts (Fe `sonatina-hints`, Sonatina `sidecar`), one run, each level the
+same 180 files, 751 Fe tests and 214 contracts with generated calls:
+
+| IR run as the model | calls of Fe tests: agree, disagree | generated calls: agree, disagree | contracts not read |
+| --- | --- | --- | --- |
+| after optimization | 2689, 1 | 28065, 102 | 68 |
+| section IR after the pipeline | 2689, 1 | 28065, 102 | 68 |
+| machine IR | 2689, 1 | 28065, 102 | 68 |
+
+Every disagreement is the `leading_zeros` fixture, whose bytecode uses `CLZ`, which EVMLean lacks.
+The machine IR agrees once its run starts as the section entry's code does, with the initial free
+pointer at `0x40`; without it the deposit contract's machine IR read a zero free pointer, and its
+run exhausted the interpreter's memory. The 68 contracts not read use object or constant
+references, enums or nested arrays; a sidecar is read only when all three of its IRs are, so the
+levels share the count.
+
+`Hints.check` finds no failure in the 7914 machine blocks of the 428 sections of the corpus's
+sidecars (the 34 sidecars the reader stops at aside). It refutes what it can see: on the six
+sections of FeScalarStore, FeERC20 and the deposit contract, removing one slot from every entry
+stack fails five (FeScalarStore's runtime starts every block empty), and moving every offset by a
+byte fails all six. An extra slot passes, since the check is
+a lower bound on what each block reads. The first corpus check found 21 machine blocks with no
+place: a fallthrough block that the late section merge moves into an outlined unit is named by no
+label, so `rewrite_labels` saw no redirect; Sonatina now records that redirect explicitly.
+
+Recording the lowering changes no byte: Sonatina's `tests/lowering_record.rs` compiles its 31
+fixtures at O0, O1 and Os with and without it, and the corpus test `sonatina_corpus` of Fe compares
+the sidecar's sections with an ordinary compile for all 248 contracts of the corpus.
 
 ## The sidecar
 
-JSON per object, from one compilation. Present now (`sidecar.rs` in Fe's codegen):
+JSON per object (version 2), from one compilation: `fe build --emit sidecar`, written by
+`crates/codegen/src/sonatina/sidecar.rs` of Fe from Sonatina's `SectionLowering`
+(`EvmCompile::with_lowering_record`, `crates/codegen/src/object/lowering.rs` and
+`isa/evm/lowering_record.rs` of Sonatina). Values are `v<n>` and blocks `block<n>` of the module
+named; immediates are decimal strings.
 
-| Field | Where the compiler has it |
-| --- | --- |
-| `ir`: the module after `optimize()` | `EvmCompile::optimize()` in Fe's isolated object compile |
-| `sections[].bytecode` | `SectionArtifact.bytes` |
-| `sections[].symbols`: offset and size of `%f`, `$g`, `&embed`, `.` | `SectionArtifact.symtab` |
+| Field | What it is | Where Sonatina has it |
+| --- | --- | --- |
+| `version`, `object` | format version, object name | |
+| `ir` | the module after `optimize()`, shared by the sections | `EvmCompile::optimize()` |
+| `sections[].bytecode`, `symbols` | the bytes; offset and size of `%f`, `$g`, `&embed`, `.` | `SectionArtifact` |
+| `lowering.source_ir` | the section's IR after the backend's pipeline | `prepare_section`, before `lower_section_to_machine` |
+| `lowering.machine_ir` | the machine IR the bytes are emitted from | `EvmPreparedSection`'s module |
+| `lowering.code_size`, `arena_base`, `dyn_base`, `entry_free_ptr` | where code ends; the memory plan's bases; the free pointer the section entry stores | `layout.code_end()`, `EvmSectionPlan`, `EvmMemoryPlacementPlan` |
+| `funcs[].offset` | where the function's code starts, null if merged into another | `ObjectLayout::func_offset` |
+| `funcs[].blocks[]` | per machine block: its source blocks, offset (null if not laid out), the block it is emitted as (jump-only blocks), entry stack top first (`value`, `imm`, `func_return`, `call_return`) | `FuncMachineMap`, `FuncLayout::block_offset`, `block_aliases`, `StackifyAlloc::entry_stacks` (recorded in `plan_block`) |
+| `funcs[].spills[]` | per value: memory address, frame slot or rematerialized | `StackifyAlloc::spill_storage`, `MachineFuncPlan::{obj_loc, spill_obj}` via `FinalAlloc` |
+| `funcs[].frame`, `mallocs[]` | stable objects (none, at a base, dynamic frame) and word counts; each source-IR malloc's placement | `MachineFuncPlan`, `EvmFuncPlacementPlan::malloc_placements` |
+| `units[]`, `redirects[]` | outlined code units; every label the late merges redirected (block to block, block to unit, function to function) | `ObjectLayout::section_units`, `VCode::redirects` (recorded in `rewrite_labels` and for fallthrough blocks moved into units) |
 
-Proposed, each needing Sonatina to keep what it computes and drops today:
+Not recorded yet: the save and restore of scratch objects around calls (`call_preserve`), the
+dynamic stack pointer's initial value and frame layouts, and the entry stack's dead values below
+the planned items (the hint says nothing about the stack below them, which the planned code never
+reads). The dispatch table is the runtime entry's `br_table` or its comparison tree in the
+machine IR; the blocks' offsets locate it.
 
-| Field | Where it is computed |
-| --- | --- |
-| `prepared`: the section's IR after `EvmPipeline` | the work module in `prepare_section` |
-| `blocks`: per machine block its pc and the IR block it comes from | `FuncLayout.block_offsets` after `link_section`; `FuncMachineMap.blocks` |
-| `stack`: per machine block the entry stack, top first, as IR values, immediates, return address or continuation | `FunctionPlanner::resolve_entry` (`stackify/driver.rs`), last stackify iteration; `FuncMachineMap.values` |
-| `spills`: per value its scratch word, arena address or frame offset | `StackifyAlloc.spill_storage`, `MachineFuncPlan.obj_loc`, `spill_obj` |
-| `memory`: arena base, dynamic base, initial free pointer, per malloc its placement, per alloca its address, per function frame size and free-pointer restore | `EvmSectionPlan`, `EvmFuncPlacementPlan.malloc_placements`, `MachineFuncPlan`, `EvmFunctionPlan.entry_free_ptr` |
-| `merges`: blocks and functions merged or outlined after emission | `late_block_merge`, `late_section_merge`, `exact_func_merge` |
+## The first checker
 
-The dispatch table needs no field of its own: it is the runtime entry's `br_table` (or the
-comparison tree switch lowering makes of it), located by `blocks`. The normalized statement each
-block implements is its IR block.
+**Class.** Sections whose functions have no spills to memory, no dynamic frames and no call
+preserves: what the bytes add to the machine IR is the stack, the layout, internal calls and the
+initial free pointer. Scratch and stable objects at fixed words are constant addresses in the
+machine IR already. FeConstant, FeScalarStore and FeERC20 qualify in both sections (no spills, no
+frames, one function a section); the deposit contract's runtime has stable objects at fixed words
+and an internal call, and qualifies if its call preserves are empty, which the record does not yet
+say.
 
-## What is hard, and what to do first
+**Per block.** For machine block `B` of function `F` with offset `pc_B` and entry stack `S_B`:
+for every EVMLean state at `pc_B` whose stack begins with the words `S_B` names in an environment
+`env` of machine values (immediates as themselves, `func_return` and `call_return` as code
+addresses), with memory, storage and the rest of the stack arbitrary, running `Xstep` from it
+either runs out of gas or stack, or reaches one of:
+- the offset of the successor `S` that `B`'s terminator selects under `env`, with the stack
+  beginning with `S_S` under `env` extended by `B`'s definitions and `S`'s phis, the same stack
+  below, and the world `B`'s instructions make;
+- the halt `B`'s terminator makes (`evm_return`, `evm_revert`, `evm_stop`, `evm_invalid`);
+- for `return`, the continuation address with the results on top of the caller's stack.
 
-The split point. The checker must cover everything from its input IR to bytes. From the
-post-optimization IR that is the whole `EvmPipeline` (specialization, legalization, several
-optimization rounds, malloc promotion) as well as stack scheduling and layout, which is far more
-than "stack scheduling, layout and the memory plan". Splitting at the prepared section IR instead
-leaves the checker machine lowering, stackify and layout, with the memory plan as the
-allocation-to-address step; the model-to-IR proof would then be against IR the agent has not seen
-in Fe's output, specialized per section. Which IR to target is the first decision; it needs
-Sonatina to expose the prepared section IR and the hints above.
+The checker decides it by one symbolic pass over the block's bytes: an abstract stack of machine
+values and constants, DUP, SWAP, POP and PUSH as bookkeeping, every other opcode matched to the next
+machine instruction with the operands the abstract stack holds, jumps matched to successors by
+offset (following `aliases` and `redirects`, and into outlined units). Its soundness is one lemma
+per opcode class relating the abstract step to `Xstep`, proved once against EVMLean, plus the
+induction over the block. Valid jump destinations come from `D_J` of the code, decided by the
+kernel or `native_decide` as the existing certificates do.
 
-The memory plan: the checker must show that live objects never overlap, from placements that come
-from escape analysis and liveness, and that scratch and spill words do not alias program memory.
+**Calls.** An internal call is `PUSH cont; …; PUSH f; JUMP` with the arguments above the
+continuation. The obligation of `F` is that from `pc_F` with `args ++ [ret]` above any stack it
+reaches `ret` with the results above the same stack, or halts as `F`'s IR does; the call site uses
+it as a summary. Recursion is by induction on the call depth, the EVM's 1024-item stack bounding
+it (`Exhausted` excuses overflow). Merged functions are checked at the canonical function's
+offset.
 
-First: expose the prepared IR, block pcs and entry stacks from Sonatina, and write the checker for
-functions without planned memory (FeConstant's and FeScalarStore's runtime: their one `evm_malloc`
-becomes a fixed address 0), block by block against EVMLean's `Xstep`.
+**Dispatcher.** Nothing special: the runtime entry's `br_table` is a chain of `EQ`/`JUMPI` or a
+comparison tree in the machine IR, checked as any other blocks.
+
+**Paths.** EquiVM's `RD` trace predicate states that a cursor state ends as the start state ends,
+not that the frame reaches it. The checker is proved against `X`/`Xstep` directly, so its block
+lemmas state reachability, and the path is cheap to keep: the list of blocks entered and the
+states at `CALL`/`STATICCALL`/`DELEGATECALL`/`CREATE` boundaries, which later work on the calls a
+frame makes needs.
+
+**Composition.** `check_sound` gives `RefinesOn p runtime (s.model .machine) CalldataFits`; an
+agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_implements` give
+`Refines` of the model. The runtime's immutables are none for these contracts
+(`model.immutables = 0`).
+
+## What is hard
+
+- Memory, beyond the first class: spill and scratch words must not alias memory the machine IR
+  uses while the spilled value is live, frames of recursive functions, and the call preserves that
+  are not yet recorded. The first two are checkable from the record; the third needs Sonatina to
+  record `call_preserve` (keyed by call position) and dynamic-frame layouts.
+- The model-to-IR proof sees the memory plan's addresses: static arenas as constants, heap
+  allocations as free-pointer arithmetic. Lemmas over `evm_mload`/`evm_mstore` at distinct
+  constant words keep it short; whether agents find it as cheap as the IR after optimization is
+  untested.
+- The interpreter's memory writes are unbounded: a wrong semantics that writes at a huge address
+  exhausts memory instead of diverging (seen once, before the initial free pointer was modelled).
 
 ## Not looked into
 
