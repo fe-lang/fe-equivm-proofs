@@ -52,7 +52,8 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
       (Ctx.ofBlock f b code.symbols).events b = some events ∧
       (Ctx.ofBlock f b code.symbols).exitOf b.term = some exit ∧
       ((b.id == entryBlock.id) = true → stack = []) ∧
-      defined f b (hb.entryStack.filterMap fun | .value id => some id | _ => none) = true ∧
+      defined f hint.blocks b (hb.entryStack.filterMap fun | .value id => some id | _ => none) =
+        true ∧
       (b.term.only.all fun s => place s != some pc || rank s < rank b.id) = true ∧
       run code.bytecode (Ctx.ofBlock f b code.symbols) hint.blocks place b.id
         (2 * low.codeSize + 2)

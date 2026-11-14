@@ -297,12 +297,15 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .evmInvalid => some (.halt .INVALID [])
   | _ => none
 
+/-- The expression of an entry slot. -/
+def Ctx.slotExpr (c : Ctx) : Slot → Option Expr
+  | .value id => c.expand depth id
+  | .imm v => some (.const v)
+  | _ => none
+
 /-- The planned entry stack of a block, as expressions. -/
 def Ctx.entryStack (c : Ctx) (hint : BlockHint) : Option (List Expr) :=
-  hint.entryStack.mapM fun
-    | .value id => c.expand depth id
-    | .imm v => some (.const v)
-    | _ => none
+  hint.entryStack.mapM c.slotExpr
 
 /-- What the entry stack of `succ` must be when `pred` jumps to it: each phi of `succ` replaced
     by its operand from `pred`. -/
@@ -519,15 +522,20 @@ def definedAfter (defs : List Nat) : List Stmt → Option (List Nat)
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
     its phis, or those its statements define earlier; it defines none of those again (an entry
     value it defined would be the last run's); and each phi of each successor has an operand
-    from `b`, so defined.  The machine IR runs a read of an undefined value nowhere. -/
-def defined (f : Func) (b : Block) (entry : List Nat) : Bool :=
+    from `b`, so defined, and each value of its entry stack is a phi or defined by `b`.  The
+    machine IR runs a read of an undefined value nowhere. -/
+def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) : Bool :=
   match definedAfter (entry ++ b.phis.map (·.dst)) b.body with
   | none => false
   | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
     match f.block? succ with
-    | some sb => sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
+    | some sb => (sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
       | some (o, _) => reads defs [o]
-      | none => false
+      | none => false) &&
+      -- A value of the successor's entry stack not its phi is one `b` has defined.
+      (hints.find? (·.block == succ)).all fun h => h.entryStack.all fun
+        | .value id => defs.contains id || sb.phis.any (·.dst == id)
+        | _ => true
     | none => false
 
 /-- The successor a terminator goes to whatever the values, if any. -/
@@ -567,7 +575,7 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
   if b.id == entryBlock.id then
     unless stack.isEmpty do throw "the entry block's entry stack is not empty"
   let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
-  unless defined f b entryValues do throw s!"block{b.id} reads a value not defined before"
+  unless defined f hint.blocks b entryValues do throw s!"block{b.id} reads a value not defined before"
   -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
   unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
     throw s!"block{b.id} reaches a successor at its own offset and no lower"
