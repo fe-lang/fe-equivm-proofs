@@ -328,12 +328,16 @@ fixtures, mutations of their hints (a dropped, added or swapped entry slot, offs
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
 
-The verdict evaluates by the kernel (`decide +kernel`) and by `native_decide` (0.4 s). On a
-loaded machine the kernel takes 11.5 to 17.1 s for both FeScalarStore sections against 6.3 to
-7.9 s for the checker of stage D's first commit measured alongside, most likely from the
-well-formedness checks and the total order on operands (not measured apart). Kernel evaluation
-needs the expressions non-nested and the checker structurally recursive, which is why `Expr` has
-fixed arities.
+The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
+FeScalarStore sections and 2.4 s for FeERC20's (from 1.8 s and 259 s). Nearly all of the old time
+was the kernel reading the code: `ByteArray.get?` walks the byte list to the offset, about
+14 ms at FeERC20's sizes, and EVMLean's `parseInstr` compares the byte with each pattern, about
+13 ms; `validJump` ran `D_J` over the whole code (13 s), and `decode` ran at every step of every
+path. `Decode.lean` decodes the code once, in one pass over its bytes with a table for the
+opcodes (`instrs`, `parseByte`), into a search tree by offset (`codeTree`), which `opAt` and the
+jump destinations (`jumpdests`) read; `codeTree_find` and `jumpdests_D_J` prove it agrees with
+`decode` and `D_J`. Kernel evaluation needs the expressions non-nested and the checker
+structurally recursive, which is why `Expr` has fixed arities.
 
 What `check s = true` implies is stated in `CheckSound.lean` as `Sound s`, at `P1`, and proved
 in `CheckCert.lean`. On the statement:

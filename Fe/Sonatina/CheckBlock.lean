@@ -88,6 +88,48 @@ theorem mem_D_J_aux_of_mem {c : ByteArray} {x : UInt256} :
         · exact Array.mem_push_of_mem _ hx
         · exact hx
 
+/-- A `JUMPDEST` of the one pass from `i` is one `D_J_aux` finds from there. -/
+theorem mem_instrs_D_J {c : ByteArray} {pc : Nat} {a : Option Nat} {n : Nat} :
+    ∀ (f i : Nat) (bs : List UInt8) (r : Array UInt256), bs = c.data.toList.drop i →
+      (pc, .JUMPDEST, a, n) ∈ instrs f bs i → UInt256.ofNat pc ∈ D_J_aux c i r
+  | 0, _, _, _, _, h => by simp [instrs] at h
+  | _ + 1, _, [], _, _, h => by simp [instrs] at h
+  | f + 1, i, b :: bs, r, hbs, h => by
+    have hrest : bs = c.data.toList.drop (i + 1) := by
+      rw [← List.drop_drop, ← hbs, List.drop_one, List.tail_cons]
+    have hget : c.get? i = some b := by rw [Check.get?_drop, ← hbs]; rfl
+    unfold instrs at h
+    rw [D_J_aux]
+    cases hop : parseByte b with
+    | none => simp only [hop] at h; cases h
+    | some op =>
+    simp only [hop] at h
+    rw [parseByte_eq] at hop
+    split
+    · next hn => rw [hget] at hn; simp [hop] at hn
+    · next op' hop' =>
+      rw [hget] at hop'
+      have hop'' : op' = op := by simpa [hop] using hop'.symm
+      subst hop''
+      rcases List.mem_cons.mp h with h | h
+      · simp only [Prod.mk.injEq] at h
+        obtain ⟨rfl, rfl, -⟩ := h
+        rw [if_pos rfl]
+        exact mem_D_J_aux_of_mem c.size _ _ (by omega) (Array.mem_push_self ..)
+      · exact mem_instrs_D_J f _ _ _ (by rw [hrest, List.drop_drop]; rfl) h
+
+theorem jumpdests_D_J {code : ByteArray} {t : Nat} (h : (jumpdests code).contains t = true) :
+    (D_J code 0).contains (UInt256.ofNat t) = true := by
+  simp only [Array.contains_iff_mem]
+  simp only [jumpdests, List.contains_iff_mem, List.mem_filterMap] at h
+  obtain ⟨⟨pc, op, a, n⟩, hmem, he⟩ := h
+  by_cases hj : op = .JUMPDEST
+  · subst hj
+    simp at he
+    subst he
+    exact mem_instrs_D_J _ 0 _ #[] (by simp) hmem
+  · simp [hj] at he
+
 /-- A jump destination of the code is one of the code followed by other bytes. -/
 theorem mem_D_J_aux_append {code tail : ByteArray} {x : UInt256} :
     ∀ (n i : Nat) (r : Array UInt256), code.size - i ≤ n → x ∈ D_J_aux code i r →
@@ -254,14 +296,17 @@ theorem Ends.cons {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {hints : L
 /-- What the checker decodes at `pc` the bytes decode at the EVM's pc, whatever follows the
     code. -/
 theorem opAt_decode {code tail : ByteArray} {pc next : Nat} {op : Operation} {arg : Option Nat}
-    {s : State} (h : opAt code pc = some (op, arg, next))
+    {s : State} (hsize : code.size < UInt256.size) (h : opAt code pc = some (op, arg, next))
     (hcode : s.executionEnv.code = code ++ tail)
     (hpc : s.machineState.pc.toNat = pc) :
     ∃ a, decode s.executionEnv.code s.machineState.pc = some (op, a) ∧
       arg = ((a.map (·.1.toNat)).orElse fun _ => if op == .PUSH0 then some 0 else none) ∧
       next = pc + 1 + (a.map (·.2)).getD 0 ∧ next ≤ code.size := by
-  simp only [opAt, Hints.decodeAt, Option.filter_eq_some_iff, Option.map_eq_some_iff] at h
-  obtain ⟨⟨⟨op', a⟩, hd, he⟩, hn⟩ := h
+  simp only [opAt, Option.filter_eq_some_iff] at h
+  obtain ⟨h, hn⟩ := h
+  have h := codeTree_find hsize h
+  simp only [Hints.decodeAt, Option.map_eq_some_iff] at h
+  obtain ⟨⟨op', a⟩, hd, he⟩ := h
   simp only [Prod.mk.injEq] at he
   obtain ⟨rfl, rfl, rfl⟩ := he
   have hs : UInt256.ofNat pc = s.machineState.pc := by
@@ -543,7 +588,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     split at h
     · cases h
     next op arg next hop =>
-    obtain ⟨a, hdec, harg, hnext, hle⟩ := opAt_decode hop (hp.env ▸ hp.code) hp.pc
+    obtain ⟨a, hdec, harg, hnext, hle⟩ := opAt_decode hsize hop (hp.env ▸ hp.code) hp.pc
     simp only at h
     have hw' : ∀ g pc' stk', Agree { s with machineState := { s.machineState with
         pc := pc', stack := stk', gasAvailable := g
@@ -734,7 +779,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         (D_J s.executionEnv.code 0).contains (UInt256.ofNat t) = true ∧
           (UInt256.ofNat t).toNat = t := fun hj => by
       simp only [validJump, Bool.and_eq_true, decide_eq_true_eq] at hj
-      exact ⟨by rw [hp.env, hp.code]; exact D_J_append hj.2,
+      exact ⟨by rw [hp.env, hp.code]; exact D_J_append (jumpdests_D_J hj.2),
         by rw [toNat_ofNat, Nat.mod_eq_of_lt (by omega)]⟩
     by_cases h6 : (op == .JUMP) = true
     · rw [if_pos h6] at h
