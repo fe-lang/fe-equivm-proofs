@@ -6,7 +6,9 @@ import Reasoning.Stepping
 
 `check_sound : check s = true → Sound s`: a sidecar the checker accepts has a runtime whose
 bytes refine the machine IR's runtime on every call whose calldata fits, and a constructor whose
-bytes refine the machine IR's constructor on every deployment, at profile `P1`.
+bytes refine the machine IR's constructor on every deployment, at profile `P1`.  `check_xiOk`:
+neither makes a message call nor a creation, so `XiOk` holds of their frames for every condition
+on calls.
 
 `section_sound` gives it of each section: `runSection_eq` rewrites the machine IR's run of the
 section to the prologue and its entry function's blocks from the entry block, `section_run`
@@ -109,12 +111,14 @@ theorem lookup_entries {secs : List Section} {name entry : String}
       exact ⟨sec', by simp [hb', h1], h2, List.mem_cons_of_mem _ h3⟩
 
 /-- A section of a checked sidecar, run as `Ξ` runs a frame on its code followed by any bytes,
-    refines the machine IR's run of it at profile `P1`. -/
+    refines the machine IR's run of it at profile `P1`, and the frame makes no message call nor
+    creation: `XiOk` holds of it for every condition on them. -/
 theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
     {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail) :
-    Exhausted (Ξ σ σ₀ g A I) ∨
-      Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A)) := by
+    (Exhausted (Ξ σ σ₀ g A I) ∨
+      Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A))) ∧
+      ∀ Q, Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨hall, -, -⟩ := check_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
   unfold entries at hentry hall
@@ -137,7 +141,6 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     have hcode' : s.code name = code.bytecode := by simp [Sidecar.code, hcode]
     rw [hcode'] at hI
     rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
-    apply Xi_agrees
     have hebm : eb ∈ f.blocks := List.mem_of_mem_head? he
     obtain ⟨hb, pc, stack, events, exit, hhb, hpc, hst, -, -, hempty, -, -, -⟩ :=
       checkBlock_ok (hchk eb hebm)
@@ -147,10 +150,12 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
       have := (mapM_some_iff.mp hst).length_eq
       simpa using this
     have hpc0 : pc = 0 := Option.some.inj (hpc.symm.trans hplace)
-    refine section_run (tail := tail) hI hsize rfl hbits hnd hchk ?_ _ eb none {} _ _
+    refine (fun hrun => ⟨Xi_agrees hrun.1, fun Q => hrun.2 Q⟩) (section_run (tail := tail) hI
+      hsize rfl hbits hnd hchk ?_ (g.toNat + 1) eb none {} (World.init σ A)
+      (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I)
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
       ⟨hebm, ?_, rfl, ⟨rfl, rfl, rfl⟩, hb, pc, {}, [], [], hhb, hpc, by rw [hpc0]; rfl, ?_, rfl,
-        by rw [hslots]; exact .nil, by simp [hephi]⟩
+        by rw [hslots]; exact .nil, by simp [hephi]⟩)
     · intro x hx hin
       have := List.all_eq_true.mp hpreds x hx
       simp [hin] at this
@@ -179,10 +184,10 @@ theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : Exe
 theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
   obtain ⟨-, hinit, hrt⟩ := check_ok h
   refine ⟨fun σ σ₀ g A I tail hI _ _ => ?_, fun σ σ₀ g A I args _ hI _ => ?_⟩
-  · rcases section_sound h hrt hI with hx | hx
+  · rcases (section_sound h hrt hI).1 with hx | hx
     · exact .inl hx
     · exact .inr ⟨[], hx⟩
-  · rcases section_sound h hinit hI with hx | hx
+  · rcases (section_sound h hinit hI).1 with hx | hx
     · exact .inl hx
     · refine .inr ⟨[], ?_⟩
       show Agrees .P1 _ ((s.runSection "init" .machine >>= fun tail => pure (.empty ++ tail)).exec
@@ -194,5 +199,17 @@ theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
         cases x with
         | error e => rw [hr] at hx; exact hx
         | ok p => exact absurd hr (runSection_not_ok s "init" .machine I _ p.1 p.2)
+
+/-- The frames of a checked sidecar make no message call nor creation: `XiOk` holds, for every
+    condition on calls, of a frame that runs the runtime bytes followed by any bytes, and of one
+    that runs the init bytes followed by any arguments. -/
+theorem check_xiOk {s : Sidecar} (h : check s = true) :
+    (∀ Q σ σ₀ g A (I : ExecutionEnv) tail, I.code = s.code "runtime" ++ tail →
+      Invariant.XiOk Q σ σ₀ g A I) ∧
+    ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args →
+      Invariant.XiOk Q σ σ₀ g A I := by
+  obtain ⟨-, hinit, hrt⟩ := check_ok h
+  exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2 Q,
+    fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2 Q⟩
 
 end Fe.Sonatina.Check

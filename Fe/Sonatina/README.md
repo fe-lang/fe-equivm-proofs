@@ -386,15 +386,20 @@ Proved so far:
 7. The section (`CheckSection.lean`): `block_step` joins `run_ends` and `body_run` with the IR's
    `enter` and terminator for one block; `section_run`, by induction on `X`'s fuel and
    `zeroRank`, gives the P1 agreement (`XAgrees`) of the bytes' iterator with the IR's run of the
-   function from any block's start (`AtBlock`), the prologue first for the entry block.
+   function from any block's start (`AtBlock`), the prologue first for the entry block, and
+   `XOk` of the iterator for every condition on calls: `run_ends` gathers its steps as `Steps`,
+   through states whose instruction is no call nor creation (`Calm`).
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
-   runtime and the constructor (its arguments after the code) at `P1`. It depends on `propext`,
-   `Classical.choice` and `Quot.sound` only.
+   runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
+   of both frames. They depend on `propext`, `Classical.choice` and `Quot.sound` only.
 
-Left: `XiOk` of a checked frame (no call or creation is reached, which needs the bytes'
-reachable states to be the checked paths'), and the model half for FeScalarStore:
-`Implements` of its exported model against the machine IR's (`Sidecar.model .machine`), a run of
-the interpreter over its machine IR, then `RefinesOn.of_implements` for the pinned bytecode.
+The model half for FeScalarStore (`FeProofs/ScalarStore/SonatinaRun.lean`,
+`SonatinaCorrect.lean`): the interpreter's runs of the machine IR's runtime and init functions by
+`ir_step` (`Run.lean`), `Implements` and `ImplementsDeploy` of the exported contract against the
+machine IR through the hand-written model, and `RefinesOn.of_implements` and
+`RefinesDeploy.of_implements` for the pinned runtime and creation bytecode at `P1`
+(`feScalarStoreRefinesExportedP1`, `feScalarStoreDeployRefinesExportedP1`), with no
+`native_decide`.
 
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
