@@ -25,4 +25,5 @@ import Fe.Sonatina.CheckArith
 import Fe.Sonatina.CheckIR
 import Fe.Sonatina.CheckBody
 import Fe.Sonatina.CheckSection
+import Fe.Sonatina.CheckCert
 import Fe.Sonatina.Diff

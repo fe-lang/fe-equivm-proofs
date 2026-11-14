@@ -1,0 +1,198 @@
+import Fe.Sonatina.CheckSection
+import Reasoning.Stepping
+
+/-!
+# The checker is sound
+
+`check_sound : check s = true → Sound s`: a sidecar the checker accepts has a runtime whose
+bytes refine the machine IR's runtime on every call whose calldata fits, and a constructor whose
+bytes refine the machine IR's constructor on every deployment, at profile `P1`.
+
+`section_sound` gives it of each section: `runSection_eq` rewrites the machine IR's run of the
+section to the prologue and its entry function's blocks from the entry block, `section_run`
+gives their agreement with the bytes' iterator from the state `Ξ` starts in (at the entry block,
+offset 0, an empty stack), and `Xi_agrees` takes it to `Ξ`.  A constructor runs its code with its
+arguments after it, which `section_run` allows of any section.
+-/
+
+namespace Fe.Sonatina.Check
+
+open Ethereum Ethereum.EVM Fe Fe.EVM
+
+/-- The IR's run, ended where the machine IR's entry returns (the section never does). -/
+def endRun (r : Option (Except (Fe.Exit World) (List Val × World))) :
+    Option (Except (Fe.Exit World) (ByteArray × World)) :=
+  match r with
+  | some (.error e) => some (.error e)
+  | _ => none
+
+/-- A frame whose iterator agrees with the IR's run refines it, as `Ξ` runs it. -/
+theorem Xi_agrees {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
+    {r : Option (Except (Fe.Exit World) (List Val × World))}
+    (h : XAgrees (X (g.toNat + 1) (D_J I.code 0)
+      (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I)) r) :
+    Exhausted (Ξ σ σ₀ g A I) ∨ Agrees .P1 (Ξ σ σ₀ g A I) (endRun r) := by
+  rcases h with h | h | h
+  · exact .inl (.inl (Reasoning.Theory.Xi_error_of_X h))
+  · exact .inl (.inr (Reasoning.Theory.Xi_error_of_X h))
+  · right
+    match r, h with
+    | some (.error (.stop out w)), ⟨s', hx, ha, hl⟩ =>
+      exact ⟨_, _, by rw [Reasoning.Theory.Xi_success_of_X hx, ha], fun _ => hl⟩
+    | some (.error (.revert data)), ⟨g', hx⟩ =>
+      exact ⟨_, _, Reasoning.Theory.Xi_revert_of_X hx, fun _ => rfl⟩
+    | some (.error .static), hx => exact Reasoning.Theory.Xi_error_of_X hx
+    | some (.error .trap), hx => exact Reasoning.Theory.Xi_error_of_X hx
+
+/-- The machine IR's run of a section is the prologue and its entry function's blocks from the
+    entry block, ended where it would return. -/
+theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Section}
+    {code : CodeSection} {low : Lowering} {f : Func} {eb : Block} {I : ExecutionEnv}
+    {w : World} (hobj : s.module.objects.find? (·.name == s.object) = some obj)
+    (hsec : obj.sections.find? (·.name == name) = some sec)
+    (hcode : s.section? name = some code) (hlow : code.lowering = some low)
+    (hf : low.machine.func? sec.entry = some f) (he : f.blocks.head? = some eb)
+    (hp : f.params = []) :
+    (s.runSection name .machine).exec I w = endRun ((pre low eb eb >>= fun _ =>
+      runBlocks low.machine ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩
+        f {} none eb.id).exec I w) := by
+  unfold Sidecar.runSection
+  simp only [hobj, hsec, hcode, Sidecar.moduleAt, hlow, Option.map_some, Option.bind_some]
+  have hrun : ∀ ic,
+      runFunc low.machine ic sec.entry [] = runBlocks low.machine ic f {} none eb.id :=
+    fun ic => by
+      rw [runFunc.eq_1]
+      simp [hf, he, hp, Fe.Sonatina.bind]
+  simp only [show (Level.machine == Level.machine) = true from rfl, if_true, hrun, pre]
+  cases low.entryFreePtr <;> simp only [Fe.M.exec_bind, pure_bind, endRun, Fe.EVM.mstore,
+    Fe.M.exec_modify]
+  all_goals
+    generalize M.exec (runBlocks _ _ _ _ _ _) I _ = y
+    rcases y with _ | _ | _ <;> rfl
+
+/-- What a sidecar the checker accepts is: each section of its object checked, `init` and
+    `runtime` among them. -/
+theorem check_ok {s : Sidecar} (h : check s = true) :
+    (∀ ne ∈ entries s, checkEntry s ne.1 ne.2 = .ok ()) ∧
+      ((entries s).lookup "init").isSome ∧ ((entries s).lookup "runtime").isSome := by
+  unfold check at h
+  cases hc : checkAll s with
+  | error e => rw [hc] at h; cases h
+  | ok u =>
+  unfold checkAll at hc
+  cases hf : (entries s).forM (fun ne => checkEntry s ne.1 ne.2) with
+  | error e => simp [hf] at hc; cases hc
+  | ok u' =>
+  simp only [hf] at hc
+  refine ⟨fun ne hne => forM_ok hf ne hne, ?_⟩
+  split_ifs at hc with h1
+  · simp only [Bool.and_eq_true] at h1
+    exact ⟨h1.1.2, h1.2⟩
+  · cases hc
+
+theorem lookup_entries {secs : List Section} {name entry : String}
+    (h : (secs.map fun sec => (sec.name, sec.entry)).lookup name = some entry) :
+    ∃ sec, secs.find? (·.name == name) = some sec ∧ sec.entry = entry ∧
+      (name, entry) ∈ secs.map fun sec => (sec.name, sec.entry) := by
+  induction secs with
+  | nil => cases h
+  | cons sec secs ih =>
+    by_cases hn : name = sec.name
+    · subst hn
+      simp only [List.map_cons, List.lookup, BEq.rfl, Option.some.injEq] at h
+      subst h
+      exact ⟨sec, by simp, rfl, by simp⟩
+    · have hb : (name == sec.name) = false := by simpa using hn
+      simp only [List.map_cons, List.lookup, hb] at h
+      obtain ⟨sec', h1, h2, h3⟩ := ih h
+      have hb' : (sec.name == name) = false := by simpa using Ne.symm hn
+      exact ⟨sec', by simp [hb', h1], h2, List.mem_cons_of_mem _ h3⟩
+
+/-- A section of a checked sidecar, run as `Ξ` runs a frame on its code followed by any bytes,
+    refines the machine IR's run of it at profile `P1`. -/
+theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
+    (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail) :
+    Exhausted (Ξ σ σ₀ g A I) ∨
+      Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A)) := by
+  obtain ⟨hall, -, -⟩ := check_ok h
+  obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
+  unfold entries at hentry hall
+  cases hobj : s.module.objects.find? (·.name == s.object) with
+  | none => simp [hobj] at hentry
+  | some obj =>
+  simp only [hobj, Option.map_some, Option.getD_some] at hentry hall
+  obtain ⟨sec, hsec, hse, hmem⟩ := lookup_entries hentry
+  have hce := hall _ hmem
+  simp only at hce
+  unfold checkEntry at hce
+  cases hcode : s.section? name with
+  | none => simp [hcode] at hce
+  | some code =>
+  simp only [hcode] at hce
+  split at hce
+  · next hcs =>
+    obtain ⟨low, hint, f, eb, hlow, hsize, hfuncs, hname, hcls, hf, he, hbits, hnd, hpar, hephi,
+      hpreds, hplace, hchk⟩ := checkSection_ok hcs
+    have hcode' : s.code name = code.bytecode := by simp [Sidecar.code, hcode]
+    rw [hcode'] at hI
+    rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
+    apply Xi_agrees
+    have hebm : eb ∈ f.blocks := List.mem_of_mem_head? he
+    obtain ⟨hb, pc, stack, events, exit, hhb, hpc, hst, -, -, hempty, -, -, -⟩ :=
+      checkBlock_ok (hchk eb hebm)
+    have hstack : stack = [] := hempty (by simp)
+    subst hstack
+    have hslots : hb.entryStack = [] := by
+      have := (mapM_some_iff.mp hst).length_eq
+      simpa using this
+    have hpc0 : pc = 0 := Option.some.inj (hpc.symm.trans hplace)
+    refine section_run (tail := tail) hI hsize rfl hbits hnd hchk ?_ _ eb none {} _ _
+      (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
+      ⟨hebm, ?_, rfl, ⟨rfl, rfl, rfl⟩, hb, pc, {}, [], [], hhb, hpc, by rw [hpc0]; rfl, ?_, rfl,
+        by rw [hslots]; exact .nil, by simp [hephi]⟩
+    · intro x hx hin
+      have := List.all_eq_true.mp hpreds x hx
+      simp [hin] at this
+    · cases hfb : f.blocks with
+      | nil => simp [hfb] at he
+      | cons b0 bs =>
+        rw [hfb] at he; cases he
+        simp [Func.block?, hfb]
+    · simp [enter, hephi, Fe.Sonatina.bind]
+  · simp at hce
+
+/-- A section's run never returns: it ends stuck where its entry would. -/
+theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : ExecutionEnv)
+    (w : World) (v : ByteArray) (w' : World) :
+    (s.runSection name level).exec I w ≠ some (.ok (v, w')) := by
+  unfold Sidecar.runSection
+  intro hx
+  repeat' (split at hx)
+  all_goals simp only [stuck, Fe.M.exec_bind, Fe.M.exec_diverge, reduceCtorEq] at hx
+  all_goals repeat' (split at hx)
+  all_goals simp_all
+
+/-- The checker's soundness: a sidecar it accepts has bytes that refine its machine IR, the
+    runtime on every call whose calldata fits and the constructor on every deployment, at
+    profile `P1`. -/
+theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
+  obtain ⟨-, hinit, hrt⟩ := check_ok h
+  refine ⟨fun σ σ₀ g A I tail hI _ _ => ?_, fun σ σ₀ g A I args _ hI _ => ?_⟩
+  · rcases section_sound h hrt hI with hx | hx
+    · exact .inl hx
+    · exact .inr ⟨[], hx⟩
+  · rcases section_sound h hinit hI with hx | hx
+    · exact .inl hx
+    · refine .inr ⟨[], ?_⟩
+      show Agrees .P1 _ ((s.runSection "init" .machine >>= fun tail => pure (.empty ++ tail)).exec
+        I (World.init σ A []))
+      rw [Fe.M.exec_bind]
+      cases hr : (s.runSection "init" .machine).exec I (World.init σ A) with
+      | none => rw [hr] at hx; exact hx
+      | some x =>
+        cases x with
+        | error e => rw [hr] at hx; exact hx
+        | ok p => exact absurd hr (runSection_not_ok s "init" .machine I _ p.1 p.2)
+
+end Fe.Sonatina.Check

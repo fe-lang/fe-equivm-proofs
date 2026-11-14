@@ -6,9 +6,9 @@ import Reasoning.EVMWord
 /-!
 # Towards the soundness of the checker
 
-What `check` is to imply, and the first lemmas of its proof.
+What `check` implies, and the first lemmas of its proof; `CheckCert.lean` proves it.
 
-`Sound s` is the statement `check_sound` is to prove of every sidecar `s` with `check s = true`:
+`Sound s` is what `check_sound` proves of every sidecar `s` with `check s = true`:
 the runtime bytes refine the machine IR's runtime, and the init bytes its constructor, at
 profile `P1`: logs and revert payloads too.  The proof steps the bytes by `Xstep` (EVMLean's
 `step_*` lemmas, `CheckStep.lean`), whose states hold the substate's logs and the output, so `P1`
