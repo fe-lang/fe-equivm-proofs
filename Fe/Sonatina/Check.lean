@@ -154,13 +154,13 @@ def mkOp (op : Operation) : List Expr → Option Expr
   | [a, b, c] => some (.op3 op a b c)
   | _ => none
 
-/-- The opcode of a pure machine instruction. -/
+/-- The opcode of a pure machine instruction.  `sar`, `evm_sdiv` and `evm_smod` are left out
+    until their signed arithmetic is proved the EVM's. -/
 def binOpcode : BinOp → Option Operation
   | .add => some .ADD | .sub => some .SUB | .mul => some .MUL | .shl => some .SHL
-  | .shr => some .SHR | .sar => some .SAR | .and => some .AND | .or => some .OR
-  | .xor => some .XOR | .evmUdiv => some .DIV | .evmSdiv => some .SDIV | .evmUmod => some .MOD
-  | .evmSmod => some .SMOD | .evmExp => some .EXP | .evmByte => some .BYTE
-  | .evmSignExtend => some .SIGNEXTEND
+  | .shr => some .SHR | .and => some .AND | .or => some .OR | .xor => some .XOR
+  | .evmUdiv => some .DIV | .evmUmod => some .MOD | .evmExp => some .EXP
+  | .evmByte => some .BYTE | .evmSignExtend => some .SIGNEXTEND
   | _ => none
 
 def cmpOpcode : CmpOp → Option Operation
