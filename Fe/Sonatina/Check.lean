@@ -750,7 +750,7 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
     arguments on top of the return address if it returns, at offset 0 with no arguments if it
     is the section's entry, which returns nowhere; the blocks it returns from those that end in
     `ret` and their predecessors, with the return address at the bottom of their entry stacks,
-    and none in a function that does not return. -/
+    and none in a function that does not return; each `ret` with as many values as it returns. -/
 def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
     (entryBlock : Block) : List (Bool × String) :=
   let fr := frameOf low entry f
@@ -766,6 +766,10 @@ def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
       placeIn low hint.name entryBlock.id == some 0,
     "the entry function has parameters, returns, or does not start at offset 0"),
    (returningClosed f, s!"the blocks {hint.name} returns from are not closed"),
+   (f.blocks.all fun b => match b.term with
+      | .ret vals => vals.length == f.rets.length
+      | _ => true,
+    s!"a block of {hint.name} returns other than its results"),
    (hint.blocks.all fun h =>
       !h.entryStack.contains .callReturn &&
       if fr.exact h.block then h.entryStack.getLast? == some .funcReturn &&
