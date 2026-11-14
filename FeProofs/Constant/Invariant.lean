@@ -18,7 +18,7 @@ def Fixed (st : Storage) (acc : Account) : Prop :=
   acc.code = feConstantBytecode ∧ acc.storage = st
 
 theorem fixed_admissible (st : Storage) : Admissible (Fixed st) (· = feConstantBytecode) where
-  balance _ _ h := h
+  balance _ _ h _ := h
   code acc h := by
     rw [h.1]
     decide
@@ -26,7 +26,7 @@ theorem fixed_admissible (st : Storage) : Admissible (Fixed st) (· = feConstant
 
 theorem model_keeps (a : AccountAddress) (st : Storage) :
     ModelKeeps a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) Model.contract := by
-  intro I σ A feed out w _ _ _ _ _ hH hrun acc acc' hacc hacc' _
+  intro I σ A feed out w _ _ _ _ _ _ hH hrun acc acc' hacc hacc' _
   have hsame : ∀ r, Model.runtime.exec I (World.init σ A feed) = r →
       Succeeds r out w → w.accounts = σ := by
     intro r hr hr'

@@ -62,7 +62,7 @@ def ModelKeeps (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray 
     (admits : AccountMap → ExecutionEnv → Prop) (m : ContractModel) : Prop :=
   ∀ (I : Env) σ A feed out (w : World), I.codeOwner = a → Trusted I.code →
     I.calldata.size < UInt256.size → admits σ I → Deeper a P Trusted admits I.depth →
-    Holds a P σ → Succeeds (m.runtime.exec I (World.init σ A feed)) out w →
+    total σ < UInt256.size → Holds a P σ → Succeeds (m.runtime.exec I (World.init σ A feed)) out w →
     ∀ acc acc', σ[a]? = some acc → w.accounts[a]? = some acc' → acc'.code = acc.code →
       P acc'
 
@@ -77,11 +77,11 @@ theorem frameHyp_of_refinesOn {p : Profile} {bytecode : ByteArray} {m : Contract
     (hadmits : ∀ σ (I : ExecutionEnv), I.calldata.size < UInt256.size → admits σ I →
       admits' I)
     (hmodel : ModelKeeps a P Trusted admits m) : FrameHyp a P Trusted admits := by
-  intro σ σ₀ g A I σ' g' A' o howner htr hcd hadm hdeep _ hH hXi acc acc' hacc hacc' hcode
+  intro σ σ₀ g A I σ' g' A' o howner htr hcd hadm hdeep _ hT hH hXi acc acc' hacc hacc' hcode
   obtain ⟨tail, hc, htail⟩ := htrusted I.code htr
   exact (hcert σ σ₀ g A I tail hc htail (hadmits σ I hcd hadm)).accounts
     (P := fun τ => ∀ acc', τ[a]? = some acc' → acc'.code = acc.code → P acc')
-    (fun feed out w hrun acc' => hmodel I σ A feed out w howner htr hcd hadm hdeep hH hrun acc
+    (fun feed out w hrun acc' => hmodel I σ A feed out w howner htr hcd hadm hdeep hT hH hrun acc
       acc' hacc)
     hXi acc' hacc' hcode
 

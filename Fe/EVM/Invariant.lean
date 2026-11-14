@@ -39,22 +39,29 @@ What it does not constrain:
   (also with the creator's nonce at its limit): there is no frame.
 - A precompile: it runs no frame.
 
+`total σ`: the sum of all balances, as a natural number, over the account map's list of entries
+(`toList`).  Writing one account changes it by the difference of the balances (`total_insert`,
+`total_of_some`, by a permutation of the entry lists).
+
 `ThetaGood a P Trusted admits e`: every admitted message call at depth `e` ends where `Holds`
 holds, if it starts where `Holds` holds both before and after its value moves (`sendEth`, as `Θ`
-moves it), its calldata size fits a word, and it runs code `Trusted` admits (or a precompile) when
-its recipient is `a` (`GoodTheta`).  It also keeps `a` out of the created accounts and the
-self-destruct set of the substate (`SubOk`), if the substate it starts with does.  `LambdaGood a P
-admits e` is the same for `Lambda`, with the creator's payment (`debit`, `GoodLambda`).  `Deeper`
+moves it), its calldata size fits a word, it runs code `Trusted` admits (or a precompile) when its
+recipient is `a`, the payer has the value, and the balances add up to less than `2 ^ 256`
+(`GoodTheta`).  It ends with no more ether in total than it started with.  It also keeps `a` out
+of the created accounts and the self-destruct set of the substate (`SubOk`), if the substate it
+starts with does.  `LambdaGood a P admits e` is the same for `Lambda`, with the creator's payment
+(`debit`, `GoodLambda`), when the creator has the endowment and a nonce.  `Deeper`
 is both, at every depth below a given one.  The substate part does not depend on `P`: a model that
 makes calls under a feed of arbitrary substates uses only the account part.
 
 `FrameHyp a P Trusted admits`, the per-frame hypothesis: every successful `Ξ` with code owner `a`,
 running code `Trusted` admits, with calldata that fits a word, admitted, and starting where
-`Holds` holds, ends with `a`'s account satisfying `P`, if its code is still what it was.  The frame
+`Holds` holds with the balances adding up to less than `2 ^ 256`, ends with `a`'s account
+satisfying `P`, if its code is still what it was.  The frame
 may assume `Deeper` (the admitted calls and creations below it are good) and that the calls and
 creations it makes directly are admitted (`XiOk`); it must show `Holds` before each call it makes,
 with any value already taken from `a`.  That the code is kept, and the substate part, need not be
-shown: `Xi_code` proves them of every frame, whatever it runs.
+shown: `Xi_code` proves them of every frame, whatever it runs, and also that it adds no ether.
 
 A frame at `a` that executes `SELFDESTRUCT` moves `a`'s balance out.  That is not a balance
 increase, so it is the frame's own effect, which `FrameHyp` speaks about: the frame's result must
@@ -67,12 +74,23 @@ hold at every depth.  With `admits := fun _ _ => True` every execution is admitt
 (`admitted_of_all`), and the theorem is about every message call and creation.
 `Fe.EVM.RefineInvariant` derives `FrameHyp` from a certificate of the bytecode.
 
-`tx_holds`, the transaction: `Υ` keeps `Holds` if the outermost call or creation, as `Υ` makes it
-(`txCall`), is admitted (`TxAdmitted`), and two more conditions hold:
+`tx_holds`, the transaction: `Υ` keeps `Holds`, and adds no ether, if it starts where the
+balances add up to less than `2 ^ 256`, the outermost call or creation, as `Υ` makes it (`txCall`),
+is admitted (`TxAdmitted`), and these conditions hold:
 - The sender has no code.  `Υ` does not check this; EIP-3607 makes such a transaction invalid,
   and EVMLean's conformance runner rejects it (`SENDER_NOT_EOA`) before calling `Υ`.  Since `a`
   has code, the sender is not `a`, so the upfront payment and the gas refund do not touch `a`.
 - The transaction's data size fits a word, as a frame's calldata must.
+- The transaction is valid as EVMLean's conformance runner checks (`validateTransaction`): the
+  sender can pay the gas limit at the price `Υ` charges, the blob fee and the value; the priority
+  fee is at most the price (the price covers the base fee); the sender's nonce is below
+  `2 ^ 64 - 1` (EIP-2681), so the increment does not wrap and the creator of a creation has a
+  nonce.  These are stated in `Υ`'s own terms (`txPrice`, `txFee`, `calcBlobFee`).
+`Υ`'s accounting: the sender pays `gasLimit * price + blobFee` upfront (`total_txState`); the call
+adds no ether; the refund and the priority fee are at most the upfront gas payment, because the
+call returns no more gas than it was given (`Theta_gas_le`, `lambda_gas_le`) (`Holds.fees`); the
+erasures remove ether and clearing transient storage keeps it (`total_txTail`).  The blob fee is
+burnt.
 `Υ` erases the accounts in the self-destruct set its message call or creation returns; `a` is not
 among them.  The transaction's call starts with no created accounts and an empty self-destruct set,
 and every call and creation keeps `SubOk`: a creation lists only an address without code, which
@@ -80,8 +98,8 @@ and every call and creation keeps `SubOk`: a creation lists only an address with
 that fails returns the substate it was given (a creation with its created accounts restored), and a
 precompile returns it unchanged (`precompiled_Theta_substate`).
 `P` must also tolerate clearing the transient storage, which `Υ` does at the end; this is a
-hypothesis of `tx_holds` only, since nothing inside a transaction clears it.  The priority fee
-and refund are balance increases, and `a`, having code, is never a dead account.
+hypothesis of `tx_holds` only, since nothing inside a transaction clears it.  `a`, having code,
+is never a dead account.
 
 `deploy_holds`, the base case: a creation that succeeds ends with `Holds` at the address it
 created, if the account its init code leaves there, with the code the init code returns, satisfies
@@ -120,11 +138,25 @@ calls `Θ` and `Lambda` one level deeper; at depth 1024 it makes no call.
 
 `Admissible P Trusted`:
 
-- `balance`: `P` tolerates any increase of the balance, as EVMLean adds (modulo `2 ^ 256`).
-  Value reaches `a` without running its code.  EVMLean adds balances without a bound on their
-  sum, so an invariant such as "the balance covers the supply" is not closed under this
-  addition, though on the real chain the addition cannot wrap.  Such invariants need a bound on
-  the sum of all balances that EVMLean's semantics preserves; that is not proved here.
+- `balance`: `P` tolerates an increase of the balance that does not wrap.  Value reaches `a`
+  without running its code: a transfer, a `SELFDESTRUCT` naming `a`, the priority fee when `a`
+  is the beneficiary.  An invariant that bounds the balance from below ("the balance covers the
+  supply") is closed under such increases.  No increase wraps: each comes from another account's
+  balance, or from the gas the sender paid, and the sum of all balances bounds them.  EVMLean
+  adds modulo `2 ^ 256` without a bound of its own; the bound is that the balances add up to less
+  than `2 ^ 256` where the transaction (or the outermost call) starts, which the chain satisfies,
+  and every step keeps the sum from growing:
+  - A value transfer moves `v` from a payer that has it (`total_sendEth`); `CALL` and `CREATE`
+    check that before making the call, and `Θ`'s caller must state it (`GoodTheta`).
+  - A creation moves its endowment to the new account (`LambdaCall.frame_total`); the creator
+    has a nonce, so the new address is not the creator's.
+  - `SELFDESTRUCT` moves the balance to an existing account or a new one, or burns it when it
+    names itself in the transaction that created it (`total_sd_move`, `total_sd_new`,
+    `total_insert_insert_zero`).
+  - A failed call or creation returns the account map it was given.
+  Balance that leaves `a` (a `CALL` with value from `a`, a creation `a` pays for, `SELFDESTRUCT`
+  at `a`) is the frame's own effect: `GoodTheta` and `GoodLambda` ask for `Holds` after the value
+  is taken, and `FrameHyp` for `P` after the frame.
 - `code`: `a` has code, so no creation can land on `a` (`Lambda` keeps the account map when the
   target has code or a nonce).
 - `trusted`: a `CALL` or `STATICCALL` to `a` runs the code `a` has, which must be code the
@@ -142,7 +174,6 @@ instruction replaces code; a creation sets code only at an address without code 
 
 ## What remains
 
-- Balance-monotone invariants, as above.
 - A sequence of transactions, or a block, is the iteration of `tx_holds`; it is not stated.
 -/
 
@@ -173,14 +204,229 @@ def CodeOnly : Prop := ∀ acc acc', acc.code = acc'.code → P acc → P acc'
 
 /-- What `P` must allow. -/
 structure Admissible : Prop where
-  /-- Value can arrive without a call: by a transfer, a `SELFDESTRUCT`, a block reward. -/
-  balance : ∀ acc v, P acc → P {acc with balance := acc.balance + v}
+  /-- Value can arrive without a call: by a transfer, a `SELFDESTRUCT`, a fee.  Only increases that
+      do not wrap: the sum of all balances bounds every balance and every increase. -/
+  balance : ∀ acc v, P acc → acc.balance.toNat + v.toNat < UInt256.size →
+    P {acc with balance := acc.balance + v}
   /-- `a` has code, so no creation can land on it. -/
   code : ∀ acc, P acc → acc.code.size ≠ 0
   /-- A message call to `a` runs code that `Trusted` admits. -/
   trusted : ∀ acc, P acc → Trusted acc.code
 
 end Defs
+
+/-! ## The sum of all balances -/
+
+theorem UInt256.sub_zero' (x : UInt256) : x - ⟨0⟩ = x := by
+  cases x
+  show UInt256.mk _ = _
+  simp
+
+/-- The sum of all balances, as a natural number. -/
+def total (σ : AccountMap) : ℕ := (σ.toList.map fun p => p.2.balance.toNat).sum
+
+theorem toList_nodup (σ : AccountMap) : σ.toList.Nodup :=
+  (Std.ExtTreeMap.distinct_keys_toList (t := σ)).imp fun h he =>
+    h (by rw [he]; exact Std.ReflCmp.compare_self)
+
+theorem total_perm {σ : AccountMap} {l : List (AccountAddress × Account)} (h : σ.toList.Perm l) :
+    total σ = (l.map fun p => p.2.balance.toNat).sum := by
+  unfold total
+  exact (h.map _).sum_eq
+
+/-- The account map with `k` set to `x` lists `(k, x)` and the rest without `k`. -/
+theorem toList_insert_perm (σ : AccountMap) (k : AccountAddress) (x : Account) :
+    (σ.insert k x).toList.Perm ((k, x) :: (σ.erase k).toList) := by
+  rw [List.perm_ext_iff_of_nodup (toList_nodup _)]
+  · rintro ⟨k', v'⟩
+    simp only [Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some, List.mem_cons, Prod.mk.injEq,
+      Std.ExtTreeMap.getElem?_insert, Std.ExtTreeMap.getElem?_erase]
+    by_cases hk : k = k'
+    · subst hk; simp [eq_comm]
+    · simp [Std.LawfulEqCmp.compare_eq_iff_eq, hk, Ne.symm hk]
+  · refine List.nodup_cons.mpr ⟨fun hm => ?_, toList_nodup _⟩
+    rw [Std.ExtTreeMap.mem_toList_iff_getElem?_eq_some, Std.ExtTreeMap.getElem?_erase_self] at hm
+    cases hm
+
+theorem total_insert (σ : AccountMap) (k : AccountAddress) (x : Account) :
+    total (σ.insert k x) = x.balance.toNat + total (σ.erase k) := by
+  rw [total_perm (toList_insert_perm σ k x)]
+  simp [total]
+
+theorem total_of_some {σ : AccountMap} {k : AccountAddress} {x : Account} (h : σ[k]? = some x) :
+    total σ = x.balance.toNat + total (σ.erase k) := by
+  have : σ.insert k x = σ := by
+    apply Std.ExtTreeMap.ext_getElem?
+    intro k'
+    rw [Std.ExtTreeMap.getElem?_insert]
+    split
+    · rename_i hc
+      rw [Std.LawfulEqCmp.eq_of_compare hc] at h
+      exact h.symm
+    · rfl
+  rw [← total_insert, this]
+
+theorem total_of_none {σ : AccountMap} {k : AccountAddress} (h : σ[k]? = none) :
+    total σ = total (σ.erase k) := by
+  congr 1
+  apply Std.ExtTreeMap.ext_getElem?
+  intro k'
+  rw [Std.ExtTreeMap.getElem?_erase]
+  split
+  · rename_i hc
+    rw [← Std.LawfulEqCmp.eq_of_compare hc]
+    exact h
+  · rfl
+
+
+theorem total_insert_some {σ : AccountMap} {k : AccountAddress} {x y : Account}
+    (h : σ[k]? = some y) : total (σ.insert k x) + y.balance.toNat = total σ + x.balance.toNat := by
+  rw [total_insert, total_of_some h]; omega
+
+theorem total_insert_none {σ : AccountMap} {k : AccountAddress} {x : Account}
+    (h : σ[k]? = none) : total (σ.insert k x) = total σ + x.balance.toNat := by
+  rw [total_insert, total_of_none h]; omega
+
+theorem total_insert_same {σ : AccountMap} {k : AccountAddress} {x y : Account}
+    (h : σ[k]? = some y) (hb : x.balance = y.balance) : total (σ.insert k x) = total σ := by
+  have := total_insert_some (x := x) h
+  rw [hb] at this; omega
+
+theorem balance_le_total {σ : AccountMap} {k : AccountAddress} {x : Account}
+    (h : σ[k]? = some x) : x.balance.toNat ≤ total σ := by
+  rw [total_of_some h]; omega
+
+theorem two_le_total {σ : AccountMap} {k j : AccountAddress} {x y : Account}
+    (hk : σ[k]? = some x) (hj : σ[j]? = some y) (hne : k ≠ j) :
+    x.balance.toNat + y.balance.toNat ≤ total σ := by
+  have hj' : (σ.erase k)[j]? = some y := by
+    rw [Std.ExtTreeMap.getElem?_erase]
+    simp [Std.LawfulEqCmp.compare_eq_iff_eq, hne, hj]
+  rw [total_of_some hk]
+  have := balance_le_total hj'
+  omega
+
+/-- The balance of an account, zero if there is none, as `CALL` and `CREATE` read it. -/
+def balOf (σ : AccountMap) (k : AccountAddress) : UInt256 := σ.get? k |>.option ⟨0⟩ (·.balance)
+
+theorem UInt256.toNat_lt (x : UInt256) : x.toNat < UInt256.size := x.val.isLt
+
+theorem UInt256.toNat_add_of_lt {x y : UInt256} (h : x.toNat + y.toNat < UInt256.size) :
+    (x + y).toNat = x.toNat + y.toNat := by
+  show (x.val + y.val).val = _
+  rw [Fin.val_add]
+  exact Nat.mod_eq_of_lt h
+
+theorem UInt256.toNat_sub_of_le {x y : UInt256} (h : y ≤ x) :
+    (x - y).toNat = x.toNat - y.toNat := by
+  show (x.val - y.val).val = _
+  exact Fin.sub_val_of_le h
+
+theorem UInt256.add_sub_cancel' (x y : UInt256) : x + y - y = x := by
+  cases x; cases y
+  show UInt256.mk _ = _
+  congr 1
+  exact add_sub_cancel_right _ _
+
+theorem balOf_of_some {σ : AccountMap} {k : AccountAddress} {x : Account} (h : σ[k]? = some x) :
+    balOf σ k = x.balance := by
+  simp [balOf, Std.ExtTreeMap.get?_eq_getElem?, h, Option.option]
+
+theorem balOf_of_none {σ : AccountMap} {k : AccountAddress} (h : σ[k]? = none) :
+    balOf σ k = ⟨0⟩ := by
+  simp [balOf, Std.ExtTreeMap.get?_eq_getElem?, h, Option.option]
+
+theorem UInt256.eq_zero_of_le_zero {v : UInt256} (h : v ≤ ⟨0⟩) : v = ⟨0⟩ := by
+  cases v with
+  | mk val =>
+    congr 1
+    exact Fin.ext (Nat.le_zero.mp h)
+
+theorem total_insert_bal (σ : AccountMap) (k : AccountAddress) (x : Account) :
+    total (σ.insert k x) + (balOf σ k).toNat = total σ + x.balance.toNat := by
+  cases h : σ[k]? with
+  | none => rw [total_insert_none h, balOf_of_none h]; rfl
+  | some y => rw [balOf_of_some h]; exact total_insert_some h
+
+theorem balOf_insert_self (σ : AccountMap) (k : AccountAddress) (x : Account) :
+    balOf (σ.insert k x) k = x.balance :=
+  balOf_of_some (by simp)
+
+theorem balOf_eq_getD (σ : AccountMap) (k : AccountAddress) :
+    balOf σ k = (σ.get? k |>.getD default).balance := by
+  unfold balOf
+  cases σ.get? k <;> rfl
+
+theorem getElem?_insert_ne' {σ : AccountMap} {k k' : AccountAddress} {x : Account}
+    (h : k ≠ k') : (σ.insert k x)[k']? = σ[k']? := by
+  rw [Std.ExtTreeMap.getElem?_insert]
+  simp [Std.LawfulEqCmp.compare_eq_iff_eq, h]
+
+/-- A value transfer, when the payer has the value, keeps the sum of balances. -/
+theorem total_sendEth {σ : AccountMap} {r s : AccountAddress} {v : UInt256}
+    (hv : v ≤ balOf σ s) (hT : total σ < UInt256.size) :
+    total (sendEth r s v true σ) = total σ := by
+  unfold sendEth
+  simp only [if_true, Std.ExtTreeMap.get?_eq_getElem?]
+  by_cases hrs : r = s
+  · subst hrs
+    cases hr : σ[r]? with
+    | none =>
+      rw [balOf_of_none hr] at hv
+      have := UInt256.eq_zero_of_le_zero hv
+      subst this
+      have h0 : ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false := rfl
+      simp only [hr, h0, Bool.false_eq_true, if_false]
+    | some acc =>
+      simp only [Std.ExtTreeMap.getElem?_insert_self]
+      have h1 := total_insert_some (x := { acc with balance := acc.balance + v }) hr
+      have h2 := total_insert_some (σ := σ.insert r { acc with balance := acc.balance + v })
+        (x := { acc with balance := acc.balance + v - v }) (Std.ExtTreeMap.getElem?_insert_self)
+      simp only [UInt256.add_sub_cancel'] at h1 h2 ⊢
+      omega
+  · cases hs : σ[s]? with
+    | none =>
+      rw [balOf_of_none hs] at hv
+      have := UInt256.eq_zero_of_le_zero hv
+      subst this
+      have h0 : ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false := rfl
+      cases hr : σ[r]? with
+      | none => simp only [h0, Bool.false_eq_true, if_false, hs]
+      | some acc =>
+        simp only [getElem?_insert_ne' hrs, hs]
+        exact total_insert_same hr (by
+          show acc.balance + ⟨0⟩ = acc.balance
+          cases acc.balance; show UInt256.mk _ = _; simp)
+    | some sacc =>
+      rw [balOf_of_some hs] at hv
+      have hsub := UInt256.toNat_sub_of_le hv
+      have hvle : v.toNat ≤ sacc.balance.toNat := hv
+      cases hr : σ[r]? with
+      | none =>
+        by_cases hv0 : v = UInt256.ofNat 0
+        · subst hv0
+          simp only [bne_self_eq_false, Bool.false_eq_true, if_false, hs]
+          exact total_insert_same hs (UInt256.sub_zero' _)
+        · simp only [hv0, bne_iff_ne, ne_eq, not_false_eq_true, if_true,
+            getElem?_insert_ne' hrs, hs]
+          have h1 := total_insert_none (x := { (default : Account) with balance := v }) hr
+          have h2 := total_insert_some (σ := σ.insert r { (default : Account) with balance := v })
+            (x := { sacc with balance := sacc.balance - v })
+            (by rw [getElem?_insert_ne' hrs]; exact hs)
+          simp only at h1 h2
+          omega
+      | some racc =>
+        simp only [getElem?_insert_ne' hrs, hs]
+        have hle := two_le_total hr hs hrs
+        have hadd := UInt256.toNat_add_of_lt (x := racc.balance) (y := v) (by omega)
+        have h1 := total_insert_some (x := { racc with balance := racc.balance + v }) hr
+        have h2 := total_insert_some
+          (σ := σ.insert r { racc with balance := racc.balance + v })
+          (x := { sacc with balance := sacc.balance - v })
+          (by rw [getElem?_insert_ne' hrs]; exact hs)
+        simp only at h1 h2
+        omega
+
 
 section HoldsLemmas
 
@@ -215,13 +461,9 @@ theorem Holds.insert_owner {σ : AccountMap} {k : AccountAddress} {x : Account}
     exact Holds.insert_self (hk.resolve_left (fun h => h rfl) acc x (hx acc hacc) hP)
   · exact h.insert_ne hka
 
-theorem UInt256.sub_zero' (x : UInt256) : x - ⟨0⟩ = x := by
-  cases x
-  show UInt256.mk _ = _
-  simp
-
 theorem Holds.transfer (hadm : Admissible P Trusted) {σ : AccountMap} {r s : AccountAddress}
-    {v : UInt256} (hs : s ≠ a ∨ v = ⟨0⟩ ∨ CodeOnly P) (h : Holds a P σ) :
+    {v : UInt256} (hs : s ≠ a ∨ v = ⟨0⟩ ∨ CodeOnly P) (hv : v ≤ balOf σ s)
+    (hT : total σ < UInt256.size) (h : Holds a P σ) :
     Holds a P (sendEth r s v true σ) := by
   have h1 : Holds a P (match σ.get? r with
       | none =>
@@ -250,7 +492,23 @@ theorem Holds.transfer (hadm : Admissible P Trusted) {σ : AccountMap} {r s : Ac
         have : accr = acc := by
           simpa [Std.ExtTreeMap.get?_eq_getElem?, hacc] using hr.symm
         subst this
-        exact Holds.insert_self (hadm.balance _ v hP)
+        have hacc' : σ[r]? = some accr := by simpa [Std.ExtTreeMap.get?_eq_getElem?] using hr
+        refine Holds.insert_self ?_
+        rcases hs with hsa | hv0 | hco
+        · cases hsv : σ[s]? with
+          | none =>
+            rw [balOf_of_none hsv] at hv
+            have hv0 := UInt256.eq_zero_of_le_zero hv
+            subst hv0
+            exact hadm.balance _ _ hP (by simpa using UInt256.toNat_lt accr.balance)
+          | some sacc =>
+            rw [balOf_of_some hsv] at hv
+            have hle := two_le_total hacc' hsv (Ne.symm hsa)
+            have hvle : v.toNat ≤ sacc.balance.toNat := hv
+            exact hadm.balance _ _ hP (by omega)
+        · subst hv0
+          exact hadm.balance _ _ hP (by simpa using UInt256.toNat_lt accr.balance)
+        · exact hco accr _ rfl hP
       · exact Holds.insert_ne hra ⟨acc, hacc, hP⟩
   have h2 : ∀ τ : AccountMap, Holds a P τ → Holds a P (match τ.get? s with
       | none => τ
@@ -519,15 +777,17 @@ variable (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray → Pr
     the value moves, has calldata that fits a word, and runs `Trusted` code when its recipient is
     `a`; and it keeps `SubOk` of the substate. -/
 def GoodTheta (T : ThetaCall) : Prop :=
-  T.d.size < UInt256.size → (T.r = a → CodeOk Trusted T.c) → Holds a P T.σ →
-    Holds a P (sendEth T.r T.s T.v true T.σ) →
-      Holds a P T.run.1 ∧ (SubOk a T.A → SubOk a T.run.2.2.1)
+  T.d.size < UInt256.size → (T.r = a → CodeOk Trusted T.c) → T.v ≤ balOf T.σ T.s →
+    total T.σ < UInt256.size → Holds a P T.σ → Holds a P (sendEth T.r T.s T.v true T.σ) →
+      Holds a P T.run.1 ∧ (SubOk a T.A → SubOk a T.run.2.2.1) ∧ total T.run.1 ≤ total T.σ
 
 /-- A creation keeps `Holds`, if it holds before and after the creator pays; and it keeps `SubOk`
     of the substate. -/
 def GoodLambda (L : LambdaCall) : Prop :=
-  Holds a P L.σ → Holds a P (debit L.σ L.s L.v) →
-    Holds a P L.run.2.1 ∧ (SubOk a L.A → SubOk a L.run.2.2.2.1)
+  L.v ≤ balOf L.σ L.s → (L.σ.getD L.s default).nonce ≠ ⟨0⟩ → total L.σ < UInt256.size →
+    Holds a P L.σ → Holds a P (debit L.σ L.s L.v) →
+      Holds a P L.run.2.1 ∧ (SubOk a L.A → SubOk a L.run.2.2.2.1) ∧
+        total L.run.2.1 ≤ total L.σ
 
 end Good
 
@@ -550,28 +810,30 @@ theorem OwnerOk.ne_or_codeOnly {o : AccountAddress} (h : OwnerOk a P Trusted o) 
 theorem sstore_accountMap (state : State) (k v : UInt256) :
     (state.sstore k v).accountMap = state.accountMap ∨
       ∃ acc x, state.accountMap[state.executionEnv.codeOwner]? = some acc ∧
-        acc.code = x.code ∧
+        acc.code = x.code ∧ acc.balance = x.balance ∧
         (state.sstore k v).accountMap = state.accountMap.insert state.executionEnv.codeOwner x := by
   unfold Ethereum.State.sstore
   simp only [Ethereum.State.lookupAccount]
   rcases h : state.accountMap.get? state.executionEnv.codeOwner with _ | acc
   · exact Or.inl (by simp [Option.option])
-  · refine Or.inr ⟨acc, acc.updateStorage k v, ?_, ?_, ?_⟩
+  · refine Or.inr ⟨acc, acc.updateStorage k v, ?_, ?_, ?_, ?_⟩
     · simpa [Std.ExtTreeMap.get?_eq_getElem?] using h
+    · unfold Account.updateStorage; split <;> rfl
     · unfold Account.updateStorage; split <;> rfl
     · simp [Option.option, Ethereum.State.setAccount, Ethereum.State.addAccessedStorageKey]
 
 theorem tstore_accountMap (state : State) (k v : UInt256) :
     (state.tstore k v).accountMap = state.accountMap ∨
       ∃ acc x, state.accountMap[state.executionEnv.codeOwner]? = some acc ∧
-        acc.code = x.code ∧
+        acc.code = x.code ∧ acc.balance = x.balance ∧
         (state.tstore k v).accountMap = state.accountMap.insert state.executionEnv.codeOwner x := by
   unfold Ethereum.State.tstore
   simp only [Ethereum.State.lookupAccount]
   rcases h : state.accountMap.get? state.executionEnv.codeOwner with _ | acc
   · exact Or.inl (by simp [Option.option])
-  · refine Or.inr ⟨acc, acc.updateTransientStorage k v, ?_, ?_, ?_⟩
+  · refine Or.inr ⟨acc, acc.updateTransientStorage k v, ?_, ?_, ?_, ?_⟩
     · simpa [Std.ExtTreeMap.get?_eq_getElem?] using h
+    · unfold Account.updateTransientStorage; split <;> rfl
     · unfold Account.updateTransientStorage; split <;> rfl
     · simp [Option.option, Ethereum.State.updateAccount]
 
@@ -581,14 +843,19 @@ theorem step_stackMemFlow {op : Operation.SMSFOp} {gasCost : Nat}
     {arg : Option (UInt256 × Nat)} {state state' : State}
     (hown : OwnerOk a P Trusted state.executionEnv.codeOwner) (hH : Holds a P state.accountMap)
     (h : step gasCost (.StackMemFlow op, arg) state = .ok state') :
-    Holds a P state'.accountMap := by
+    Holds a P state'.accountMap ∧ total state'.accountMap = total state.accountMap := by
+  have hsame : state'.accountMap = state.accountMap →
+      Holds a P state'.accountMap ∧ total state'.accountMap = total state.accountMap :=
+    fun he => ⟨hH.of_eq he, by rw [he]⟩
   have hstore : ∀ {f : State → UInt256 → UInt256 → State},
       (∀ st k v, (f st k v).accountMap = st.accountMap ∨
         ∃ acc x, st.accountMap[st.executionEnv.codeOwner]? = some acc ∧ acc.code = x.code ∧
+          acc.balance = x.balance ∧
           (f st k v).accountMap = st.accountMap.insert st.executionEnv.codeOwner x) →
       ∀ {st st' : State}, st.accountMap = state.accountMap →
         st.executionEnv.codeOwner = state.executionEnv.codeOwner →
-        binaryStateOp f st = .ok st' → Holds a P st'.accountMap := by
+        binaryStateOp f st = .ok st' →
+          Holds a P st'.accountMap ∧ total st'.accountMap = total state.accountMap := by
     intro f hf st st' hσ hown' hop
     unfold binaryStateOp at hop
     split at hop <;> try contradiction
@@ -596,33 +863,34 @@ theorem step_stackMemFlow {op : Operation.SMSFOp} {gasCost : Nat}
     injection hop with hst
     subst hst
     simp only [Ethereum.State.replaceStackAndIncrPC, Ethereum.State.incrPC]
-    rcases hf st k v with he | ⟨acc, x, hacc, hcode, he⟩
-    · exact hH.of_eq (he.trans hσ)
+    rcases hf st k v with he | ⟨acc, x, hacc, hcode, hbal, he⟩
+    · exact ⟨hH.of_eq (he.trans hσ), by rw [he, hσ]⟩
     · rw [he]
       rw [hσ, hown'] at hacc ⊢
-      refine hH.insert_owner hown.ne_or_codeOnly fun old hold => ?_
+      refine ⟨hH.insert_owner hown.ne_or_codeOnly fun old hold => ?_,
+        total_insert_same hacc hbal.symm⟩
       rw [hacc] at hold
       cases hold
       exact hcode
   cases op <;> simp [step] at h
   all_goals first
-    | exact hH.of_eq (by simpa using static_binaryMachineStateOp_accountMap_eq h)
-    | exact hH.of_eq (by simpa using static_machineStateOp_accountMap_eq h)
-    | exact hH.of_eq (by simpa using static_ternaryMachineStateOp_accountMap_eq h)
+    | exact hsame (by simpa using static_binaryMachineStateOp_accountMap_eq h)
+    | exact hsame (by simpa using static_machineStateOp_accountMap_eq h)
+    | exact hsame (by simpa using static_ternaryMachineStateOp_accountMap_eq h)
     | (have he := static_unaryStateOp_accountMap_eq (f := Ethereum.State.sload)
           (by intro s v; simp [Ethereum.State.sload, Ethereum.State.addAccessedStorageKey,
             Ethereum.State.lookupAccount]) h
-       exact hH.of_eq (by simpa using he))
+       exact hsame (by simpa using he))
     | (have he := static_unaryStateOp_accountMap_eq (f := Ethereum.State.tload)
           (by intro s v; simp [Ethereum.State.tload]) h
-       exact hH.of_eq (by simpa using he))
+       exact hsame (by simpa using he))
     | exact hstore sstore_accountMap (by simp) (by simp) h
     | exact hstore tstore_accountMap (by simp) (by simp) h
-    | (rw [← h]; exact hH)
+    | (rw [← h]; exact ⟨hH, rfl⟩)
     | (split at h <;> try contradiction
        injection h with hst
        rw [← hst]
-       exact hH)
+       exact ⟨hH, rfl⟩)
 
 theorem readWithPadding_size_lt (mem : ByteArray) (o l : UInt256) :
     (mem.readWithPadding o.toNat l.toNat).size < UInt256.size :=
@@ -640,26 +908,34 @@ theorem call_holds {Q : CallPreds} {gasCost : Nat}
       GoodTheta a P Trusted T)
     (hok : callOk Q gas source recipient t value value' inOffset inSize permission evmState)
     (hH : Holds a P evmState.accountMap)
+    (hT : total evmState.accountMap < UInt256.size)
     (hcode : AccountAddress.ofUInt256 recipient = a →
       CodeOk Trusted (toExecute evmState.accountMap (AccountAddress.ofUInt256 t)))
-    (hpre : Holds a P (sendEth (AccountAddress.ofUInt256 recipient)
-      (AccountAddress.ofUInt256 source) value true evmState.accountMap))
+    (hsrc : value ≤ balOf evmState.accountMap evmState.executionEnv.codeOwner →
+      value ≤ balOf evmState.accountMap (AccountAddress.ofUInt256 source))
+    (hpre : value ≤ balOf evmState.accountMap (AccountAddress.ofUInt256 source) →
+      Holds a P (sendEth (AccountAddress.ofUInt256 recipient)
+        (AccountAddress.ofUInt256 source) value true evmState.accountMap))
     (h : call gasCost gas source recipient t value value' inOffset inSize outOffset outSize
       permission evmState = .ok (x, state')) :
-    Holds a P state'.accountMap ∧ (SubOk a evmState.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a evmState.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total evmState.accountMap := by
   unfold call at h
   simp at h
   split at h
   · rename_i hcall
     rcases h with ⟨_, hstate⟩
     rw [← hstate]
-    have hg := hQ _ (succ_depth_val hcall.2)
-      (hok (by simpa [Std.ExtTreeMap.get?_eq_getElem?] using hcall))
-      (readWithPadding_size_lt _ _ _) hcode hH hpre
-    exact ⟨hg.1, fun hS => hg.2 (hS.of_sets ⟨rfl, rfl⟩)⟩
+    have hmade : value ≤ balOf evmState.accountMap evmState.executionEnv.codeOwner ∧
+        evmState.executionEnv.depth < 1024 := by
+      simpa [balOf, Std.ExtTreeMap.get?_eq_getElem?] using hcall
+    have hv := hsrc hmade.1
+    have hg := hQ _ (succ_depth_val hcall.2) (hok hmade)
+      (readWithPadding_size_lt _ _ _) hcode hv hT hH (hpre hv)
+    exact ⟨hg.1, fun hS => hg.2.1 (hS.of_sets ⟨rfl, rfl⟩), hg.2.2⟩
   · rcases h with ⟨_, hstate⟩
     rw [← hstate]
-    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
+    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
 
 /-- A `CREATE` or `CREATE2` keeps `Holds` when the creation it makes is good. -/
 theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Option ByteArray}
@@ -668,9 +944,10 @@ theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Opt
     (hQl : ∀ L : LambdaCall, L.e.val = evmState.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : createOk Q value offset size salt evmState)
-    (hH : Holds a P evmState.accountMap)
+    (hH : Holds a P evmState.accountMap) (hT : total evmState.accountMap < UInt256.size)
     (h : create value offset size salt evmState = .ok (x, state')) :
-    Holds a P state'.accountMap ∧ (SubOk a evmState.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a evmState.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total evmState.accountMap := by
   let owner := (evmState.accountMap.get? evmState.executionEnv.codeOwner).getD default
   let σStar := evmState.accountMap.insert evmState.executionEnv.codeOwner
     {owner with nonce := owner.nonce + ⟨1⟩}
@@ -679,6 +956,18 @@ theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Opt
     have : owner = old := by
       simp [owner, Std.ExtTreeMap.get?_eq_getElem?, hold]
     rw [this]
+  have hbalStar : balOf σStar evmState.executionEnv.codeOwner =
+      balOf evmState.accountMap evmState.executionEnv.codeOwner := by
+    rw [balOf_insert_self, balOf_eq_getD]
+  have hTstar : total σStar = total evmState.accountMap := by
+    have := total_insert_bal evmState.accountMap evmState.executionEnv.codeOwner
+      {owner with nonce := owner.nonce + ⟨1⟩}
+    rw [balOf_eq_getD] at this
+    have hd : ((evmState.accountMap.get? evmState.executionEnv.codeOwner).getD
+        default).balance.toNat = owner.balance.toNat := rfl
+    show total (evmState.accountMap.insert _ _) = _
+    simp only at this
+    omega
   unfold create at h
   by_cases hnonce : owner.nonce.toNat ≥ 2^64 - 1
   · simp [bind, Except.bind, pure, Except.pure] at h
@@ -688,12 +977,25 @@ theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Opt
       | contradiction
       | rcases h with ⟨_, hstate⟩
         rw [← hstate]
-        exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
+        exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
   · by_cases hCreate :
         value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩
           (·.balance)) ∧ evmState.executionEnv.depth < 1024 ∧
           (evmState.machineState.memory.readWithPadding offset.toNat size.toNat).size ≤ 49152
-    · have hrec := hQl _ rfl (hok hnonce hCreate) hStar (hStar.pay hown.ne_or_codeOnly)
+    · have hv : value ≤ balOf σStar evmState.executionEnv.codeOwner := by
+        rw [hbalStar]; exact hCreate.1
+      have hn : (σStar.getD evmState.executionEnv.codeOwner default).nonce ≠ ⟨0⟩ := by
+        rw [Std.ExtTreeMap.getD_insert_self]
+        intro h0
+        replace h0 : owner.nonce + ⟨1⟩ = ⟨0⟩ := h0
+        have h1 := UInt256.toNat_add_of_lt (x := owner.nonce) (y := ⟨1⟩) (by
+          show owner.nonce.toNat + 1 < UInt256.size
+          simp only [UInt256.size]; omega)
+        have : (owner.nonce + ⟨1⟩).toNat = 0 := by rw [h0]; rfl
+        rw [h1] at this
+        exact absurd this (by show owner.nonce.toNat + 1 ≠ 0; omega)
+      have hrec := hQl _ rfl (hok hnonce hCreate) hv hn (by rw [hTstar]; exact hT) hStar
+        (hStar.pay hown.ne_or_codeOnly)
       simp [bind, Except.bind, pure, Except.pure] at h
       repeat' (split at h <;> try simp at h)
       all_goals
@@ -702,8 +1004,8 @@ theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Opt
         | rcases h with ⟨_, hstate⟩
           rw [← hstate]
           first
-          | exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
-          | exact hrec
+          | exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
+          | exact ⟨hrec.1, hrec.2.1, hrec.2.2.trans (le_of_eq hTstar)⟩
     · simp [bind, Except.bind, pure, Except.pure] at h
       repeat' (split at h <;> try simp at h)
       all_goals
@@ -711,7 +1013,7 @@ theorem create_holds {Q : CallPreds} {value offset size x : UInt256} {salt : Opt
         | contradiction
         | rcases h with ⟨_, hstate⟩
           rw [← hstate]
-          exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
+          exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
 
 theorem getElem?_insert_of_ne {σ : AccountMap} {k k' : AccountAddress} {x : Account}
     (h : k ≠ k') : (σ.insert k x)[k']? = σ[k']? := by
@@ -724,12 +1026,52 @@ theorem eq_some_of_liftM {α : Type} {o : Option α} {x : α}
   | none => cases h
   | some y => cases h; rfl
 
+/-- `SELFDESTRUCT` to an account that does not exist moves the balance there. -/
+theorem total_sd_new {σ : AccountMap} {r o : AccountAddress} {oacc : Account}
+    (hr : σ[r]? = none) (ho : σ[o]? = some oacc) (hro : r ≠ o) :
+    total ((σ.insert r {(default : Account) with balance := oacc.balance}).insert o
+      {oacc with balance := ⟨0⟩}) = total σ := by
+  have h1 := total_insert_none (x := {(default : Account) with balance := oacc.balance}) hr
+  have h2 := total_insert_some (σ := σ.insert r {(default : Account) with balance := oacc.balance})
+    (x := {oacc with balance := ⟨0⟩}) (by rw [getElem?_insert_of_ne hro]; exact ho)
+  have h0 : (⟨0⟩ : UInt256).toNat = 0 := rfl
+  dsimp only at h1 h2 ⊢
+  simp only [h0] at h1 h2
+  omega
+
+/-- `SELFDESTRUCT` to another existing account moves the balance there; it does not wrap. -/
+theorem total_sd_move {σ : AccountMap} {r o : AccountAddress} {tacc oacc : Account}
+    (hr : σ[r]? = some tacc) (ho : σ[o]? = some oacc) (hro : r ≠ o)
+    (hT : total σ < UInt256.size) :
+    total ((σ.insert r {tacc with balance := tacc.balance + oacc.balance}).insert o
+      {oacc with balance := ⟨0⟩}) = total σ := by
+  have hle := two_le_total hr ho hro
+  have hadd := UInt256.toNat_add_of_lt (x := tacc.balance) (y := oacc.balance) (by omega)
+  have h1 := total_insert_some (x := {tacc with balance := tacc.balance + oacc.balance}) hr
+  have h2 := total_insert_some
+    (σ := σ.insert r {tacc with balance := tacc.balance + oacc.balance})
+    (x := {oacc with balance := ⟨0⟩}) (by rw [getElem?_insert_of_ne hro]; exact ho)
+  have h0 : (⟨0⟩ : UInt256).toNat = 0 := rfl
+  simp only [h0] at h1 h2
+  omega
+
+/-- Writing an account twice, the last time with no balance, does not raise the sum. -/
+theorem total_insert_insert_zero {σ : AccountMap} {o : AccountAddress} {oacc x y : Account}
+    (ho : σ[o]? = some oacc) (hy : y.balance = ⟨0⟩) :
+    total ((σ.insert o x).insert o y) ≤ total σ := by
+  have h1 := total_insert_some (x := x) ho
+  have h2 := total_insert_some (σ := σ.insert o x) (x := y) Std.ExtTreeMap.getElem?_insert_self
+  rw [hy] at h2
+  have h0 : (⟨0⟩ : UInt256).toNat = 0 := rfl
+  rw [h0] at h2
+  omega
+
 /-- What `SELFDESTRUCT` does when it names another existing account keeps `Holds`. -/
 theorem Holds.selfdestruct (hadm : Admissible P Trusted) {σ : AccountMap}
-    {r owner : AccountAddress} {tacc oacc : Account} {b : UInt256}
+    {r owner : AccountAddress} {tacc oacc : Account}
     (hown : owner ≠ a ∨ CodeOnly P) (hro : r ≠ owner) (hr : σ[r]? = some tacc)
-    (ho : σ[owner]? = some oacc) (h : Holds a P σ) :
-    Holds a P ((σ.insert r {tacc with balance := tacc.balance + b}).insert owner
+    (ho : σ[owner]? = some oacc) (hT : total σ < UInt256.size) (h : Holds a P σ) :
+    Holds a P ((σ.insert r {tacc with balance := tacc.balance + oacc.balance}).insert owner
       {oacc with balance := ⟨0⟩}) := by
   refine Holds.insert_owner hown (fun old hold => ?_) ?_
   · rw [getElem?_insert_of_ne hro, ho] at hold
@@ -740,7 +1082,8 @@ theorem Holds.selfdestruct (hadm : Admissible P Trusted) {σ : AccountMap}
     obtain ⟨acc, hacc, hP⟩ := h
     rw [hr] at hacc
     cases hacc
-    exact Holds.insert_self (hadm.balance _ b hP)
+    have hle := two_le_total hr ho hro
+    exact Holds.insert_self (hadm.balance _ _ hP (by omega))
   · exact h.insert_ne hra
 
 /-- A system instruction keeps `Holds` when the message calls and creations it makes are
@@ -753,9 +1096,10 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : stepOk Q gasCost (.System op, arg) state)
-    (hH : Holds a P state.accountMap)
+    (hH : Holds a P state.accountMap) (hT : total state.accountMap < UInt256.size)
     (h : step gasCost (.System op, arg) state = .ok state') :
-    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total state.accountMap := by
   have hself : ∀ c,
       AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner) = a →
         CodeOk Trusted c := by
@@ -765,19 +1109,30 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     · exact absurd hr hne
     · exact codeOk_of_all hall c
   have hpay : ∀ v : UInt256,
+      v ≤ balOf state.accountMap
+        (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner)) →
       Holds a P (sendEth (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner))
         (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner)) v true
         state.accountMap) := by
-    intro v
-    rw [AccountAddress.ofUInt256_ofNat]
-    exact hH.transfer hadm (hown.elim Or.inl fun h => Or.inr (Or.inr h.1))
+    intro v hv
+    rw [AccountAddress.ofUInt256_ofNat] at hv ⊢
+    exact hH.transfer hadm (hown.elim Or.inl fun h => Or.inr (Or.inr h.1)) hv hT
   have hsend : ∀ (r : AccountAddress) (v : UInt256),
+      v ≤ balOf state.accountMap
+        (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner)) →
       Holds a P (sendEth r
         (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner)) v true
         state.accountMap) := by
-    intro r v
+    intro r v hv
+    rw [AccountAddress.ofUInt256_ofNat] at hv ⊢
+    exact hH.transfer hadm (hown.elim Or.inl fun h => Or.inr (Or.inr h.1)) hv hT
+  have hown_src : ∀ v : UInt256, v ≤ balOf state.accountMap state.executionEnv.codeOwner →
+      v ≤ balOf state.accountMap
+        (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner)) := by
+    intro v hv
     rw [AccountAddress.ofUInt256_ofNat]
-    exact hH.transfer hadm (hown.elim Or.inl fun h => Or.inr (Or.inr h.1))
+    exact hv
+  have hzero : ∀ x : UInt256, (⟨0⟩ : UInt256) ≤ x := fun _ => Nat.zero_le _
   cases op
   · -- CREATE
     simp [step, bind, Except.bind] at h
@@ -790,8 +1145,9 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P createdState.accountMap ∧
-      (SubOk a state.substate → SubOk a createdState.substate)
-    exact (create_holds (h := hcreate)) hown hQl (hok _ _ _ _ (eq_some_of_liftM hpop)) hH
+      (SubOk a state.substate → SubOk a createdState.substate) ∧
+        total createdState.accountMap ≤ total state.accountMap
+    exact (create_holds (h := hcreate)) hown hQl (hok _ _ _ _ (eq_some_of_liftM hpop)) hH hT
   · -- CALL
     simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
@@ -803,9 +1159,10 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P callState.accountMap ∧
-      (SubOk a state.substate → SubOk a callState.substate)
-    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH ?_
-      (hsend _ _)
+      (SubOk a state.substate → SubOk a callState.substate) ∧
+        total callState.accountMap ≤ total state.accountMap
+    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
+      (hown_src _) (hsend _ _)
     intro hr
     rw [hr]
     exact codeOk_toExecute hadm hH
@@ -820,14 +1177,16 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P callState.accountMap ∧
-      (SubOk a state.substate → SubOk a callState.substate)
-    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH
-      (hself _) (hpay _)
+      (SubOk a state.substate → SubOk a callState.substate) ∧
+        total callState.accountMap ≤ total state.accountMap
+    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
+      (hself _) (hown_src _) (hpay _)
   · -- RETURN
     simp [step] at h
     have hs := sets_binaryMachineStateOp h
-    exact ⟨hH.of_eq (by simpa using static_binaryMachineStateOp_accountMap_eq h),
-      fun hS => hS.of_sets hs⟩
+    have he : state'.accountMap = state.accountMap := by
+      simpa using static_binaryMachineStateOp_accountMap_eq h
+    exact ⟨hH.of_eq he, fun hS => hS.of_sets hs, by rw [he]⟩
   · -- DELEGATECALL
     simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
@@ -839,9 +1198,10 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P callState.accountMap ∧
-      (SubOk a state.substate → SubOk a callState.substate)
-    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH (hself _)
-      (hH.transfer hadm (Or.inr (Or.inl rfl)))
+      (SubOk a state.substate → SubOk a callState.substate) ∧
+        total callState.accountMap ≤ total state.accountMap
+    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
+      (hself _) (fun _ => hzero _) (fun hv => hH.transfer hadm (Or.inr (Or.inl rfl)) hv hT)
   · -- CREATE2
     simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
@@ -853,8 +1213,9 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P createdState.accountMap ∧
-      (SubOk a state.substate → SubOk a createdState.substate)
-    exact (create_holds (h := hcreate)) hown hQl (hok _ _ _ _ _ (eq_some_of_liftM hpop)) hH
+      (SubOk a state.substate → SubOk a createdState.substate) ∧
+        total createdState.accountMap ≤ total state.accountMap
+    exact (create_holds (h := hcreate)) hown hQl (hok _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
   · -- STATICCALL
     simp [step, bind, Except.bind] at h
     split at h <;> try contradiction
@@ -866,87 +1227,95 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     injection h with hstate
     rw [← hstate]
     show Holds a P callState.accountMap ∧
-      (SubOk a state.substate → SubOk a callState.substate)
-    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH ?_
-      (hsend _ _)
+      (SubOk a state.substate → SubOk a callState.substate) ∧
+        total callState.accountMap ≤ total state.accountMap
+    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
+      (fun _ => hzero _) (hsend _ _)
     intro hr
     rw [hr]
     exact codeOk_toExecute hadm hH
   · -- REVERT
     simp [step] at h
     have hs := sets_binaryMachineStateOp h
-    exact ⟨hH.of_eq (by simpa using static_binaryMachineStateOp_accountMap_eq h),
-      fun hS => hS.of_sets hs⟩
+    have he : state'.accountMap = state.accountMap := by
+      simpa using static_binaryMachineStateOp_accountMap_eq h
+    exact ⟨hH.of_eq he, fun hS => hS.of_sets hs, by rw [he]⟩
   · -- INVALID
     simp [step] at h
   · -- SELFDESTRUCT
-    refine ⟨?_, fun hS => ?_⟩
-    · have hown' := hown.ne_or_codeOnly
-      simp [step, Ethereum.State.lookupAccount] at h
+    have hsub : SubOk a state.substate → SubOk a state'.substate := by
+      intro hS
+      have h' := h
+      simp [step, Ethereum.State.lookupAccount] at h'
       cases hpop : state.machineState.stack.pop with
-      | none =>
-          simp [hpop] at h
-      | some popped =>
-          rcases popped with ⟨stack, targetWord⟩
-          by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-          all_goals
-            cases howner' : state.accountMap[state.executionEnv.codeOwner]? with
-            | none =>
-                simp [hpop, hcreated, howner'] at h
-                rw [← h]
-                exact hH
-            | some ownerAcc =>
-                cases htarget : state.accountMap[AccountAddress.ofUInt256 targetWord]? with
-                | none =>
-                    have hta : AccountAddress.ofUInt256 targetWord ≠ a := by
-                      rintro rfl
-                      obtain ⟨_, hacc, _⟩ := hH
-                      rw [htarget] at hacc
-                      cases hacc
-                    have hto : AccountAddress.ofUInt256 targetWord ≠
-                        state.executionEnv.codeOwner := by
-                      intro he
-                      rw [he, howner'] at htarget
-                      cases htarget
-                    by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
-                    · simp [hpop, hcreated, howner', htarget, hzero] at h
-                      rw [← h]
-                      exact hH
-                    · simp [hpop, hcreated, howner', htarget, hzero] at h
-                      rw [← h]
-                      refine (hH.insert_ne hta).insert_owner hown' fun old hold => ?_
-                      rw [getElem?_insert_of_ne hto, howner'] at hold
-                      cases hold
-                      rfl
-                | some targetAcc =>
-                    by_cases hsame :
-                      AccountAddress.ofUInt256 targetWord = state.executionEnv.codeOwner
-                    · simp [hpop, hcreated, howner', hsame] at h
-                      rw [← h]
-                      first
-                      | exact hH
-                      | refine (hH.insert_owner hown' fun old hold => ?_).insert_owner hown'
-                          fun old hold => ?_
-                        · rw [howner'] at hold
-                          cases hold
-                          rfl
-                        · simp at hold
-                          rw [← hold]
-                    · simp [hpop, hcreated, howner', htarget, hsame] at h
-                      rw [← h]
-                      exact hH.selfdestruct hadm hown' hsame htarget howner'
-    · simp [step, Ethereum.State.lookupAccount] at h
-      cases hpop : state.machineState.stack.pop with
-      | none => simp [hpop] at h
+      | none => simp [hpop] at h'
       | some popped =>
         rcases popped with ⟨stack, targetWord⟩
         by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
-        · simp [hpop, hcreated] at h
-          rw [← h]
+        · simp [hpop, hcreated] at h'
+          rw [← h']
           exact hS.selfdestruct hcreated
-        · simp [hpop, hcreated] at h
-          rw [← h]
+        · simp [hpop, hcreated] at h'
+          rw [← h']
           exact hS.of_sets ⟨rfl, rfl⟩
+    suffices hb : Holds a P state'.accountMap ∧ total state'.accountMap ≤ total state.accountMap
+      from ⟨hb.1, hsub, hb.2⟩
+    have hown' := hown.ne_or_codeOnly
+    simp [step, Ethereum.State.lookupAccount] at h
+    cases hpop : state.machineState.stack.pop with
+    | none =>
+        simp [hpop] at h
+    | some popped =>
+        rcases popped with ⟨stack, targetWord⟩
+        by_cases hcreated : state.executionEnv.codeOwner ∈ state.substate.createdAccounts
+        all_goals
+          cases howner' : state.accountMap[state.executionEnv.codeOwner]? with
+          | none =>
+              simp [hpop, hcreated, howner'] at h
+              rw [← h]
+              exact ⟨hH, le_refl _⟩
+          | some ownerAcc =>
+              cases htarget : state.accountMap[AccountAddress.ofUInt256 targetWord]? with
+              | none =>
+                  have hta : AccountAddress.ofUInt256 targetWord ≠ a := by
+                    rintro rfl
+                    obtain ⟨_, hacc, _⟩ := hH
+                    rw [htarget] at hacc
+                    cases hacc
+                  have hto : AccountAddress.ofUInt256 targetWord ≠
+                      state.executionEnv.codeOwner := by
+                    intro he
+                    rw [he, howner'] at htarget
+                    cases htarget
+                  by_cases hzero : ownerAcc.balance = ({ val := 0 } : UInt256)
+                  · simp [hpop, hcreated, howner', htarget, hzero] at h
+                    rw [← h]
+                    exact ⟨hH, le_refl _⟩
+                  · simp [hpop, hcreated, howner', htarget, hzero] at h
+                    rw [← h]
+                    refine ⟨?_, le_of_eq (total_sd_new htarget howner' hto)⟩
+                    refine (hH.insert_ne hta).insert_owner hown' fun old hold => ?_
+                    rw [getElem?_insert_of_ne hto, howner'] at hold
+                    cases hold
+                    rfl
+              | some targetAcc =>
+                  by_cases hsame :
+                    AccountAddress.ofUInt256 targetWord = state.executionEnv.codeOwner
+                  · simp [hpop, hcreated, howner', hsame] at h
+                    rw [← h]
+                    first
+                    | exact ⟨hH, le_refl _⟩
+                    | refine ⟨(hH.insert_owner hown' fun old hold => ?_).insert_owner hown'
+                        fun old hold => ?_, total_insert_insert_zero howner' rfl⟩
+                      · rw [howner'] at hold
+                        cases hold
+                        rfl
+                      · simp at hold
+                        rw [← hold]
+                  · simp [hpop, hcreated, howner', htarget, hsame] at h
+                    rw [← h]
+                    exact ⟨hH.selfdestruct hadm hown' hsame htarget howner' hT,
+                      le_of_eq (total_sd_move htarget howner' hsame hT)⟩
 
 /-- One instruction keeps `Holds` when the message calls and creations it makes are good. -/
 theorem step_holds (hadm : Admissible P Trusted) {Q : CallPreds} {gasCost : Nat}
@@ -957,25 +1326,31 @@ theorem step_holds (hadm : Admissible P Trusted) {Q : CallPreds} {gasCost : Nat}
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : stepOk Q gasCost instr state)
-    (hH : Holds a P state.accountMap)
+    (hH : Holds a P state.accountMap) (hT : total state.accountMap < UInt256.size)
     (h : step gasCost instr state = .ok state') :
-    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total state.accountMap := by
   rcases instr with ⟨op, arg⟩
   have hsets : (∀ s, op ≠ .System s) → SubOk a state.substate → SubOk a state'.substate :=
     fun hop hS => hS.of_sets (step_sets hop h)
+  have hsame : state'.accountMap = state.accountMap → (∀ s, op ≠ .System s) →
+      Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) ∧
+        total state'.accountMap ≤ total state.accountMap :=
+    fun he hop => ⟨hH.of_eq he, hsets hop, by rw [he]⟩
   cases op with
-  | StopArith op =>
-    exact ⟨hH.of_eq (static_step_stoparith_accountMap_eq h), hsets nofun⟩
-  | CompBit op => exact ⟨hH.of_eq (static_step_compbit_accountMap_eq h), hsets nofun⟩
-  | Keccak op => exact ⟨hH.of_eq (static_step_keccak_accountMap_eq h), hsets nofun⟩
-  | Env op => exact ⟨hH.of_eq (static_step_env_accountMap_eq h), hsets nofun⟩
-  | Block op => exact ⟨hH.of_eq (static_step_block_accountMap_eq h), hsets nofun⟩
-  | StackMemFlow op => exact ⟨step_stackMemFlow hown hH h, hsets nofun⟩
-  | Push op => exact ⟨hH.of_eq (static_step_push_accountMap_eq h), hsets nofun⟩
-  | Dup op => exact ⟨hH.of_eq (static_step_dup_accountMap_eq h), hsets nofun⟩
-  | Exchange op => exact ⟨hH.of_eq (static_step_exchange_accountMap_eq h), hsets nofun⟩
-  | Log op => exact ⟨hH.of_eq (static_step_log_accountMap_eq h), hsets nofun⟩
-  | System op => exact step_system hadm hown hQ hQl hok hH h
+  | StopArith op => exact hsame (static_step_stoparith_accountMap_eq h) nofun
+  | CompBit op => exact hsame (static_step_compbit_accountMap_eq h) nofun
+  | Keccak op => exact hsame (static_step_keccak_accountMap_eq h) nofun
+  | Env op => exact hsame (static_step_env_accountMap_eq h) nofun
+  | Block op => exact hsame (static_step_block_accountMap_eq h) nofun
+  | StackMemFlow op =>
+    have hs := step_stackMemFlow hown hH h
+    exact ⟨hs.1, hsets nofun, le_of_eq hs.2⟩
+  | Push op => exact hsame (static_step_push_accountMap_eq h) nofun
+  | Dup op => exact hsame (static_step_dup_accountMap_eq h) nofun
+  | Exchange op => exact hsame (static_step_exchange_accountMap_eq h) nofun
+  | Log op => exact hsame (static_step_log_accountMap_eq h) nofun
+  | System op => exact step_system hadm hown hQ hQl hok hH hT h
 
 theorem Xstep_executionEnv_eq {validJumps : Array UInt256} {state state' : State}
     {ret : Option (HaltCause × ByteArray)}
@@ -1010,9 +1385,10 @@ theorem Xstep_holds (hadm : Admissible P Trusted) {Q : CallPreds} {validJumps : 
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : XstepOk Q validJumps state)
-    (hH : Holds a P state.accountMap)
+    (hH : Holds a P state.accountMap) (hT : total state.accountMap < UInt256.size)
     (hXstep : Xstep validJumps state = .ok (state', ret)) :
-    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total state.accountMap := by
   unfold XstepOk at hok
   set instr : Operation × Option (UInt256 × Nat) :=
     decode state.executionEnv.code state.machineState.pc |>.getD (.STOP, .none) with hinstr
@@ -1035,8 +1411,9 @@ theorem Xstep_holds (hadm : Admissible P Trusted) {Q : CallPreds} {validJumps : 
       obtain ⟨hstateZ, -⟩ := Z_ok_eq_charged_cost hZ'
       subst hstateZ
       have hprefix : Holds a P stepped.accountMap ∧
-          (SubOk a state.substate → SubOk a stepped.substate) :=
-        (step_holds hadm (h := hStep')) hown hQ hQl hokZ hH
+          (SubOk a state.substate → SubOk a stepped.substate) ∧
+            total stepped.accountMap ≤ total state.accountMap :=
+        (step_holds hadm (h := hStep')) hown hQ hQl hokZ hH hT
       repeat split at hXstep
       all_goals
         try contradiction
@@ -1067,9 +1444,10 @@ theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : XOk Q f validJumps state)
-    (hH : Holds a P state.accountMap)
+    (hH : Holds a P state.accountMap) (hT : total state.accountMap < UInt256.size)
     (hX : X f validJumps state = .ok (.success state' o)) :
-    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) := by
+    Holds a P state'.accountMap ∧ (SubOk a state.substate → SubOk a state'.substate) ∧
+      total state'.accountMap ≤ total state.accountMap := by
   induction f generalizing state state' o with
   | zero => simp [X] at hX
   | succ f ih =>
@@ -1081,7 +1459,7 @@ theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
           contradiction
       | ok stepRes =>
           rcases stepRes with ⟨state₁, ret⟩
-          have h₁ := Xstep_holds hadm hown hQ hQl hok.1 hH hstep
+          have h₁ := Xstep_holds hadm hown hQ hQl hok.1 hH hT hstep
           rw [hstep] at hX
           cases ret with
           | none =>
@@ -1093,7 +1471,8 @@ theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
               have htail :=
                 (ih (state := { state₁ with executionEnv.depth := state.executionEnv.depth })
                   (hX := hX)) (by simpa [henv] using hown) hQ hQl (hok.2 state₁ hstep) h₁.1
-              exact ⟨htail.1, fun hS => htail.2 (h₁.2 hS)⟩
+                  (lt_of_le_of_lt h₁.2.2 hT)
+              exact ⟨htail.1, fun hS => htail.2.1 (h₁.2.1 hS), htail.2.2.trans h₁.2.2⟩
           | some retVal =>
               rcases retVal with ⟨cause, out⟩
               cases cause with
@@ -1122,9 +1501,9 @@ theorem Xi_holds (hadm : Admissible P Trusted) {Q : CallPreds} {σ σ₀ σ' : A
     (hown : OwnerOk a P Trusted I.codeOwner)
     (hQ : ∀ T : ThetaCall, T.e.val = I.depth.val + 1 → Q.theta T → GoodTheta a P Trusted T)
     (hQl : ∀ L : LambdaCall, L.e.val = I.depth.val + 1 → Q.lambda L → GoodLambda a P L)
-    (hok : XiOk Q σ σ₀ g A I) (hH : Holds a P σ)
+    (hok : XiOk Q σ σ₀ g A I) (hH : Holds a P σ) (hT : total σ < UInt256.size)
     (hXi : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    Holds a P σ' ∧ (SubOk a A → SubOk a A') := by
+    Holds a P σ' ∧ (SubOk a A → SubOk a A') ∧ total σ' ≤ total σ := by
   simp [Ξ] at hXi
   change Except.bind (X (g.toNat + 1) (D_J I.code 0) (xiState σ σ₀ g A I))
       (fun result =>
@@ -1144,7 +1523,7 @@ theorem Xi_holds (hadm : Admissible P Trusted) {Q : CallPreds} {σ σ₀ σ' : A
           simp [hX, Except.bind] at hXi
           rcases hXi with ⟨⟨hσ, -, hA⟩, -⟩
           rw [← hσ, ← hA]
-          exact X_holds hadm (state := xiState σ σ₀ g A I) hown hQ hQl hok hH hX
+          exact X_holds hadm (state := xiState σ σ₀ g A I) hown hQ hQl hok hH hT hX
 
 end Frame
 
@@ -1276,7 +1655,7 @@ def Deeper (d : Fin 1025) : Prop :=
 def FrameHyp : Prop :=
   ∀ σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
     I.calldata.size < UInt256.size → admits σ I → Deeper a P Trusted admits I.depth →
-    XiOk (admBelow a admits (1024 - I.depth.val)) σ σ₀ g A I →
+    XiOk (admBelow a admits (1024 - I.depth.val)) σ σ₀ g A I → total σ < UInt256.size →
     Holds a P σ → Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     ∀ acc acc', σ[a]? = some acc → σ'[a]? = some acc' → acc'.code = acc.code → P acc'
 
@@ -1284,9 +1663,9 @@ def FrameHyp : Prop :=
 def FrameHolds : Prop :=
   ∀ σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
     I.calldata.size < UInt256.size → admits σ I → Deeper a P Trusted admits I.depth →
-    XiOk (admBelow a admits (1024 - I.depth.val)) σ σ₀ g A I →
+    XiOk (admBelow a admits (1024 - I.depth.val)) σ σ₀ g A I → total σ < UInt256.size →
     Holds a P σ → Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
-      Holds a P σ' ∧ (SubOk a A → SubOk a A')
+      Holds a P σ' ∧ (SubOk a A → SubOk a A') ∧ total σ' ≤ total σ
 
 end Statement
 
@@ -1574,82 +1953,186 @@ theorem Holds.thetaXi {σ : AccountMap} {A : Substate}
   · simpa using hH
   · exact Holds.ite hH (hxi rfl)
 
+theorem total_insert_code (σ : AccountMap) (k : AccountAddress) (c : ByteArray) :
+    total (σ.insert k {σ.getD k default with code := c}) = total σ := by
+  have := total_insert_bal σ k {σ.getD k default with code := c}
+  have hg : (σ.get? k).getD default = σ.getD k default := by
+    rw [Std.ExtTreeMap.getD_eq_getD_getElem?, Std.ExtTreeMap.get?_eq_getElem?]
+  rw [balOf_eq_getD, hg] at this
+  dsimp only at this ⊢
+  omega
+
+theorem total_ite_le {X Y : AccountMap} {B : ℕ} {c : Prop} [Decidable c] (hX : total X ≤ B)
+    (hY : total Y ≤ B) : total (if c then X else Y) ≤ B := by
+  split
+  · exact hX
+  · exact hY
+
+theorem total_thetaXi {σ : AccountMap} {A : Substate} {B : ℕ}
+    {xi : Except ExecutionException (ExecutionResult (AccountMap × UInt256 × Substate))}
+    (hσ : total σ ≤ B)
+    (hxi : ∀ {σ' g' A' out}, xi = .ok (.success (σ', g', A') out) → total σ' ≤ B) :
+    total (thetaXiAccountMap σ A xi) ≤ B := by
+  unfold thetaXiAccountMap thetaXiResult
+  split
+  · simpa using hσ
+  · simpa using hσ
+  · dsimp only
+    split
+    · exact hσ
+    · exact hxi rfl
+
+/-- The account map a creation's init code starts from has the sum of balances it was given,
+    when the creator has the endowment and the target is free: the endowment moves from the
+    creator to the new account. -/
+theorem LambdaCall.frame_total {L : LambdaCall} (hv : L.v ≤ balOf L.σ L.s)
+    (hn : (L.σ.getD L.s default).nonce ≠ ⟨0⟩) (hT : total L.σ < UInt256.size)
+    (hb : L.blocked = false) : total L.frame.1 = total L.σ := by
+  unfold LambdaCall.frame
+  simp only
+  split
+  · rfl
+  · rename_i ac hs
+    have hs' : L.σ[L.s]? = some ac := by simpa [Std.ExtTreeMap.get?_eq_getElem?] using hs
+    have has : L.addr ≠ L.s := by
+      intro he
+      unfold LambdaCall.blocked at hb
+      rw [he] at hb
+      simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not, Decidable.not_not] at hb
+      exact hn hb.1.1
+    rw [balOf_of_some hs'] at hv
+    have hvle : L.v.toNat ≤ ac.balance.toNat := hv
+    have hsub := UInt256.toNat_sub_of_le hv
+    have h1 := total_insert_some (x := { ac with balance := ac.balance - L.v }) hs'
+    have hσ1 : ∀ y, L.σ[L.addr]? = y →
+        (L.σ.insert L.s { ac with balance := ac.balance - L.v })[L.addr]? = y := by
+      intro y hy; rw [getElem?_insert_of_ne has.symm, hy]
+    simp only at h1
+    cases hex : L.σ[L.addr]? with
+    | none =>
+      have hd : L.σ.getD L.addr default = default := by
+        rw [Std.ExtTreeMap.getD_eq_getD_getElem?, hex]; rfl
+      rw [hd]
+      rw [total_insert_none (hσ1 _ hex)]
+      have h0 : (L.v + (default : Account).balance).toNat = L.v.toNat := by
+        show (L.v + ⟨0⟩).toNat = _
+        rw [UInt256.toNat_add_of_lt (by show L.v.toNat + 0 < _; simpa using UInt256.toNat_lt L.v)]
+        rfl
+      simp only [h0]
+      omega
+    | some ex =>
+      have hd : L.σ.getD L.addr default = ex := by
+        rw [Std.ExtTreeMap.getD_eq_getD_getElem?, hex]; rfl
+      rw [hd]
+      have hle := two_le_total hex hs' has
+      have hadd := UInt256.toNat_add_of_lt (x := L.v) (y := ex.balance) (by omega)
+      have h2 := total_insert_some (σ := L.σ.insert L.s { ac with balance := ac.balance - L.v })
+        (x := { ex with nonce := ex.nonce + ⟨1⟩, balance := L.v + ex.balance }) (hσ1 _ hex)
+      simp only at h2
+      omega
+
 /-- An admitted creation keeps `Holds` if the admitted calls and creations below it do.  One
     that lands on `a` fails, since `a` has code, and leaves the account map as it was. -/
 theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
     (hdeep : Deeper a P Trusted admits e) : LambdaGood a P admits e := by
-  intro L he hadmL hH hdebit
+  intro L he hadmL hv hn hT hH hdebit
   subst he
   have hAS : SubOk a L.A → SubOk a L.frame.2.1 := L.frame_subOk hadm hH
+  have hfr : L.blocked = false → total L.frame.1 = total L.σ := L.frame_total hv hn hT
   obtain ⟨σ, σ₀, A, s, o, g, p, v, i, e, ζ, H, bvh, blocks, w⟩ := L
   unfold AdmittedL at hadmL
   rw [Adm_eq] at hadmL
   show Holds a P (Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w).2.1 ∧
-    (SubOk a A → SubOk a (Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w).2.2.2.1)
+    (SubOk a A → SubOk a (Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w).2.2.2.1) ∧
+      total (Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w).2.1 ≤ total σ
   generalize hr : Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w = r
   unfold Lambda at hr
   simp only at hr
   split at hr
   · subst hr
-    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
+    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
   · subst hr
-    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩⟩
+    exact ⟨hH, fun hS => hS.of_sets ⟨rfl, rfl⟩, le_refl _⟩
   · rename_i σSS gSS ASS out hXi
     subst hr
     have hok := hadmL _ _ _ _ hXi
+    let L : LambdaCall := ⟨σ, σ₀, A, s, o, g, p, v, i, e, ζ, H, bvh, blocks, w⟩
+    have hb : L.blocked = false := by
+      cases hb : L.blocked
+      · rfl
+      · exact absurd hXi (Xi_invalid_ne_success L.frame.1 σ₀ g L.frame.2.1 L.frame.2.2
+          (by rw [L.frame_code, hb]; rfl) _ _)
     by_cases ha' : Fin.ofNat AccountAddress.size (fromByteArrayBigEndian ((KEC (Lambda.L_A s
         (Option.option ⟨0⟩ (fun x => x.nonce) (σ.get? s) - ⟨1⟩) ζ i)).extract 12 32)) = a
-    · let L : LambdaCall := ⟨σ, σ₀, A, s, o, g, p, v, i, e, ζ, H, bvh, blocks, w⟩
-      have hb := L.blocked_of_addr hadm hH ha'
-      exact absurd hXi (Xi_invalid_ne_success L.frame.1 σ₀ g L.frame.2.1 L.frame.2.2
-        (by rw [L.frame_code, hb]; rfl) _ _)
-    · have hf := (Xi_holds hadm (hXi := hXi)) (Or.inl ha') (hdeep.theta) (hdeep.lambda) hok
-        (Holds.lambdaStar ha' hdebit)
-      exact ⟨Holds.ite hH (hf.1.insert_ne ha'),
-        fun hS => SubOk.ite (hAS hS) (hf.2 (hAS hS))⟩
+    · have hb' := L.blocked_of_addr hadm hH ha'
+      rw [hb] at hb'
+      cases hb'
+    · have hTs : total L.frame.1 < UInt256.size := by rw [hfr hb]; exact hT
+      have hf := (Xi_holds hadm (hXi := hXi)) (Or.inl ha') (hdeep.theta) (hdeep.lambda) hok
+        (Holds.lambdaStar ha' hdebit) hTs
+      refine ⟨Holds.ite hH (hf.1.insert_ne ha'),
+        fun hS => SubOk.ite (hAS hS) (hf.2.1 (hAS hS)), total_ite_le (le_refl _) ?_⟩
+      rw [total_insert_code]
+      exact hf.2.2.trans (le_of_eq (hfr hb))
 
 /-- An admitted message call keeps `Holds` if the admitted calls and creations below it do: by
     the per-frame hypothesis when it runs code at `a`, by the frame property otherwise. -/
 theorem theta_good (hadm : Admissible P Trusted) (hframe : FrameHolds a P Trusted admits)
     {e : Fin 1025} (hdeep : Deeper a P Trusted admits e) : ThetaGood a P Trusted admits e := by
-  intro T he hadmT hd hcode hH hpre
+  intro T he hadmT hd hcode hv hT hH hpre
   subst he
   obtain ⟨σ, σ₀, A, s, o, r, c, g, p, v, v', d, e, H, bvh, blocks, w⟩ := T
   unfold Admitted at hadmT
   rw [Adm_eq] at hadmT
+  have hT1 : total (sendEth r s v true σ) = total σ := total_sendEth hv hT
   show Holds a P (Θ σ σ₀ A s o r c g p v v' d e H bvh blocks w).1 ∧
-    (SubOk a A → SubOk a (Θ σ σ₀ A s o r c g p v v' d e H bvh blocks w).2.2.1)
+    (SubOk a A → SubOk a (Θ σ σ₀ A s o r c g p v v' d e H bvh blocks w).2.2.1) ∧
+      total (Θ σ σ₀ A s o r c g p v v' d e H bvh blocks w).1 ≤ total σ
   cases c with
   | Precompiled pc =>
-    refine ⟨?_, fun hS => by rw [precompiled_Theta_substate]; exact hS⟩
-    rw [precompiled_Theta_accountMap_eq]
-    rcases precompiled_result_accountMap_empty_or_self pc (sendEth r s v true σ) g A
-      { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
-        code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
-        blobVersionedHashes := bvh, blocks := blocks } with h | h
-    · simp only [h]
-      simpa using hH
-    · simp only [h]
-      exact Holds.ite hH hpre
+    refine ⟨?_, fun hS => by rw [precompiled_Theta_substate]; exact hS, ?_⟩
+    · rw [precompiled_Theta_accountMap_eq]
+      rcases precompiled_result_accountMap_empty_or_self pc (sendEth r s v true σ) g A
+        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+          blobVersionedHashes := bvh, blocks := blocks } with h | h
+      · simp only [h]
+        simpa using hH
+      · simp only [h]
+        exact Holds.ite hH hpre
+    · rw [precompiled_Theta_accountMap_eq]
+      rcases precompiled_result_accountMap_empty_or_self pc (sendEth r s v true σ) g A
+        { codeOwner := r, sender := o, source := s, weiValue := v', calldata := d,
+          code := default, gasPrice := p.toNat, header := H, depth := e, perm := w,
+          blobVersionedHashes := bvh, blocks := blocks } with h | h
+      · simp only [h]
+        simp
+      · simp only [h]
+        exact total_ite_le (le_refl _) (le_of_eq hT1)
   | Code code =>
     rw [code_Theta_accountMap_eq', code_Theta_substate_eq]
     have hrun : ∀ {σ' g' A' out}, Ξ (sendEth r s v true σ) σ₀ g A
         { codeOwner := r, sender := o, gasPrice := p.toNat, calldata := d, source := s,
           weiValue := v', depth := e, perm := w, code := code, header := H,
           blobVersionedHashes := bvh, blocks := blocks } = .ok (.success (σ', g', A') out) →
-        Holds a P σ' ∧ (SubOk a A → SubOk a A') := by
+        Holds a P σ' ∧ (SubOk a A → SubOk a A') ∧ total σ' ≤ total σ := by
       intro σ' g' A' out hxi
       obtain ⟨hadmits, hok⟩ := hadmT code rfl _ _ _ _ hxi
-      by_cases hr : r = a
-      · refine hframe _ _ _ _ _ _ _ _ _ ?_ ?_ ?_ ?_ ?_ ?_ hpre hxi
-        · exact hr
-        · exact hcode hr
-        · exact hd
-        · exact hadmits hr
-        · exact hdeep
-        · exact hok
-      · exact (Xi_holds hadm (hXi := hxi)) (Or.inl hr) hdeep.theta hdeep.lambda hok hpre
-    exact ⟨hH.thetaXi fun hxi => (hrun hxi).1, fun hS => hS.thetaXi fun hxi => (hrun hxi).2 hS⟩
+      have hTs : total (sendEth r s v true σ) < UInt256.size := by rw [hT1]; exact hT
+      have hres : Holds a P σ' ∧ (SubOk a A → SubOk a A') ∧
+          total σ' ≤ total (sendEth r s v true σ) := by
+        by_cases hr : r = a
+        · refine hframe _ _ _ _ _ _ _ _ _ ?_ ?_ ?_ ?_ ?_ ?_ hTs hpre hxi
+          · exact hr
+          · exact hcode hr
+          · exact hd
+          · exact hadmits hr
+          · exact hdeep
+          · exact hok
+        · exact (Xi_holds hadm (hXi := hxi)) (Or.inl hr) hdeep.theta hdeep.lambda hok hpre hTs
+      exact ⟨hres.1, hres.2.1, hres.2.2.trans (le_of_eq hT1)⟩
+    exact ⟨hH.thetaXi fun hxi => (hrun hxi).1, fun hS => hS.thetaXi fun hxi => (hrun hxi).2.1 hS,
+      total_thetaXi (le_refl _) fun hxi => (hrun hxi).2.2⟩
 
 /-- The induction on the depth left below a call, from `FrameHolds`. -/
 theorem good_core (hadm : Admissible P Trusted) (hframe : FrameHolds a P Trusted admits)
@@ -1682,7 +2165,7 @@ theorem codeOnly_code (c : ByteArray) : CodeOnly (fun acc : Account => acc.code 
 
 theorem admissible_code {c : ByteArray} (hc : c.size ≠ 0) :
     Admissible (fun acc : Account => acc.code = c) (fun _ => True) :=
-  ⟨fun _ _ h => h, fun _ h => h ▸ hc, fun _ _ => trivial⟩
+  ⟨fun _ _ h _ => h, fun _ h => h ▸ hc, fun _ _ => trivial⟩
 
 /-- **No call changes the code at `a`.**  Every message call and creation, at every depth,
     whatever runs, keeps `a`'s account present with code `c`, if it is to begin with and `c` is
@@ -1691,23 +2174,25 @@ theorem code_good (a : AccountAddress) {c : ByteArray} (hc : c.size ≠ 0) (e : 
     ThetaGood a (·.code = c) (fun _ => True) (fun _ _ => True) e
       ∧ LambdaGood a (·.code = c) (fun _ _ => True) e :=
   good_core (admissible_code hc)
-    (fun _ _ _ _ _ _ _ _ _ _ _ _ _ hdeep hok hH hXi =>
+    (fun _ _ _ _ _ _ _ _ _ _ _ _ _ hdeep hok hT hH hXi =>
       Xi_holds (admissible_code hc) (Or.inr ⟨codeOnly_code c, fun _ => trivial⟩)
-        hdeep.theta hdeep.lambda hok hH hXi) e
+        hdeep.theta hdeep.lambda hok hH hT hXi) e
 
 /-- A frame keeps the code at `a`, whatever it runs, and keeps `a` out of the created accounts and
     the self-destruct set. -/
 theorem Xi_code {a : AccountAddress} {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {o : ByteArray} {acc : Account} (hc : acc.code.size ≠ 0)
-    (hacc : σ[a]? = some acc) (hXi : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    (∃ acc', σ'[a]? = some acc' ∧ acc'.code = acc.code) ∧ (SubOk a A → SubOk a A') :=
+    (hacc : σ[a]? = some acc) (hT : total σ < UInt256.size)
+    (hXi : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
+    (∃ acc', σ'[a]? = some acc' ∧ acc'.code = acc.code) ∧ (SubOk a A → SubOk a A') ∧
+      total σ' ≤ total σ :=
   Xi_holds (admissible_code hc) (Q := CallPreds.all)
     (Or.inr ⟨codeOnly_code _, fun _ => trivial⟩)
     (fun T _ _ => (code_good a hc T.e).1 T rfl
       ((admitted_of_all a (fun _ _ => True) fun _ _ => trivial).1 T))
     (fun L _ _ => (code_good a hc L.e).2 L rfl
       ((admitted_of_all a (fun _ _ => True) fun _ _ => trivial).2 L))
-    (XiOk_of_all (fun _ => trivial) (fun _ => trivial) _ _ _ _ _) ⟨acc, hacc, rfl⟩ hXi
+    (XiOk_of_all (fun _ => trivial) (fun _ => trivial) _ _ _ _ _) ⟨acc, hacc, rfl⟩ hT hXi
 
 /-! ## The theorem -/
 
@@ -1720,11 +2205,11 @@ theorem good {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray �
     (hframe : FrameHyp a P Trusted admits) (e : Fin 1025) :
     ThetaGood a P Trusted admits e ∧ LambdaGood a P admits e := by
   refine good_core hadm ?_ e
-  intro σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hH hXi
+  intro σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hT hH hXi
   obtain ⟨acc, hacc, hP⟩ := id hH
-  obtain ⟨⟨acc', hacc', hcode⟩, hsub⟩ := Xi_code (hadm.code acc hP) hacc hXi
-  exact ⟨⟨acc', hacc', hframe σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hH hXi
-    acc acc' hacc hacc' hcode⟩, hsub⟩
+  obtain ⟨⟨acc', hacc', hcode⟩, hsub, htot⟩ := Xi_code (hadm.code acc hP) hacc hT hXi
+  exact ⟨⟨acc', hacc', hframe σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hT hH hXi
+    acc acc' hacc hacc' hcode⟩, hsub, htot⟩
 
 /-! ## Deployment -/
 
@@ -1883,8 +2368,24 @@ theorem Holds.not_dead (hadm : Admissible P Trusted) {σ : AccountMap} (h : Hold
   have hne : acc.code ≠ ByteArray.empty := fun h0 => hc (by rw [h0]; rfl)
   simp [State.dead, hacc, Option.option, Account.emptyAccount, ByteArray.isEmpty, hne]
 
+theorem total_increaseBalance {σ : AccountMap} {k : AccountAddress} {v : UInt256}
+    (hT : total σ + v.toNat < UInt256.size) :
+    total (σ.increaseBalance k v) = total σ + v.toNat := by
+  unfold AccountMap.increaseBalance
+  split
+  · rename_i hk
+    exact total_insert_none (by simpa [Std.ExtTreeMap.get?_eq_getElem?] using hk)
+  · rename_i acc hk
+    have hk' : σ[k]? = some acc := by simpa [Std.ExtTreeMap.get?_eq_getElem?] using hk
+    have hle := balance_le_total hk'
+    have hadd := UInt256.toNat_add_of_lt (x := acc.balance) (y := v) (by omega)
+    have := total_insert_some (x := {acc with balance := acc.balance + v}) hk'
+    simp only at this
+    omega
+
 theorem Holds.increaseBalance (hadm : Admissible P Trusted) {σ : AccountMap}
-    {k : AccountAddress} {v : UInt256} (h : Holds a P σ) : Holds a P (σ.increaseBalance k v) := by
+    {k : AccountAddress} {v : UInt256} (hT : total σ + v.toNat < UInt256.size)
+    (h : Holds a P σ) : Holds a P (σ.increaseBalance k v) := by
   unfold AccountMap.increaseBalance
   split
   · rename_i hk
@@ -1896,11 +2397,73 @@ theorem Holds.increaseBalance (hadm : Admissible P Trusted) {σ : AccountMap}
   · rename_i acc hk
     by_cases hka : k = a
     · subst hka
-      obtain ⟨acc', hacc, hP⟩ := h.get
-      rw [hk] at hacc
-      cases hacc
-      exact Holds.insert_self (hadm.balance _ v hP)
+      obtain ⟨acc', hacc, hP⟩ := id h
+      have hacc' := h.get
+      obtain ⟨acc'', hacc'', _⟩ := hacc'
+      rw [hk] at hacc''
+      cases hacc''
+      have hle := balance_le_total hacc
+      rw [Std.ExtTreeMap.get?_eq_getElem?, hacc] at hk
+      cases hk
+      exact Holds.insert_self (hadm.balance _ v hP (by omega))
     · exact h.insert_ne hka
+
+theorem UInt256.toNat_mul_of_lt {x y : UInt256} (h : x.toNat * y.toNat < UInt256.size) :
+    (x * y).toNat = x.toNat * y.toNat := by
+  show (x.val * y.val).val = _
+  rw [Fin.val_mul]
+  exact Nat.mod_eq_of_lt h
+
+theorem UInt256.toNat_div (x y : UInt256) : (x / y).toNat = x.toNat / y.toNat := by
+  show (x.val / y.val).val = _
+  rfl
+
+theorem UInt256.toNat_min_le (x y : UInt256) : (min x y).toNat ≤ x.toNat := by
+  show (if x ≤ y then x else y).toNat ≤ _
+  split
+  · exact le_refl _
+  · rename_i h
+    exact le_of_lt (Nat.lt_of_not_le h)
+
+/-- The refund and the priority fee `Υ` pays out, from the gas the call left, are at most what the
+    sender paid upfront for gas, so they keep `Holds`: neither wraps a balance. -/
+theorem Holds.fees (hadm : Admissible P Trusted) {σP : AccountMap} {S_T ben : AccountAddress}
+    {gl g' ref p f : UInt256} (hH : Holds a P σP) (hg' : g'.toNat ≤ gl.toNat)
+    (hfp : f.toNat ≤ p.toNat) (hT : total σP + gl.toNat * p.toNat < UInt256.size) :
+    (Holds a P (σP.increaseBalance S_T ((g' + min ((gl - g') / ⟨5⟩) ref) * p)) ∧
+      total (σP.increaseBalance S_T ((g' + min ((gl - g') / ⟨5⟩) ref) * p)) ≤
+        total σP + gl.toNat * p.toNat) ∧
+    (Holds a P ((σP.increaseBalance S_T ((g' + min ((gl - g') / ⟨5⟩) ref) * p)).increaseBalance
+        ben ((gl - (g' + min ((gl - g') / ⟨5⟩) ref)) * f)) ∧
+      total ((σP.increaseBalance S_T ((g' + min ((gl - g') / ⟨5⟩) ref) * p)).increaseBalance
+        ben ((gl - (g' + min ((gl - g') / ⟨5⟩) ref)) * f)) ≤ total σP + gl.toNat * p.toNat) := by
+  have hd := UInt256.toNat_sub_of_le (x := gl) (y := g') hg'
+  have hq := UInt256.toNat_div (gl - g') ⟨5⟩
+  have hm := UInt256.toNat_min_le ((gl - g') / ⟨5⟩) ref
+  have h5 : (⟨5⟩ : UInt256).toNat = 5 := rfl
+  rw [hq, hd, h5] at hm
+  have hle5 : (gl.toNat - g'.toNat) / 5 ≤ gl.toNat - g'.toNat := Nat.div_le_self _ _
+  have hsz : gl.toNat < UInt256.size := UInt256.toNat_lt gl
+  have hgs := UInt256.toNat_add_of_lt (x := g') (y := min ((gl - g') / ⟨5⟩) ref) (by omega)
+  set gs := g' + min ((gl - g') / ⟨5⟩) ref with hgsdef
+  have hgsle : gs.toNat ≤ gl.toNat := by omega
+  have hR := UInt256.toNat_mul_of_lt (x := gs) (y := p)
+    (lt_of_le_of_lt (Nat.mul_le_mul_right _ hgsle) (by omega))
+  have hdg := UInt256.toNat_sub_of_le (x := gl) (y := gs) hgsle
+  have hFle : (gl.toNat - gs.toNat) * f.toNat ≤ (gl.toNat - gs.toNat) * p.toNat :=
+    Nat.mul_le_mul_left _ hfp
+  have hsum : gs.toNat * p.toNat + (gl.toNat - gs.toNat) * p.toNat = gl.toNat * p.toNat := by
+    rw [← Nat.add_mul]; congr 1; omega
+  have hF := UInt256.toNat_mul_of_lt (x := gl - gs) (y := f) (by rw [hdg]; omega)
+  have hT1 : total σP + (gs * p).toNat < UInt256.size := by rw [hR]; omega
+  have htot := total_increaseBalance (k := S_T) hT1
+  have hT2 : total (σP.increaseBalance S_T (gs * p)) + ((gl - gs) * f).toNat < UInt256.size := by
+    rw [htot, hF, hdg, hR]
+    omega
+  refine ⟨⟨hH.increaseBalance hadm hT1, by rw [htot, hR]; omega⟩,
+    (hH.increaseBalance hadm hT1).increaseBalance hadm hT2, ?_⟩
+  rw [total_increaseBalance hT2, htot, hF, hdg, hR]
+  omega
 
 theorem Holds.clearTransient
     (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty}) {σ : AccountMap}
@@ -1927,6 +2490,34 @@ theorem Holds.txTail (hadm : Admissible P Trusted)
   · rw [Batteries.RBNode.foldl_eq_foldl_toList]
     exact Holds.foldl_erase hsd hX
 
+theorem total_erase_le (σ : AccountMap) (k : AccountAddress) : total (σ.erase k) ≤ total σ := by
+  cases h : σ[k]? with
+  | none => exact le_of_eq (total_of_none h).symm
+  | some x => rw [total_of_some h (k := k)]; omega
+
+theorem total_foldl_erase_le (l : List AccountAddress) (σ : AccountMap) :
+    total (l.foldl Std.ExtTreeMap.erase σ) ≤ total σ := by
+  induction l generalizing σ with
+  | nil => exact le_refl _
+  | cons k l ih => exact (ih _).trans (total_erase_le σ k)
+
+theorem total_clearTransient (σ : AccountMap) :
+    total (σ.map fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) = total σ := by
+  unfold total
+  rw [Std.ExtTreeMap.toList_map, List.map_map]
+  rfl
+
+/-- What `Υ` does after the fees adds no balance. -/
+theorem total_txTail {X : AccountMap} {A : Substate} :
+    total ((Batteries.RBSet.foldl Std.ExtTreeMap.erase
+      (Batteries.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
+      (A.touchedAccounts.filter fun x => State.dead X x)).map
+        fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) ≤ total X := by
+  rw [total_clearTransient, Batteries.RBSet.foldl_eq_foldl_toList]
+  refine (total_foldl_erase_le _ _).trans ?_
+  rw [Batteries.RBNode.foldl_eq_foldl_toList]
+  exact total_foldl_erase_le _ _
+
 /-- The outermost call or creation of the transaction is admitted. -/
 def TxAdmitted (a : AccountAddress) (admits : AccountMap → ExecutionEnv → Prop)
     (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBlocks) (T : Transaction)
@@ -1935,22 +2526,144 @@ def TxAdmitted (a : AccountAddress) (admits : AccountMap → ExecutionEnv → Pr
   | .inl C => Admitted a admits C
   | .inr L => AdmittedL a admits L
 
+/-- The priority fee per unit of gas, as `Υ` computes it. -/
+def txFee (T : Transaction) (H_f : ℕ) : UInt256 :=
+  match T with
+  | .legacy t | .access t => t.gasPrice - .ofNat H_f
+  | .dynamic t | .blob t => min t.maxPriorityFeePerGas (t.maxFeePerGas - .ofNat H_f)
+
+/-- The price per unit of gas the sender pays, as `Υ` computes it. -/
+def txPrice (T : Transaction) (H_f : ℕ) : UInt256 :=
+  match T with
+  | .legacy t | .access t => t.gasPrice
+  | .dynamic _ | .blob _ => txFee T H_f + .ofNat H_f
+
+/-- The account map after the sender pays upfront for gas and blobs, as `Υ` makes it. -/
+def txState (σ : AccountMap) (S : AccountAddress) (gl p : UInt256) (blob : ℕ) : AccountMap :=
+  σ.insert S { (σ.get? S).get! with
+    balance := (σ.get? S).get!.balance - gl * p - UInt256.ofNat blob
+    nonce := (σ.get? S).get!.nonce + ⟨1⟩ }
+
+theorem get!_eq_getD (σ : AccountMap) (S : AccountAddress) :
+    (σ.get? S).get! = σ.getD S default := by
+  rw [Std.ExtTreeMap.getD_eq_getD_getElem?, ← Std.ExtTreeMap.get?_eq_getElem?]
+  cases σ.get? S <;> rfl
+
+/-- The upfront payment takes `gl * p + blob` from the sender, which has it, and leaves it the
+    value it sends. -/
+theorem total_txState {σ : AccountMap} {S : AccountAddress} {gl p v : UInt256} {blob : ℕ}
+    (hpay : gl.toNat * p.toNat + blob + v.toNat ≤ (balOf σ S).toNat) :
+    total (txState σ S gl p blob) + gl.toNat * p.toNat + blob = total σ ∧
+      v ≤ balOf (txState σ S gl p blob) S := by
+  have hb : (σ.get? S).get!.balance = balOf σ S := by
+    rw [get!_eq_getD, balOf_eq_getD, Std.ExtTreeMap.getD_eq_getD_getElem?,
+      Std.ExtTreeMap.get?_eq_getElem?]
+  have hbal := UInt256.toNat_lt (balOf σ S)
+  have hgp := UInt256.toNat_mul_of_lt (x := gl) (y := p) (by omega)
+  have h1 : gl * p ≤ balOf σ S := by
+    show (gl * p).toNat ≤ (balOf σ S).toNat
+    rw [hgp]; omega
+  have hs1 := UInt256.toNat_sub_of_le h1
+  have hblob : (UInt256.ofNat blob).toNat = blob := by
+    show (Fin.ofNat _ blob).val = blob
+    rw [Fin.val_ofNat]; exact Nat.mod_eq_of_lt (by omega)
+  have h2 : UInt256.ofNat blob ≤ balOf σ S - gl * p := by
+    show (UInt256.ofNat blob).toNat ≤ (balOf σ S - gl * p).toNat
+    rw [hblob, hs1, hgp]; omega
+  have hs2 := UInt256.toNat_sub_of_le h2
+  have htot := total_insert_bal σ S { (σ.get? S).get! with
+    balance := (σ.get? S).get!.balance - gl * p - UInt256.ofNat blob
+    nonce := (σ.get? S).get!.nonce + ⟨1⟩ }
+  simp only [hb] at htot
+  refine ⟨?_, ?_⟩
+  · unfold txState
+    rw [hs2, hs1, hgp, hblob] at htot
+    dsimp only
+    rw [hb]
+    omega
+  · unfold txState
+    rw [balOf_insert_self]
+    show v.toNat ≤ (_ : UInt256).toNat
+    simp only [hb]
+    rw [hs2, hs1, hgp, hblob]
+    omega
+
+theorem txState_nonce {σ : AccountMap} {S : AccountAddress} {gl p : UInt256} {blob : ℕ}
+    (hn : (σ.getD S default).nonce.toNat < 2 ^ 64 - 1) :
+    ((txState σ S gl p blob).getD S default).nonce ≠ ⟨0⟩ := by
+  unfold txState
+  rw [Std.ExtTreeMap.getD_insert_self, get!_eq_getD]
+  intro h0
+  replace h0 : (σ.getD S default).nonce + ⟨1⟩ = ⟨0⟩ := h0
+  have h1 := UInt256.toNat_add_of_lt (x := (σ.getD S default).nonce) (y := ⟨1⟩) (by
+    show _ + 1 < UInt256.size
+    simp only [UInt256.size]; omega)
+  have : ((σ.getD S default).nonce + ⟨1⟩).toNat = 0 := by rw [h0]; rfl
+  rw [h1] at this
+  exact absurd this (by show _ + 1 ≠ 0; omega)
+
+theorem lambda_gas_le (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddress) (g p v : UInt256)
+    (i : ByteArray) (e : Fin 1025) (ζ : Option ByteArray) (H : BlockHeader) (bvh : List ByteArray)
+    (blocks : ProcessedBlocks) (w : Bool) :
+    (Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w).2.2.1.toNat ≤ g.toNat := by
+  generalize hr : Lambda σ σ₀ A s o g p v i e ζ H bvh blocks w = r
+  unfold Lambda at hr
+  simp only at hr
+  split at hr
+  · subst hr; exact Nat.zero_le _
+  · rename_i g' o' hxi
+    subst hr
+    simpa [XiResultGas] using Xi_gas_le hxi
+  · rename_i σSS gSS ASS out hxi
+    subst hr
+    have hle : gSS.toNat ≤ g.toNat := by simpa [XiResultGas] using Xi_gas_le hxi
+    have hofNat : ∀ x : ℕ, (UInt256.ofNat x).toNat ≤ x := fun x => by
+      show (Fin.ofNat _ x).val ≤ x
+      rw [Fin.val_ofNat]
+      exact Nat.mod_le _ _
+    refine le_trans (hofNat _) (le_trans ?_ hle)
+    split_ifs <;> omega
+
+
+/-- **A transaction keeps the invariant.**  `Υ`, from an account map where `Holds a P` holds and
+    the balances add up to less than `2 ^ 256`, keeps `Holds a P` if the outermost call or creation
+    is admitted, the sender has no code (EIP-3607), the data fits a word, `P` tolerates clearing
+    transient storage, and the transaction is valid as the chain checks it: the sender can pay
+    for gas, blobs and value, the priority fee is at most the price (the price covers the base
+    fee), and the sender's nonce is below `2 ^ 64 - 1` (EIP-2681). -/
 theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted admits)
     (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty})
     {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader} {blocks : ProcessedBlocks}
     {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool} {gu : UInt256}
-    (hH : Holds a P σ)
+    (hH : Holds a P σ) (hT : total σ < UInt256.size)
     (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
     (hdata : T.base.data.size < UInt256.size)
+    (hpay : T.base.gasLimit.toNat * (txPrice T H_f).toNat + calcBlobFee H T + T.base.value.toNat
+      ≤ (balOf σ S_T).toNat)
+    (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
+    (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
     (hadmit : TxAdmitted a admits σ H_f H blocks T S_T)
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
-    Holds a P σ' := by
+    Holds a P σ' ∧ total σ' ≤ total σ := by
   have hA0 : ∀ X Y, SubOk a { A0 with accessedAccounts := X, accessedStorageKeys := Y } :=
     fun _ _ => ⟨nofun, nofun⟩
   have hSa : S_T ≠ a := by
     rintro rfl
     obtain ⟨acc, hacc, hP⟩ := hH
     exact hadm.code acc hP (by rw [hsender acc hacc]; rfl)
+  obtain ⟨htot0, hv0⟩ := total_txState (σ := σ) (S := S_T) (gl := T.base.gasLimit)
+    (p := txPrice T H_f) (blob := calcBlobFee H T) hpay
+  have hn0 := txState_nonce (σ := σ) (S := S_T) (gl := T.base.gasLimit) (p := txPrice T H_f)
+    (blob := calcBlobFee H T) hnonce
+  have hT0 : total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) <
+      UInt256.size := by omega
+  have hH0 : Holds a P (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) :=
+    hH.insert_ne hSa
+  have hgl : ∀ x : ℕ, (UInt256.ofNat (T.base.gasLimit.toNat - x)).toNat ≤ T.base.gasLimit.toNat :=
+    fun x => by
+      show (Fin.ofNat _ _).val ≤ _
+      rw [Fin.val_ofNat]
+      exact le_trans (Nat.mod_le _ _) (Nat.sub_le _ _)
   unfold TxAdmitted txCall at hadmit
   unfold Υ at hΥ
   simp only [bind, Except.bind, pure, Except.pure] at hΥ
@@ -1959,27 +2672,52 @@ theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted ad
     simp only [hr] at hadmit hΥ
     injection hΥ with hΥ
     injection hΥ with h1 h2
-    injection h2 with h2 _
-    have hL := (good hadm hframe 0).2 _ rfl hadmit (hH.insert_ne hSa)
-      ((hH.insert_ne hSa).pay (Or.inl hSa))
+    have hL := (good hadm hframe 0).2 _ rfl hadmit hv0 hn0 hT0 hH0 (hH0.pay (Or.inl hSa))
+    have hle := hL.2.2
+    replace hle : _ ≤ total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) :=
+      hle
+    have hTP : _ + T.base.gasLimit.toNat * (txPrice T H_f).toNat < UInt256.size :=
+      lt_of_le_of_lt (Nat.add_le_add_right hle _) (by omega)
     rw [← h1]
-    refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) (hL.2 (hA0 _ _)).2
-    all_goals first
-      | exact hL.1.increaseBalance hadm
-      | exact (hL.1.increaseBalance hadm).increaseBalance hadm
+    refine ⟨?_, total_txTail.trans ?_⟩
+    · refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) (hL.2.1 (hA0 _ _)).2
+      · refine (Holds.fees hadm hL.1 ?_ hfee hTP).2.1
+        exact le_trans (lambda_gas_le _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) (hgl _)
+      · refine (Holds.fees (ben := S_T) hadm hL.1 ?_ hfee hTP).1.1
+        exact le_trans (lambda_gas_le _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) (hgl _)
+    · refine le_trans (total_ite_le ?_ ?_) (le_trans (Nat.add_le_add_right hle _)
+        (show total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) +
+          T.base.gasLimit.toNat * (txPrice T H_f).toNat ≤ total σ by omega))
+      · refine (Holds.fees hadm hL.1 ?_ hfee hTP).2.2
+        exact le_trans (lambda_gas_le _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) (hgl _)
+      · refine (Holds.fees (ben := S_T) hadm hL.1 ?_ hfee hTP).1.2
+        exact le_trans (lambda_gas_le _ _ _ _ _ _ _ _ _ _ _ _ _ _ _) (hgl _)
   · rename_i t hr
     simp only [hr] at hadmit hΥ
     injection hΥ with hΥ
     injection hΥ with h1 h2
-    injection h2 with h2 _
     have hC := (good hadm hframe 0).1 _ rfl hadmit hdata
-      (fun ht => by rw [show t = a from ht]; exact codeOk_toExecute hadm (hH.insert_ne hSa))
-      (hH.insert_ne hSa) ((hH.insert_ne hSa).transfer hadm (Or.inl hSa))
+      (fun ht => by rw [show t = a from ht]; exact codeOk_toExecute hadm hH0) hv0 hT0 hH0
+      (hH0.transfer hadm (Or.inl hSa) hv0 hT0)
+    have hle := hC.2.2
+    replace hle : _ ≤ total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) :=
+      hle
+    have hTP : _ + T.base.gasLimit.toNat * (txPrice T H_f).toNat < UInt256.size :=
+      lt_of_le_of_lt (Nat.add_le_add_right hle _) (by omega)
     rw [← h1]
-    refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) (hC.2 (hA0 _ _)).2
-    all_goals first
-      | exact hC.1.increaseBalance hadm
-      | exact (hC.1.increaseBalance hadm).increaseBalance hadm
+    refine ⟨?_, total_txTail.trans ?_⟩
+    · refine Holds.txTail hadm htstore (Holds.ite ?_ ?_) (hC.2.1 (hA0 _ _)).2
+      · refine (Holds.fees hadm hC.1 ?_ hfee hTP).2.1
+        exact le_trans Theta_gas_le (hgl _)
+      · refine (Holds.fees (ben := S_T) hadm hC.1 ?_ hfee hTP).1.1
+        exact le_trans Theta_gas_le (hgl _)
+    · refine le_trans (total_ite_le ?_ ?_) (le_trans (Nat.add_le_add_right hle _)
+        (show total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) +
+          T.base.gasLimit.toNat * (txPrice T H_f).toNat ≤ total σ by omega))
+      · refine (Holds.fees hadm hC.1 ?_ hfee hTP).2.2
+        exact le_trans Theta_gas_le (hgl _)
+      · refine (Holds.fees (ben := S_T) hadm hC.1 ?_ hfee hTP).1.2
+        exact le_trans Theta_gas_le (hgl _)
 
 end Tx
 

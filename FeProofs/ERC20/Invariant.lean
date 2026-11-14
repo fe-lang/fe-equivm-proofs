@@ -49,7 +49,7 @@ theorem bytecode_size_ne_zero : feERC20Bytecode.size ≠ 0 := by
 
 theorem token_admissible (S : List UInt256) :
     Admissible (Token S) (· = feERC20Bytecode) where
-  balance _ _ h := h
+  balance _ _ h _ := h
   code acc h := by
     rw [h.1]
     exact bytecode_size_ne_zero
@@ -57,7 +57,7 @@ theorem token_admissible (S : List UInt256) :
 
 theorem model_keeps (a : AccountAddress) {S : List UInt256} (hS : CollisionFree S) :
     ModelKeeps a (Token S) (· = feERC20Bytecode) (Admits S) Exported.contract := by
-  intro I σ A feed out w howner _ _ hadm _ hH hrun acc acc' hacc hacc' hcode
+  intro I σ A feed out w howner _ _ hadm _ _ hH hrun acc acc' hacc hacc' hcode
   obtain ⟨acc0, h0, hP⟩ := hH
   rw [hacc] at h0
   cases h0
@@ -140,23 +140,28 @@ theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UI
 
 /-! ## Transactions -/
 
-/-- **Every transaction conserves.**  A transaction that starts where the token at `a` runs the
-    ERC20 bytecode with the holders' balances adding up to the supply, whose sender has no code
-    (EIP-3607), whose data fits a word, and whose execution admits every successful frame at `a`,
-    ends where the same holds. -/
+/-- **Every transaction conserves.**  A valid transaction that starts where the token at `a` runs
+    the ERC20 bytecode with the holders' balances adding up to the supply, and the ether balances
+    of all accounts add up to less than `2 ^ 256`, whose sender has no code (EIP-3607), whose data
+    fits a word, and whose execution admits every successful frame at `a`, ends where the same
+    holds, with no more ether in total. -/
 theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
     (hS : CollisionFree S) {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader}
     {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool}
-    {gu : UInt256} (hH : Holds a (Token S) σ)
+    {gu : UInt256} (hH : Holds a (Token S) σ) (hT : total σ < UInt256.size)
     (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
     (hdata : T.base.data.size < UInt256.size)
+    (hpay : T.base.gasLimit.toNat * (txPrice T H_f).toNat + calcBlobFee H T + T.base.value.toNat
+      ≤ (balOf σ S_T).toNat)
+    (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
+    (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
     (hadmit : TxAdmitted a (Admits S) σ H_f H blocks T S_T)
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
-    Holds a (Token S) σ' :=
+    Holds a (Token S) σ' ∧ total σ' ≤ total σ :=
   tx_holds (token_admissible S)
     (frameHyp_of_refinesOn Exported.feERC20RefinesExported
       (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
       (fun _ _ _ h => h.1) (model_keeps a hS))
-    (fun _ h => h) hH hsender hdata hadmit hΥ
+    (fun _ h => h) hH hT hsender hdata hpay hfee hnonce hadmit hΥ
 
 end FeProofs.ERC20
