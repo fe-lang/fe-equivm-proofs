@@ -1,4 +1,4 @@
-import FeProofs.WETH9.ModelCorrect
+import FeProofs.WETH9.RuntimeCorrect
 import FeProofs.WETH9.Solvency
 import Fe.EVM.RefineInvariant
 
@@ -6,9 +6,12 @@ import Fe.EVM.RefineInvariant
 # FeWETH9: solvency through every message call
 
 WETH9 at `a` stays solvent: the ether it holds covers the tokens at every set of distinct balance
-slots (`Solvent`), and its account keeps the WETH9 bytecode (`Weth feWETH9Bytecode`).  An
-instance of `Fe.EVM.refines_keeps`, from the certificate of the hand-written model
-(`feWETH9RefinesModel`, on every call) and the model's solvency (`FeProofs.WETH9.Solvency`).
+slots (`Solvent`), and its account keeps the WETH9 bytecode (`Weth feWETH9Bytecode`).  The
+statements name only the model the compiler exports (`Exported.contract`), through its
+certificates `feWETH9RefinesExported` and `feWETH9DeployRefinesExported`.  The proof goes
+through the hand-written model: the exported runtime ends as it does, with the same accounts and
+the same recorded calls (`Exported.runtime_endsAs`), and its solvency is
+`FeProofs.WETH9.Solvency`.
 
 - `feWETH9KeepsSolvent`: every message call and creation, at every depth, whoever makes it,
   re-entry included, keeps it and adds no ether, as `ThetaGood` and `LambdaGood` state.
@@ -18,13 +21,17 @@ instance of `Fe.EVM.refines_keeps`, from the certificate of the hand-written mod
 
 ## What the theorems assume
 
-- **Admission** (`Admits`): in the execution, every successful frame at `a` that runs `approve`
-  writes an allowance slot that is no key's balance slot, and so does every `transferFrom` that
-  spends another's tokens.  Keys are hashed into slots, so a collision is a hash collision;
-  the condition is stated per call, on the keys in use, as ERC20's `Covers` is.
-- **Whose calls admission covers**: admission of a frame at `a` speaks of the calls the *model*
-  makes under every feed (`Model.contract.callsAt`), not of the bytecode's own calls.  A frame
-  may use `Deeper` only of admitted calls, and a callee's admission depends on its gas and
+- **Admission** (`Admission`): in the execution, every successful frame at `a`
+  - has calldata shorter than `2 ^ 64` bytes (`CalldataFits`), which the certificate of the
+    exported model asks, since Fe's std reads a calldata length as a `u64`.  No transaction comes
+    near it: gas limits bound calldata far below.
+  - writes, when it runs `approve` or a `transferFrom` that spends another's tokens, an
+    allowance slot that is no key's balance slot (`Admits`).  Keys are hashed into slots, so a
+    collision is a hash collision; the condition is stated per call, on the keys in use, as
+    ERC20's `Covers` is.
+- **Whose calls admission covers**: admission of a frame at `a` speaks of the calls the exported
+  model makes under every feed (`Exported.contract.callsAt`), not of the bytecode's own calls.  A
+  frame may use `Deeper` only of admitted calls, and a callee's admission depends on its gas and
   substate, which the model takes from its feed; tying them to the bytecode's calls would need
   EquiVM's `RD` traces to record the path of the run, and they record only that the cursor state
   runs to the same result.  The model's one call is `withdraw`'s, to the caller with no data.
@@ -50,18 +57,17 @@ open Model
 theorem noStop_init : init.NoStop := by
   unfold init storeString; dsimp only; weth_no_stop
 
-/-- **A deployment leaves a solvent WETH9.**  A creation of the creation bytecode that succeeds
-    ends with the account at the address it created running the runtime bytecode and solvent, if
-    no key's balance slot is slot 0, 1 or 2. -/
-theorem feWETH9DeploySolvent {L : LambdaCall}
-    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty)
-    (hw : L.w = true)
+/-- The hand-written constructor, run at `c` with write permission from empty storage, leaves
+    there an account that runs the code it returns, the runtime bytecode, and is solvent, if no
+    key's balance slot is slot 0, 1 or 2. -/
+theorem deploy_model {c : AccountAddress} {I : Env} {σ : AccountMap} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w : World} (hown : I.codeOwner = c)
+    (hempty : (σ.getD c default).storage = default)
     (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
       decimalsSlot ≠ balanceSlot k)
-    (hz : L.run.2.2.2.2.1 = true) :
-    L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 := by
-  refine refinesDeploy_holds feWETH9DeployRefinesModel (args := ByteArray.empty) rfl hi hw
-    (fun I σ A feed out w hown _ hempty hrun => ?_) hz
+    (hrun : Succeeds ((Model.contract.init ByteArray.empty >>= fun tail =>
+      pure (feWETH9Bytecode ++ tail)).exec I (World.init σ A feed)) out w) :
+    Weth feWETH9Bytecode {w.accounts.getD c default with code := out} := by
   have hns : (Model.contract.init ByteArray.empty >>= fun tail =>
       pure (feWETH9Bytecode ++ tail)).NoStop :=
     M.NoStop.bind (M.NoStop.bind noStop_init fun _ => M.NoStop.pure _) fun _ => M.NoStop.pure _
@@ -76,6 +82,23 @@ theorem feWETH9DeploySolvent {L : LambdaCall}
   rw [hown] at hs
   exact ⟨by simp, hs⟩
 
+/-- **A deployment leaves a solvent WETH9.**  A creation of the creation bytecode, with no
+    argument bytes, that succeeds ends with the account at the address it created running the
+    runtime bytecode and solvent, if no key's balance slot is slot 0, 1 or 2.  Through the
+    certificate of the exported deployment entry. -/
+theorem feWETH9DeploySolvent {L : LambdaCall}
+    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hw : L.w = true)
+    (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
+      decimalsSlot ≠ balanceSlot k)
+    (hz : L.run.2.2.2.2.1 = true) :
+    L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 := by
+  refine refinesDeploy_holds Exported.feWETH9DeployRefinesExported (args := ByteArray.empty) rfl
+    hi hw (fun I σ A feed out w hown _ hperm hempty hrun => ?_) hz
+  obtain ⟨w', hrun', hacc⟩ := (Exported.init_endsAs I (World.init σ A feed) ByteArray.empty
+    feWETH9Bytecode rfl hperm).succeeds hrun
+  rw [← hacc]
+  exact deploy_model hown hempty hslots hrun'
+
 /-! ## The invariant through every call -/
 
 /-- How a frame at WETH9 may be entered: from another account, moving the value it reports. -/
@@ -84,6 +107,11 @@ def Enters (a : AccountAddress) (_ : AccountMap) (I : ExecutionEnv) (v : UInt256
 
 theorem fromOthers (a : AccountAddress) : FromOthers a (Enters a) :=
   fun _ _ _ hne hv => ⟨hne, hv⟩
+
+/-- A frame at WETH9 is admitted when its calldata is shorter than `2 ^ 64` bytes, as the
+    certificate of the exported model asks, and the allowance slot it writes is no key's balance
+    slot. -/
+def Admission (_ : AccountMap) (I : ExecutionEnv) : Prop := CalldataFits I ∧ Admits I
 
 set_option maxRecDepth 100000 in
 theorem bytecode_size_ne_zero : feWETH9Bytecode.size ≠ 0 := by
@@ -100,20 +128,25 @@ theorem weth_admissible : Admissible (Weth feWETH9Bytecode) (· = feWETH9Bytecod
   code acc h := by rw [h.1]; exact bytecode_size_ne_zero
   trusted _ h := h.1
 
-/-- **The model keeps the invariant.**  The one call a run records is `withdraw`'s, to the caller,
-    which is not WETH9; `made_theta_good` gives that it keeps `Weth` from what `recorded_call`
-    shows of it, and `runtime_keeps` the rest. -/
+/-- **The exported model keeps the invariant.**  Its runtime ends as the hand-written one does,
+    with the same accounts and the same recorded calls (`Exported.runtime_endsAs`); the one call
+    recorded is `withdraw`'s, to the caller, which is not WETH9.  `made_theta_good` gives that it
+    keeps `Weth`, from what `recorded_call` shows of it, and `runtime_keeps` the rest. -/
 theorem model_keeps (a : AccountAddress) :
-    ModelKeeps a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) (fun _ I => Admits I)
-      Model.contract.callsAt Model.contract := by
+    ModelKeeps a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) Admission
+      Exported.contract.callsAt Exported.contract := by
   intro I σpre v σ σ₀ g A feed out w howner _ _ hadm hdeep hcalls hσ hen hv hTpre hHpre _ hrun
     acc acc' hacc hacc' hcode
   obtain ⟨hne, rfl⟩ := hen
   subst howner
-  have hok := Succeeds.of_noStop noStop_runtime hrun
-  refine runtime_keeps hσ hne hv hTpre hHpre hadm hrun (fun T hT => ?_) acc acc' hacc hacc' hcode
+  obtain ⟨wh, hrunh, hacch, hcallsh⟩ :=
+    (Exported.runtime_endsAs I (World.init σ A feed) rfl hadm.1).succeeds_calls hrun
+  have hok := Succeeds.of_noStop noStop_runtime hrunh
+  rw [← hacch] at hacc'
+  refine runtime_keeps hσ hne hv hTpre hHpre hadm.2 hrunh (fun T hT => ?_) acc acc' hacc hacc'
+    hcode
   obtain ⟨he, hd, hr, -, hval, htot, hH₁, hH₂, -⟩ := recorded_call hσ hne hv hTpre hHpre hok hT
-  obtain ⟨⟨acc'', h'', hP⟩, -, -⟩ := made_theta_good hdeep hcalls hrun hT he hd
+  obtain ⟨⟨acc'', h'', hP⟩, -, -⟩ := made_theta_good hdeep hcalls hrun (hcallsh ▸ hT) he hd
     (fun h => absurd h hr) (fun h => absurd h hr) hval htot hH₁ hH₂
   intro x hx
   rw [h''] at hx
@@ -122,16 +155,17 @@ theorem model_keeps (a : AccountAddress) :
 
 /-- **Every message call and creation keeps WETH9 solvent.**  For WETH9 at `a`: every message
     call and every creation, at any depth, that starts where `a` runs the WETH9 bytecode and is
-    solvent, and in whose execution every successful frame at `a` is admitted (`Admits`, for the
-    calls the model makes under every feed), ends where the same holds, with no more ether in
-    total, if it is entered with value its payer has and the balances add up to less than
-    `2 ^ 256`. -/
+    solvent, and in whose execution every successful frame at `a` is admitted (`Admission`, for
+    the calls the exported model makes under every feed), ends where the same holds, with no more
+    ether in total, if it is entered with value its payer has and the balances add up to less
+    than `2 ^ 256`. -/
 theorem feWETH9KeepsSolvent (a : AccountAddress) (e : Fin 1025) :
-    ThetaGood a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) (fun _ I => Admits I)
-        Model.contract.callsAt e
-      ∧ LambdaGood a (Weth feWETH9Bytecode) (fun _ I => Admits I) Model.contract.callsAt e :=
-  refines_keeps feWETH9RefinesModel weth_admissible (fromOthers a)
-    (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (model_keeps a) e
+    ThetaGood a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) Admission
+        Exported.contract.callsAt e
+      ∧ LambdaGood a (Weth feWETH9Bytecode) Admission Exported.contract.callsAt e :=
+  refinesOn_keeps_calls Exported.feWETH9RefinesExported weth_admissible (fromOthers a)
+    (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (fun _ _ _ h => h.1)
+    (model_keeps a) e
 
 /-- **Every transaction keeps WETH9 solvent.**  A valid transaction that starts where WETH9 at
     `a` runs its bytecode and is solvent, and the ether balances of all accounts add up to less
@@ -148,12 +182,13 @@ theorem feWETH9TxKeepsSolvent (a : AccountAddress) {σ σ' : AccountMap} {H_f : 
       ≤ (balOf σ S_T).toNat)
     (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
     (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
-    (hadmit : TxAdmitted a (fun _ I => Admits I) Model.contract.callsAt σ H_f H blocks T S_T)
+    (hadmit : TxAdmitted a Admission Exported.contract.callsAt σ H_f H blocks T S_T)
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
     Holds a (Weth feWETH9Bytecode) σ' ∧ total σ' ≤ total σ :=
   tx_holds weth_admissible (fromOthers a)
-    (frameHyp_of_refines feWETH9RefinesModel
-      (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (model_keeps a))
+    (frameHyp_of_refinesOn_calls Exported.feWETH9RefinesExported
+      (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (fun _ _ _ h => h.1)
+      (model_keeps a))
     (fun _ h => h) hH hT hsender hdata hpay hfee hnonce hadmit hΥ
 
 end FeProofs.WETH9
