@@ -46,7 +46,8 @@ def Agrees (p : Profile) (evm : EvmResult) :
 
 /-- One model run ends as another does: with the same exit, or successfully with the same return
     data, accounts, logs and recorded calls, whether each returns or stops.  Memory may
-    differ. -/
+    differ.  A panic ends as the revert with its payload does, which is what the bytecode
+    does. -/
 inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
     Option (Except (Exit World) (ByteArray × World)) → Prop
   | stop_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
@@ -56,6 +57,8 @@ inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
       (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
       EndsAs (some (.error (.stop out w'))) (some (.error (.stop out w)))
   | exit (f : Exit World) : EndsAs (some (.error f)) (some (.error f))
+  | panic_revert (code : Nat) :
+      EndsAs (some (.error (.panic code))) (some (.error (.revert (panicData code))))
   | ok_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
       (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
       EndsAs (some (.ok (out, w'))) (some (.ok (out, w)))
@@ -72,6 +75,7 @@ theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
   | stop_ok ha hl _ | stop_stop ha hl _ | ok_ok ha hl _ | ok_stop ha hl _ =>
     simpa only [Agrees, ha, hl] using hb
   | exit f => exact hb
+  | panic_revert code => exact hb
   | diverge => exact hb
 
 /-- A contract's model.  The deployed code is the runtime bytecode followed by the words of the
@@ -213,7 +217,7 @@ theorem EndsAs.succeeds_calls {a b : Option (Except (Exit World) (ByteArray × W
     rcases ha with ha | ha <;> cases ha
     exact ⟨_, Or.inr rfl, hacc.symm, hc.symm⟩
   | exit f => exact ⟨w', ha.imp (fun h => by cases h) id, rfl, rfl⟩
-  | diverge => rcases ha with ha | ha <;> cases ha
+  | panic_revert code | diverge => rcases ha with ha | ha <;> cases ha
 
 /-- A run that ends as another does succeeds when it does, with the same accounts. -/
 theorem EndsAs.succeeds {a b : Option (Except (Exit World) (ByteArray × World))}
