@@ -191,4 +191,67 @@ theorem Point_add_spec {P Q : Point_Mont_Base} {x1 y1 z1 x2 y2 z2 : Fp} (hP : Re
     exact ⟨(nonsingular_smul _ hu).mpr (nonsingular_add hv1 hv2),
       by rw [Point.toAffine_smul _ hu, Point.toAffine_add hv1 hv2]⟩
 
+theorem affine_eq (a b : L4) :
+    Point_affine_Mont_Base (toB a) (toB b) = pure ⟨toB a, toB b, toB (Mont.new KB 1)⟩ := by
+  simp only [Point_affine_Mont_Base, one_Base, pure_bind]
+
+/-- `Point::add_affine`: for a nonsingular triple and an affine point of the curve, a
+representation of a nonsingular triple whose point is the sum, for all inputs, equal and
+opposite points included. -/
+theorem Point_add_affine_spec {P : Point_Mont_Base} {a2 b2 : L4} {x1 y1 z1 x2 y2 : Fp}
+    (hP : RepP P x1 y1 z1) (ha2 : RepB a2 x2) (hb2 : RepB b2 y2)
+    (hv1 : W.Nonsingular ![x1, y1, z1]) (hv2 : W.Nonsingular ![x2, y2, 1]) :
+    ∃ P' x' y' z', Point_add_affine_Mont_Base P (toB a2) (toB b2) = pure P' ∧ RepP P' x' y' z' ∧
+      W.Nonsingular ![x', y', z'] ∧
+      Point.toAffine W ![x', y', z'] = Point.toAffine W ![x1, y1, z1] + Point.toAffine W ![x2, y2, 1] := by
+  obtain ⟨a, b, c, rfl, ha, hb, hc⟩ := hP
+  simp only [Point_add_affine_Mont_Base, is_infinity_eq, is_zero_Base, square_Base, mul_Base,
+    add_Base, sub_Base, double_Base, pure_bind, infinity_eq, affine_eq, RepB.isZero hc]
+  by_cases hz1 : z1 = 0
+  · simp only [hz1, decide_true, if_true]
+    exact ⟨_, _, _, _, rfl, ⟨a2, b2, _, rfl, ha2, hb2, RepB.one⟩, hv2,
+      by rw [toAffine_eq_zero_of_z rfl, zero_add]⟩
+  simp only [hz1, decide_false, Bool.false_eq_true, if_false]
+  have hH := RepB.isZero (x := ((x2 * (z1 * z1)) - x1)) (by rep_tac)
+  have hR := RepB.isZero (x := ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1))) (by rep_tac)
+  rw [hH]
+  have hz2 : (1 : Fp) ≠ 0 := one_ne_zero
+  by_cases h0 : ((x2 * (z1 * z1)) - x1) = 0
+  · rw [hR]
+    simp only [h0, decide_true, if_true]
+    have hx : ![x1, y1, z1] 0 * ![x2, y2, 1] 2 ^ 2 = ![x2, y2, 1] 0 * ![x1, y1, z1] 2 ^ 2 := by
+      simp; linear_combination -h0
+    by_cases h1 : ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) = 0
+    · simp only [h1, decide_true, if_true]
+      obtain ⟨P', x', y', z', hd2, hrep, hns, haff⟩ := Point_double_spec ⟨a, b, c, rfl, ha, hb, hc⟩ hv1
+      rw [hd2]
+      have hy : ![x1, y1, z1] 1 * ![x2, y2, 1] 2 ^ 3 = ![x2, y2, 1] 1 * ![x1, y1, z1] 2 ^ 3 := by
+        simp
+        have := mul_left_cancel₀ two_ne_zero' (show (2 : Fp) * (y2 * z1 * (z1 * z1) - y1) = 2 * 0 by
+          linear_combination h1)
+        linear_combination -this
+      have heq := Point.toAffine_of_equiv (W := W)
+        (equiv_of_X_eq_of_Y_eq (by simpa using hz1) (by simp) hx hy)
+      exact ⟨P', x', y', z', rfl, hrep, hns, by rw [haff, heq]⟩
+    · simp only [h1, decide_false, Bool.false_eq_true, if_false]
+      have hy : ![x1, y1, z1] 1 * ![x2, y2, 1] 2 ^ 3 ≠ ![x2, y2, 1] 1 * ![x1, y1, z1] 2 ^ 3 := by
+        simp
+        intro h; apply h1; linear_combination -2 * h
+      have hsum := Point.toAffine_add (W := W) hv1 hv2
+      rw [add_of_Y_ne hv1.1 hv2.1 (by simpa using hz1) (by simp) hx hy,
+        Point.toAffine_smul _ (isUnit_addU_of_Y_ne (by simpa using hz1) (by simp) hy),
+        Point.toAffine_of_Z_eq_zero (by simp)] at hsum
+      exact ⟨_, _, _, _, rfl, infinity_rep, nonsingular_zero, by rw [toAffine_inf, hsum]⟩
+  · simp only [h0, decide_false, Bool.false_eq_true, if_false]
+    refine ⟨_, (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)))))))) - (y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), ((z1 + ((x2 * (z1 * z1)) - x1)) * (z1 + ((x2 * (z1 * z1)) - x1)) - (z1 * z1) - (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))), rfl, ⟨_, _, _, rfl, by rep_tac, by rep_tac, by rep_tac⟩, ?_⟩
+    have hx : ![x1, y1, z1] 0 * ![x2, y2, 1] 2 ^ 2 ≠ ![x2, y2, 1] 0 * ![x1, y1, z1] 2 ^ 2 := by
+      simp; intro h; apply h0; linear_combination -h
+    have hu : IsUnit (-(2 * (z1 * 1))) :=
+      (neg_ne_zero.mpr (mul_ne_zero two_ne_zero' (mul_ne_zero hz1 hz2))).isUnit
+    have e : (![(((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)))))))) - (y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), ((z1 + ((x2 * (z1 * z1)) - x1)) * (z1 + ((x2 * (z1 * z1)) - x1)) - (z1 * z1) - (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)))] : Fin 3 → Fp) = ![(((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)) + ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)))) * ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)) + ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)))) - (((x2 * (z1 * z1)) - (x1 * (1 * 1))) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) - (((x1 * (1 * 1)) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) + ((x1 * (1 * 1)) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))))), (((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)) + ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)))) * (((x1 * (1 * 1)) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) - (((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)) + ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)))) * ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)) + ((y2 * z1 * (z1 * z1)) - (y1 * 1 * (1 * 1)))) - (((x2 * (z1 * z1)) - (x1 * (1 * 1))) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) - (((x1 * (1 * 1)) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) + ((x1 * (1 * 1)) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1))))))))) - (((y1 * 1 * (1 * 1))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))) + ((y1 * 1 * (1 * 1))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) * ((((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))) * (((x2 * (z1 * z1)) - (x1 * (1 * 1))) + ((x2 * (z1 * z1)) - (x1 * (1 * 1)))))))), (((z1 + 1) * (z1 + 1) - (z1 * z1) - (1 * 1)) * ((x2 * (z1 * z1)) - (x1 * (1 * 1))))] := by
+      ext i; fin_cases i <;> simp <;> ring
+    rw [e, add_formula hv1.1 hv2.1, ← add_of_not_equiv (not_equiv_of_X_ne hx)]
+    exact ⟨(nonsingular_smul _ hu).mpr (nonsingular_add hv1 hv2),
+      by rw [Point.toAffine_smul _ hu, Point.toAffine_add hv1 hv2]⟩
+
 end FeProofs.Ecrecover
