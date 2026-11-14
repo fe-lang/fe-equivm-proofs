@@ -206,5 +206,6 @@ becomes a fixed address 0), block by block against EVMLean's `Xstep`.
 ## Not looked into
 
 Enum, object and array instructions; globals and data sections; contracts that create others
-(external embeds); the native and wasm backends; whether the kernel can evaluate the interpreter
-(`decide` stops on it; `native_decide` evaluates it); gas.
+(external embeds); the native and wasm backends; gas; how fast the kernel evaluates the
+interpreter beyond small runs (`decide +kernel` decides a call of FeConstant's `answer()` and
+FeScalarStore's `get()` in seconds).
