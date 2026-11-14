@@ -272,3 +272,100 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
         · rw [Function.update_of_ne (by omega)]; exact hhigh j h h2
 
 end FeProofs.Ecrecover
+
+namespace FeProofs.Ecrecover
+open Exported
+
+theorem range_has_eq {k lo hi : ℕ} (hk : k < 2 ^ 256) (hl : lo < 2 ^ 256) (hh : hi < 2 ^ 256) :
+    Lib.range_has (UInt256.ofNat k) (UInt256.ofNat lo) (UInt256.ofNat hi) =
+      pure (decide (lo ≤ k ∧ k < hi)) := by
+  simp only [Lib.range_has, toNat_lit hk, toNat_lit hl, toNat_lit hh]
+  by_cases h1 : lo ≤ k <;> by_cases h2 : k < hi <;> simp [h1, h2]
+
+theorem has16 (r : Range_Known_1_Known_16) {k : ℕ} (hk : k < 2 ^ 256) :
+    Range_has_1_16 r (UInt256.ofNat k) = pure (decide (1 ≤ k ∧ k < 16)) := by
+  simp only [Range_has_1_16, range_has_eq (lo := 1) (hi := 16) hk (by decide) (by decide), bind_pure]
+
+theorem has4 (r : Range_Known_1_Known_4) {k : ℕ} (hk : k < 2 ^ 256) :
+    Range_has_1_4 r (UInt256.ofNat k) = pure (decide (1 ≤ k ∧ k < 4)) := by
+  simp only [Range_has_1_4, range_has_eq (lo := 1) (hi := 4) hk (by decide) (by decide), bind_pure]
+
+theorem next_eq {k : ℕ} (hk : k + 1 < 2 ^ 256) :
+    Lib.usize_wrapping_add (UInt256.ofNat k) (UInt256.ofNat 1) = pure (UInt256.ofNat (k + 1)) := by
+  simp only [Lib.usize_wrapping_add]
+  congr 1
+  exact Fe.EVM.ofNat_add_ofNat hk
+
+theorem next16 (r : Range_Known_1_Known_16) {k : ℕ} (hk : k + 1 < 2 ^ 256) :
+    Range_next_1_16 r (UInt256.ofNat k) = pure (UInt256.ofNat (k + 1)) := by
+  simp only [Range_next_1_16, next_eq hk, pure_bind]
+
+theorem next4 (r : Range_Known_1_Known_4) {k : ℕ} (hk : k + 1 < 2 ^ 256) :
+    Range_next_1_4 r (UInt256.ofNat k) = pure (UInt256.ofNat (k + 1)) := by
+  simp only [Range_next_1_4, next_eq hk, pure_bind]
+
+/-- What a run of `combination` may do: diverge, or return a representation of `S`. -/
+def OutP (S : W.toAffine.Point) (w : World) (o : Option (Except (Exit World) (Point_Mont_Base × World))) :
+    Prop :=
+  o = none ∨ ∃ P' z', o = some (.ok (P', w)) ∧ GoodP P' S z'
+
+/-- The prefix loop, at counter `k`: the prefixes below `k` stored, the running product that
+of the finite `z`s below `k`; then the inversion and the rest. -/
+theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (t : ℕ → Point_Mont_Base)
+    (hz : ∀ i < 16, (i / 4) • G + (i % 4) • Q ≠ 0 → zs i ≠ 0)
+    (h0 : TabOK (t 0) ((0 / 4) • G + (0 % 4) • Q))
+    (hg : ∀ j, 1 ≤ j → j < 16 → GoodP (t j) ((j / 4) • G + (j % 4) • Q) (zs j)) :
+    ∀ n k, k + n = 16 → 1 ≤ k → ∀ (pf : ℕ → Mont_Base) (run : L4),
+      (∀ j, 1 ≤ j → j < k → ∃ c, pf j = toB c ∧ RepB c (pr (fun i => (i / 4) • G + (i % 4) • Q) zs j)) →
+      RepB run (pr (fun i => (i / 4) • G + (i % 4) • Q) zs k) →
+      ∀ r0 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27
+        r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1.b9 U V r0 (tbl t) (tbl pf) (toB run) r4
+        r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29
+        r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat k)).exec env w)
+  | 0, k, hkn, _, pf, run, hpf, hrun, r0, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16,
+      r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35,
+      r36, env, w => by
+    obtain rfl : k = 16 := by omega
+    rw [combination_k2.b1.b9.eq_1]
+    simp only [has16 _ (show 16 < 2 ^ 256 by decide), pure_bind,
+      show (1 ≤ 16 ∧ 16 < 16) = False by decide, decide_false, Bool.false_eq_true, if_false]
+    rw [Fe.M.exec_bind]
+    rcases Mont_inverse_Base_spec hrun env w with h | ⟨c, h, hc⟩
+    · rw [h]; exact Or.inl rfl
+    · rw [h]
+      obtain ⟨P', z', e, hP⟩ := norm_loop U V G Q zs hz pf (fun j h1 h2 => hpf j h1 h2) 15 le_rfl t c h0
+        (fun j h1 h2 => hg j h1 (by omega)) (fun j h1 h2 => by omega) hc r0 (toB run) r6 r7 r8 r9 r10
+        r11 r12 r13 r14 r15 r16 r17 r18 r19 (toB run) r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32
+        r33 r34 r35 r36
+      refine Or.inr ⟨P', z', ?_, hP⟩
+      dsimp only
+      rw [show UInt256.ofNat (15 + 1) = UInt256.ofNat 16 from rfl] at e
+      rw [e]; rfl
+  | n + 1, k, hkn, hk1, pf, run, hpf, hrun, r0, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15,
+      r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34,
+      r35, r36, env, w => by
+    have hk : k < 16 := by omega
+    rw [combination_k2.b1.b9.eq_1]
+    have hgk := hg k hk1 hk
+    simp only [has16 _ (show k < 2 ^ 256 by omega), show 1 ≤ k ∧ k < 16 from ⟨hk1, hk⟩, decide_true,
+      if_true, Range_at_1_16, pure_bind, checkIndex, toNat_lit (show k < 2 ^ 256 by omega), hk,
+      tbl_get t hk, hgk.is_infinity, next16 _ (show k + 1 < 2 ^ 256 by omega), tbl_set pf hk]
+    have hprs := pr_succ (fun i => (i / 4) • G + (i % 4) • Q) zs hk1
+    have hpf' : ∀ j, 1 ≤ j → j < k + 1 → ∃ c, Function.update pf k (toB run) j = toB c ∧
+        RepB c (pr (fun i => (i / 4) • G + (i % 4) • Q) zs j) := by
+      intro j h1 h2
+      rcases Nat.lt_or_ge j k with h | h
+      · rw [Function.update_of_ne (by omega)]; exact hpf j h1 h
+      · obtain rfl : j = k := by omega
+        exact ⟨run, Function.update_self .., hrun⟩
+    by_cases hA : (k / 4) • G + (k % 4) • Q = 0
+    · simp only [hA, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+      exact prefix_loop U V G Q zs t hz h0 hg n (k + 1) (by omega) (by omega) _ run hpf'
+        (by rw [hprs]; simpa [hA] using hrun) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+    · obtain ⟨x, y, ⟨a, b, c, ht, ha, hb, hc⟩, -, -⟩ := hgk
+      simp only [hA, decide_false, Bool.not_false, if_true, ht, mul_Base, pure_bind]
+      exact prefix_loop U V G Q zs t hz h0 hg n (k + 1) (by omega) (by omega) _ _ hpf'
+        (by rw [hprs, if_pos hA]; exact RepB.mul hrun hc) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+
+end FeProofs.Ecrecover
