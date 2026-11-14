@@ -500,15 +500,18 @@ def reads (defs : List Nat) (ops : List Operand) : Bool :=
   ops.all fun o => o.var?.all defs.contains
 
 /-- The values defined after the statements, from `defs` before them, if each statement reads
-    only values defined before it. -/
+    only values defined before it and defines only values not defined before it. -/
 def definedAfter (defs : List Nat) : List Stmt → Option (List Nat)
   | [] => some defs
-  | s :: rest => if reads defs s.inst.operands then definedAfter (defs ++ s.dsts.map (·.1)) rest
+  | s :: rest =>
+    if reads defs s.inst.operands && s.dsts.all (!defs.contains ·.1) then
+      definedAfter (defs ++ s.dsts.map (·.1)) rest
     else none
 
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
-    its phis, or those its statements define earlier; and each phi of each successor has an
-    operand from `b`, so defined.  The machine IR runs a read of an undefined value nowhere. -/
+    its phis, or those its statements define earlier; it defines none of those again (an entry
+    value it defined would be the last run's); and each phi of each successor has an operand
+    from `b`, so defined.  The machine IR runs a read of an undefined value nowhere. -/
 def defined (f : Func) (b : Block) (entry : List Nat) : Bool :=
   match definedAfter (entry ++ b.phis.map (·.dst)) b.body with
   | none => false
