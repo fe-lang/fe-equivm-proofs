@@ -151,13 +151,15 @@ it makes. Unlike the Stele certificate, neither WETH9 certificate assumes anythi
 storage: a `name()` or `symbol()` whose ABI encoding takes 2^64 bytes or more panics with
 `Panic(0x41)` in both the bytecode and the model.
 
-`FeProofs/WETH9/Solvency.lean` proves, of the hand-written model, the per-frame half of WETH9's
-solvency: the ether the contract holds covers the tokens at every set of distinct balance slots
-(`Solvent`). Every entry keeps it (`runtime_solvent`) when the allowance slot `approve` or
-`transferFrom` writes is no balance slot (`Admits`), the account was solvent before the call's
-value arrived and gained the value since, and the call `withdraw` makes keeps it; the constructor
-keeps it when no balance slot is that of `name`, `symbol` or `decimals` (`init_solvent`). The
-statement through every message call is not proved yet.
+For WETH9 (`FeProofs/WETH9/Invariant.lean`, from the hand-written model and its solvency in
+`Solvency.lean`): the ether the contract holds covers the tokens at every set of distinct balance
+slots (`Solvent`). `feWETH9KeepsSolvent` and `feWETH9TxKeepsSolvent`: every message call,
+creation and transaction keeps that, re-entry through `withdraw` included, where every successful
+frame at WETH9 writes no allowance slot that is a balance slot (`Admits`) and the balances of all
+accounts add up to less than 2^256. Admission speaks of the calls the model makes under every
+feed, since EquiVM's traces do not record the bytecode's path; the model's one call is
+`withdraw`'s, to the caller. `feWETH9DeploySolvent`: a successful deployment establishes it, if no
+balance slot is the slot of `name`, `symbol` or `decimals`.
 
 The files of an exported contract:
 
