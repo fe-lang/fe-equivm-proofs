@@ -62,6 +62,6 @@ def mutations : List (String × (CodeSection → CodeSection)) :=
       | .error e => rejected := rejected.push e
   IO.println s!"sections accepted {accepted}, rejected {rejected.size}"
   let reasons := rejected.toList.map fun e =>
-    (e.splitOn ": ").getLast!.splitOn " " |>.take 4 |> " ".intercalate
+    String.ofList ((e.splitOn ": ").getLast!.toList.filter (!·.isDigit))
   for r in reasons.eraseDups do
     IO.println s!"  {(reasons.filter (· == r)).length} {r}"

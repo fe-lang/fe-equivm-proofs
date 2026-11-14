@@ -89,19 +89,38 @@ def evalOp : Operation → List UInt256 → Option UInt256
   | .NOT, [a] => some (UInt256.lnot a)
   | _, _ => none
 
+/-- The word of a constant. -/
+def constWord : Expr → Option UInt256
+  | .const v => some (UInt256.ofNat v)
+  | _ => none
+
 /-- The constant an operation on constants gives, if it is arithmetic or logic. -/
 def foldConst (op : Operation) (args : List Expr) : Option Expr := do
-  let words ← args.mapM fun
-    | .const v => some (UInt256.ofNat v)
-    | _ => none
-  return .const (← evalOp op words).toNat
+  return .const (← evalOp op (← args.mapM constWord)).toNat
+
+/-- A key that orders the operands of a commutative operation: constants last. -/
+def Expr.key : Expr → Nat
+  | .const _ => 0
+  | .atom id => id + 2
+  | _ => 1
+
+/-- The commutative opcodes. -/
+def commutative : List Operation := [.ADD, .MUL, .AND, .OR, .XOR, .EQ]
+
+/-- An operation on two operands in one form: `GT` and `SGT` as `LT` and `SLT` on swapped
+    operands, a commutative operation with the operand of larger key on top. -/
+def normalize (op : Operation) (a b : Expr) : Expr :=
+  if op == .GT then .op2 .LT b a
+  else if op == .SGT then .op2 .SLT b a
+  else if commutative.contains op && a.key < b.key then .op2 op b a
+  else .op2 op a b
 
 /-- An expression of an operation on operands, top first; on constants an arithmetic or logic
     operation is its result, as the bytes compute a constant the IR writes as one. -/
 def mkOp (op : Operation) : List Expr → Option Expr
   | [] => some (.op0 op)
   | [a] => some ((foldConst op [a]).getD (.op1 op a))
-  | [a, b] => some ((foldConst op [a, b]).getD (.op2 op a b))
+  | [a, b] => some ((foldConst op [a, b]).getD (normalize op a b))
   | [a, b, c] => some (.op3 op a b c)
   | _ => none
 
@@ -284,13 +303,21 @@ def arrives (c : Ctx) (hints : List BlockHint) (pred succ : Nat) (stack : List E
   | none => false
 
 /-- What a jump's condition says of the block's exit when the jump is taken (`true`) or not:
-    the successor it selects, or the `br_table` with more cases ruled out. -/
+    the successor it selects, the `br_table` with more cases ruled out, or that the jump never
+    goes that way, its condition a constant.  `.inr (.halt …)` stands for never. -/
 def decide (e : Exit) (cond : Expr) (taken : Bool) : Option (Sum Nat Exit) :=
+  let never := some (.inr (.halt .INVALID []))
   match e with
   | .br c nz z =>
-    if cond == c then some (.inl (if taken then nz else z))
-    else if cond == .op1 .ISZERO c then some (.inl (if taken then z else nz))
-    else none
+    match c, cond with
+    | .const kc, .const k =>
+      if (k % UInt256.size != 0) == taken then
+        some (.inl (if kc % UInt256.size != 0 then nz else z))
+      else never
+    | _, _ =>
+      if cond == c then some (.inl (if taken then nz else z))
+      else if cond == .op1 .ISZERO c then some (.inl (if taken then z else nz))
+      else none
   | .table s default cases ruled =>
     let case? := match cond with
       | .op2 .EQ (.const k) s' => if s' == s then some k else none
@@ -383,10 +410,12 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
           p.events.isEmpty && validJump code t &&
           (match decide p.exit cond true with
             | some (.inl s) => place s == some t && arrives c hints b s rest
+            | some (.inr (.halt .INVALID [])) => true
             | _ => false) &&
           (match decide p.exit cond false with
             | some (.inl s) =>
               run code c hints place b fuel { p with pc := next, stack := rest, exit := .goto s }
+            | some (.inr (.halt .INVALID [])) => true
             | some (.inr e) =>
               run code c hints place b fuel { p with pc := next, stack := rest, exit := e }
             | none => false)
