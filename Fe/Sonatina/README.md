@@ -333,8 +333,8 @@ well-formedness checks and the total order on operands (not measured apart). Ker
 needs the expressions non-nested and the checker structurally recursive, which is why `Expr` has
 fixed arities.
 
-What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P1`; it is not
-yet proved. On the statement:
+What `check s = true` implies is stated in `CheckSound.lean` as `Sound s`, at `P1`, and proved
+in `CheckCert.lean`. On the statement:
 
 - `P1` costs little over `P0`. The proof steps the bytes by `Xstep` through EVMLean's `step_*`
   lemmas, whose states hold the substate (logs) and the output, so `P1` adds to the state
@@ -380,10 +380,18 @@ Proved so far:
    event, and under any valuation of the values it defined the events trace the world (`Trace`)
    and the checker's expressions have their words (`Cons`, `expand_eval`).
 
-Left, in order: the section (an induction on `X`'s fuel and `zeroRank`, joining `run_ends` and
-`body_run` block by block, the IR's `enter` and terminator against `Exit.next`, from the entry
-block at offset 0 with the free pointer prologue as the first event); deployment (the same with
-the constructor's arguments after the code); `check_sound`; the model half for FeScalarStore.
+7. The section (`CheckSection.lean`): `block_step` joins `run_ends` and `body_run` with the IR's
+   `enter` and terminator for one block; `section_run`, by induction on `X`'s fuel and
+   `zeroRank`, gives the P1 agreement (`XAgrees`) of the bytes' iterator with the IR's run of the
+   function from any block's start (`AtBlock`), the prologue first for the entry block.
+8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
+   runtime and the constructor (its arguments after the code) at `P1`. It depends on `propext`,
+   `Classical.choice` and `Quot.sound` only.
+
+Left: `XiOk` of a checked frame (no call or creation is reached, which needs the bytes'
+reachable states to be the checked paths'), and the model half for FeScalarStore:
+`Implements` of its exported model against the machine IR's (`Sidecar.model .machine`), a run of
+the interpreter over its machine IR, then `RefinesOn.of_implements` for the pinned bytecode.
 
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
