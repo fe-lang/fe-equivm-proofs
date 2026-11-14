@@ -268,9 +268,9 @@ theorem forwardedGas_Ccallgas (t r : AccountAddress) (value gasArg : UInt256) (�
 theorem appended_self (A : Substate) : appended A A = #[] := by
   simp [appended]
 
-/-- A message call that is made is `Θ` on the model's accounts, and is recorded.  The hypothesis is the link
-    EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with, once the gas
-    they give the callee is shown to be `forwardedGas` of some cap, as
+/-- A message call that is made is `Θ` on the model's accounts, and is recorded.  The hypothesis
+    is the link EquiVM's `RD.call`, `RD.callValueMadeOr` and `RD.solcStaticcall` conclude with,
+    once the gas they give the callee is shown to be `forwardedGas` of some cap, as
     `callValueMade_forwardedGas` (`Reach.lean`) does for a `CALL`. -/
 theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
     {gasArg value value' argsPtr argsLen retPtr retLen g' : UInt256}
@@ -364,6 +364,55 @@ theorem call_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
     · exact hv h
   simp only [call, M.exec_bind, M.exec_read, if_neg hns]
   exact message_notMade hfeed hnot
+
+/-- What a `call` that returns did: it was not made, and changed neither the accounts nor the
+    record, or it was made, its accounts are what `Θ` returned, and it is recorded. -/
+theorem call_cases {I : Env} {w w' : World}
+    {gasArg addr value argsPtr argsLen retPtr retLen x : UInt256}
+    (h : (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w = some (.ok (x, w'))) :
+    (w'.accounts = w.accounts ∧ w'.calls = w.calls) ∨
+      ∃ s rest, w.feed = s :: rest
+        ∧ (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024)
+        ∧ w'.accounts = (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr)
+            value value argsPtr argsLen I.perm).run.1
+        ∧ w'.calls = w.calls ++ [Made.theta (messageCall I w s gasArg I.codeOwner
+            (.ofUInt256 addr) (.ofUInt256 addr) value value argsPtr argsLen I.perm)] := by
+  by_cases hs : I.perm = false ∧ value ≠ ⟨0⟩
+  · simp [call, hs] at h
+  have hperm : I.perm = true ∨ value = ⟨0⟩ := by
+    cases hp : I.perm
+    · exact Or.inr (Classical.byContradiction fun hv => hs ⟨hp, hv⟩)
+    · exact Or.inl rfl
+  cases hf : w.feed with
+  | nil => simp [call, message, next, hs, hf] at h
+  | cons s rest =>
+    by_cases hmade : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance))
+        ∧ I.depth < 1024
+    · rcases hr : (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value
+          value argsPtr argsLen I.perm).run with ⟨σ', g', A', z, o⟩
+      rw [call_made hf hperm hmade hr.symm] at h
+      simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.2]
+      exact Or.inr ⟨s, rest, rfl, hmade, by rw [hr], rfl⟩
+    · rw [call_notMade hf hperm hmade] at h
+      simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+      rw [← h.2]
+      exact Or.inl ⟨rfl, rfl⟩
+
+/-- A property of the accounts that holds before a `call`, and after every call it makes, holds
+    after it. -/
+theorem call_keeps {Inv : AccountMap → Prop} {I : Env} {w w' : World}
+    {gasArg addr value argsPtr argsLen retPtr retLen x : UInt256}
+    (h : (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w = some (.ok (x, w')))
+    (hbefore : Inv w.accounts)
+    (hmade : ∀ s rest, w.feed = s :: rest →
+      (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024) →
+      Inv (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value value
+        argsPtr argsLen I.perm).run.1) :
+    Inv w'.accounts := by
+  rcases call_cases h with ⟨ha, -⟩ | ⟨s, rest, hf, hm, ha, -⟩
+  · rw [ha]; exact hbefore
+  · rw [ha]; exact hmade s rest hf hm
 
 /-- A message call without write permission leaves every account's storage as it was, whatever
     the callee and the feed: EVMLean's `Theta_static_accountStorageStateEq`, on the model. -/
