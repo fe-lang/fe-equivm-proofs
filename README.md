@@ -111,10 +111,10 @@ turns it into a statement about the contract among others (`good`): every messag
 creation, at every depth, keeps an invariant on the account at an address, if each successful
 frame that runs the contract's code there keeps it whenever the calls and creations below that
 frame do. Code elsewhere changes the account only by calling it or by sending it value. The
-conditions: the invariant tolerates any increase of the balance, the account has code, and a
-`DELEGATECALL` from it runs only code the hypothesis covers. An invariant that holds only for
-some calls is stated relative to admission: the conclusion is about executions in which every
-successful frame at the address is admitted (`Admitted`).
+conditions: the invariant tolerates any increase of the balance that does not wrap, the account
+has code, and a `DELEGATECALL` from it runs only code the hypothesis covers. An invariant that
+holds only for some calls is stated relative to admission: the conclusion is about executions in
+which every successful frame at the address is admitted (`Admitted`).
 
 `Fe/EVM/RefineInvariant.lean` derives the per-frame hypothesis from a certificate and a property
 of the model (`refinesOn_keeps`), and the base case from a deployment certificate
@@ -129,8 +129,10 @@ deployment by a holder makes the holders' balances add up to the supply at the n
 storage starts empty, as `Lambda` guarantees); `every_call_conserves` and
 `every_transaction_conserves`, every message call, creation and transaction keeps that, where
 every successful frame at the token has calldata shorter than 2^64 bytes and is covered by the
-holders. `feConstantKeepsStorage` is an instance without a condition. Not proved yet: invariants
-that bound the balance from below.
+holders. `feConstantKeepsStorage` is an instance without a condition. An invariant may bound the
+balance from below: no balance increase wraps, because every call and transaction keeps the sum of
+all balances from growing, given that it is below 2^256 where the transaction starts and the
+transaction is valid (the sender can pay for gas, blobs and value).
 
 WETH9's `withdraw` sends value to the caller, who may re-enter. The model takes what it cannot
 compute, the callee's gas and the substate and original account map it is handed, from the feed:
