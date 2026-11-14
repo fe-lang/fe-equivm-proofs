@@ -37,7 +37,7 @@ def Sound (s : Sidecar) : Prop :=
     ∧ RefinesDeploy .P1 (s.code "init") .empty (s.model .machine) (fun _ => True)
 
 /-- A pure opcode `evalOp` does not compute, as `Xstep` pushes it in the frame `ee`: `EXP`, and
-    the opcodes of the environment. -/
+    the opcodes of the environment and of the block header. -/
 def envOp (ee : ExecutionEnv) : Operation → List UInt256 → Option UInt256
   | .EXP, [a, b] => some (UInt256.exp a b)
   | .CALLVALUE, [] => some ee.weiValue
@@ -47,6 +47,13 @@ def envOp (ee : ExecutionEnv) : Operation → List UInt256 → Option UInt256
   | .CALLDATASIZE, [] => some (.ofNat ee.calldata.size)
   | .CODESIZE, [] => some (.ofNat ee.code.size)
   | .CALLDATALOAD, [a] => some (uInt256OfByteArray (ee.calldata.readBytes a.toNat 32))
+  | .CHAINID, [] => some (.ofNat Ethereum.chainId)
+  | .TIMESTAMP, [] => some (.ofNat ee.header.timestamp)
+  | .NUMBER, [] => some (.ofNat ee.header.number)
+  | .GASLIMIT, [] => some (.ofNat ee.header.gasLimit)
+  | .BASEFEE, [] => some (.ofNat ee.header.baseFeePerGas)
+  | .COINBASE, [] => some (.ofNat ee.header.beneficiary.val)
+  | .PREVRANDAO, [] => some ee.header.prevRandao
   | _, _ => none
 
 /-- A pure opcode on words in the frame `ee`. -/

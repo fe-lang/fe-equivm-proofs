@@ -215,11 +215,12 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
   unfold evRun at h
   split at h
   all_goals
-    by_cases hp : ee.perm = true <;>
+    by_cases hp : ee.perm = true <;> cases hf : w.feed <;>
       simp [Fe.EVM.sstore, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.sload, Fe.EVM.mload,
         Fe.EVM.keccak256, Fe.EVM.mstore, Fe.EVM.mstore8, Fe.EVM.codecopy, Fe.EVM.calldatacopy,
-        Fe.EVM.mcopy, hp] at h
-  all_goals rw [← h.1]; rfl
+        Fe.EVM.mcopy, Fe.EVM.selfbalance, Fe.EVM.balance, Fe.EVM.extcodesize,
+        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.next, exec_returndatacopy, hp, hf] at h
+  all_goals (try split_ifs at h) <;> (try simp at h); rw [← h.1]; rfl
 
 theorem eventWith_evm {expand : Nat → Option Expr} {inst : Inst} {opc : Operation}
     {es : List Expr} (h : eventWith expand inst = some (opc, es)) :
@@ -240,14 +241,14 @@ theorem evmEvent_not_pure {op : EvmOp} {opc : Operation} (h : evmEventOpcode op 
 
 /-- How a block's statements end from `env`, the values `D` defined before them and `D'` after:
     returning, `D` kept and `D'` words, the events tracing and the values consistent under any
-    valuation of them; or failing at an event, likewise up to it. -/
+    valuation of them; or failing or stuck at an event, likewise up to it. -/
 def BodyEnds (ee : ExecutionEnv) (c : Ctx) (env : Env) (D D' : List Nat) (evs : List Event)
-    (w : World) : Except (Fe.Exit World) (Env × World) → Prop
-  | .ok (env', w') => (∀ id ∈ D, env'[id]? = env[id]?) ∧ (∃ ρ, WordsOf env' ρ D') ∧
-      ∀ ρ, WordsOf env' ρ D' → Cons ee ρ c D' ∧ Trace ee ρ evs w (.ok w')
-  | .error e => ∃ envf Df, (∀ id ∈ D, envf[id]? = env[id]?) ∧ (∀ id ∈ D, id ∈ Df) ∧
-      (∃ ρ, WordsOf envf ρ Df) ∧
-        ∀ ρ, WordsOf envf ρ Df → Cons ee ρ c Df ∧ Trace ee ρ evs w (.error e)
+    (w : World) : Option (Except (Fe.Exit World) (Env × World)) → Prop
+  | some (.ok (env', w')) => (∀ id ∈ D, env'[id]? = env[id]?) ∧ (∃ ρ, WordsOf env' ρ D') ∧
+      ∀ ρ, WordsOf env' ρ D' → Cons ee ρ c D' ∧ Trace ee ρ evs w (some (.ok w'))
+  | x => ∃ envf Df, (∀ id ∈ D, envf[id]? = env[id]?) ∧ (∀ id ∈ D, id ∈ Df) ∧
+      (∀ id ∈ Df, id ∈ D') ∧ (∃ ρ, WordsOf envf ρ Df) ∧
+        ∀ ρ, WordsOf envf ρ Df → Cons ee ρ c Df ∧ Trace ee ρ evs w (x.map (·.map Prod.snd))
 
 theorem word_inj {a b : UInt256} (h : Val.int 256 a.toNat = Val.int 256 b.toNat) : a = b :=
   eq_of_toNat (by injection h)
@@ -282,21 +283,22 @@ theorem definedAfter_mono : ∀ {stmts : List Stmt} {D D' : List Nat},
 /-- The IR runs a block's statements of the class as the events say. -/
 theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ctx}
     (hsym : ic.symbol = (c.symbols.lookup ·)) :
-    ∀ (stmts pre : List Stmt) (D D' : List Nat) (env : Env) (w : World) (evs : List Event),
-      c.defs = (pre ++ stmts).filterMap Stmt.local? →
+    ∀ (stmts pre : List Stmt) (D D' : List Nat) (env : Env) (w : World) (evs : List Event)
+      (post : List Stmt),
+      c.defs = (pre ++ stmts ++ post).filterMap Stmt.local? →
       (∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ∈ D) →
       definedAfter D stmts = some D' →
       stmts.filterMapM c.eventOfStmt = some evs →
       (∀ s ∈ stmts, ∀ d ∈ s.dsts, d.2.bits = 256) →
       (∃ ρ, WordsOf env ρ D) → (∀ ρ, WordsOf env ρ D → Cons ee ρ c D) →
-      ∃ x, (runBody m ic env stmts).exec ee w = some x ∧ BodyEnds ee c env D D' evs w x
-  | [], pre, D, D', env, w, evs, _, _, hd, he, _, hw, hc => by
+      ∃ x, (runBody m ic env stmts).exec ee w = x ∧ BodyEnds ee c env D D' evs w x
+  | [], pre, D, D', env, w, evs, _, _, _, hd, he, _, hw, hc => by
     simp only [definedAfter, Option.some.injEq] at hd
     simp only [List.filterMapM_nil, Option.pure_def, Option.some.injEq] at he
     subst hd he
-    refine ⟨.ok (env, w), by rw [runBody.eq_1]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
+    refine ⟨some (.ok (env, w)), by rw [runBody.eq_1]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
       ⟨hc ρ hρ, .nil w⟩⟩
-  | s :: rest, pre, D, D', env, w, evs, hdefs, hpre, hd, he, hbits, ⟨ρ₁, hw₁⟩, hc => by
+  | s :: rest, pre, D, D', env, w, evs, post, hdefs, hpre, hd, he, hbits, ⟨ρ₁, hw₁⟩, hc => by
     simp only [definedAfter] at hd
     split_ifs at hd with hok
     simp only [Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at hok
@@ -308,8 +310,8 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
     | none => simp [hes] at he
     | some o =>
     simp only [hes, Option.bind_eq_bind, Option.bind_some] at he
-    have hdefs' : c.defs = ((pre ++ [s]) ++ rest).filterMap Stmt.local? := by
-      rw [hdefs, List.append_assoc]; rfl
+    have hdefs' : c.defs = ((pre ++ [s]) ++ rest ++ post).filterMap Stmt.local? := by
+      rw [hdefs]; simp
     have hpre' : ∀ t ∈ pre ++ [s], ∀ d ∈ t.dsts, d.1 ∈ D ++ s.dsts.map (·.1) := by
       intro t ht d hdt
       rcases List.mem_append.mp ht with ht | ht
@@ -357,7 +359,8 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           (fun x hx => List.mem_append_left _ hx) fun id' h' hn inst hl => ?_
         have : id' = id := by simpa [hn] using h'
         subst this
-        rw [hdefs, lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
+        rw [hdefs, List.append_assoc, List.cons_append,
+          lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
         cases hl
         refine ⟨reads_mono (fun x hx => List.mem_append_left _ hx) hr, fun _ _ _ => ?_⟩
         have hsame := WordsOf.same (WordsOf.agree hagree (fun x hx => hρ x
@@ -366,21 +369,20 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
         congr 1
         exact word_inj (Option.some.inj ((show env₁[id']? = some (Val.int 256 v.toNat) by
           simp [env₁]).symm.trans (hρ id' (by simp))))
-      obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w evs
+      obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w evs post
         hdefs' hpre' hd he hbits' ⟨_, hw₁'⟩ hc'
       refine ⟨x, ?_, ?_⟩
       · rw [runBody_cons hnc, Fe.M.exec_bind, hrun w]
         simp only [hds, bind_one, has ty hty, Fe.M.exec_bind, Fe.M.exec_pure]
         exact hx
-      · cases x with
-        | ok p =>
-          obtain ⟨env', w'⟩ := p
-          obtain ⟨h1, h2, h3⟩ := hends
+      · rcases x with _ | _ | ⟨env', w'⟩
+        rotate_left 2
+        · obtain ⟨h1, h2, h3⟩ := hends
           exact ⟨fun id' h' => (h1 id' (List.mem_append_left _ h')).trans (hagree id' h'), h2, h3⟩
-        | error e =>
-          obtain ⟨envf, Df, h1, h2, h3, h4⟩ := hends
+        all_goals
+          obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends
           exact ⟨envf, Df, fun id' h' => (h1 id' (List.mem_append_left _ h')).trans
-            (hagree id' h'), fun id' h' => h2 id' (List.mem_append_left _ h'), h3, h4⟩
+            (hagree id' h'), fun id' h' => h2 id' (List.mem_append_left _ h'), h2', h3, h4⟩
     · next opc es hpe hev =>
       split_ifs at hes with hk
       simp only [bne_iff_ne, ne_eq, not_not] at hk
@@ -409,14 +411,21 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
       simp only [hrest, Option.bind_some, Option.pure_def, Option.some.injEq] at he
       subst he
       cases hE : (evRun opc args).exec ee w with
-      | none => rw [hE] at hrun; exact hrun.elim
+      | none =>
+        rw [hE] at hrun
+        refine ⟨none, ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
+          fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
+        · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+        · exact definedAfter_mono hd id (List.mem_append_left _ h')
+        · exact .stuck (hevargs ρ hρ) hE
       | some x =>
       cases x with
       | error e =>
         rw [hE] at hrun
-        refine ⟨.error e, ?_, env, D, fun _ _ => rfl, fun _ h => h, ⟨ρ₁, hw₁⟩,
+        refine ⟨some (.error e), ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
           fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
         · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+        · exact definedAfter_mono hd id (List.mem_append_left _ h')
         · exact .fail (hevargs ρ hρ) hE
       | ok p =>
         obtain ⟨r, w₁⟩ := p
@@ -428,7 +437,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           have hD : D ++ s.dsts.map (·.1) = D ++ [] := by simp [hds]
           rw [hD] at hd hpre'
           have hsub : ∀ x ∈ D, x ∈ D ++ [] := fun x hx => List.mem_append_left _ hx
-          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ []) D' env w₁ evs'
+          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ []) D' env w₁ evs' post
             hdefs' hpre' hd hrest hbits' ⟨ρ₁, by simpa using hw₁⟩ fun ρ hρ =>
               (hc ρ (by simpa using hρ)).mono hsub fun id' h' hn => by simp_all
           refine ⟨x, ?_, ?_⟩
@@ -436,18 +445,17 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
             simp only [hds, Option.toList_none, List.map_nil, bind_nil, Fe.M.exec_bind,
               Fe.M.exec_pure]
             exact hx
-          · cases x with
-            | ok q =>
-              obtain ⟨env', w'⟩ := q
-              obtain ⟨h1, h2, h3⟩ := hends
+          · rcases x with _ | _ | ⟨env', w'⟩
+            rotate_left 2
+            · obtain ⟨h1, h2, h3⟩ := hends
               refine ⟨fun id' h' => h1 id' (hsub id' h'), h2, fun ρ hρ => ⟨(h3 ρ hρ).1, ?_⟩⟩
               have hρD : WordsOf env ρ D := fun id' h' =>
                 (h1 id' (hsub id' h')).symm.trans (hρ id' (definedAfter_mono hd id' (hsub id' h')))
               exact .ok (hevargs ρ hρD) hE (h3 ρ hρ).2
-            | error e =>
-              obtain ⟨envf, Df, h1, h2, h3, h4⟩ := hends
+            all_goals
+              obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends
               refine ⟨envf, Df, fun id' h' => h1 id' (hsub id' h'),
-                fun id' h' => h2 id' (hsub id' h'),
+                fun id' h' => h2 id' (hsub id' h'), h2',
                 h3, fun ρ hρ => ⟨(h4 ρ hρ).1, .ok (hevargs ρ fun id' h' =>
                   (h1 id' (hsub id' h')).symm.trans (hρ id' (h2 id' (hsub id' h')))) hE
                   (h4 ρ hρ).2⟩⟩
@@ -476,12 +484,13 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               fun id' h' hn inst hl => ?_
             have : id' = id := by simpa [hn] using h'
             subst this
-            rw [hdefs, lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
+            rw [hdefs, List.append_assoc, List.cons_append,
+          lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
             cases hl
             refine ⟨reads_mono hsub hr, fun d e he' => ?_⟩
             rw [hinst] at he'
             simp [pureWith, hnp] at he'
-          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w₁ evs'
+          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w₁ evs' post
             hdefs' hpre' hd hrest hbits' ⟨_, hw₁'⟩ hc'
           -- The word the read gives is the valuation's.
           have hval : ∀ (env' : Env) ρ, env'[id]? = env₁[id]? → WordsOf env' ρ (D ++ [id]) →
@@ -494,10 +503,9 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               word, as_word _ hty, Reasoning.Theory.u256_ofNat_toNat, Fe.M.exec_bind,
               Fe.M.exec_pure]
             exact hx
-          · cases x with
-            | ok q =>
-              obtain ⟨env', w'⟩ := q
-              obtain ⟨h1, h2, h3⟩ := hends
+          · rcases x with _ | _ | ⟨env', w'⟩
+            rotate_left 2
+            · obtain ⟨h1, h2, h3⟩ := hends
               refine ⟨fun id' h' => (h1 id' (hsub id' h')).trans (hagree id' h'), h2,
                 fun ρ hρ => ⟨(h3 ρ hρ).1, ?_⟩⟩
               have hρ₁ : WordsOf env' ρ (D ++ [id]) := fun id' h' =>
@@ -507,10 +515,10 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               refine .ok (hevargs ρ hρD) ?_ (h3 ρ hρ).2
               rw [hE]
               simp only [Option.map_some, hval env' ρ (h1 id (by simp)) hρ₁]
-            | error e =>
-              obtain ⟨envf, Df, h1, h2, h3, h4⟩ := hends
+            all_goals
+              obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends
               refine ⟨envf, Df, fun id' h' => (h1 id' (hsub id' h')).trans (hagree id' h'),
-                fun id' h' => h2 id' (hsub id' h'), h3, fun ρ hρ => ⟨(h4 ρ hρ).1, ?_⟩⟩
+                fun id' h' => h2 id' (hsub id' h'), h2', h3, fun ρ hρ => ⟨(h4 ρ hρ).1, ?_⟩⟩
               have hρ₁ : WordsOf envf ρ (D ++ [id]) := fun id' h' => hρ id' (h2 id' h')
               have hρD : WordsOf env ρ D := fun id' h' =>
                 ((h1 id' (hsub id' h')).trans (hagree id' h')).symm.trans (hρ₁ id' (hsub id' h'))

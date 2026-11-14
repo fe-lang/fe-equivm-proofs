@@ -61,7 +61,7 @@ theorem pure_moves {s : State} {op : Operation} {args t : List UInt256} {r : UIn
   rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, rest⟩⟩⟩⟩ <;>
   rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    | rfl | rfl | rfl | rfl <;>
+    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
   simp [opEval, evalOp, envOp] at hr <;>
   subst hr <;>
   simp only [List.cons_append, List.nil_append] at hs <;>
@@ -98,6 +98,14 @@ theorem pure_moves {s : State} {op : Operation} {args t : List UInt256} {r : UIn
     | moves_from step_calldataload
     | moves_from step_calldatasize
     | moves_from step_codesize
+    | moves_from step_chainid
+    | moves_from step_timestamp
+    | moves_from step_number
+    | moves_from step_gaslimit
+    | moves_from step_basefee
+    | moves_from step_coinbase
+    | moves_from step_prevrandao
+
 theorem split_stack {l : List UInt256} {n : Nat} (h : n ≤ l.length) :
     ∃ pre t, l = pre ++ t ∧ pre.length = n :=
   ⟨_, _, (List.take_append_drop n l).symm, List.length_take_of_le h⟩

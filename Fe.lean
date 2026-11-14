@@ -7,6 +7,7 @@ import Fe.EVM.IntWords
 import Fe.EVM.Storage
 import Fe.EVM.Refine
 import Fe.EVM.FrameCalls
+import Fe.EVM.LogsAppend
 import Fe.EVM.Invariant
 import Fe.EVM.RefineInvariant
 import Fe.EVM.Reach

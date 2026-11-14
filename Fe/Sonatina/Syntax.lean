@@ -188,7 +188,7 @@ inductive Slot where
   | funcReturn
   /-- The address an internal call returns to. -/
   | callReturn
-  deriving Repr, BEq, Inhabited, Lean.ToExpr
+  deriving Repr, DecidableEq, Inhabited, Lean.ToExpr
 
 /-- Where a value the stack does not always hold is kept. -/
 inductive SpillLocation where
