@@ -33,6 +33,9 @@ import FeProofs.Precompiles.Exported.Blake2F
 import FeProofs.Precompiles.Blake2F.Compress
 import FeProofs.Precompiles.Blake2F.Contract
 import FeProofs.Precompiles.Exported.Ripemd160
+import FeProofs.Precompiles.Exported.Bn254Mul
+import FeProofs.Precompiles.Exported.EcrecoverPrecompile
+import FeProofs.Precompiles.Exported.Identity
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
