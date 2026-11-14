@@ -18,12 +18,21 @@ open Lean Ethereum Fe.EVM.Diff
 /-- The target whose model is the sidecar's IR.  Its creation code is the init section; the
     model's constructor ends with the whole deployed code, so the target adds no runtime code
     to what the constructor returns. -/
-def Sidecar.target (s : Sidecar) (interface : Interface) : Target where
+def Sidecar.target (s : Sidecar) (interface : Interface) (level : Level := .postOpt) :
+    Target where
   name := s.object
   creation := (s.section? "init").map (·.bytecode) |>.getD .empty
   runtime := .empty
-  model := s.model
+  model := s.model level
   interface := interface
+
+/-- The level `SONATINA_LEVEL` names (`post-opt`, `source` or `machine`), `post-opt` if unset. -/
+def levelOfEnv : IO Level := do
+  match (← IO.getEnv "SONATINA_LEVEL").getD "post-opt" with
+  | "post-opt" => return .postOpt
+  | "source" => return .source
+  | "machine" => return .machine
+  | other => throw (.userError s!"unknown SONATINA_LEVEL {other}")
 
 /-- The canonical type of an ABI parameter, as a selector signature spells it. -/
 partial def abiType (param : Json) : Except String String := do
@@ -54,12 +63,14 @@ def interfaceOfAbi (text : String) : Except String Interface := do
     | _ => pure ()
   return interface
 
-/-- The targets of the sidecars at the paths, each with its interface.  A sidecar whose IR this
-    subset does not read is left out, with a line `UNSUPPORTED <file>::<path>: <reason>`. -/
-def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List Target) :=
+/-- The targets of the sidecars at the paths, each with its interface, running the IR of the
+    level `SONATINA_LEVEL` names.  A sidecar whose IR this subset does not read is left out,
+    with a line `UNSUPPORTED <file>::<path>: <reason>`. -/
+def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List Target) := do
+  let level ← levelOfEnv
   sidecars.filterMapM fun (path, interface) => do
     match Parse.parseSidecar (← IO.FS.readFile path) with
-    | .ok s => return some (s.target interface)
+    | .ok s => return some (s.target interface level)
     | .error e =>
       IO.println s!"UNSUPPORTED {file}::{path}: {e}"
       return none
@@ -76,8 +87,8 @@ def Sidecar.ofPinned (ir : String) (creation runtime : ByteArray) : Except Strin
   let embeds := (obj.sections.find? (·.name == "init")).map (·.embeds) |>.getD []
   let [(symbol, "runtime")] := embeds | throw "expected init to embed runtime alone"
   return ⟨obj.name, module,
-    [⟨"init", creation, [(".", 0, creation.size), (symbol, offset, runtime.size)]⟩,
-     ⟨"runtime", runtime, [(".", 0, runtime.size)]⟩]⟩
+    [⟨"init", creation, [(".", 0, creation.size), (symbol, offset, runtime.size)], none⟩,
+     ⟨"runtime", runtime, [(".", 0, runtime.size)], none⟩]⟩
 
 /-- Compare the pinned bytecode of the contract directory `dir` with the IR `<dir>/<name>.sona`,
     on generated calls from the interface of `<dir>/<name>.abi.json`. -/
@@ -89,13 +100,13 @@ def pinnedOf (dir name : String) (sequences calls : Nat) : IO Unit := do
   let interface ← IO.ofExcept (interfaceOfAbi (← read s!"{name}.abi.json"))
   generated s!"{s.object} (pinned)" [s.target interface] sequences calls
 
-/-- Compare the IR of the sidecar at `sidecar` with its bytecode on `sequences` sequences of
-    `calls` generated calls each, from the interface of the ABI at `abi`. -/
-def generatedOf (sidecar abi : String) (sequences calls : Nat) : IO Unit := do
+/-- Compare the IR of the level of the sidecar at `sidecar` with its bytecode on `sequences`
+    sequences of `calls` generated calls each, from the interface of the ABI at `abi`. -/
+def generatedOf (sidecar abi : String) (level : Level) (sequences calls : Nat) : IO Unit := do
   let s ← IO.ofExcept ((Parse.parseSidecar (← IO.FS.readFile sidecar)).mapError
     (s!"{sidecar}: " ++ ·))
   let interface ← IO.ofExcept ((interfaceOfAbi (← IO.FS.readFile abi)).mapError
     (s!"{abi}: " ++ ·))
-  generated s.object [s.target interface] sequences calls
+  generated s!"{s.object} ({repr level})" [s.target interface level] sequences calls
 
 end Fe.Sonatina

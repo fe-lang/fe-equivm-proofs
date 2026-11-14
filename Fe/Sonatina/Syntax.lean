@@ -75,6 +75,8 @@ inductive EvmOp where
   | calldataCopy | codeSize | codeCopy | gasPrice | extCodeSize | extCodeHash | extCodeCopy
   | returnDataSize | returnDataCopy | blockHash | coinbase | timestamp | number | prevRandao
   | gasLimit | chainId | selfBalance | baseFee | blobHash | blobBaseFee | gas | codeLoad
+  /-- The machine IR's word load and store. -/
+  | mload | mstore
   | sload | sstore | tload | tstore | keccak256 | mcopy | mstore8
   | log (topics : Nat)
   | create | create2 | call | staticCall | delegateCall
@@ -101,6 +103,8 @@ inductive Inst where
   | memzero (dest len : Operand)
   /-- `evm_malloc size`: fresh memory of `size` bytes. -/
   | malloc (size : Operand)
+  /-- `alloca T`: fresh memory for a value of type `T`. -/
+  | alloca (ty : Ty)
   /-- `sym_addr` and `sym_size` of a symbol as the IR writes it: `&embed`, `%func`, `$global`,
       or `.` for the running section. -/
   | symAddr (sym : String)
@@ -176,11 +180,72 @@ def Module.func? (m : Module) (name : String) : Option Func := m.funcs.find? (·
 
 def Func.block? (f : Func) (id : Nat) : Option Block := f.blocks.find? (·.id == id)
 
-/-- A section of compiled code: its bytes, and the place and size of each symbol it defines. -/
+/-- A slot of a block's entry stack. -/
+inductive Slot where
+  | value (id : Nat)
+  | imm (value : Nat)
+  /-- The address the function returns to. -/
+  | funcReturn
+  /-- The address an internal call returns to. -/
+  | callReturn
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- Where a value the stack does not always hold is kept. -/
+inductive SpillLocation where
+  | memory (addr : Nat)
+  | frame (slot : Nat)
+  | rematerialized
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- A block of the machine IR: the source blocks it comes from, where its code starts if it is
+    laid out, the block it is emitted as if it is only a jump, and its entry stack, top first. -/
+structure BlockHint where
+  block : Nat
+  sources : List Nat
+  offset : Option Nat
+  aliasOf : Option Nat
+  entryStack : List Slot
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- Where the late merges moved code: to a block of a function or unit, a function, a unit, or
+    an instruction no IR names. -/
+inductive CodeLabel where
+  | block (func : String) (block : Nat)
+  | func (name : String)
+  | unit (name : String)
+  | inst
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+structure FuncHint where
+  name : String
+  offset : Option Nat
+  blocks : List BlockHint
+  spills : List (Nat × SpillLocation)
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- How the backend lowered a section: the IR machine lowering read (`source`), the machine IR
+    the code is emitted from (`machine`), and what connects the machine IR to the bytes. -/
+structure Lowering where
+  source : Module
+  machine : Module
+  codeSize : Nat
+  arenaBase : Nat
+  dynBase : Nat
+  entryFreePtr : Option Nat
+  funcs : List FuncHint
+  /-- The outlined code units: name, offset and size. -/
+  units : List (String × Nat × Nat)
+  /-- Code that went to the first label goes to the second. -/
+  redirects : List (CodeLabel × CodeLabel)
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- A section of compiled code: its bytes, the place and size of each symbol it defines, and
+    how it was lowered. -/
 structure CodeSection where
   name : String
   bytecode : ByteArray
   symbols : List (String × Nat × Nat)
+  lowering : Option Lowering
 
 /-- The sidecar of an object: the module the backend compiled it from, and its sections. -/
 structure Sidecar where

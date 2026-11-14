@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "object": "FeScalarStore",
   "ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256, i256};\ntype @layout_2 = {i256, i256};\ntype @layout_3 = {i256};\ntype @layout_4 = {};\ntype @layout_5 = {@layout_4};\ntype @layout_6 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeScalarStore() {\n    block0:\n        v7.i256 = evm_call_value;\n        v29.i1 = is_zero v7;\n        br v29 block6 block5;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v10.i256 = sym_size .;\n        v11.i256 = evm_code_size;\n        v12.i1 = lt v11 v10;\n        br v12 block7 block8;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        v31.i256 = sub v11 v10;\n        v19.*i8 = evm_malloc v31;\n        v20.i256 = ptr_to_int v19 i256;\n        evm_code_copy v20 v10 v31;\n        v41.i64 = trunc v31 i64;\n        v42.i256 = zext v41 i256;\n        v43.i1 = gt 32.i256 v42;\n        br v43 block22 block23;\n\n    block22:\n        evm_revert 0.i256 0.i256;\n\n    block23:\n        v61.i1 = is_zero v31;\n        br v61 block26 block24;\n\n    block24:\n        v49.i256 = mload v20 i256;\n        v50.i1 = lt v31 32.i256;\n        br v50 block25 block26;\n\n    block25:\n        v52.i256 = shl 3.i256 v31;\n        v54.i256 = shr v52 -1.i256;\n        v55.i256 = not v54;\n        v56.i256 = and v49 v55;\n        jump block26;\n\n    block26:\n        v57.i256 = phi (0.i256 block23) (v49 block24) (v56 block25);\n        evm_sstore 0.i256 v57;\n        v2.i256 = sym_addr &FeScalarStore_runtime;\n        v3.i256 = sym_size &FeScalarStore_runtime;\n        evm_code_copy 0.i256 v2 v3;\n        evm_return 0.i256 v3;\n}\n\nfunc private %contract_runtime_root_FeScalarStore() {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i1 = lt v1 4.i256;\n        br v2 block3 block2;\n\n    block2:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        v7.i32 = trunc v6 i32;\n        br_table v7 block3 (1627277233.i32 block7) (1833756220.i32 block13);\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block7:\n        v12.i256 = evm_call_value;\n        v13.i1 = is_zero v12;\n        br v13 block9 block8;\n\n    block8:\n        evm_revert 0.i256 0.i256;\n\n    block9:\n        v14.i256 = evm_calldata_size;\n        v15.i64 = trunc v14 i64;\n        v16.i256 = zext v15 i256;\n        v17.i256 = sub v16 4.i256;\n        v19.i1 = slt v17 32.i256;\n        br v19 block10 block11;\n\n    block10:\n        evm_revert 0.i256 0.i256;\n\n    block11:\n        v20.i256 = evm_calldata_load 4.i256;\n        evm_sstore 0.i256 v20;\n        evm_return 0.i256 0.i256;\n\n    block13:\n        v21.i256 = evm_call_value;\n        v22.i1 = is_zero v21;\n        br v22 block15 block14;\n\n    block14:\n        evm_revert 0.i256 0.i256;\n\n    block15:\n        v23.i256 = evm_sload 0.i256;\n        v28.*i8 = evm_malloc 32.i256;\n        v29.i256 = ptr_to_int v28 i256;\n        mstore v29 v23 i256;\n        evm_return v29 32.i256;\n}\n\n\nobject @FeScalarStore {\n    section init {\n        entry %contract_init_root_FeScalarStore;\n        embed .runtime as &FeScalarStore_runtime;\n    }\n    section runtime {\n        entry %contract_runtime_root_FeScalarStore;\n    }\n}\n",
   "sections": [
@@ -21,7 +22,142 @@
           "offset": 53,
           "size": 80
         }
-      ]
+      ],
+      "lowering": {
+        "source_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256, i256};\ntype @layout_2 = {i256, i256};\ntype @layout_3 = {i256};\ntype @layout_4 = {};\ntype @layout_5 = {@layout_4};\ntype @layout_6 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeScalarStore() {\n    block0:\n        v7.i256 = evm_call_value;\n        v29.i1 = is_zero v7;\n        br v29 block6 block5;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v10.i256 = sym_size .;\n        v11.i256 = evm_code_size;\n        v12.i1 = lt v11 v10;\n        br v12 block7 block8;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        v31.i256 = sub v11 v10;\n        v19.*i256 = evm_malloc v31;\n        v20.i256 = ptr_to_int v19 i256;\n        evm_code_copy v20 v10 v31;\n        v43.i1 = gt 32.i256 v31;\n        br v43 block22 block23;\n\n    block22:\n        evm_revert 0.i256 0.i256;\n\n    block23:\n        v49.i256 = mload v20 i256;\n        evm_sstore 0.i256 v49;\n        v2.i256 = sym_addr &FeScalarStore_runtime;\n        v3.i256 = sym_size &FeScalarStore_runtime;\n        evm_code_copy 0.i256 v2 v3;\n        evm_return 0.i256 v3;\n}\n\n",
+        "machine_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256, i256};\ntype @layout_2 = {i256, i256};\ntype @layout_3 = {i256};\ntype @layout_4 = {};\ntype @layout_5 = {@layout_4};\ntype @layout_6 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeScalarStore() {\n    block0:\n        v0.i256 = evm_call_value;\n        br v0 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v3.i256 = sym_size .;\n        v4.i256 = evm_code_size;\n        v5.i256 = lt v4 v3;\n        br v5 block3 block4;\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block4:\n        v6.i256 = sub v4 v3;\n        evm_code_copy 96.i256 v3 v6;\n        v9.i256 = gt 32.i256 v6;\n        br v9 block5 block6;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v10.i256 = evm_mload 96.i256;\n        evm_sstore 0.i256 v10;\n        v11.i256 = sym_addr &FeScalarStore_runtime;\n        v12.i256 = sym_size &FeScalarStore_runtime;\n        evm_code_copy 0.i256 v11 v12;\n        evm_return 0.i256 v12;\n}\n\n",
+        "code_size": 53,
+        "arena_base": 96,
+        "dyn_base": 96,
+        "entry_free_ptr": 96,
+        "funcs": [
+          {
+            "name": "contract_init_root_FeScalarStore",
+            "offset": 0,
+            "blocks": [
+              {
+                "block": 0,
+                "sources": [
+                  0
+                ],
+                "offset": 0,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 1,
+                "sources": [
+                  5
+                ],
+                "offset": 10,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 2,
+                "sources": [
+                  6
+                ],
+                "offset": 14,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 3,
+                "sources": [
+                  7
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 4,
+                "sources": [
+                  8
+                ],
+                "offset": 24,
+                "alias": null,
+                "entry_stack": [
+                  {
+                    "value": 4
+                  },
+                  {
+                    "value": 3
+                  }
+                ]
+              },
+              {
+                "block": 5,
+                "sources": [
+                  22
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 6,
+                "sources": [
+                  23
+                ],
+                "offset": 38,
+                "alias": null,
+                "entry_stack": []
+              }
+            ],
+            "spills": [],
+            "frame": {
+              "stable": "none",
+              "scratch_words": 0,
+              "stable_words": 0
+            },
+            "mallocs": [
+              {
+                "value": 19,
+                "placement": {
+                  "heap": {
+                    "min_base": 96,
+                    "exact_base": 96,
+                    "update_free_ptr": false
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "units": [],
+        "redirects": [
+          {
+            "from": {
+              "block": {
+                "func": "contract_init_root_FeScalarStore",
+                "block": 5
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_init_root_FeScalarStore",
+                "block": 1
+              }
+            }
+          },
+          {
+            "from": {
+              "block": {
+                "func": "contract_init_root_FeScalarStore",
+                "block": 3
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_init_root_FeScalarStore",
+                "block": 1
+              }
+            }
+          }
+        ]
+      }
     },
     {
       "name": "runtime",
@@ -37,7 +173,188 @@
           "offset": 0,
           "size": 80
         }
-      ]
+      ],
+      "lowering": {
+        "source_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256, i256};\ntype @layout_2 = {i256, i256};\ntype @layout_3 = {i256};\ntype @layout_4 = {};\ntype @layout_5 = {@layout_4};\ntype @layout_6 = {i256, i256, i256};\n\nfunc private %contract_runtime_root_FeScalarStore() {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i1 = lt v1 4.i256;\n        br v2 block16 block2;\n\n    block2:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        br_table v6 block17 (1627277233.i256 block7) (1833756220.i256 block13);\n\n    block16:\n        jump block3;\n\n    block17:\n        jump block3;\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block7:\n        v12.i256 = evm_call_value;\n        v13.i1 = is_zero v12;\n        br v13 block9 block8;\n\n    block8:\n        evm_revert 0.i256 0.i256;\n\n    block9:\n        v14.i256 = evm_calldata_size;\n        v17.i256 = sub v14 4.i256;\n        v19.i1 = slt v17 32.i256;\n        br v19 block10 block11;\n\n    block10:\n        evm_revert 0.i256 0.i256;\n\n    block11:\n        v20.i256 = evm_calldata_load 4.i256;\n        evm_sstore 0.i256 v20;\n        evm_return 0.i256 0.i256;\n\n    block13:\n        v21.i256 = evm_call_value;\n        v22.i1 = is_zero v21;\n        br v22 block15 block14;\n\n    block14:\n        evm_revert 0.i256 0.i256;\n\n    block15:\n        v23.i256 = evm_sload 0.i256;\n        mstore 0.i256 v23 i256;\n        evm_return 0.i256 32.i256;\n}\n\n",
+        "machine_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256, i256};\ntype @layout_2 = {i256, i256};\ntype @layout_3 = {i256};\ntype @layout_4 = {};\ntype @layout_5 = {@layout_4};\ntype @layout_6 = {i256, i256, i256};\n\nfunc private %contract_runtime_root_FeScalarStore() {\n    block0:\n        v0.i256 = evm_calldata_size;\n        v2.i256 = lt v0 4.i256;\n        br v2 block13 block1;\n\n    block1:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        br_table v6 block14 (1627277233.i256 block5) (1833756220.i256 block10);\n\n    block13:\n        jump block4;\n\n    block14:\n        jump block4;\n\n    block4:\n        evm_revert 0.i256 0.i256;\n\n    block5:\n        v9.i256 = evm_call_value;\n        br v9 block6 block7;\n\n    block6:\n        evm_revert 0.i256 0.i256;\n\n    block7:\n        v11.i256 = evm_calldata_size;\n        v12.i256 = sub v11 4.i256;\n        v14.i256 = slt v12 32.i256;\n        br v14 block8 block9;\n\n    block8:\n        evm_revert 0.i256 0.i256;\n\n    block9:\n        v15.i256 = evm_calldata_load 4.i256;\n        evm_sstore 0.i256 v15;\n        evm_return 0.i256 0.i256;\n\n    block10:\n        v16.i256 = evm_call_value;\n        br v16 block11 block12;\n\n    block11:\n        evm_revert 0.i256 0.i256;\n\n    block12:\n        v18.i256 = evm_sload 0.i256;\n        evm_mstore 0.i256 v18;\n        evm_return 0.i256 32.i256;\n}\n\n",
+        "code_size": 80,
+        "arena_base": 0,
+        "dyn_base": 0,
+        "entry_free_ptr": null,
+        "funcs": [
+          {
+            "name": "contract_runtime_root_FeScalarStore",
+            "offset": 0,
+            "blocks": [
+              {
+                "block": 0,
+                "sources": [
+                  0
+                ],
+                "offset": 0,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 1,
+                "sources": [
+                  2
+                ],
+                "offset": 8,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 13,
+                "sources": [],
+                "offset": null,
+                "alias": 4,
+                "entry_stack": []
+              },
+              {
+                "block": 14,
+                "sources": [],
+                "offset": null,
+                "alias": 4,
+                "entry_stack": []
+              },
+              {
+                "block": 4,
+                "sources": [
+                  3
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 5,
+                "sources": [
+                  7
+                ],
+                "offset": 36,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 6,
+                "sources": [
+                  8
+                ],
+                "offset": 42,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 7,
+                "sources": [
+                  9
+                ],
+                "offset": 46,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 8,
+                "sources": [
+                  10
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 9,
+                "sources": [
+                  11
+                ],
+                "offset": 59,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 10,
+                "sources": [
+                  13
+                ],
+                "offset": 67,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 11,
+                "sources": [
+                  14
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 12,
+                "sources": [
+                  15
+                ],
+                "offset": 72,
+                "alias": null,
+                "entry_stack": []
+              }
+            ],
+            "spills": [],
+            "frame": {
+              "stable": "none",
+              "scratch_words": 0,
+              "stable_words": 0
+            },
+            "mallocs": []
+          }
+        ],
+        "units": [],
+        "redirects": [
+          {
+            "from": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 4
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 6
+              }
+            }
+          },
+          {
+            "from": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 11
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 6
+              }
+            }
+          },
+          {
+            "from": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 8
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_runtime_root_FeScalarStore",
+                "block": 6
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }

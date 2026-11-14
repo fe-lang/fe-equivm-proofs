@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "object": "FeConstant",
   "ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256};\ntype @layout_2 = {};\ntype @layout_3 = {@layout_2};\ntype @layout_4 = {i256, i256};\ntype @layout_5 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeConstant() {\n    block0:\n        v5.i256 = evm_call_value;\n        v8.i1 = is_zero v5;\n        br v8 block2 block5;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v2.i256 = sym_addr &FeConstant_runtime;\n        v3.i256 = sym_size &FeConstant_runtime;\n        evm_code_copy 0.i256 v2 v3;\n        evm_return 0.i256 v3;\n}\n\nfunc private %contract_runtime_root_FeConstant() {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i1 = lt v1 4.i256;\n        br v2 block3 block2;\n\n    block2:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        v7.i32 = trunc v6 i32;\n        br_table v7 block3 (-2051310231.i32 block6);\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v11.i256 = evm_call_value;\n        v12.i1 = is_zero v11;\n        br v12 block8 block7;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        v18.*i8 = evm_malloc 32.i256;\n        v19.i256 = ptr_to_int v18 i256;\n        mstore v19 42.i256 i256;\n        evm_return v19 32.i256;\n}\n\n\nobject @FeConstant {\n    section init {\n        entry %contract_init_root_FeConstant;\n        embed .runtime as &FeConstant_runtime;\n    }\n    section runtime {\n        entry %contract_runtime_root_FeConstant;\n    }\n}\n",
   "sections": [
@@ -21,7 +22,59 @@
           "offset": 19,
           "size": 45
         }
-      ]
+      ],
+      "lowering": {
+        "source_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256};\ntype @layout_2 = {};\ntype @layout_3 = {@layout_2};\ntype @layout_4 = {i256, i256};\ntype @layout_5 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeConstant() {\n    block0:\n        v5.i256 = evm_call_value;\n        v8.i1 = is_zero v5;\n        br v8 block2 block5;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v2.i256 = sym_addr &FeConstant_runtime;\n        v3.i256 = sym_size &FeConstant_runtime;\n        evm_code_copy 0.i256 v2 v3;\n        evm_return 0.i256 v3;\n}\n\n",
+        "machine_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256};\ntype @layout_2 = {};\ntype @layout_3 = {@layout_2};\ntype @layout_4 = {i256, i256};\ntype @layout_5 = {i256, i256, i256};\n\nfunc private %contract_init_root_FeConstant() {\n    block0:\n        v0.i256 = evm_call_value;\n        br v0 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v2.i256 = sym_addr &FeConstant_runtime;\n        v3.i256 = sym_size &FeConstant_runtime;\n        evm_code_copy 0.i256 v2 v3;\n        evm_return 0.i256 v3;\n}\n\n",
+        "code_size": 19,
+        "arena_base": 0,
+        "dyn_base": 0,
+        "entry_free_ptr": null,
+        "funcs": [
+          {
+            "name": "contract_init_root_FeConstant",
+            "offset": 0,
+            "blocks": [
+              {
+                "block": 0,
+                "sources": [
+                  0
+                ],
+                "offset": 0,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 1,
+                "sources": [
+                  5
+                ],
+                "offset": 5,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 2,
+                "sources": [
+                  2
+                ],
+                "offset": 8,
+                "alias": null,
+                "entry_stack": []
+              }
+            ],
+            "spills": [],
+            "frame": {
+              "stable": "none",
+              "scratch_words": 0,
+              "stable_words": 0
+            },
+            "mallocs": []
+          }
+        ],
+        "units": [],
+        "redirects": []
+      }
     },
     {
       "name": "runtime",
@@ -37,7 +90,115 @@
           "offset": 0,
           "size": 45
         }
-      ]
+      ],
+      "lowering": {
+        "source_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256};\ntype @layout_2 = {};\ntype @layout_3 = {@layout_2};\ntype @layout_4 = {i256, i256};\ntype @layout_5 = {i256, i256, i256};\n\nfunc private %contract_runtime_root_FeConstant() {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i1 = lt v1 4.i256;\n        br v2 block9 block2;\n\n    block2:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        br_table v6 block10 (2243657065.i256 block6);\n\n    block9:\n        jump block3;\n\n    block10:\n        jump block3;\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v11.i256 = evm_call_value;\n        v12.i1 = is_zero v11;\n        br v12 block8 block7;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        mstore 0.i256 42.i256 i256;\n        evm_return 0.i256 32.i256;\n}\n\n",
+        "machine_ir": "target = \"evm-ethereum-osaka\"\n\ntype @layout_0 = {i256};\ntype @layout_1 = {i256};\ntype @layout_2 = {};\ntype @layout_3 = {@layout_2};\ntype @layout_4 = {i256, i256};\ntype @layout_5 = {i256, i256, i256};\n\nfunc private %contract_runtime_root_FeConstant() {\n    block0:\n        v0.i256 = evm_calldata_size;\n        v2.i256 = lt v0 4.i256;\n        br v2 block8 block1;\n\n    block1:\n        v4.i256 = evm_calldata_load 0.i256;\n        v6.i256 = shr 224.i256 v4;\n        br_table v6 block9 (2243657065.i256 block5);\n\n    block8:\n        jump block4;\n\n    block9:\n        jump block4;\n\n    block4:\n        evm_revert 0.i256 0.i256;\n\n    block5:\n        v8.i256 = evm_call_value;\n        br v8 block6 block7;\n\n    block6:\n        evm_revert 0.i256 0.i256;\n\n    block7:\n        evm_mstore 0.i256 42.i256;\n        evm_return 0.i256 32.i256;\n}\n\n",
+        "code_size": 45,
+        "arena_base": 0,
+        "dyn_base": 0,
+        "entry_free_ptr": null,
+        "funcs": [
+          {
+            "name": "contract_runtime_root_FeConstant",
+            "offset": 0,
+            "blocks": [
+              {
+                "block": 0,
+                "sources": [
+                  0
+                ],
+                "offset": 0,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 1,
+                "sources": [
+                  2
+                ],
+                "offset": 8,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 8,
+                "sources": [],
+                "offset": null,
+                "alias": 4,
+                "entry_stack": []
+              },
+              {
+                "block": 9,
+                "sources": [],
+                "offset": null,
+                "alias": 4,
+                "entry_stack": []
+              },
+              {
+                "block": 4,
+                "sources": [
+                  3
+                ],
+                "offset": null,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 5,
+                "sources": [
+                  6
+                ],
+                "offset": 26,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 6,
+                "sources": [
+                  7
+                ],
+                "offset": 32,
+                "alias": null,
+                "entry_stack": []
+              },
+              {
+                "block": 7,
+                "sources": [
+                  8
+                ],
+                "offset": 36,
+                "alias": null,
+                "entry_stack": []
+              }
+            ],
+            "spills": [],
+            "frame": {
+              "stable": "none",
+              "scratch_words": 0,
+              "stable_words": 0
+            },
+            "mallocs": []
+          }
+        ],
+        "units": [],
+        "redirects": [
+          {
+            "from": {
+              "block": {
+                "func": "contract_runtime_root_FeConstant",
+                "block": 4
+              }
+            },
+            "to": {
+              "block": {
+                "func": "contract_runtime_root_FeConstant",
+                "block": 6
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }
