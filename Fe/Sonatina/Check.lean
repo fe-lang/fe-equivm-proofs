@@ -184,6 +184,12 @@ def evmEventOpcode : EvmOp → Option Operation
   | .log 4 => some .LOG4
   | _ => none
 
+/-- The value a statement defines, if one, with its instruction. -/
+def _root_.Fe.Sonatina.Stmt.def? (s : Stmt) : Option (Nat × Inst) :=
+  match s.dsts with
+  | [(id, _)] => some (id, s.inst)
+  | _ => none
+
 /-- What the checker knows of a machine block: its function, the statement defining each
     value of the block, and the section's symbols. -/
 structure Ctx where
@@ -194,10 +200,7 @@ structure Ctx where
 /-- The context of block `b`: only its own values are expanded, so a value of another block is
     the word the run of the IR holds for it when `b` runs. -/
 def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) : Ctx :=
-  ⟨f, b.body.filterMap fun s =>
-    match s.dsts with
-    | [(id, _)] => some (id, s.inst)
-    | _ => none, symbols⟩
+  ⟨f, b.body.filterMap Stmt.def?, symbols⟩
 
 /-- The expression of an operand, given that of a value; an immediate must be a word. -/
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
@@ -244,25 +247,28 @@ def Ctx.eventOf (c : Ctx) (depth : Nat) : Inst → Option (Operation × List Exp
 /-- The bound on the depth of an expression. -/
 def depth : Nat := 64
 
+/-- The event of a statement: none if it is pure, `none` itself if it is outside the class. -/
+def Ctx.eventOfStmt (c : Ctx) (s : Stmt) : Option (Option Event) :=
+  match c.pureExpr depth s.inst, c.eventOf depth s.inst with
+  | some _, _ =>
+    -- A pure instruction defines one value, an EVM one on as many operands as it pops.
+    let arity := match s.inst with
+      | .evm op args => (evmPureOpcode op).all fun o => δ o == some args.length
+      | _ => true
+    if s.dsts.length == 1 && arity then some none else none
+  | none, some (op, args) =>
+    -- An event pops as many operands as the IR gives it, and a read defines its word.
+    if δ op != some args.length then none else
+    match s.dsts, readOps.contains op with
+    | [], false => some (some ⟨op, args, none⟩)
+    | [(id, _)], true => some (some ⟨op, args, some id⟩)
+    | _, _ => none
+  | none, none => none
+
 /-- The events of a block's statements, in order, or `none` if a statement is outside the class:
     each is pure, or an event that defines at most one value. -/
 def Ctx.events (c : Ctx) (b : Block) : Option (List Event) :=
-  b.body.filterMapM fun s => do
-    match c.pureExpr depth s.inst, c.eventOf depth s.inst with
-    | some _, _ =>
-      -- A pure instruction defines one value, an EVM one on as many operands as it pops.
-      let arity := match s.inst with
-        | .evm op args => (evmPureOpcode op).all fun o => δ o == some args.length
-        | _ => true
-      if s.dsts.length == 1 && arity then pure none else none
-    | none, some (op, args) =>
-      -- An event pops as many operands as the IR gives it.
-      if δ op != some args.length then none else
-      match s.dsts with
-      | [] => pure (some ⟨op, args, none⟩)
-      | [(id, _)] => pure (some ⟨op, args, some id⟩)
-      | _ => none
-    | none, none => none
+  b.body.filterMapM c.eventOfStmt
 
 /-- How a block ends, as the bytes must end it. -/
 inductive Exit where
