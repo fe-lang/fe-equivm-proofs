@@ -553,6 +553,32 @@ def inClass (f : FuncHint) : Bool :=
   f.spills.isEmpty && !f.frame.dynamicFrame && !f.frame.lazyFrame && !f.frame.dynSpInit &&
     f.frame.callPreserves == 0
 
+/-- Block `b` of the section's one function matches its bytes, from its offset and planned
+    entry stack, the entry block's events led by the free pointer's store. -/
+def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func)
+    (entryBlock : Block) (place : Nat → Option Nat) (rank : Nat → Nat) (b : Block) :
+    Except String Unit := do
+  let c := Ctx.ofBlock f b code.symbols
+  let some h := hint.blocks.find? (·.block == b.id) | throw s!"block{b.id} has no hint"
+  let some pc := place b.id | throw s!"block{b.id} has no place"
+  let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
+  let some events := c.events b | throw s!"block{b.id}: an instruction outside the class"
+  let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
+  if b.id == entryBlock.id then
+    unless stack.isEmpty do throw "the entry block's entry stack is not empty"
+  let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
+  unless defined f b entryValues do throw s!"block{b.id} reads a value not defined before"
+  -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
+  unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
+    throw s!"block{b.id} reaches a successor at its own offset and no lower"
+  -- The section entry's code stores the initial free pointer first.
+  let events := match low.entryFreePtr, b.id == entryBlock.id with
+    | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
+    | _, _ => events
+  unless run code.bytecode c hint.blocks place b.id (2 * low.codeSize + 2)
+      ⟨pc, stack, events, exit⟩ do
+    throw s!"block{b.id} at {pc} does not match its bytes"
+
 /-- Every block of the section's one function matches its bytes, the entry block at offset 0
     with an empty entry stack. -/
 def checkSection (code : CodeSection) (entry : String) : Except String Unit := do
@@ -573,27 +599,7 @@ def checkSection (code : CodeSection) (entry : String) : Except String Unit := d
   let place (b : Nat) := Hints.place low 16 (.block hint.name b)
   unless place entryBlock.id == some 0 do throw "the entry block is not at offset 0"
   let rank := zeroRank f place f.blocks.length
-  for b in f.blocks do
-    let c := Ctx.ofBlock f b code.symbols
-    let some h := hint.blocks.find? (·.block == b.id) | throw s!"block{b.id} has no hint"
-    let some pc := place b.id | throw s!"block{b.id} has no place"
-    let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
-    let some events := c.events b | throw s!"block{b.id}: an instruction outside the class"
-    let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
-    if b.id == entryBlock.id then
-      unless stack.isEmpty do throw "the entry block's entry stack is not empty"
-    let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
-    unless defined f b entryValues do throw s!"block{b.id} reads a value not defined before"
-    -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
-    unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
-      throw s!"block{b.id} reaches a successor at its own offset and no lower"
-    -- The section entry's code stores the initial free pointer first.
-    let events := match low.entryFreePtr, b.id == entryBlock.id with
-      | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
-      | _, _ => events
-    unless run code.bytecode c hint.blocks place b.id (2 * low.codeSize + 2)
-        ⟨pc, stack, events, exit⟩ do
-      throw s!"block{b.id} at {pc} does not match its bytes"
+  f.blocks.forM (checkBlock code low hint f entryBlock place rank)
 
 /-- The entry function of each section of the sidecar's object. -/
 def entries (s : Sidecar) : List (String × String) :=
