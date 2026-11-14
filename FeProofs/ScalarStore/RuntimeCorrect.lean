@@ -153,7 +153,7 @@ theorem set_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 
       simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I w hlo hfits, hshort,
         recv0_arm1_eq, Model.set, Model.storedSlot, exec_sstore, hperm, returnNone_exec]),
       runtime_set hlo h0 hwv hgood hperm]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I w hlo hfits, hshort,
         recv0_arm1_eq, Model.set, exec_sstore, hperm]),
@@ -219,7 +219,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   rw [if_pos hwv, init_eq]
   by_cases hperm : I.perm = true
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, hperm]
-    exact .ok_ok rfl rfl
+    exact .ok_ok rfl rfl rfl
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, hperm]
     exact .exit _
 

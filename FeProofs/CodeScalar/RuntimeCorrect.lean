@@ -162,7 +162,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   rw [M.exec_bind, initEntry_exec I w v hmem]
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [if_pos hwv, init_ok out v hwv]
-    exact .ok_ok rfl rfl
+    exact .ok_ok rfl rfl rfl
   · rw [if_neg hwv, init_value out hwv]
     exact .exit _
 

@@ -375,7 +375,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   by_cases hperm : I.perm = true
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, exec_emit,
       hperm]
-    exact .ok_ok rfl rfl
+    exact .ok_ok rfl rfl rfl
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, hperm]
     exact .exit _
 

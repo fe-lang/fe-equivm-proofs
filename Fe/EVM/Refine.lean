@@ -45,14 +45,17 @@ def Agrees (p : Profile) (evm : EvmResult) :
   | some (.error .oob) => evm = .error .InvalidMemoryAccess
 
 /-- One model run ends as another does: with the same exit, or successfully with the same return
-    data, accounts and logs, whether each returns or stops.  Memory may differ. -/
+    data, accounts, logs and recorded calls, whether each returns or stops.  Memory may
+    differ. -/
 inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
     Option (Except (Exit World) (ByteArray × World)) → Prop
   | stop_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
-      (hl : w'.logs = w.logs) : EndsAs (some (.error (.stop out w'))) (some (.ok (out, w)))
+      (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
+      EndsAs (some (.error (.stop out w'))) (some (.ok (out, w)))
   | exit (f : Exit World) : EndsAs (some (.error f)) (some (.error f))
   | ok_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
-      (hl : w'.logs = w.logs) : EndsAs (some (.ok (out, w'))) (some (.ok (out, w)))
+      (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
+      EndsAs (some (.ok (out, w'))) (some (.ok (out, w)))
   | diverge : EndsAs none none
 
 /-- A result that agrees with a run agrees with any run that ends as it does. -/
@@ -60,9 +63,9 @@ theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
     {a b : Option (Except (Exit World) (ByteArray × World))} (h : EndsAs a b)
     (hb : Agrees p evm b) : Agrees p evm a := by
   cases h with
-  | stop_ok ha hl => simpa only [Agrees, ha, hl] using hb
+  | stop_ok ha hl _ => simpa only [Agrees, ha, hl] using hb
   | exit f => exact hb
-  | ok_ok ha hl => simpa only [Agrees, ha, hl] using hb
+  | ok_ok ha hl _ => simpa only [Agrees, ha, hl] using hb
   | diverge => exact hb
 
 /-- A contract's model.  The deployed code is the runtime bytecode followed by the words of the
@@ -191,19 +194,27 @@ def Succeeds (r : Option (Except (Exit World) (ByteArray × World))) (out : Byte
     (w : World) : Prop :=
   r = some (.ok (out, w)) ∨ r = some (.error (.stop out w))
 
+/-- A run that ends as another does succeeds when it does, with the same accounts and recorded
+    calls. -/
+theorem EndsAs.succeeds_calls {a b : Option (Except (Exit World) (ByteArray × World))}
+    (h : EndsAs a b) {out : ByteArray} {w' : World} (ha : Succeeds a out w') :
+    ∃ w, Succeeds b out w ∧ w.accounts = w'.accounts ∧ w.calls = w'.calls := by
+  cases h with
+  | stop_ok hacc _ hc =>
+    rcases ha with ha | ha <;> cases ha
+    exact ⟨_, Or.inl rfl, hacc.symm, hc.symm⟩
+  | exit f => exact ⟨w', ha.imp (fun h => by cases h) id, rfl, rfl⟩
+  | ok_ok hacc _ hc =>
+    rcases ha with ha | ha <;> cases ha
+    exact ⟨_, Or.inl rfl, hacc.symm, hc.symm⟩
+  | diverge => rcases ha with ha | ha <;> cases ha
+
 /-- A run that ends as another does succeeds when it does, with the same accounts. -/
 theorem EndsAs.succeeds {a b : Option (Except (Exit World) (ByteArray × World))}
     (h : EndsAs a b) {out : ByteArray} {w' : World} (ha : Succeeds a out w') :
     ∃ w, Succeeds b out w ∧ w.accounts = w'.accounts := by
-  cases h with
-  | stop_ok hacc _ =>
-    rcases ha with ha | ha <;> cases ha
-    exact ⟨_, Or.inl rfl, hacc.symm⟩
-  | exit f => exact ⟨w', ha.imp (fun h => by cases h) id, rfl⟩
-  | ok_ok hacc _ =>
-    rcases ha with ha | ha <;> cases ha
-    exact ⟨_, Or.inl rfl, hacc.symm⟩
-  | diverge => rcases ha with ha | ha <;> cases ha
+  obtain ⟨w, hw, hacc, -⟩ := h.succeeds_calls ha
+  exact ⟨w, hw, hacc⟩
 
 /-- A property of the accounts every successful model run ends with, shown for every feed,
     holds of the accounts a successful EVM run ends with, when it runs out of gas or of stack

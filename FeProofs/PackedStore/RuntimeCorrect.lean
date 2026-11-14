@@ -133,7 +133,7 @@ theorem get0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
           rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
     simp [get0Arm, exec_nonPayable, hwv, get0_exec I w (by omega)]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .revert ByteArray.empty) (by
       simp [recv0_arm0_entry, exec_nonPayable, hwv])]
     simp [get0Arm, exec_nonPayable, hwv]
@@ -149,7 +149,7 @@ theorem get1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
           rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
     simp [get1Arm, exec_nonPayable, hwv, get1_exec I w (by omega)]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .revert ByteArray.empty) (by
       simp [recv0_arm1_entry, exec_nonPayable, hwv])]
     simp [get1Arm, exec_nonPayable, hwv]
@@ -177,7 +177,7 @@ theorem set0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.
       simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
         set0_exec I w _ (by omega), hperm, returnNone_exec])]
     simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec I w _ (by omega), hperm]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
         set0_exec I w _ (by omega), hperm])]
@@ -206,7 +206,7 @@ theorem set1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.
       simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
         set1_exec I w _ (by omega), hperm, returnNone_exec])]
     simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec I w _ (by omega), hperm]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
         set1_exec I w _ (by omega), hperm])]
@@ -237,7 +237,7 @@ theorem setBoth_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤
       simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
         setBoth_exec I w _ _ (by omega), hperm, returnNone_exec])]
     simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec I w _ _ (by omega), hperm]
-    exact .stop_ok rfl rfl
+    exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
       simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
         setBoth_exec I w _ _ (by omega), hperm])]

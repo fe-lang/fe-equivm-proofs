@@ -376,7 +376,7 @@ theorem maxWord_eq : UInt256.ofNat (UInt256.size - 1) =
 macro "alike" : tactic =>
   `(tactic| first
     | exact Alike.exit _
-    | (refine Alike.ok rfl rfl ?_; simp only [keyed_size, returned_size, ByteArray.size_empty]
+    | (refine Alike.ok rfl rfl rfl ?_; simp only [keyed_size, returned_size, ByteArray.size_empty]
        omega))
 
 section TransferFrom
@@ -777,7 +777,7 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
     · simp [Model.stringReturn, hd,
         show 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 from h64,
         show 64 + 32 * ((L + 31) / 32) < 18446744073709551616 by omega]
-      exact .stop_ok rfl rfl
+      exact .stop_ok rfl rfl rfl
     · simp [Model.stringReturn, hd,
         show ¬ 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 from h64,
         show ¬ 64 + 32 * ((L + 31) / 32) < 18446744073709551616 by omega]
@@ -1029,7 +1029,7 @@ theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty)
   · simp [hb1]
     exact .exit _
   simp [hb1, writeDecimals_exec, exec_sstore, hperm]
-  exact .ok_ok rfl rfl
+  exact .ok_ok rfl rfl rfl
 
 end Constructor
 
