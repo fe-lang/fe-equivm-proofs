@@ -50,8 +50,8 @@ files the two are the same text. FeConstant and FeScalarStore have no committed 
 `EvmCompile` that produces the bytecode, right before `compile()`, and writes it with the bytes and
 symbol table of each section of the result (`<Contract>.sidecar.json`). The fixtures here are such
 files, from the `sidecar` branch, whose Sonatina pin is `aa5244d43`'s: FeConstant, FeScalarStore
-and the deposit contract compile to the pinned bytecode, FeERC20 does not (it is pinned at an older
-Fe).
+and the deposit contract compile to the pinned bytecode. FeERC20 compiles to the bytecode of
+`FeProofs/ERC20/P1/`, not to `FeProofs/ERC20`'s, which an older Fe compiled.
 
 ## The subset and its semantics
 
@@ -403,6 +403,14 @@ machine IR through the hand-written model, and `RefinesOn.of_implements` and
 `RefinesDeploy.of_implements` for the pinned runtime and creation bytecode at `P1`
 (`feScalarStoreRefinesExportedP1`, `feScalarStoreDeployRefinesExportedP1`), with no
 `native_decide`.
+
+FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the bytecode of `FeProofs/ERC20/P1/`
+(`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`). `ir_dispatch` takes the runtime
+from its entry to the block of the selector's arm, one lemma per arm runs that block to its end
+against the arm of the exported contract from any environment, and `runtime_endsAs` composes them.
+The runtime certificate depends on one `native_decide`, `EVM.twoPow 160 ≠ 0` in
+`shiftRight160_ne_zero` (`FeProofs/Common/Abi.lean`), through the exported model's address
+decoders.
 
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
