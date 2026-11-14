@@ -6,13 +6,21 @@ import Fe.Sonatina.Hints
 `check s` decides that each section of the sidecar `s` is emitted from its machine IR, for the
 class of sections the first checker covers: one function a section (no internal calls), no
 memory spills, no dynamic frames, no dynamic stack pointer, no call preserves, every value and
-immediate a word (as the EVM computes on words), and only the instructions `exprOf`, `eventOf`
-and `haltOf` translate.  The hints are inputs: a wrong one makes
-`check` false.
+immediate a word (as the EVM computes on words), and only the instructions `pureWith`,
+`eventWith` and `exitOf` translate.  The hints are inputs: a wrong one makes `check` false.
+
+The machine IR is the specification, so the checker also makes sure its run never gets stuck
+where the bytes go on: each value is defined once, each read reads a value defined before it
+(the block's entry stack, its phis, or an earlier statement of the block: `defined`), each
+successor's phis have an operand from the block, a pure instruction defines one value, the
+entry function takes no parameters and its entry block has no phis and no predecessor.  A block
+may go to a successor whose code starts at its own offset, which the bytes reach in no step,
+only down a chain that ends (`zeroRank`).
 
 For each machine block `B`, it runs two symbolic executions into one language of words:
-- the machine IR's instructions of `B`, as expressions over the values that are not pure
-  (block parameters, phis and reads), each pure value expanded to its definition;
+- the machine IR's instructions of `B`, as expressions over the values `B` does not compute
+  purely (those of other blocks, its phis and its reads), each pure value of `B` expanded to
+  its definition;
 - the bytes from `B`'s offset, starting from `B`'s planned entry stack: `PUSH`, `DUP`, `SWAP`,
   `POP` and `JUMPDEST` move expressions, a pure opcode builds one, every read or write of state
   must be the IR's next event with equal operands, and every jump either leaves for the
@@ -176,15 +184,17 @@ def evmEventOpcode : EvmOp → Option Operation
   | .log 4 => some .LOG4
   | _ => none
 
-/-- What the checker knows of a machine function: its blocks, the statement defining each
-    value, and the section's symbols. -/
+/-- What the checker knows of a machine block: its function, the statement defining each
+    value of the block, and the section's symbols. -/
 structure Ctx where
   func : Func
   defs : List (Nat × Inst)
   symbols : List (String × Nat × Nat)
 
-def Ctx.ofFunc (f : Func) (symbols : List (String × Nat × Nat)) : Ctx :=
-  ⟨f, f.blocks.flatMap fun b => b.body.filterMap fun s =>
+/-- The context of block `b`: only its own values are expanded, so a value of another block is
+    the word the run of the IR holds for it when `b` runs. -/
+def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) : Ctx :=
+  ⟨f, b.body.filterMap fun s =>
     match s.dsts with
     | [(id, _)] => some (id, s.inst)
     | _ => none, symbols⟩
@@ -239,7 +249,12 @@ def depth : Nat := 64
 def Ctx.events (c : Ctx) (b : Block) : Option (List Event) :=
   b.body.filterMapM fun s => do
     match c.pureExpr depth s.inst, c.eventOf depth s.inst with
-    | some _, _ => pure none
+    | some _, _ =>
+      -- A pure instruction defines one value, an EVM one on as many operands as it pops.
+      let arity := match s.inst with
+        | .evm op args => (evmPureOpcode op).all fun o => δ o == some args.length
+        | _ => true
+      if s.dsts.length == 1 && arity then pure none else none
     | none, some (op, args) =>
       match s.dsts with
       | [] => pure (some ⟨op, args, none⟩)
@@ -452,6 +467,74 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
         | _ => false
       else false
 
+/-- The value an operand reads, if any. -/
+def _root_.Fe.Sonatina.Operand.var? : Operand → Option Nat
+  | .var id => some id
+  | _ => none
+
+/-- The operands of an instruction of the class. -/
+def _root_.Fe.Sonatina.Inst.operands : Inst → List Operand
+  | .bin _ a b | .cmp _ a b => [a, b]
+  | .isZero a | .not a => [a]
+  | .evm _ args => args
+  | _ => []
+
+/-- The operands of a terminator. -/
+def _root_.Fe.Sonatina.Term.operands : Term → List Operand
+  | .br c _ _ => [c]
+  | .brTable s _ cases => s :: cases.map (·.1)
+  | .evmReturn a l | .evmRevert a l => [a, l]
+  | _ => []
+
+/-- The successors of a terminator. -/
+def _root_.Fe.Sonatina.Term.succs : Term → List Nat
+  | .jump d => [d]
+  | .br _ nz z => [nz, z]
+  | .brTable _ d cases => d.toList ++ cases.map (·.2)
+  | _ => []
+
+/-- Every operand reads a value of `defs`. -/
+def reads (defs : List Nat) (ops : List Operand) : Bool :=
+  ops.all fun o => o.var?.all defs.contains
+
+/-- The values defined after the statements, from `defs` before them, if each statement reads
+    only values defined before it. -/
+def definedAfter (defs : List Nat) : List Stmt → Option (List Nat)
+  | [] => some defs
+  | s :: rest => if reads defs s.inst.operands then definedAfter (defs ++ s.dsts.map (·.1)) rest
+    else none
+
+/-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
+    its phis, or those its statements define earlier; and each phi of each successor has an
+    operand from `b`, so defined.  The machine IR runs a read of an undefined value nowhere. -/
+def defined (f : Func) (b : Block) (entry : List Nat) : Bool :=
+  match definedAfter (entry ++ b.phis.map (·.dst)) b.body with
+  | none => false
+  | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
+    match f.block? succ with
+    | some sb => sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
+      | some (o, _) => reads defs [o]
+      | none => false
+    | none => false
+
+/-- The successor a terminator goes to whatever the values, if any. -/
+def _root_.Fe.Sonatina.Term.only : Term → Option Nat
+  | .jump d | .brTable _ (some d) [] => some d
+  | _ => none
+
+/-- The height of block `b` in the chains of blocks that go to a successor whose code starts
+    where theirs does, which the bytes may reach in no step, counted at most `n` deep. -/
+def zeroRank (f : Func) (place : Nat → Option Nat) : Nat → Nat → Nat
+  | 0, _ => 0
+  | n + 1, b => match (f.block? b).bind (·.term.only) with
+    | some s => if place s == place b then zeroRank f place n s + 1 else 0
+    | none => 0
+
+/-- No value occurs twice. -/
+def nodup : List Nat → Bool
+  | [] => true
+  | x :: xs => !xs.contains x && nodup xs
+
 /-- Whether the function's code does nothing to memory beyond its machine IR. -/
 def inClass (f : FuncHint) : Bool :=
   f.spills.isEmpty && !f.frame.dynamicFrame && !f.frame.lazyFrame && !f.frame.dynSpInit &&
@@ -468,10 +551,16 @@ def checkSection (code : CodeSection) (entry : String) : Except String Unit := d
   unless f.blocks.all fun b =>
       b.phis.all (·.ty.bits == 256) && b.body.all (·.dsts.all (·.2.bits == 256)) do
     throw "a value is not a word"
-  let c := Ctx.ofFunc f code.symbols
+  let defs := f.blocks.flatMap fun b => b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))
+  unless nodup defs do throw "a value is defined twice"
+  unless f.params.isEmpty && entryBlock.phis.isEmpty &&
+      f.blocks.all (!·.term.succs.contains entryBlock.id) do
+    throw "the entry function has parameters, or its entry block phis or predecessors"
   let place (b : Nat) := Hints.place low 16 (.block hint.name b)
   unless place entryBlock.id == some 0 do throw "the entry block is not at offset 0"
+  let rank := zeroRank f place f.blocks.length
   for b in f.blocks do
+    let c := Ctx.ofBlock f b code.symbols
     let some h := hint.blocks.find? (·.block == b.id) | throw s!"block{b.id} has no hint"
     let some pc := place b.id | throw s!"block{b.id} has no place"
     let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
@@ -479,6 +568,11 @@ def checkSection (code : CodeSection) (entry : String) : Except String Unit := d
     let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
     if b.id == entryBlock.id then
       unless stack.isEmpty do throw "the entry block's entry stack is not empty"
+    let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
+    unless defined f b entryValues do throw s!"block{b.id} reads a value not defined before"
+    -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
+    unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
+      throw s!"block{b.id} reaches a successor at its own offset and no lower"
     -- The section entry's code stores the initial free pointer first.
     let events := match low.entryFreePtr, b.id == entryBlock.id with
       | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
@@ -499,7 +593,8 @@ def checkAll (s : Sidecar) : Except String Unit := do
     match checkSection code entry with
     | .ok () => pure ()
     | .error e => throw s!"{name}: {e}"
-  unless (s.section? "init").isSome && (s.section? "runtime").isSome do
+  unless (s.section? "init").isSome && (s.section? "runtime").isSome &&
+      ((entries s).lookup "init").isSome && ((entries s).lookup "runtime").isSome do
     throw "no init or runtime section"
 
 def check (s : Sidecar) : Bool := (checkAll s).isOk
