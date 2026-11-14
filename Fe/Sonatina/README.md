@@ -16,7 +16,9 @@ fail, not pass.
 
 `scripts/SonatinaDiff.lean` runs the fixtures and the committed `.sona` files against the pinned
 bytecode; `scripts/audit_sonatina.sh <fe checkout>` runs every contract of Fe's test fixtures and of
-this repository, on its Fe tests and on generated calls.
+this repository, on its Fe tests and on generated calls. EVMLean has no `CLZ` (Osaka's opcode 0x1e, which
+Sonatina emits for `clz`), so on a contract that counts leading zeros the bytecode halts with an
+invalid instruction where the IR returns the count.
 
 ## What the IR is, as Fe uses it
 
