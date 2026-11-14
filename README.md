@@ -197,6 +197,19 @@ repository, elaborates each export, and compares model and bytecode in EVMLean
 on sequences of generated calls. It prints the constructs the exporter stopped at and the
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
+EVMLean computes ECRECOVER by running `python3 Ethereum/EllipticCurvesPy/recover.py` in the
+working directory, a script of its own that needs the Python package `coincurve`. The audit
+elaborates from this repository's root, where `Ethereum/EllipticCurvesPy/recover.py` stands in for
+it: it runs the program `ecrecover` (`FeProofs/Ecrecover/Main.lean`, which the audit builds), which
+recovers the key with the exported model of fevm's secp256k1 code, in under a second.
+`FeProofs/Ecrecover` is a contract around `secp256k1::recover` of fevm's precompiles: its other
+files are copied verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm)
+at `a631a777b`. The audit compares the contract's model and bytecode on generated calls too, but
+a call that recovers a key runs past their step bound, and fevm's test traps: Fe counts trailing
+zeros with Osaka's `CLZ`, which EVMLean lacks. The other precompiles EVMLean computes in Python
+(RIPEMD-160, the BN254 operations and the KZG point evaluation) have no stand-in; no test of the
+corpus reaches them.
+
 ### Sonatina IR
 
 `Fe/Sonatina/` has a semantics of Sonatina IR, the IR the Fe compiler's EVM backend compiles: the

@@ -1,9 +1,12 @@
-contracts: 248, exported: 248, files skipped: [], not compiled: []
+contracts: 249, exported: 249, files skipped: [], not compiled: []
 blocked: 0
 lean failures: 0
-differential: 180 files, 751 tests, 2919 calls agree, 1 disagree, 0 out of gas, 0 out of stack; 237 of 240 contracts with tests compared
-generated: 248 contracts, 990 of 992 sequences deployed, 32526 creations and calls agree (19330 calls returned), 102 disagree, 31 out of gas, 31 out of stack
+differential: 181 files, 752 tests, 2932 calls agree, 1 disagree, 0 out of gas, 0 out of stack; 237 of 241 contracts with tests compared
+generated: 249 contracts, 994 of 996 sequences deployed, 32646 creations and calls agree (19407 calls returned), 102 disagree, 43 out of gas, 31 out of stack
 
+TEST Ecrecover::secp256k1_field_arithmetic_edges halts with InvalidInstruction; 0 compared
+DIFF Ecrecover tests=1 agree=0 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=0
+GEN Ecrecover Ecrecover sequences=4 deployed=4 agree=120 disagree=0 outOfGas=12 stackOverflow=0 returned=77
 GEN FeCodeScalar FeCodeScalar sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=98
 GEN FeConstant FeConstant sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=112
 TEST FeDeposit::test_supports_interface returns ; 4 compared
@@ -412,12 +415,12 @@ TEST erc4337::gas_fields_unpack returns ; 0 compared
 TEST erc4337::validation_data_round_trips returns ; 0 compared
 TEST erc4337::pack_rejects_valid_after_above_48_bits reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
 TEST erc4337::pack_rejects_valid_until_above_48_bits reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
-TEST erc4337::account_validates_and_pays_prefund reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 3 compared
+TEST erc4337::account_validates_and_pays_prefund returns ; 4 compared
 TEST erc4337::account_returns_failure_for_bad_signature returns ; 5 compared
 TEST erc4337::account_rejects_other_callers returns ; 3 compared
 TEST erc4337::paymaster_validates_and_runs_post_op returns ; 7 compared
 TEST erc4337::post_op_mode_converts_strictly returns ; 4 compared
-DIFF erc4337 tests=11 agree=22 disagree=0 outOfGas=0 stackOverflow=0 targets=3 covered=3
+DIFF erc4337 tests=11 agree=23 disagree=0 outOfGas=0 stackOverflow=0 targets=3 covered=3
 GEN erc4337 Account sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=20
 GEN erc4337 Paymaster sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=43
 GEN erc4337 EntryPoint sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=44
@@ -860,7 +863,7 @@ TEST pointer_first_class::test_borrowed_pointer_deref returns ; 0 compared
 TEST pointer_first_class::test_memory_region_bounds_halt_before_access returns ; 5 compared
 DIFF pointer_first_class tests=9 agree=5 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN pointer_first_class PointerBounds sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=0
-TEST precompile_in_mut_method::precompiles_in_mut_method reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 3 compared
+TEST precompile_in_mut_method::precompiles_in_mut_method returns ; 3 compared
 DIFF precompile_in_mut_method tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN precompile_in_mut_method Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=109
 TEST product_params::product_calls returns ; 0 compared
@@ -982,13 +985,13 @@ TEST shape::test_shape returns ; 3 compared
 DIFF shape tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN shape ShapeDispatcher sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=55
 TEST signature::parse_decodes_both_encodings returns ; 0 compared
-TEST signature::parse_rejects_other_lengths reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 0 compared
-TEST signature::recover_real_vectors reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 0 compared
+TEST signature::parse_rejects_other_lengths returns ; 0 compared
+TEST signature::recover_real_vectors returns ; 0 compared
 TEST signature::recover_rejects_wrong_v returns ; 0 compared
-TEST signature::high_s_only_recovers_raw reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 0 compared
-TEST signature::erc1271_checks_magic_exactly reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 7 compared
-TEST signature::is_valid_signature_now_ecdsa_then_erc1271 reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 2 compared
-DIFF signature tests=7 agree=9 disagree=0 outOfGas=0 stackOverflow=0 targets=6 covered=6
+TEST signature::high_s_only_recovers_raw returns ; 0 compared
+TEST signature::erc1271_checks_magic_exactly returns ; 16 compared
+TEST signature::is_valid_signature_now_ecdsa_then_erc1271 returns ; 5 compared
+DIFF signature tests=7 agree=21 disagree=0 outOfGas=0 stackOverflow=0 targets=6 covered=6
 GEN signature Wallet sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=91
 GEN signature DirtyMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=91
 GEN signature WrongMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=91

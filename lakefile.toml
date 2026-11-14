@@ -12,3 +12,9 @@ name = "Fe"
 
 [[lean_lib]]
 name = "FeProofs"
+
+# ECDSARECOVER for EVMLean, by the exported model of fevm's secp256k1 code: see
+# `FeProofs/Ecrecover/Main.lean`.  The export audit builds it.
+[[lean_exe]]
+name = "ecrecover"
+root = "FeProofs.Ecrecover.Main"

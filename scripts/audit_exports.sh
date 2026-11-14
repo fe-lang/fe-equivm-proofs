@@ -32,8 +32,11 @@ grep "^contracts:" "$out/blockers.txt" || tail -5 "$out/cargo.err"
 python3 "$root/scripts/tally_blockers.py" "$out/blockers.txt"
 [ -n "${NO_LEAN:-}" ] && exit 0
 cd "$root" || exit 1
+# EVMLean's ECRECOVER runs `python3 Ethereum/EllipticCurvesPy/recover.py` in the working
+# directory, this one: that script runs the program `ecrecover`, which recovers keys by the
+# exported model of fevm's secp256k1 code (`FeProofs/Ecrecover/Main.lean`).
 # shellcheck disable=SC2086 # one module per word
-lake build $imports > "$out/lake.log" 2>&1 || { tail -20 "$out/lake.log"; exit 1; }
+lake build $imports ecrecover > "$out/lake.log" 2>&1 || { tail -20 "$out/lake.log"; exit 1; }
 # The tests of some files reach the SHA-256 precompile, which EVMLean implements in C.
 scripts/build_ffi.sh > /dev/null || echo "no FFI library: tests that reach SHA-256 or BLAKE2 will not run"
 ls "$out"/*.lean | xargs -n 1 -P "${AUDIT_JOBS:-$(getconf _NPROCESSORS_ONLN)}" scripts/lean_check_one.sh \

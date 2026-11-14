@@ -113,6 +113,8 @@ jobs:
           cache-on-failure: true
       - name: Check the exported text
         run: scripts/check_sync.sh .lake/fe
+      # The audit builds the program `ecrecover` too, which EVMLean's ECRECOVER runs: a native
+      # build of the modules it imports, Mathlib's among them (minutes, not cached).
       - name: Check the export audit
         run: scripts/check_corpus.sh .lake/fe
       - name: Upload the export audit
