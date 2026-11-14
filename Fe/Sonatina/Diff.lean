@@ -1,3 +1,4 @@
+import Fe.Sonatina.Hints
 import Fe.Sonatina.Interp
 import Fe.Sonatina.Parse
 import Fe.EVM.Generate
@@ -65,12 +66,20 @@ def interfaceOfAbi (text : String) : Except String Interface := do
 
 /-- The targets of the sidecars at the paths, each with its interface, running the IR of the
     level `SONATINA_LEVEL` names.  A sidecar whose IR this subset does not read is left out,
-    with a line `UNSUPPORTED <file>::<path>: <reason>`. -/
+    with a line `UNSUPPORTED <file>::<path>: <reason>`.  For each section of the others a line
+    `HINTS <file>::<path> <section> blocks=<n> failures=<n>`, and one per failure, gives the
+    checks of its lowering hints against its bytes (`Hints.lean`). -/
 def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List Target) := do
   let level ← levelOfEnv
   sidecars.filterMapM fun (path, interface) => do
     match Parse.parseSidecar (← IO.FS.readFile path) with
-    | .ok s => return some (s.target interface level)
+    | .ok s =>
+      for code in s.sections do
+        let blocks := (code.lowering.map (·.funcs.foldl (· + ·.blocks.length) 0)).getD 0
+        let failures := Hints.check code
+        IO.println s!"HINTS {file}::{path} {code.name} blocks={blocks} failures={failures.length}"
+        for failure in failures do IO.println s!"HINTFAIL {file}::{path} {code.name} {failure}"
+      return some (s.target interface level)
     | .error e =>
       IO.println s!"UNSUPPORTED {file}::{path}: {e}"
       return none
