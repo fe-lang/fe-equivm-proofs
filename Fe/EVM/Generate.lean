@@ -244,7 +244,7 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
         { account with balance := account.balance - value, nonce := account.nonce + ⟨1⟩ }
       |>.insert address { (default : Account) with nonce := ⟨1⟩, balance := value }
     let I : ExecutionEnv :=
-      { (default : ExecutionEnv) with
+      { env with
           codeOwner := address, sender := creator, source := creator, weiValue := value,
           code := target.creation ++ args, perm := true }
     let (verdict, result) :=
@@ -275,7 +275,7 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
       let payee := σ₁.getD address default
       let σ₁ := σ₁.insert address { payee with balance := payee.balance + value }
       let I : ExecutionEnv :=
-        { (default : ExecutionEnv) with
+        { env with
             codeOwner := address, sender := sender, source := sender, weiValue := value,
             calldata := input, code := payee.code, perm := !static }
       let (verdict, result) := frame σ₁ A I target.model.runtime

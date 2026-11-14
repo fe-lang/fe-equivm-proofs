@@ -344,6 +344,10 @@ def isPrefix (p b : ByteArray) : Bool := p.size ≤ b.size && b.extract 0 p.size
 def testGas : Nat := 1000000000
 def stepBound : Nat := 100000000
 
+/-- The environment the frames of a test start from: an Osaka block, the fork Fe compiles for,
+    so that `CLZ` runs. -/
+def env : ExecutionEnv := { (default : ExecutionEnv) with header.fork := .Osaka }
+
 /-- The bound on the steps of the test's own frame.  A test that runs longer is cut short: the
     interpreter takes minutes for it, and the calls it made so far are compared. -/
 def testSteps : Nat := 2000000
@@ -402,8 +406,7 @@ def runTest (targets : List Target) (suite : ByteArray) (t : Test) : Array Repor
     |>.insert caller { (default : Account) with balance := .ofNat 1000000000 }
     |>.insert self { (default : Account) with nonce := ⟨1⟩, balance := .ofNat t.balance }
   let I : ExecutionEnv :=
-    { (default : ExecutionEnv) with
-        codeOwner := self, sender := caller, source := caller, code := suite, perm := true }
+    { env with codeOwner := self, sender := caller, source := caller, code := suite, perm := true }
   match Ξ σ σ (.ofNat testGas) default I with
   | .ok (.success (σ, _, _) code) =>
     let σ := σ.insert self { σ.getD self default with code := code }

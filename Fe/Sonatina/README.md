@@ -17,9 +17,8 @@ fail, not pass.
 
 `scripts/SonatinaDiff.lean` runs the fixtures and the committed `.sona` files against the pinned
 bytecode; `scripts/audit_sonatina.sh <fe checkout>` runs every contract of Fe's test fixtures and of
-this repository, on its Fe tests and on generated calls. EVMLean has no `CLZ` (Osaka's opcode 0x1e, which
-Sonatina emits for `clz`), so on a contract that counts leading zeros the bytecode halts with an
-invalid instruction where the IR returns the count.
+this repository, on its Fe tests and on generated calls. They run in an Osaka block, where EVMLean
+has `CLZ` (opcode 0x1e, which Sonatina emits for `clz`).
 
 ## What the IR is, as Fe uses it
 
@@ -209,7 +208,8 @@ same 180 files, 751 Fe tests and 214 contracts with generated calls:
 | section IR after the pipeline | 2689, 1 | 28065, 102 | 68 |
 | machine IR | 2697, 1 | 28197, 102 | 66 |
 
-Every disagreement is the `leading_zeros` fixture, whose bytecode uses `CLZ`, which EVMLean lacks.
+Every disagreement is the `leading_zeros` fixture, whose bytecode uses `CLZ`, which EVMLean lacked
+at the time; the export audit of the same fixture agrees since EVMLean has it.
 The machine IR agrees once its run starts as the section entry's code does, with the initial free
 pointer at `0x40`; without it the deposit contract's machine IR read a zero free pointer, and its
 run exhausted the interpreter's memory. The 66 contracts not read use object or constant
