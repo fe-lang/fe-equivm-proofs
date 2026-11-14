@@ -18,7 +18,7 @@ import FeProofs.CodeScalar.RuntimeCorrect
 import FeProofs.WETH9.RuntimeCorrect
 import FeProofs.ERC20.ConservationBytecode
 import FeProofs.ERC20.Invariant
-import FeProofs.WETH9.Solvency
+import FeProofs.WETH9.Invariant
 import FeProofs.Fixtures.Exported
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode

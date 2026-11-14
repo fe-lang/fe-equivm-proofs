@@ -27,12 +27,17 @@ whose balance slots coincide share one balance, which is counted once.
   it.
 - `withdraw` debits the caller, then sends the ether.  Before the call, the account is solvent
   with the tokens debited, and still with the ether gone (`withdraw_debit`); the call is
-  whatever `Θ` returns (`call_keeps`, with the callee keeping solvency as a hypothesis); after it
-  nothing changes the accounts (`withdraw_solvent`).
+  whatever `Θ` returns, recorded (`withdraw_run`), and the run ends with its accounts: solvency
+  after it is a hypothesis on each recorded call (`withdraw_solvent`), which the invariant
+  discharges from `Deeper`.  `withdrawCall_*` and `recorded_call` give what `GoodTheta` asks
+  of that call.
 
 `runtime_solvent` puts the arms together: a run of the runtime entry that returns, admitted
 (`Admits`), from an account that was solvent before the call's value arrived and has gained the
-value since, ends solvent, if `withdraw`'s call keeps solvency (`CalleeKeeps`).
+value since, ends solvent, if each call it records ends solvent.  `runtime_keeps` states it in
+the terms of `ModelKeeps` (`entry_account`), through `noStop_runtime`: every run that succeeds
+returns.  `runtime_calls` and `runtime_recorded`: a run records nothing or exactly the call
+`withdraw` makes.
 
 Storage writes do not change the sum of all balances (`total_storeWord`), which a model needs to
 carry `total σ < 2 ^ 256` to its call.
@@ -63,6 +68,9 @@ def Solvent (acc : Account) : Prop :=
 /-- The account at `a`, if any, is solvent. -/
 def SolventAt (a : AccountAddress) (σ : AccountMap) : Prop :=
   ∀ acc, σ[a]? = some acc → Solvent acc
+
+/-- The contract's account: it runs `code` and is solvent. -/
+def Weth (code : ByteArray) (acc : Account) : Prop := acc.code = code ∧ Solvent acc
 
 /-- `Solvent` over finite sets of balance slots, with the tokens and the ether apart. -/
 def SolventF (g : UInt256 → ℕ) (B : ℕ) : Prop :=
@@ -550,18 +558,18 @@ theorem stringReturn_world {slot : UInt256} {r : ByteArray}
 
 /-! ### `withdraw` -/
 
-/-- The payer's account after a value transfer: the same storage, and the same balance (paying
-    itself) or the value less. -/
+/-- The payer's account after a value transfer: the same storage and code, and the same balance
+    (paying itself) or the value less. -/
 theorem sendEth_payer {σ : AccountMap} {r s : AccountAddress} {v : UInt256} {acc : Account}
     (h : σ[s]? = some acc) :
     ∃ acc', (sendEth r s v true σ)[s]? = some acc' ∧ acc'.storage = acc.storage ∧
-      (acc'.balance = acc.balance ∨ acc'.balance = acc.balance - v) := by
+      acc'.code = acc.code ∧ (acc'.balance = acc.balance ∨ acc'.balance = acc.balance - v) := by
   by_cases hrs : r = s
   · subst hrs
-    refine ⟨{ acc with balance := acc.balance + v - v }, ?_, rfl,
+    refine ⟨{ acc with balance := acc.balance + v - v }, ?_, rfl, rfl,
       Or.inl (UInt256.add_sub_cancel' _ _)⟩
     simp [sendEth, Std.ExtTreeMap.get?_eq_getElem?, h]
-  · refine ⟨{ acc with balance := acc.balance - v }, ?_, rfl, Or.inr rfl⟩
+  · refine ⟨{ acc with balance := acc.balance - v }, ?_, rfl, rfl, Or.inr rfl⟩
     have hne : ¬ compare r s = .eq := fun he => hrs (Std.LawfulEqCmp.eq_of_compare he)
     unfold sendEth
     rcases hr : σ[r]? with _ | accr
@@ -570,6 +578,34 @@ theorem sendEth_payer {σ : AccountMap} {r s : AccountAddress} {v : UInt256} {ac
       · simp only [bne_iff_ne, ne_eq, Decidable.not_not] at hv
         simp [Std.ExtTreeMap.get?_eq_getElem?, h, hr, hv]
     · simp [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert, hne, h, hr]
+
+/-- The payee's account after a value transfer from another account that has the value, with
+    the balances adding up to less than `2 ^ 256`: the same storage and code, and the balance
+    risen by the value, without wrapping. -/
+theorem sendEth_payee {σ : AccountMap} {r s : AccountAddress} {v : UInt256} {acc : Account}
+    (h : σ[r]? = some acc) (hne : s ≠ r) (hv : v ≤ balOf σ s) (hT : total σ < UInt256.size) :
+    ∃ acc', (sendEth r s v true σ)[r]? = some acc' ∧ acc'.storage = acc.storage ∧
+      acc'.code = acc.code ∧ acc'.balance.toNat = acc.balance.toNat + v.toNat := by
+  have hle : acc.balance.toNat + v.toNat < UInt256.size := by
+    cases hs : σ[s]? with
+    | none =>
+      rw [balOf_of_none hs] at hv
+      rw [UInt256.eq_zero_of_le_zero hv]
+      exact (balance_le_total h).trans_lt hT
+    | some y =>
+      rw [balOf_of_some hs] at hv
+      have := two_le_total h hs hne.symm
+      have hv' : v.toNat ≤ y.balance.toNat := hv
+      omega
+  refine ⟨{ acc with balance := acc.balance + v }, ?_, rfl, rfl,
+    UInt256.toNat_add_of_lt hle⟩
+  have hne' : ¬ compare s r = .eq := fun he => hne (Std.LawfulEqCmp.eq_of_compare he)
+  have hne'' : ¬ compare r s = .eq := fun he => hne (Std.LawfulEqCmp.eq_of_compare he).symm
+  unfold sendEth
+  rcases hs : σ[s]? with _ | accs
+  · simp [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert, hne'', h, hs]
+  · simp only [if_true, Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
+      if_neg hne', if_neg hne'', h, hs, Std.compare_self, if_true]
 
 /-- **Up to the call.**  `withdraw` debits the caller's balance slot, which holds at least
     `wad`.  The account is solvent after the debit, still with `wad` of its ether gone, and so
@@ -593,7 +629,7 @@ theorem withdraw_debit {σ : AccountMap} {acc : Account} (hacc : σ[I.codeOwner]
     (acc.storage.getD (balanceSlot (UInt256.ofNat I.source.val)) ⟨0⟩ - wad) = acc₂ at h₁ h₂ hσ₁
   refine ⟨fun acc' hacc' => ?_, fun acc' hacc' => ?_, total_storeWord _ _ _ _⟩
   · rw [hσ₁] at hacc'; cases hacc'; exact h₁
-  · obtain ⟨acc'', h'', hst, hb⟩ := sendEth_payer (r := r) (v := wad) hσ₁
+  · obtain ⟨acc'', h'', hst, -, hb⟩ := sendEth_payer (r := r) (v := wad) hσ₁
     rw [h''] at hacc'; cases hacc'
     rw [solvent_iff] at h₁ h₂ ⊢
     have htok : tokens acc' = tokens acc₂ := funext fun t => by unfold tokens; rw [hst]
@@ -606,29 +642,29 @@ theorem withdraw_debit {σ : AccountMap} {acc : Account} (hacc : σ[I.codeOwner]
 def withdrawGas (wad : UInt256) : UInt256 :=
   if wad = ⟨0⟩ then UInt256.ofNat 2300 else UInt256.ofNat 0
 
-/-- What `withdraw wad` needs of its call: started from the account map after the debit, the
-    callee keeps the account at `I.codeOwner` solvent, if it is before and after the value moves
-    and the balances add up as they did. -/
-def CalleeKeeps (I : Env) (w : World) (wad : UInt256) : Prop :=
-  ∀ s rest, w.feed = s :: rest →
-    let src := UInt256.ofNat I.source.val
-    let T := messageCall I { w with accounts := (storeWord I.codeOwner w.accounts
-        (balanceSlot src) (slotWord I w.accounts (balanceSlot src) - wad)) } s
-      (withdrawGas wad) I.codeOwner (.ofUInt256 src) (.ofUInt256 src) wad wad ⟨0⟩ ⟨0⟩ I.perm
-    SolventAt I.codeOwner T.σ → SolventAt I.codeOwner (sendEth T.r T.s T.v true T.σ) →
-      total T.σ = total w.accounts → SolventAt I.codeOwner T.run.1
+/-- The account map after `withdraw wad` debits the caller. -/
+def withdrawDebit (I : Env) (σ : AccountMap) (wad : UInt256) : AccountMap :=
+  storeWord I.codeOwner σ (balanceSlot (UInt256.ofNat I.source.val))
+    (slotWord I σ (balanceSlot (UInt256.ofNat I.source.val)) - wad)
 
-/-- **`withdraw`**: up to the call `withdraw_debit`; the call is whatever `Θ` returns, here
-    assumed to keep solvency, given it before and after its value moves, with the balances
-    adding up as they did; after it nothing changes the accounts. -/
-theorem withdraw_solvent {wad : UInt256} {acc : Account}
-    (hrun : (withdraw wad).exec I w = some (.ok ((), w')))
-    (hacc : w.accounts[I.codeOwner]? = some acc) (h : Solvent acc)
-    (hcallee : CalleeKeeps I w wad) :
-    SolventAt I.codeOwner w'.accounts := by
+/-- The message call `withdraw wad` makes from the world `w`, with the feed's entry `s`: to the
+    caller, with `wad` and no data, on the debited account map. -/
+def withdrawCall (I : Env) (w : World) (wad : UInt256) (s : Supply) : ThetaCall :=
+  messageCall I { w with accounts := withdrawDebit I w.accounts wad } s (withdrawGas wad)
+    I.codeOwner (.ofUInt256 (UInt256.ofNat I.source.val))
+    (.ofUInt256 (UInt256.ofNat I.source.val)) wad wad ⟨0⟩ ⟨0⟩ I.perm
+
+/-- **What a `withdraw` that returns did**: the caller's balance slot held `wad`, the call was
+    made from the debited world, with the feed's next entry, and succeeded, the accounts are
+    what it returned, and it is the one call recorded. -/
+theorem withdraw_run {wad : UInt256} (hrun : (withdraw wad).exec I w = some (.ok ((), w'))) :
+    ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat < wad.toNat ∧
+      ∃ s rest, w.feed = s :: rest ∧ w'.accounts = (withdrawCall I w wad s).run.1 ∧
+        w'.calls = w.calls ++ [Made.theta (withdrawCall I w wad s)] := by
   by_cases hlt : (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
       wad.toNat
   · simp [withdraw, hlt] at hrun
+  refine ⟨hlt, ?_⟩
   by_cases hp : I.perm = true
   swap
   · simp [withdraw, hlt, exec_sstore, hp] at hrun
@@ -644,14 +680,89 @@ theorem withdraw_solvent {wad : UInt256} {acc : Account}
   | some res =>
     rcases res with f | ⟨x, w₂⟩
     · simp [withdrawGas] at hc; simp [hc] at hrun
-    have hw' : w'.accounts = w₂.accounts := by
-      simp only [withdrawGas] at hc
-      by_cases hx : x = ⟨0⟩ <;> simp [hc, hx, exec_emit, hp] at hrun
-      rw [← hrun]
-    rw [hw']
-    obtain ⟨h₁, h₂, ht⟩ := withdraw_debit hacc h hlt (.ofUInt256 (UInt256.ofNat I.source.val))
-    subst hw₁
-    refine call_keeps hc h₁ fun s rest hf _ => hcallee s rest hf h₁ h₂ ht
+    have hc' := hc
+    simp only [withdrawGas] at hc'
+    have hx : x ≠ ⟨0⟩ := fun hx => by simp [hc', hx] at hrun
+    have hw' : w' = { w₂ with logs := w₂.logs.push ⟨I.codeOwner,
+        #[withdrawalTopic, UInt256.ofNat I.source.val], wad.toByteArray⟩ } := by
+      simp [hc', hx, exec_emit, hp] at hrun
+      exact hrun.symm
+    subst hw₁ hw'
+    rcases call_cases hc with ⟨hx0, -, -⟩ | ⟨s, rest, hf, -, ha, hcs⟩
+    · exact absurd hx0 hx
+    · exact ⟨s, rest, hf, ha, hcs⟩
+
+/-- **`withdraw`**: up to the call `withdraw_debit`; the call is whatever `Θ` returns, here
+    assumed to keep solvency for each call recorded; after it nothing changes the accounts. -/
+theorem withdraw_solvent {wad : UInt256}
+    (hrun : (withdraw wad).exec I w = some (.ok ((), w')))
+    (hcall : ∀ T, Made.theta T ∈ w'.calls → SolventAt I.codeOwner T.run.1) :
+    SolventAt I.codeOwner w'.accounts := by
+  obtain ⟨-, s, rest, -, ha, hcs⟩ := withdraw_run hrun
+  rw [ha]
+  exact hcall _ (by rw [hcs]; simp)
+
+/-! ### The call `withdraw` makes, as `GoodTheta` asks of it -/
+
+section WithdrawCall
+
+variable {wad : UInt256} {s : Supply}
+
+@[simp] theorem withdrawCall_σ : (withdrawCall I w wad s).σ = withdrawDebit I w.accounts wad := rfl
+@[simp] theorem withdrawCall_s : (withdrawCall I w wad s).s = I.codeOwner := rfl
+@[simp] theorem withdrawCall_v : (withdrawCall I w wad s).v = wad := rfl
+@[simp] theorem withdrawCall_v' : (withdrawCall I w wad s).v' = wad := rfl
+
+/-- The call goes to the caller. -/
+@[simp] theorem withdrawCall_r : (withdrawCall I w wad s).r = I.source :=
+  accountAddress_roundtrip _
+
+/-- It has no data. -/
+@[simp] theorem withdrawCall_d : (withdrawCall I w wad s).d = ByteArray.empty :=
+  byteArray_readWithPadding_zero _ _
+
+/-- A call entered from another account does not call back into itself. -/
+theorem withdrawCall_r_ne (hne : I.source ≠ I.codeOwner) :
+    (withdrawCall I w wad s).r ≠ I.codeOwner := by
+  rw [withdrawCall_r]; exact hne
+
+/-- The balances add up as they did before the debit. -/
+theorem withdrawCall_total : total (withdrawCall I w wad s).σ = total w.accounts :=
+  total_storeWord _ _ _ _
+
+/-- The contract has `wad` after the debit: its ether covers the tokens it debited. -/
+theorem withdrawCall_value {acc : Account} (hacc : w.accounts[I.codeOwner]? = some acc)
+    (h : Solvent acc)
+    (hv : ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat < wad.toNat) :
+    (withdrawCall I w wad s).v ≤ balOf (withdrawCall I w wad s).σ (withdrawCall I w wad s).s := by
+  rw [slotWord_of hacc] at hv
+  obtain ⟨-, hb, -⟩ := solvent_debit h (UInt256.ofNat I.source.val) wad (Nat.le_of_not_lt hv)
+  simp only [withdrawCall_v, withdrawCall_σ, withdrawCall_s, withdrawDebit]
+  rw [balOf_of_some (by rw [getElem?_storeWord, hacc]; rfl), slotWord_some hacc]
+  exact hb
+
+/-- The account, with its code, before and after the call's value moves. -/
+theorem withdrawCall_holds {code : ByteArray}
+    (hH : Holds I.codeOwner (Weth code) w.accounts)
+    (hv : ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat < wad.toNat) :
+    let T := withdrawCall I w wad s
+    Holds I.codeOwner (Weth code) T.σ ∧
+      Holds I.codeOwner (Weth code)
+        (sendEth T.r T.s T.v true T.σ) := by
+  intro T
+  obtain ⟨acc, hacc, hcode, h⟩ := hH
+  obtain ⟨h₁, h₂, -⟩ := withdraw_debit hacc h hv I.source
+  have hσ₁ : T.σ[I.codeOwner]? = some (storeAcc acc (balanceSlot (UInt256.ofNat I.source.val))
+      (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val)) - wad)) := by
+    show (storeWord _ _ _ _)[I.codeOwner]? = _
+    rw [getElem?_storeWord, hacc]; rfl
+  refine ⟨⟨_, hσ₁, by rw [storeAcc_code]; exact hcode, h₁ _ hσ₁⟩, ?_⟩
+  obtain ⟨acc', h', -, hc', -⟩ := sendEth_payer (r := T.r) (v := T.v) hσ₁
+  refine ⟨acc', h', by rw [hc', storeAcc_code]; exact hcode, h₂ acc' ?_⟩
+  simpa [T] using h'
+
+end WithdrawCall
+
 /-! ### The entry arms -/
 
 theorem exec_bind_ok {α β : Type} {m : FeM α} {k : α → FeM β} {b : β}
@@ -717,7 +828,7 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     (hacc : w.accounts[I.codeOwner]? = some acc) (h₀ : Solvent acc₀)
     (hst : acc.storage = acc₀.storage)
     (hbal : acc.balance.toNat = acc₀.balance.toNat + I.weiValue.toNat)
-    (hcallee : CalleeKeeps I w (word I.calldata 4)) :
+    (hcall : ∀ T, Made.theta T ∈ w'.calls → SolventAt I.codeOwner T.run.1) :
     SolventAt I.codeOwner w'.accounts := by
   have hs : I.weiValue = ⟨0⟩ → SolventAt I.codeOwner w.accounts := fun hv acc' h' => by
     rw [hacc] at h'; cases h'; exact solvent_of_noValue h₀ hst hbal hv
@@ -775,7 +886,7 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨⟨⟩, hr⟩ := pure_bind_ok (f := fun _ => ByteArray.empty) hrun
-    exact withdraw_solvent hr hacc (solvent_of_noValue h₀ hst hbal hv) hcallee
+    exact withdraw_solvent hr hcall
   rw [if_neg h6] at hrun
   by_cases h7 : (decimalsSelector == I.calldata.extract 0 4) = true
   · rw [if_pos h7] at hrun
@@ -836,6 +947,312 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
   exact depositArm_solvent hrun h₀ hacc hst hbal
 
 end Arms
+
+/-! ## The run never stops from inside -/
+
+theorem noStop_stringReturn (slot : UInt256) : (stringReturn slot).NoStop := by
+  unfold stringReturn
+  refine M.NoStop.bind M.NoStop.read fun I => M.NoStop.bind M.NoStop.get fun w => ?_
+  dsimp only
+  split
+  · exact M.NoStop.ite _ (M.NoStop.pure _) (M.NoStop.panic _)
+  · exact M.NoStop.revert _
+
+theorem noStop_transferFrom (src dst wad : UInt256) : (transferFrom src dst wad).NoStop := by
+  unfold transferFrom; dsimp only; no_stop
+
+theorem noStop_ite {α : Type} {c : Prop} {inst : Decidable c} {a b : FeM α} (ha : a.NoStop)
+    (hb : b.NoStop) : (@ite _ c inst a b).NoStop := by
+  split <;> assumption
+
+open Fe.M in
+/-- `no_stop`, with the model's call, the context reads and the matches of the string getters. -/
+macro "weth_no_stop" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact noStop_sload _
+    | with_reducible exact noStop_sstore _ _
+    | with_reducible exact noStop_emit _ _
+    | with_reducible exact noStop_caller
+    | with_reducible exact noStop_calldata
+    | with_reducible exact noStop_nonPayable
+    | with_reducible exact noStop_call _ _ _ _ _ _ _
+    | with_reducible exact noStop_transferFrom _ _ _
+    | with_reducible exact noStop_stringReturn _
+    | with_reducible exact NoStop.pure _
+    | with_reducible exact NoStop.revert _
+    | with_reducible exact NoStop.panic _
+    | with_reducible exact NoStop.fail_static
+    | with_reducible exact NoStop.read
+    | with_reducible exact NoStop.get
+    | with_reducible exact NoStop.modify _
+    | assumption
+    | with_reducible apply noStop_ite
+    | with_reducible apply NoStop.bind
+    | intro (_ : _))
+
+theorem noStop_approveArm (cd : ByteArray) : (approveArm cd).NoStop := by
+  unfold approveArm approve; try dsimp only
+  weth_no_stop
+
+theorem noStop_transferFromArm (cd : ByteArray) : (transferFromArm cd).NoStop := by
+  unfold transferFromArm; try dsimp only
+  weth_no_stop
+
+theorem noStop_transferArm (cd : ByteArray) : (transferArm cd).NoStop := by
+  unfold transferArm; try dsimp only
+  weth_no_stop
+
+theorem noStop_withdrawArm (cd : ByteArray) : (withdrawArm cd).NoStop := by
+  unfold withdrawArm withdraw; try dsimp only
+  weth_no_stop
+
+theorem noStop_depositArm : depositArm.NoStop := by
+  unfold depositArm deposit callvalue; try dsimp only
+  weth_no_stop
+
+theorem noStop_getters (cd : ByteArray) :
+    nameArm.NoStop ∧ totalSupplyArm.NoStop ∧ decimalsArm.NoStop ∧ (balanceOfArm cd).NoStop ∧
+      symbolArm.NoStop ∧ (allowanceArm cd).NoStop := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+  · unfold nameArm; weth_no_stop
+  · unfold totalSupplyArm totalSupply selfbalance; weth_no_stop
+  · unfold decimalsArm decimals; weth_no_stop
+  · unfold balanceOfArm balanceOf; try dsimp only
+    weth_no_stop
+  · unfold symbolArm; weth_no_stop
+  · unfold allowanceArm allowance; try dsimp only
+    weth_no_stop
+
+/-- **The runtime entry never stops the run from inside**: every run that succeeds returns. -/
+theorem noStop_runtime : runtime.NoStop := by
+  have h1 := noStop_approveArm
+  have h2 := noStop_transferFromArm
+  have h3 := noStop_transferArm
+  have h4 := noStop_withdrawArm
+  have h5 := noStop_depositArm
+  have h6 := fun cd => (noStop_getters cd).1
+  have h7 := fun cd => (noStop_getters cd).2.1
+  have h8 := fun cd => (noStop_getters cd).2.2.1
+  have h9 := fun cd => (noStop_getters cd).2.2.2.1
+  have h10 := fun cd => (noStop_getters cd).2.2.2.2.1
+  have h11 := fun cd => (noStop_getters cd).2.2.2.2.2
+  unfold runtime
+  refine M.NoStop.bind noStop_calldata fun cd => ?_
+  repeat' first
+    | with_reducible exact h1 _ | with_reducible exact h2 _ | with_reducible exact h3 _
+    | with_reducible exact h4 _ | with_reducible exact h5 | with_reducible exact h6 cd
+    | with_reducible exact h7 cd | with_reducible exact h8 cd | with_reducible exact h9 _
+    | with_reducible exact h10 cd | with_reducible exact h11 _
+    | with_reducible apply noStop_ite
+
+theorem Succeeds.of_noStop {m : FeM ByteArray} (hm : m.NoStop) {I : Env} {w w' : World}
+    {out : ByteArray} (h : Succeeds (m.exec I w) out w') : m.exec I w = some (.ok (out, w')) :=
+  h.resolve_right (hm I w out w')
+
+/-! ## The entry -/
+
+/-- **How the frame was entered**, as `ModelKeeps` states it: from `σpre`, where the contract has
+    an account, by moving `v` to `a` from another account that has it, with the balances adding
+    up to less than `2 ^ 256`.  The account then has the same storage and code, and `v` more
+    ether, without wrapping.  `Holds` of `σpre` says the account exists; without one, `sendEth`
+    would create an account at `a` with `v` and no code. -/
+theorem entry_account {a src : AccountAddress} {v : UInt256} {σpre σ : AccountMap}
+    {acc₀ : Account} (hσ : σ = sendEth a src v true σpre) (hne : src ≠ a)
+    (hv : v ≤ balOf σpre src) (hT : total σpre < UInt256.size) (h₀ : σpre[a]? = some acc₀) :
+    ∃ acc, σ[a]? = some acc ∧ acc.storage = acc₀.storage ∧ acc.code = acc₀.code ∧
+      acc.balance.toNat = acc₀.balance.toNat + v.toNat := by
+  subst hσ
+  exact sendEth_payee h₀ hne hv hT
+
+/-! ## The calls a run records -/
+
+theorem keepsCalls_ite {α : Type} {c : Prop} {inst : Decidable c} {a b : FeM α}
+    (ha : KeepsCalls a) (hb : KeepsCalls b) : KeepsCalls (@ite _ c inst a b) := by
+  split <;> assumption
+
+theorem keepsCalls_stringReturn (slot : UInt256) : KeepsCalls (stringReturn slot) := by
+  unfold stringReturn
+  refine KeepsCalls.bind KeepsCalls.read fun I => KeepsCalls.bind KeepsCalls.get fun w => ?_
+  dsimp only
+  split
+  · exact keepsCalls_ite (KeepsCalls.pure _) (KeepsCalls.panic _)
+  · exact KeepsCalls.revert _
+
+theorem keepsCalls_transferFrom (src dst wad : UInt256) :
+    KeepsCalls (transferFrom src dst wad) := by
+  unfold transferFrom; dsimp only; keeps_calls
+
+/-- `keeps_calls`, with the string getters, `transferFrom` and conditionals on any decidable
+    proposition. -/
+macro "weth_keeps_calls" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact keepsCalls_sload _
+    | with_reducible exact keepsCalls_sstore _ _
+    | with_reducible exact keepsCalls_emit _ _
+    | with_reducible exact keepsCalls_caller
+    | with_reducible exact keepsCalls_callvalue
+    | with_reducible exact keepsCalls_calldata
+    | with_reducible exact keepsCalls_selfbalance
+    | with_reducible exact keepsCalls_nonPayable
+    | with_reducible exact keepsCalls_stringReturn _
+    | with_reducible exact keepsCalls_transferFrom _ _ _
+    | with_reducible exact KeepsCalls.pure _
+    | with_reducible exact KeepsCalls.revert _
+    | with_reducible exact KeepsCalls.panic _
+    | with_reducible exact KeepsCalls.fail_static
+    | with_reducible apply keepsCalls_ite
+    | with_reducible apply KeepsCalls.bind
+    | intro (_ : _))
+
+/-- Every arm but `withdraw` records no call. -/
+theorem keepsCalls_arms (cd : ByteArray) :
+    KeepsCalls nameArm ∧ KeepsCalls (approveArm cd) ∧ KeepsCalls totalSupplyArm ∧
+      KeepsCalls (transferFromArm cd) ∧ KeepsCalls decimalsArm ∧ KeepsCalls (balanceOfArm cd) ∧
+      KeepsCalls symbolArm ∧ KeepsCalls (transferArm cd) ∧ KeepsCalls depositArm ∧
+      KeepsCalls (allowanceArm cd) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · unfold nameArm; weth_keeps_calls
+  · unfold approveArm approve; dsimp only; weth_keeps_calls
+  · unfold totalSupplyArm totalSupply; weth_keeps_calls
+  · unfold transferFromArm; dsimp only; weth_keeps_calls
+  · unfold decimalsArm decimals; weth_keeps_calls
+  · unfold balanceOfArm balanceOf; dsimp only; weth_keeps_calls
+  · unfold symbolArm; weth_keeps_calls
+  · unfold transferArm; dsimp only; weth_keeps_calls
+  · unfold depositArm deposit; weth_keeps_calls
+  · unfold allowanceArm allowance; dsimp only; weth_keeps_calls
+
+/-- **The calls a run of the runtime entry records**: none, or exactly the call `withdraw`
+    makes, after the checks it passed. -/
+theorem runtime_calls {I : Env} {w w' : World} {out : ByteArray}
+    (hrun : runtime.exec I w = some (.ok (out, w'))) :
+    w'.calls = w.calls ∨
+      ((withdrawSelector == I.calldata.extract 0 4) = true ∧ I.weiValue = ⟨0⟩ ∧
+        ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
+          (word I.calldata 4).toNat ∧
+        ∃ s rest, w.feed = s :: rest ∧
+          w'.accounts = (withdrawCall I w (word I.calldata 4) s).run.1 ∧
+          w'.calls = w.calls ++ [Made.theta (withdrawCall I w (word I.calldata 4) s)]) := by
+  have hk := keepsCalls_arms I.calldata
+  unfold runtime at hrun
+  obtain ⟨cd, w₀, hcd, hrun⟩ := exec_bind_ok hrun
+  simp only [exec_calldata, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at hcd
+  obtain ⟨rfl, rfl⟩ := hcd
+  by_cases h1 : I.calldata.size < 4
+  · rw [if_pos h1] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h1] at hrun
+  by_cases h2 : (nameSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h2] at hrun; exact Or.inl ((hk.1 I w).1 _ _ hrun)
+  rw [if_neg h2] at hrun
+  by_cases h3 : (approveSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h3] at hrun; exact Or.inl ((hk.2.1 I w).1 _ _ hrun)
+  rw [if_neg h3] at hrun
+  by_cases h4 : (totalSupplySelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h4] at hrun; exact Or.inl ((hk.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h4] at hrun
+  by_cases h5 : (transferFromSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h5] at hrun; exact Or.inl ((hk.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h5] at hrun
+  by_cases h6 : (withdrawSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h6] at hrun
+    unfold withdrawArm at hrun
+    dsimp only at hrun
+    obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
+    obtain ⟨-, hrun⟩ := guard_bind_ok hrun
+    obtain ⟨⟨⟩, hr⟩ := pure_bind_ok (f := fun _ => ByteArray.empty) hrun
+    exact Or.inr ⟨h6, hv, withdraw_run hr⟩
+  rw [if_neg h6] at hrun
+  by_cases h7 : (decimalsSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h7] at hrun; exact Or.inl ((hk.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h7] at hrun
+  by_cases h8 : (balanceOfSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h8] at hrun; exact Or.inl ((hk.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h8] at hrun
+  by_cases h9 : (symbolSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h9] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h9] at hrun
+  by_cases h10 : (transferSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h10] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h10] at hrun
+  by_cases h11 : (depositSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h11] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [if_neg h11] at hrun
+  by_cases h12 : (allowanceSelector == I.calldata.extract 0 4) = true
+  · rw [if_pos h12] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.2 I w).1 _ _ hrun)
+  rw [if_neg h12] at hrun
+  exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+
+/-- **What the record says, from a world that has recorded nothing**: every call recorded is the
+    one `withdraw` makes, with the feed's first entry, and the run ends with the accounts it
+    returned.  A condition every recorded call satisfies (`∀ c ∈ w'.calls, Made.Ok Q c`) holds of
+    `T` as `Q.theta T`, by `Made.Ok` at `Made.theta T`. -/
+theorem runtime_recorded {I : Env} {w w' : World} {out : ByteArray}
+    (hrun : runtime.exec I w = some (.ok (out, w'))) (hw : w.calls = []) {T : ThetaCall}
+    (hT : Made.theta T ∈ w'.calls) :
+    (withdrawSelector == I.calldata.extract 0 4) = true ∧ I.weiValue = ⟨0⟩ ∧
+      ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
+        (word I.calldata 4).toNat ∧
+      ∃ s rest, w.feed = s :: rest ∧ T = withdrawCall I w (word I.calldata 4) s ∧
+        w'.accounts = T.run.1 := by
+  rcases runtime_calls hrun with h | ⟨h1, h2, h3, s, rest, hf, ha, hcs⟩
+  · rw [h, hw] at hT; cases hT
+  · rw [hcs, hw] at hT
+    obtain rfl := Made.theta.inj (List.mem_singleton.mp hT)
+    exact ⟨h1, h2, h3, s, rest, hf, rfl, ha⟩
+
+/-! ## The run, in the terms of `ModelKeeps` -/
+
+/-- **A run of the runtime entry keeps the contract's account**, in the terms `ModelKeeps` gives:
+    entered from `σpre`, where `Weth code` holds, by moving `I.weiValue` from another account that
+    has it, with the balances adding up to less than `2 ^ 256`, admitted, a run that succeeds
+    ends with the account running `code` and solvent, if its code is still what it was and the
+    call it records keeps it solvent. -/
+theorem runtime_keeps {code : ByteArray} {I : Env} {σpre σ : AccountMap} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w' : World}
+    (hσ : σ = sendEth I.codeOwner I.source I.weiValue true σpre)
+    (hne : I.source ≠ I.codeOwner) (hv : I.weiValue ≤ balOf σpre I.source)
+    (hT : total σpre < UInt256.size) (hpre : Holds I.codeOwner (Weth code) σpre)
+    (hadm : Admits I) (hrun : Succeeds (runtime.exec I (World.init σ A feed)) out w')
+    (hcall : ∀ T, Made.theta T ∈ w'.calls → SolventAt I.codeOwner T.run.1) :
+    ∀ acc acc', σ[I.codeOwner]? = some acc → w'.accounts[I.codeOwner]? = some acc' →
+      acc'.code = acc.code → Weth code acc' := by
+  intro acc acc' hacc hacc' hcode
+  obtain ⟨acc₀, h₀, hc₀, hs₀⟩ := hpre
+  obtain ⟨acc₁, h₁, hst, hc₁, hbal⟩ := entry_account hσ hne hv hT h₀
+  rw [hacc] at h₁; cases h₁
+  refine ⟨hcode.trans (hc₁.trans hc₀), ?_⟩
+  exact runtime_solvent (Succeeds.of_noStop noStop_runtime hrun) hadm hacc hs₀ hst hbal hcall
+    acc' hacc'
+
+/-- **The recorded call, as `GoodTheta` asks of it**: entered as in `runtime_keeps`, the call a
+    run of the runtime entry records has no data, goes to another account than `a` (so it runs
+    no code `Trusted` must admit, and its reported value is no question), moves `wad`, which the
+    contract has, from a map whose balances add up as they did on entry, where the account runs
+    `code` and is solvent before and after the value moves; and the run ends with the accounts
+    the call returned. -/
+theorem recorded_call {code : ByteArray} {I : Env} {σpre σ : AccountMap} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w' : World}
+    (hσ : σ = sendEth I.codeOwner I.source I.weiValue true σpre)
+    (hne : I.source ≠ I.codeOwner) (hv : I.weiValue ≤ balOf σpre I.source)
+    (hT : total σpre < UInt256.size) (hpre : Holds I.codeOwner (Weth code) σpre)
+    (hrun : runtime.exec I (World.init σ A feed) = some (.ok (out, w'))) {T : ThetaCall}
+    (hrec : Made.theta T ∈ w'.calls) :
+    T.d.size < UInt256.size ∧ T.r ≠ I.codeOwner ∧ T.v = T.v' ∧ T.v ≤ balOf T.σ T.s ∧
+      total T.σ < UInt256.size ∧ Holds I.codeOwner (Weth code) T.σ ∧
+      Holds I.codeOwner (Weth code) (sendEth T.r T.s T.v true T.σ) ∧ w'.accounts = T.run.1 := by
+  obtain ⟨-, hw0, hbal, s, rest, -, rfl, ha⟩ := runtime_recorded hrun rfl hrec
+  obtain ⟨acc₀, h₀, hc₀, hs₀⟩ := hpre
+  obtain ⟨acc, hacc, hst, hc, hb⟩ := entry_account hσ hne hv hT h₀
+  have hs : Solvent acc := solvent_of_noValue hs₀ hst hb hw0
+  have hH : Holds I.codeOwner (Weth code) (World.init σ A feed).accounts :=
+    ⟨acc, hacc, hc.trans hc₀, hs⟩
+  obtain ⟨hH₁, hH₂⟩ := withdrawCall_holds (s := s) hH hbal
+  refine ⟨by simp [UInt256.size], withdrawCall_r_ne hne, rfl, withdrawCall_value hacc hs hbal, ?_,
+    hH₁, hH₂, ha⟩
+  rw [withdrawCall_total]
+  show total σ < UInt256.size
+  rw [hσ, total_sendEth hv hT]
+  exact hT
 
 /-! ## The constructor -/
 
