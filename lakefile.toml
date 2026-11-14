@@ -2,10 +2,10 @@ name = "FeEquiVMProofs"
 version = "0.1.0"
 defaultTargets = ["FeProofs"]
 
-# Local wiring: EquiVM's and EVMLean's `clz` branches, to be replaced by pinned revisions.
+# Local wiring: EquiVM's and EVMLean's `fe-stack` branches (`clz` and `precompiles`), to be replaced by pinned revisions.
 [[require]]
 name = "EquiVM"
-path = "../EquiVM-clz"
+path = "../EquiVM-fe"
 
 [[lean_lib]]
 name = "Fe"
