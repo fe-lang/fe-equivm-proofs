@@ -282,4 +282,28 @@ theorem RefinesDeploy.accounts {p : Profile} {creation runtime : ByteArray} {m :
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' :=
   Agrees.accounts (h σ σ₀ g A I args hargs hcode hperm) hP hrun
 
+/-! ## `P1` is the finer profile
+
+A result that agrees with a run at `P1` agrees with it at `P0`, so a `P1` certificate is a `P0`
+one. -/
+
+/-- `P1` agreement is `P0` agreement and more. -/
+theorem Agrees.toP0 {evm : EvmResult} {r : Option (Except (Exit World) (ByteArray × World))}
+    (h : Agrees .P1 evm r) : Agrees .P0 evm r := by
+  unfold Agrees at h ⊢
+  split <;> simp_all <;> grind
+
+/-- A `P1` certificate of a bytecode is a `P0` one. -/
+theorem RefinesOn.toP0 {code : ByteArray} {m : ContractModel} {admits : ExecutionEnv → Prop}
+    (h : RefinesOn .P1 code m admits) : RefinesOn .P0 code m admits :=
+  fun σ σ₀ g A I tail hc ht ha => (h σ σ₀ g A I tail hc ht ha).imp id
+    fun ⟨feed, hf⟩ => ⟨feed, hf.toP0⟩
+
+/-- A `P1` deployment certificate is a `P0` one. -/
+theorem RefinesDeploy.toP0 {creation runtime : ByteArray} {m : ContractModel}
+    {validArgs : ByteArray → Prop} (h : RefinesDeploy .P1 creation runtime m validArgs) :
+    RefinesDeploy .P0 creation runtime m validArgs :=
+  fun σ σ₀ g A I args hv hc hp => (h σ σ₀ g A I args hv hc hp).imp id
+    fun ⟨feed, hf⟩ => ⟨feed, hf.toP0⟩
+
 end Fe.EVM
