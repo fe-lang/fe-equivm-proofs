@@ -57,8 +57,9 @@ def returndatacopy (dest offset len : UInt256) : FeM Unit := do
 def forwardedGas (cap gasArg value : UInt256) : UInt256 :=
   .ofNat (min cap.toNat gasArg.toNat + if value = ⟨0⟩ then 0 else GasConstants.Gcallstipend)
 
-/-- The log entries a callee appended to the substate it was given.  Assumes the callee's
-    substate extends the one it was given, as `Θ`'s does. -/
+/-- The log entries a callee appended to the substate it was given.  The callee's substate
+    extends the one it was given: `Ethereum.EVM.Substates.theta_logs_extract` for `Θ`,
+    `lambda_logs_extract` for `Lambda` (`Fe/EVM/LogsAppend.lean`). -/
 def appended (before after : Substate) : LogSeries :=
   after.logSeries.extract before.logSeries.size
 
