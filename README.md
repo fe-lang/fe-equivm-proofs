@@ -195,7 +195,8 @@ the contract directory to share eligible prefixes with static-mode twins, then r
 `Fe/` is the model library, independent of any contract: the monad of exported code
 (`Core.lean`), the EVM world and its primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`,
 `Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), invariants through
-reentrant calls (`EVM/Invariant.lean`, which imports EVMLean only, and `RefineInvariant.lean`),
+reentrant calls (`EVM/FrameCalls.lean` and `Invariant.lean`, which import EVMLean only, and
+`RefineInvariant.lean`),
 facts about exported entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`,
 `Generate.lean`), and the commands that embed exported text (`Embed.lean`).
 
