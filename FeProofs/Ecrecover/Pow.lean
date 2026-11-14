@@ -49,7 +49,7 @@ theorem pow_rep (hK : K.Valid) (hR : K.R2 = 2 ^ 512 % K.p) (h1 : 1 < K.p) {a : L
 
 end Mont
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 theorem sub_one_u64 {k : ℕ} (hk : k + 1 < 2 ^ 64) :
     IntTy.sub (.u 64) (UInt256.ofNat (k + 1)) (UInt256.ofNat 1) = pure (UInt256.ofNat k) := by

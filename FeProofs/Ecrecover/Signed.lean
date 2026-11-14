@@ -93,7 +93,7 @@ theorem I_land_M62 (x : ℤ) : I x &&& UInt256.ofNat 4611686018427387903 = I (x 
 
 /-! ## Truncations -/
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 theorem sign_extend_mod (v : UInt256) :
     ∃ w, Lib.sign_extend v

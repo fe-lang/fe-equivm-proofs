@@ -1,14 +1,15 @@
-import FeProofs.Ecrecover.Exported
+import FeProofs.Precompiles.Exported.Ecrecover
 import Fe.EVM.Diff
 
 /-!
 # ECDSARECOVER by fevm's code
 
-EVMLean's ECRECOVER (`Ξ_ECREC`) gets the signer's public key from a process,
-`python3 Ethereum/EllipticCurvesPy/recover.py e v r s`, which uses the Python package `coincurve`.
-`ecrecover e v r s` prints what that script prints, computed by the exported model of fevm's
-secp256k1 key recovery: the model's `runtime` on a call of `recover(e, v, r, s)`, the arm of the
-contract `Ecrecover` (`src/lib.fe`) around `secp256k1::recover`.  The script of that name at the
+An EVMLean that computes ECRECOVER (`Ξ_ECREC`) in Python gets the signer's public key from a
+process, `python3 Ethereum/EllipticCurvesPy/recover.py e v r s`, which uses the Python package
+`coincurve`; the EVMLean this repository pins computes it in Lean.  `ecrecover e v r s` prints
+what that script prints, computed by the exported model of fevm's secp256k1 key recovery: the
+model's `runtime` on a call of `recover(e, v, r, s)`, the arm of the contract `Ecrecover`
+(`FeProofs/Precompiles/src/lib.fe`) around `secp256k1::recover`.  The script of that name at the
 repository root runs it.
 
 The arguments are big-endian hex, as `Ξ_ECREC` passes them: the message hash `e`, the recovery id
@@ -39,7 +40,7 @@ def recover (e v r s : Nat) : Except String (Option ByteArray) :=
     if out.size != 96 then .error s!"returns {Ethereum.toHex out}"
     else if fromByteArrayBigEndian (out.extract 0 32) == 1 then .ok (some (out.extract 32 96))
     else .ok none
-  match (entry Exported.runtime).exec I (World.init ∅ default) with
+  match (entry Precompiles.Exported.Ecrecover.runtime).exec I (World.init ∅ default) with
   | some (.ok (out, _)) | some (.error (.stop out _)) => returned out
   | some (.error exit) => .error (Diff.describeExit exit)
   | none => .error "does not terminate"

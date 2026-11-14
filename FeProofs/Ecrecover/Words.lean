@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Exported
+import FeProofs.Precompiles.Exported.Ecrecover
 import Reasoning.EVMWord
 
 /-!
@@ -112,7 +112,7 @@ theorem ofNat_toNat (x : UInt256) : UInt256.ofNat x.toNat = x := by
 theorem word_eq_of_toNat {x y : UInt256} (h : x.toNat = y.toNat) : x = y := by
   rw [← ofNat_toNat x, ← ofNat_toNat y, h]
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- Truncation of a word to 64 bits. -/
 theorem downcast_truncate_u128_u64_eq (x : UInt256) :

@@ -16,7 +16,7 @@ set_option exponentiation.threshold 512
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- The exported key of the specification's result. -/
 def keyOf : Option (Fp × Fp) → Option_PublicKey

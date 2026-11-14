@@ -16,7 +16,7 @@ set_option exponentiation.threshold 512
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-! ## Joining and cutting limbs -/
 

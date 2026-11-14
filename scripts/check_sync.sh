@@ -9,7 +9,7 @@ root=$(cd "$(dirname "$0")/.." && pwd -P)
 fe=$(cd "$1" && pwd -P)
 (cd "$fe" && cargo test --release --locked -p fe-lean-export --test golden)
 before=$(mktemp -d)
-(cd "$root" && tar -cf - FeProofs/*/Exported.lean FeProofs/*/*.trust) | tar -xf - -C "$before"
+(cd "$root" && tar -cf - FeProofs/*/Exported.lean FeProofs/*/Exported/*.lean FeProofs/*/*.trust) | tar -xf - -C "$before"
 updated=$(python3 "$root/scripts/sync_exported.py" "$fe")
 [ -z "$updated" ] && exit 0
 for path in $(echo "$updated" | sed 's/^updated //'); do

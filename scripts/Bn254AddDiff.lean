@@ -1,15 +1,16 @@
-import FeProofs.Bn254.Exported
+import FeProofs.Precompiles.Exported.Bn254Add
 import Fe.EVM.Diff
 
 /-!
 # ECADD: the exported model against EVMLean
 
-Runs the exported model of `FeProofs/Bn254` (fevm's `bn254::add` behind a fallback arm) on call
-data, and EVMLean's ECADD, `Ξ_BN_ADD`, on the same bytes: the model must return the 64 bytes
-`Ξ_BN_ADD` outputs, or revert without data where it fails.  The inputs are go-ethereum's
-`bn256Add` vectors, whose expected outputs are checked too, and generated ones: points on the
-curve, sums of a point with itself, with its negation and with the point at infinity, points off
-the curve, coordinates at and above the modulus, and inputs cut short or extended.
+Runs the exported model of the contract `Bn254Add` of `FeProofs/Precompiles` (fevm's `bn254::add`
+behind a fallback arm) on call data, and EVMLean's ECADD, `Ξ_BN_ADD`, on the same bytes: the model
+must return the 64 bytes `Ξ_BN_ADD` outputs, or revert without data where it fails.  The inputs
+are go-ethereum's `bn256Add` vectors, whose expected outputs are checked too, and generated ones:
+points on the curve, sums of a point with itself, with its negation and with the point at
+infinity, points off the curve, coordinates at and above the modulus, and inputs cut short or
+extended.
 
 `lake env lean scripts/Bn254AddDiff.lean` prints a line per disagreement and a total.
 -/
@@ -24,7 +25,7 @@ def p : Nat := BN254.p
     without data; or how it ends otherwise. -/
 def model (d : ByteArray) : Except String (Option ByteArray) :=
   let I : ExecutionEnv := { (default : ExecutionEnv) with calldata := d }
-  match (entry FeProofs.Bn254.Exported.runtime).exec I (World.init ∅ default) with
+  match (entry FeProofs.Precompiles.Exported.Bn254Add.runtime).exec I (World.init ∅ default) with
   | some (.ok (out, _)) | some (.error (.stop out _)) => .ok (some out)
   | some (.error (.revert data)) =>
     if data.isEmpty then .ok none else .error s!"reverts with {Ethereum.toHex data}"

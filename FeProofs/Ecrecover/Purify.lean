@@ -13,7 +13,7 @@ open Ethereum Fe Fe.EVM Reasoning.Theory
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- The constants of `Base`, the field prime. -/
 def KB : Modulus where

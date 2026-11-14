@@ -35,7 +35,8 @@ end FeProofs.Ecrecover
 
 namespace FeProofs.Ecrecover
 
-open Ethereum Fe Fe.EVM Exported WeierstrassCurve WeierstrassCurve.Jacobian
+open Ethereum Fe Fe.EVM WeierstrassCurve WeierstrassCurve.Jacobian
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- `P` represents a nonsingular triple with `z`-coordinate `z` whose point is `A`. -/
 def GoodP (P : Point_Mont_Base) (A : W.toAffine.Point) (z : Fp) : Prop :=

@@ -23,9 +23,11 @@ import FeProofs.ERC20.ConservationBytecode
 import FeProofs.ERC20.Invariant
 import FeProofs.WETH9.Invariant
 import FeProofs.Fixtures.Exported
-import FeProofs.Ecrecover.Exported
+import FeProofs.Precompiles.Exported.Ecrecover
 import FeProofs.Ecrecover.Contract
-import FeProofs.Bn254.Exported
+import FeProofs.Precompiles.Exported.Bn254Add
+import FeProofs.Precompiles.Exported.Blake2F
+import FeProofs.Precompiles.Exported.Ripemd160
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints

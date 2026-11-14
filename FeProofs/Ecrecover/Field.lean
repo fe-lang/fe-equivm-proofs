@@ -22,7 +22,7 @@ open Ethereum Fe Fe.EVM Reasoning.Theory
 
 namespace FeProofs.Ecrecover
 
-open Exported Mont
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover Mont
 
 /-- The field of the curve. -/
 abbrev Fp := ZMod Secp256k1.p

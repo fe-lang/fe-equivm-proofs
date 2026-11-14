@@ -614,7 +614,7 @@ theorem run_spec (f0 g0 : Limb) : ∀ n (s : DS) c, s.Inv f0 g0 c → s.left.val
 theorem sgn_one : (1 : Limb).sgn = 1 := by decide
 theorem sgn_zero : (0 : Limb).sgn = 0 := by decide
 
-open Exported in
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover in
 /-- `divsteps` on an odd `f0` returns, with an `eta` for the next call, the transition matrix
 of 62 divsteps. -/
 theorem divsteps_spec (eta : ℤ) (he : eta.bmod (2 ^ 64) = eta) (f0 g0 : Limb)

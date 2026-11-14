@@ -1,8 +1,9 @@
 """ECDSARECOVER for EVMLean, by the exported model of fevm's secp256k1 code.
 
-EVMLean's ECRECOVER (`Ethereum/EllipticCurves.lean`) runs
+An EVMLean whose ECRECOVER (`Ethereum/EllipticCurves.lean`) runs in Python runs
 `python3 Ethereum/EllipticCurvesPy/recover.py e v r s` in the working directory, which is this
-repository's root when the export audit elaborates a file.  This file stands in for EVMLean's
+repository's root when the export audit elaborates a file; the EVMLean this repository pins
+computes it in Lean.  This file stands in for EVMLean's
 script of that name, which needs the package `coincurve`: it prints what the program
 `.lake/build/bin/ecrecover` (`FeProofs/Ecrecover/Main.lean`, built by `lake build ecrecover`)
 prints, the key as 128 hex digits or `error`.  The program's diagnostics are shown only when it

@@ -545,7 +545,7 @@ theorem Order_value_eq : Order.value = KO.p := by decide
 
 Each exported method on representations returns a representation of the result. -/
 
-open Ethereum Exported Mont
+open Ethereum Precompiles.Exported.Shared Precompiles.Exported.Ecrecover Mont
 
 section
 variable {a b : L4} {x y : ZMod KB.p}

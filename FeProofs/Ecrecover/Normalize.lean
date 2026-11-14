@@ -16,7 +16,7 @@ set_option exponentiation.threshold 512
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- The word vector of five integer limbs. -/
 abbrev vec5 (a : ℕ → ℤ) : Vector UInt256 5 := #v[I (a 0), I (a 1), I (a 2), I (a 3), I (a 4)]

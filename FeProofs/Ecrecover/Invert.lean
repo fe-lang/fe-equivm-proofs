@@ -18,7 +18,7 @@ set_option exponentiation.threshold 512
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- Limbs that fit the `i128` chains: all below `2 ^ 62`. -/
 def Lim (a : ℕ → ℤ) : Prop := ∀ i, |a i| ≤ 2 ^ 62

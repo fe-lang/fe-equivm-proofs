@@ -14,7 +14,7 @@ open Ethereum Fe Fe.EVM Reasoning.Theory
 
 namespace FeProofs.Ecrecover
 
-open Exported
+open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-! ## Signs and masks -/
 
