@@ -14,17 +14,34 @@ namespace Fe.Sonatina.Check
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
 
+/-- What a statement defines locally, it defines. -/
+theorem local_def {t : Stmt} {p : Nat × Inst} (h : t.local? = some p) : t.def? = some p := by
+  unfold Stmt.local? at h
+  split at h
+  · cases h
+  · exact h
+
 theorem lookup_def {pre rest : List Stmt} {s : Stmt} {id : Nat} {ty : Ty}
-    (hs : s.dsts = [(id, ty)]) (hpre : ∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ≠ id) :
-    ((pre ++ s :: rest).filterMap Stmt.def?).lookup id = some s.inst := by
+    (hs : s.dsts = [(id, ty)]) (hnc : ∀ callee args, s.inst ≠ .call callee args)
+    (hpre : ∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ≠ id) :
+    ((pre ++ s :: rest).filterMap Stmt.local?).lookup id = some s.inst := by
   induction pre with
-  | nil => simp [Stmt.def?, hs]
+  | nil =>
+    have : s.local? = some (id, s.inst) := by
+      unfold Stmt.local?
+      split
+      · next h => obtain ⟨g, a, he⟩ : ∃ g a, s.inst = .call g a := by
+                    revert h; cases s.inst <;> simp
+                  exact absurd he (hnc g a)
+      · simp [Stmt.def?, hs]
+    simp [this]
   | cons t pre ih =>
     have ih' := ih fun t' h => hpre t' (List.mem_cons_of_mem _ h)
-    cases ht : t.def? with
+    cases ht : t.local? with
     | none => simpa [List.filterMap_cons, ht] using ih'
     | some p =>
       have hp : p.1 ≠ id := by
+        have ht := local_def ht
         unfold Stmt.def? at ht
         split at ht
         · next id' ty' hd =>
@@ -266,7 +283,7 @@ theorem definedAfter_mono : ∀ {stmts : List Stmt} {D D' : List Nat},
 theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ctx}
     (hsym : ic.symbol = (c.symbols.lookup ·)) :
     ∀ (stmts pre : List Stmt) (D D' : List Nat) (env : Env) (w : World) (evs : List Event),
-      c.defs = (pre ++ stmts).filterMap Stmt.def? →
+      c.defs = (pre ++ stmts).filterMap Stmt.local? →
       (∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ∈ D) →
       definedAfter D stmts = some D' →
       stmts.filterMapM c.eventOfStmt = some evs →
@@ -291,7 +308,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
     | none => simp [hes] at he
     | some o =>
     simp only [hes, Option.bind_eq_bind, Option.bind_some] at he
-    have hdefs' : c.defs = ((pre ++ [s]) ++ rest).filterMap Stmt.def? := by
+    have hdefs' : c.defs = ((pre ++ [s]) ++ rest).filterMap Stmt.local? := by
       rw [hdefs, List.append_assoc]; rfl
     have hpre' : ∀ t ∈ pre ++ [s], ∀ d ∈ t.dsts, d.1 ∈ D ++ s.dsts.map (·.1) := by
       intro t ht d hdt
@@ -340,7 +357,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           (fun x hx => List.mem_append_left _ hx) fun id' h' hn inst hl => ?_
         have : id' = id := by simpa [hn] using h'
         subst this
-        rw [hdefs, lookup_def hds (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
+        rw [hdefs, lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
         cases hl
         refine ⟨reads_mono (fun x hx => List.mem_append_left _ hx) hr, fun _ _ _ => ?_⟩
         have hsame := WordsOf.same (WordsOf.agree hagree (fun x hx => hρ x
@@ -459,7 +476,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               fun id' h' hn inst hl => ?_
             have : id' = id := by simpa [hn] using h'
             subst this
-            rw [hdefs, lookup_def hds (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
+            rw [hdefs, lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
             cases hl
             refine ⟨reads_mono hsub hr, fun d e he' => ?_⟩
             rw [hinst] at he'

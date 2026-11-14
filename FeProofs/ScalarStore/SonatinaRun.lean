@@ -4,107 +4,18 @@ import Fe.Sonatina.Run
 /-!
 # FeScalarStore's machine IR, run
 
-The machine IR's runtime function as the sidecar has it (`runtimeFunc`, proved equal to the
-sidecar's by `rfl`), and its runs from the entry block on each kind of call.
+The machine IR's runtime function as the sidecar has it (`runtimeFunc`, read from the sidecar by
+`sonatina_func` and proved equal to the sidecar's by `rfl`), and its runs from the entry block on
+each kind of call.
 -/
 
 namespace FeProofs.ScalarStore.Sonatina
 
 open Ethereum Ethereum.EVM Fe Fe.EVM Fe.Sonatina
 
-/-- The machine IR's runtime function, as the sidecar has it. -/
-def runtimeFunc : Func :=
-  { name := "contract_runtime_root_FeScalarStore",
-    params := [],
-    rets := [],
-    blocks := [{ id := 0,
-                 phis := [],
-                 body := [{ dsts := [(0, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.calldataSize) [] },
-                          { dsts := [(2, Ty.int 256)],
-                            inst := Inst.cmp
-                                      (CmpOp.lt)
-                                      (Operand.var 0)
-                                      (Operand.imm 256 4) }],
-                 term := Term.br (Operand.var 2) 13 1 },
-               { id := 1,
-                 phis := [],
-                 body := [{ dsts := [(4, Ty.int 256)],
-                            inst := Inst.evm
-                                      (EvmOp.calldataLoad)
-                                      [Operand.imm 256 0] },
-                          { dsts := [(6, Ty.int 256)],
-                            inst := Inst.bin
-                                      (BinOp.shr)
-                                      (Operand.imm 256 224)
-                                      (Operand.var 4) }],
-                 term := Term.brTable
-                           (Operand.var 6)
-                           (some 14)
-                           [(Operand.imm 256 1627277233, 5), (Operand.imm 256 1833756220, 10)] },
-               { id := 13, phis := [], body := [], term := Term.jump 4 },
-               { id := 14, phis := [], body := [], term := Term.jump 4 },
-               { id := 4,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert (Operand.imm 256 0) (Operand.imm 256 0) },
-               { id := 5,
-                 phis := [],
-                 body := [{ dsts := [(9, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.callValue) [] }],
-                 term := Term.br (Operand.var 9) 6 7 },
-               { id := 6,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert (Operand.imm 256 0) (Operand.imm 256 0) },
-               { id := 7,
-                 phis := [],
-                 body := [{ dsts := [(11, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.calldataSize) [] },
-                          { dsts := [(12, Ty.int 256)],
-                            inst := Inst.bin
-                                      (BinOp.sub)
-                                      (Operand.var 11)
-                                      (Operand.imm 256 4) },
-                          { dsts := [(14, Ty.int 256)],
-                            inst := Inst.cmp
-                                      (CmpOp.slt)
-                                      (Operand.var 12)
-                                      (Operand.imm 256 32) }],
-                 term := Term.br (Operand.var 14) 8 9 },
-               { id := 8,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert (Operand.imm 256 0) (Operand.imm 256 0) },
-               { id := 9,
-                 phis := [],
-                 body := [{ dsts := [(15, Ty.int 256)],
-                            inst := Inst.evm
-                                      (EvmOp.calldataLoad)
-                                      [Operand.imm 256 4] },
-                          { dsts := [],
-                            inst := Inst.evm
-                                      (EvmOp.sstore)
-                                      [Operand.imm 256 0, Operand.var 15] }],
-                 term := Term.evmReturn (Operand.imm 256 0) (Operand.imm 256 0) },
-               { id := 10,
-                 phis := [],
-                 body := [{ dsts := [(16, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.callValue) [] }],
-                 term := Term.br (Operand.var 16) 11 12 },
-               { id := 11,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert (Operand.imm 256 0) (Operand.imm 256 0) },
-               { id := 12,
-                 phis := [],
-                 body := [{ dsts := [(18, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.sload) [Operand.imm 256 0] },
-                          { dsts := [],
-                            inst := Inst.evm
-                                      (EvmOp.mstore)
-                                      [Operand.imm 256 0, Operand.var 18] }],
-                 term := Term.evmReturn (Operand.imm 256 0) (Operand.imm 256 32) }] }
+-- The machine IR's runtime function, as the sidecar has it.
+sonatina_func runtimeFunc "Fe/Sonatina/Fixtures/FeScalarStore.sidecar.json" "runtime"
+  "contract_runtime_root_FeScalarStore"
 
 theorem runtimeFunc_eq : (((sidecar.section? "runtime").bind (·.lowering)).map fun low =>
     low.machine.func? "contract_runtime_root_FeScalarStore") = some (some runtimeFunc) := by
@@ -118,7 +29,7 @@ theorem ir_short (h : I.calldata.size < 4) :
   have h' : I.calldata.size % UInt256.size = I.calldata.size :=
     Nat.mod_eq_of_lt (by unfold UInt256.size; omega)
   simp only [UInt256.size] at h'
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- The selector of `set(uint256)`, as the machine IR computes it. -/
 abbrev SetSel : Prop := (uInt256OfByteArray (I.calldata.readBytes 0 32)).toNat >>> 224 = 1627277233
@@ -136,7 +47,7 @@ theorem ir_set_value (hsel : SetSel I) (hwv : I.weiValue ≠ ⟨0⟩) :
     (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- `set(uint256)` on calldata too short for its argument: the machine IR reverts with no
     data. -/
@@ -144,7 +55,7 @@ theorem ir_set_head (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hshort : I.c
     (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hlt : (I.calldata.size : Int) - 4 < 32 := by omega
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- `set(uint256)` with its argument: the machine IR stores it at slot 0 and stops with no
     data. -/
@@ -156,7 +67,7 @@ theorem ir_set (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hlong : 36 ≤ I.
           (uInt256OfByteArray (I.calldata.readBytes 4 32)) })) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hlt : ¬ (I.calldata.size : Int) - 4 < 32 := by omega
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- `set(uint256)` with its argument in a static call: the machine IR fails. -/
 theorem ir_set_static (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hlong : 36 ≤ I.calldata.size)
@@ -164,14 +75,14 @@ theorem ir_set_static (hsel : SetSel I) (hwv : I.weiValue = ⟨0⟩) (hlong : 36
     (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error .static) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hlt : ¬ (I.calldata.size : Int) - 4 < 32 := by omega
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- `get()` with call value: the machine IR reverts with no data. -/
 theorem ir_get_value (hsel : GetSel I) (hwv : I.weiValue ≠ ⟨0⟩) :
     (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- `get()`: the machine IR stores the word at slot 0 at address 0 and returns it. -/
 theorem ir_get (hsel : GetSel I) (hwv : I.weiValue = ⟨0⟩) :
@@ -181,7 +92,7 @@ theorem ir_get (hsel : GetSel I) (hwv : I.weiValue = ⟨0⟩) :
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := calldata_facts hsz hfits
   have hb := Reasoning.Theory.toByteArray_write32_read_back w.memory (slotWord I w.accounts ⟨0⟩) 0
     (Nat.zero_le _)
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 /-- A selector of neither arm: the machine IR reverts with no data. -/
 theorem ir_noMatch (h0 : ¬ SetSel I) (h1 : ¬ GetSel I) :
@@ -191,7 +102,7 @@ theorem ir_noMatch (h0 : ¬ SetSel I) (h1 : ¬ GetSel I) :
   unfold GetSel at h1
   have h0' := Ne.symm h0
   have h1' := Ne.symm h1
-  repeat ir_step [runtimeFunc]
+  repeat ir_step
 
 end Arms
 
@@ -207,91 +118,9 @@ theorem ir_runtime {I : ExecutionEnv} {w : World}
 
 /-! ## The constructor -/
 
-/-- The machine IR's init function, as the sidecar has it. -/
-def initFunc : Func :=
-  { name := "contract_init_root_FeScalarStore",
-    params := [],
-    rets := [],
-    blocks := [{ id := 0,
-                 phis := [],
-                 body := [{ dsts := [(0, Ty.int 256)],
-                            inst := Inst.evm
-                                      (EvmOp.callValue)
-                                      [] }],
-                 term := Term.br (Operand.var 0) 1 2 },
-               { id := 1,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert
-                           (Operand.imm 256 0)
-                           (Operand.imm 256 0) },
-               { id := 2,
-                 phis := [],
-                 body := [{ dsts := [(3, Ty.int 256)],
-                            inst := Inst.symSize "." },
-                          { dsts := [(4, Ty.int 256)],
-                            inst := Inst.evm (EvmOp.codeSize) [] },
-                          { dsts := [(5, Ty.int 256)],
-                            inst := Inst.cmp
-                                      (CmpOp.lt)
-                                      (Operand.var 4)
-                                      (Operand.var 3) }],
-                 term := Term.br (Operand.var 5) 3 4 },
-               { id := 3,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert
-                           (Operand.imm 256 0)
-                           (Operand.imm 256 0) },
-               { id := 4,
-                 phis := [],
-                 body := [{ dsts := [(6, Ty.int 256)],
-                            inst := Inst.bin
-                                      (BinOp.sub)
-                                      (Operand.var 4)
-                                      (Operand.var 3) },
-                          { dsts := [],
-                            inst := Inst.evm
-                                      (EvmOp.codeCopy)
-                                      [Operand.imm 256 96,
-                                       Operand.var 3,
-                                       Operand.var 6] },
-                          { dsts := [(9, Ty.int 256)],
-                            inst := Inst.cmp
-                                      (CmpOp.gt)
-                                      (Operand.imm 256 32)
-                                      (Operand.var 6) }],
-                 term := Term.br (Operand.var 9) 5 6 },
-               { id := 5,
-                 phis := [],
-                 body := [],
-                 term := Term.evmRevert
-                           (Operand.imm 256 0)
-                           (Operand.imm 256 0) },
-               { id := 6,
-                 phis := [],
-                 body := [{ dsts := [(10, Ty.int 256)],
-                            inst := Inst.evm
-                                      (EvmOp.mload)
-                                      [Operand.imm 256 96] },
-                          { dsts := [],
-                            inst := Inst.evm
-                                      (EvmOp.sstore)
-                                      [Operand.imm 256 0,
-                                       Operand.var 10] },
-                          { dsts := [(11, Ty.int 256)],
-                            inst := Inst.symAddr "&FeScalarStore_runtime" },
-                          { dsts := [(12, Ty.int 256)],
-                            inst := Inst.symSize "&FeScalarStore_runtime" },
-                          { dsts := [],
-                            inst := Inst.evm
-                                      (EvmOp.codeCopy)
-                                      [Operand.imm 256 0,
-                                       Operand.var 11,
-                                       Operand.var 12] }],
-                 term := Term.evmReturn
-                           (Operand.imm 256 0)
-                           (Operand.var 12) }] }
+-- The machine IR's init function, as the sidecar has it.
+sonatina_func initFunc "Fe/Sonatina/Fixtures/FeScalarStore.sidecar.json" "init"
+  "contract_init_root_FeScalarStore"
 
 theorem initFunc_eq : (((sidecar.section? "init").bind (·.lowering)).map fun low =>
     low.machine.func? "contract_init_root_FeScalarStore") = some (some initFunc) := by
@@ -305,7 +134,7 @@ variable {I}
 theorem ir_init_value (hwv : I.weiValue ≠ ⟨0⟩) :
     (runBlocks m ic initFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
   have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
-  repeat ir_step [initFunc]
+  repeat ir_step
 
 /-- The constructor on code of 165 bytes, whose last 32 bytes, copied to address 96, read as
     `v`: the machine IR stores `v` at slot 0 and returns the 80 bytes of code at offset 53. -/
@@ -318,7 +147,7 @@ theorem ir_init {v : UInt256} (hs0 : ic.symbol "." = some (0, 133))
       { w with
         accounts := storeWord I.codeOwner w.accounts ⟨0⟩ v
         memory := I.code.write 53 (I.code.write 133 w.memory 96 32) 0 80 })) := by
-  repeat ir_step [initFunc, wrap]
+  repeat ir_step [wrap]
 
 end Init
 

@@ -483,7 +483,9 @@ elab "sonatina_sidecar " name:ident path:str : command => do
     liftCoreM (addAndCompile decl)
 
 /-- `sonatina_func name "path" "section" "entry"`: define `name : Func` as the machine IR's
-    function `entry` of section `section` of the sidecar at `path`, for proofs that run it. -/
+    function `entry` of section `section` of the sidecar at `path`, for proofs that run it, and
+    for each block `b` of it a `simp` lemma `name.block_b : name.block? b = some …`, so that a run
+    finds its blocks without unfolding the whole function. -/
 elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
   let text ← IO.FS.readFile path.getString
   match Parse.parseSidecar text with
@@ -492,13 +494,30 @@ elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
     let some f := ((sidecar.section? sec.getString).bind (·.lowering)).bind
         (·.machine.func? fn.getString)
       | throwError "{path.getString}: no machine function {fn.getString} in {sec.getString}"
+    let declName := (← getCurrNamespace) ++ name.getId
     let decl := Declaration.defnDecl {
-      name := (← getCurrNamespace) ++ name.getId
+      name := declName
       levelParams := []
       type := mkConst ``Func
       value := toExpr f
       hints := .abbrev
       safety := .safe }
-    liftCoreM (addAndCompile decl)
+    liftCoreM do
+      addAndCompile decl
+      enableRealizationsForConst declName
+    let blockTy := mkApp (mkConst ``Option [0]) (mkConst ``Block)
+    for b in f.blocks do
+      let lhs := mkApp2 (mkConst ``Func.block?) (mkConst declName) (toExpr b.id)
+      let rhs := mkApp2 (mkConst ``Option.some [0]) (mkConst ``Block) (toExpr b)
+      let thm := declName ++ Name.mkSimple s!"block_{b.id}"
+      liftCoreM do
+        addDecl (.thmDecl {
+          name := thm
+          levelParams := []
+          type := mkApp3 (mkConst ``Eq [1]) blockTy lhs rhs
+          value := mkApp2 (mkConst ``Eq.refl [1]) blockTy rhs })
+      liftTermElabM do
+        Lean.Meta.addSimpTheorem Lean.Meta.simpExtension thm (post := true) (inv := false)
+          .global (eval_prio default)
 
 end Fe.Sonatina

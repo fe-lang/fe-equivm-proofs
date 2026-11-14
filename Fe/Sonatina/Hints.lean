@@ -61,7 +61,11 @@ def place (low : Lowering) : Nat → CodeLabel → Option Nat
       let b ← f.blocks.find? (·.block == block)
       b.offset <|> (b.aliasOf.bind fun a => place low depth (.block func a)) <|> redirected <|>
         -- A function merged into another has the other's code, block for block.
-        (if f.offset.isNone then place low depth (.func func) else none)
+        (if f.offset.isNone then
+          match low.redirects.lookup (.func func) with
+          | some (.func g) => place low depth (.block g block)
+          | _ => none
+        else none)
     | .func name => ((low.funcs.find? (·.name == name)).bind (·.offset)) <|> redirected
     | .unit name => ((low.units.find? (·.1 == name)).map (·.2.1)) <|> redirected
     | .inst => none

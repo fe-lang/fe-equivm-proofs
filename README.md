@@ -97,12 +97,20 @@ adds event logs and revert payloads. `RefinesDeploy` is the same for the creatio
 | `FeProofs.ERC20` | `feERC20RefinesModel` | `feERC20RefinesExported` |
 | `FeProofs.WETH9` | `feWETH9RefinesModel` | `feWETH9RefinesExported` |
 
-Each has a `…Deploy…` twin for the constructor. All are at `P0`. The certificates of exported
+Each has a `…Deploy…` twin for the constructor. All are at `P0`. FeScalarStore and FeERC20 also
+have certificates of the exported model at `P1`, through the Sonatina checker
+(`Fe/Sonatina/README.md`): `feScalarStoreRefinesExportedP1` and `feERC20RefinesExportedP1`, each
+with its `…Deploy…` twin. FeERC20's `P1` certificates are of the bytecode the pinned Fe commit
+compiles (`FeProofs/ERC20/P1/`, `P1/FeERC20.build.json`); its `P0` ones are of an older
+compiler's (`FeProofs/ERC20/FeERC20.build.json`). The certificates of exported
 models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
 `call_conserves` and `deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
 properties of the ERC20 bytecode proved through the exported certificates: every successful call
 keeps the balances of a list of holders equal to the supply, and a successful deployment makes
-them so, under conditions on the holders (`Covers`, `CollisionFree`).
+them so, under conditions on the holders (`Covers`, `CollisionFree`). They hold of any bytecode
+with `P0` certificates of the exported model (`call_keeps`, `deploy_keeps`); `P1.call_conserves`
+and `P1.deploy_conserves` are the instances at `FeProofs/ERC20/P1/`, through
+`RefinesOn.toP0` and `RefinesDeploy.toP0`.
 
 ### Invariants through reentrant calls
 
@@ -136,7 +144,9 @@ deployment by a holder makes the holders' balances add up to the supply at the n
 storage starts empty, as `Lambda` guarantees); `every_call_conserves` and
 `every_transaction_conserves`, every message call, creation and transaction keeps that, where
 every successful frame at the token has calldata shorter than 2^64 bytes and is covered by the
-holders. `feConstantKeepsStorage` is an instance without a condition. An invariant may bound the
+holders. `P1.deploy_conserves_token`, `P1.every_call_conserves` and
+`P1.every_transaction_conserves` are the same for `FeProofs/ERC20/P1/`, with the same hypotheses.
+`feConstantKeepsStorage` is an instance without a condition. An invariant may bound the
 balance from below: no balance increase wraps, because every call and transaction keeps the sum of
 all balances from growing, given that it is below 2^256 where the transaction starts and the
 transaction is valid (the sender can pay for gas, blobs and value).
@@ -347,3 +357,12 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 ```sh
 fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
+
+FeERC20's `P1` bytecode is built with the Fe commit `fe.pin` names:
+
+```sh
+fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode
+```
+
+`out/FeERC20.bin` and `out/FeERC20.runtime.bin` must match `FeProofs/ERC20/P1/creation.hex` and
+`FeProofs/ERC20/P1/runtime.hex`.

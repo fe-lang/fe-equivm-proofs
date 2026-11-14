@@ -59,7 +59,7 @@ theorem shiftRight160_ne_zero {w : UInt256} (hdirty : EVM.addressModulus ≤ w.t
   rw [shiftRight160_toNat] at hnat
   rw [Nat.div_eq_zero_iff] at hnat
   rcases hnat with hpow | hlt
-  · exact (by native_decide : EVM.twoPow 160 ≠ 0) hpow
+  · exact (by decide +kernel : EVM.twoPow 160 ≠ 0) hpow
   · exact (not_lt_of_ge (by simpa [EVM.addressModulus] using hdirty)) hlt
 
 /-! ## Scalar arguments -/

@@ -6,9 +6,10 @@ import Reasoning.Memory
 # Running the machine IR of a contract
 
 Lemmas for running a function of the machine IR on a call by `simp`, block by block: `ir_step`
-unfolds `runBlocks` once and simplifies the block it is at, with the interpreter's definitions
-and the model library's primitives.  A contract's run lemmas give it the function and the facts
-of the call (`calldata_facts` for an arm's head check) and apply it once per block on the path.
+unfolds `runBlocks` once and simplifies the block it is at, found by the block lemmas
+`sonatina_func` makes, with the interpreter's definitions, the model library's primitives and
+the memory lemmas below.  A contract's run lemmas give it the facts of the call
+(`calldata_facts` for an arm's head check) and apply it once per block on the path.
 -/
 
 namespace Fe.Sonatina
@@ -18,6 +19,9 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Reasoning.Theory
 /-- `2 ^ 256`, as `simp` leaves it. -/
 local notation "size256" =>
   115792089237316195423570985008687907853269984665640564039457584007913129639936
+
+/-- The word 0 in the form `ir_step` leaves it. -/
+theorem ofNat_zero_eq : UInt256.ofNat 0 = ⟨0⟩ := rfl
 
 /-- A word's value modulo `2 ^ 256`, as `simp` meets it once `UInt256.size` is a literal. -/
 theorem toNat_mod (u : UInt256) : u.toNat % size256 = u.toNat :=
@@ -39,6 +43,48 @@ theorem selWord_eq_iff {cd : ByteArray} {k : Nat} (hk : k < UInt256.size) :
   constructor
   · intro h; rw [h, Check.toNat_ofNat_lt hk]
   · intro h; exact Check.eq_of_toNat (by rw [h, Check.toNat_ofNat_lt hk])
+
+/-- A word of a value is the word of the value modulo `2 ^ 256`. -/
+theorem ofNat_mod (n : Nat) : UInt256.ofNat (n % size256) = UInt256.ofNat n :=
+  Check.eq_of_toNat (by simp [Check.toNat_ofNat, UInt256.size])
+
+/-- The machine IR's `sub` of two words, as a word. -/
+theorem wrap_sub_word (a b : UInt256) :
+    UInt256.ofNat (wrap 256 ((a.toNat : Int) - (b.toNat : Int))) = UInt256.sub a b := by
+  have := Check.sub_word (x := a.toNat) (y := b.toNat) a.val.isLt b.val.isLt
+  rw [Reasoning.Theory.u256_ofNat_toNat, Reasoning.Theory.u256_ofNat_toNat] at this
+  exact this.symm
+
+/-- The machine IR's `add` of two words, as a word. -/
+theorem wrap_add_word (a b : UInt256) :
+    UInt256.ofNat (wrap 256 ((a.toNat : Int) + (b.toNat : Int))) = a + b := by
+  have := Check.add_word a.toNat b.toNat
+  rw [Reasoning.Theory.u256_ofNat_toNat, Reasoning.Theory.u256_ofNat_toNat] at this
+  rw [this]
+
+/-- A wrapped value is below `2 ^ 256`. -/
+theorem wrap_mod (n : Int) : wrap 256 n % size256 = wrap 256 n := by
+  simp only [wrap]; omega
+
+/-- The machine IR's overflow test of an `add`, `lt (a + b) a`, is the checked one's. -/
+theorem wrap_add_lt (a b : UInt256) :
+    wrap 256 ((a.toNat : Int) + (b.toNat : Int)) < a.toNat ↔ UInt256.size ≤ a.toNat + b.toNat := by
+  have ha := a.val.isLt; have hb := b.val.isLt
+  change a.toNat < UInt256.size at ha; change b.toNat < UInt256.size at hb
+  simp only [wrap]; rw [Check.size_eq] at ha hb ⊢
+  omega
+
+/-- A word shifted right, below `2 ^ 256`. -/
+theorem shr_mod (u : UInt256) (k : Nat) : u.toNat >>> k % size256 = u.toNat >>> k :=
+  Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) u.val.isLt)
+
+/-- Std's address check, as the machine IR's `shr 160` makes it. -/
+theorem notAddress_iff (v : UInt256) : NotAddress v ↔ v.toNat >>> 160 ≠ 0 := by
+  unfold NotAddress
+  rw [Nat.shiftRight_eq_div_pow]
+  constructor
+  · intro h; exact Nat.pos_iff_ne_zero.mp (Nat.div_pos h (by positivity))
+  · intro h; by_contra hn; exact h (Nat.div_eq_of_lt (by omega))
 
 /-- The selector word of calldata as the IR computes it, below `2 ^ 256`. -/
 theorem sel_mod (cd : ByteArray) : (uInt256OfByteArray (cd.readBytes 0 32)).toNat >>> 224 %
@@ -119,6 +165,32 @@ theorem pair_slot (mem : ByteArray) (key root : UInt256) :
       (key.toByteArray.write 0 mem 0 32) 32 32).readWithPadding 0 64))) = mapSlot key root := by
   rw [pair_read, mappingSlot_single]; rfl
 
+/-- A map's key and root stored at `off` and `off + 32` of memory that reaches `off` hash to
+    `mapSlot`, as a constructor stores them above its argument. -/
+theorem pair_slot_at (mem : ByteArray) (key root : UInt256) {off off2 : Nat}
+    (h : off ≤ mem.size) (h2 : off2 = off + 32) :
+    UInt256.ofNat (fromByteArrayBigEndian (KEC ((root.toByteArray.write 0
+      (key.toByteArray.write 0 mem off 32) off2 32).readWithPadding off 64))) =
+      mapSlot key root := by
+  subst h2
+  have hk := toByteArray_size key
+  have hr := toByteArray_size root
+  have hP : (mem.extract 0 off).size = off := by rw [ByteArray.size_extract]; omega
+  have h1 := write_word mem key h
+  have hs : off + 32 ≤ (key.toByteArray.write 0 mem off 32).size := by
+    rw [h1, ByteArray.size_append, ByteArray.size_append, hP, hk]; omega
+  have hx : (key.toByteArray.write 0 mem off 32).extract 0 (off + 32) =
+      mem.extract 0 off ++ key.toByteArray := by
+    rw [h1, extract_append_left _ _ 0 (off + 32) (by rw [ByteArray.size_append, hP, hk]),
+      show off + 32 = (mem.extract 0 off ++ key.toByteArray).size by
+        rw [ByteArray.size_append, hP, hk], byteArray_extract_self]
+  rw [write_word _ root hs, hx, readWithPadding_eq_extract' _ off 64 (by decide) (by decide)
+      (by simp only [ByteArray.size_append, hP, hk, hr]; omega),
+    ByteArray.append_assoc, ByteArray.append_assoc,
+    extract_append_right_window _ _ _ _ (by omega), hP, Nat.sub_self, Nat.add_sub_cancel_left,
+    ← ByteArray.append_assoc, byteArray_extract_two_chunks_0 _ _ _ hk hr, mappingSlot_single]
+  rfl
+
 /-- Words stored one after another from `base`. -/
 def storeWords (mem : ByteArray) (base : Nat) : List UInt256 → ByteArray
   | [] => mem
@@ -176,6 +248,20 @@ theorem storeWords_read (vs : List UInt256) {mem : ByteArray} {base len : Nat}
     ByteArray.append_assoc, extract_append_right_window _ _ _ _ (by omega), hP, Nat.sub_self,
     Nat.add_sub_cancel_left, extract_append_left _ _ _ _ (by omega)]
 
+/-- An `Error(string)` payload as the machine IR reverts with it: four words stored from 64,
+    after a map's key and root at 0 and 32, read back as 100 bytes. -/
+theorem error_read (mem : ByteArray) (a b w0 w1 w2 w3 : UInt256) :
+    (w3.toByteArray.write 0 (w2.toByteArray.write 0 (w1.toByteArray.write 0
+      (w0.toByteArray.write 0 (b.toByteArray.write 0 (a.toByteArray.write 0 mem 0 32) 32 32)
+        64 32) 96 32) 128 32) 160 32).readWithPadding 64 100 =
+      (wordBytes [w0, w1, w2, w3]).extract 0 100 := by
+  have h1 : (a.toByteArray.write 0 mem 0 32).size ≥ 32 :=
+    toByteArray_write_size_ge_off_add32 _ _ 0 (by simp)
+  have h2 : 64 ≤ (b.toByteArray.write 0 (a.toByteArray.write 0 mem 0 32) 32 32).size :=
+    toByteArray_write_size_ge_off_add32 _ _ 32 (lt_of_le_of_lt (Nat.sub_le_sub_left h1 32)
+      (by simp))
+  exact storeWords_read [w0, w1, w2, w3] h2 (by decide) (by simp) (by decide)
+
 /-- The selector of `Panic(uint256)` stored at 0 and the code at 4, read back as 36 bytes: the
     payload `revert_error` of a panic reverts with. -/
 theorem panic_read (mem : ByteArray) (c : UInt256) :
@@ -205,19 +291,26 @@ theorem panic_read (mem : ByteArray) (c : UInt256) :
     u256_ofNat_toNat]
 
 /-- Unfold `runBlocks` once and simplify the block the run is at, with the interpreter's
-    definitions, the model library's primitives, the local hypotheses and the extra lemmas. -/
+    definitions, the model library's primitives, the local hypotheses and the extra lemmas.
+    `CharP.cast_eq_zero` is left out: on every cast of a word's value to `ℤ` it searches for a
+    `CharP ℤ` instance, unfolding the word to compare it with `0`. -/
 syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 macro_rules
   | `(tactic| ir_step) => `(tactic| ir_step [])
-  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks.eq_1]; simp [Func.block?, enter,
+  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks.eq_1]; simp [enter,
       Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
       Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
-      Fe.EVM.callvalue, Fe.EVM.codesize, Fe.EVM.codecopy, Fe.EVM.sload, Fe.EVM.sstore,
-      Fe.EVM.mstore, Fe.EVM.mload, revertData, returnData,
-      Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, sel_mod,
-      Reasoning.Theory.u256_ofNat_toNat, show UInt256.ofNat 0 = ⟨0⟩ from rfl,
-      Std.TreeMap.getElem_insert, *, $ls,*]))
+      Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
+      Fe.EVM.codecopy, Fe.EVM.calldatacopy, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore,
+      Fe.EVM.mload,
+      Fe.EVM.keccak256, revertData, returnData, Reasoning.Theory.byteArray_readWithPadding_zero,
+      toNat_mod, sel_mod, shr_mod, ofNat_mod, pair_slot, error_read, panic_read,
+      wrap_sub_word, wrap_add_word, wrap_add_lt, wrap_mod,
+      Reasoning.Theory.toByteArray_write32_read_back,
+      Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
+      show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+      Std.TreeMap.getElem_insert, -CharP.cast_eq_zero, *, $ls,*]))
 
 end Fe.Sonatina
