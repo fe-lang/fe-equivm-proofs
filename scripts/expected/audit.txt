@@ -32,6 +32,7 @@ FeProofs.PackedStore.Exported.fePackedStoreDeployRefinesHandEntry: [Classical.ch
 FeProofs.PackedStore.Exported.fePackedStoreRefinesExported: [Classical.choice, Quot.sound, propext] + 446 native_decide
 FeProofs.PackedStore.Exported.fePackedStoreRefinesHandEntry: [Classical.choice, Quot.sound, propext] + 446 native_decide
 FeProofs.PackedStore.fePackedStoreContractCorrect: [Classical.choice, Quot.sound, propext] + 518 native_decide
+FeProofs.Ripemd160.feRipemd160ContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ScalarStore.Exported.feScalarStoreDeployRefinesExported: [Classical.choice, Quot.sound, propext] + 143 native_decide
 FeProofs.ScalarStore.Exported.feScalarStoreRefinesExported: [Classical.choice, Quot.sound, propext] + 127 native_decide
 FeProofs.ScalarStore.Sonatina.feScalarStoreDeployRefinesExportedP1: [Classical.choice, Quot.sound, propext] + 0 native_decide
