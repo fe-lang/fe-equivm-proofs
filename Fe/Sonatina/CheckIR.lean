@@ -332,7 +332,16 @@ def RunAs : Option (Except (Fe.Exit World) (List Val × World)) →
     Option (Except (Fe.Exit World) (Option UInt256 × World)) → Prop
   | x, some (.error e) => x = some (.error e)
   | x, some (.ok (r, w')) => x = some (.ok (r.toList.map word, w'))
-  | _, none => False
+  | x, none => x = none
+
+open Fe Fe.EVM in
+theorem exec_returndatacopy (ee : ExecutionEnv) (w : World) (d o l : UInt256) :
+    (returndatacopy d o l).exec ee w =
+      if o.toNat + l.toNat > w.returnData.size then some (.error .oob)
+      else some (.ok ((), { w with memory := w.returnData.write o.toNat w.memory d.toNat l.toNat })) := by
+  unfold returndatacopy
+  simp only [Fe.M.exec_bind, Fe.M.exec_get]
+  split_ifs <;> simp
 
 open Fe Fe.EVM in
 /-- An event's EVM instruction runs as its operation on the world. -/
@@ -354,9 +363,12 @@ theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List 
     subst h
     rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | _⟩⟩⟩ <;> simp [δ] at hk
     all_goals
-      by_cases hp : ee.perm = true <;>
+      by_cases hp : ee.perm = true <;> cases hf : w.feed <;>
       simp [EvmOp.run, evRun, RunAs, Fe.EVM.sstore, Fe.EVM.mload, Fe.EVM.sload,
         Fe.EVM.keccak256, Fe.EVM.mstore, Fe.EVM.mstore8, Fe.EVM.codecopy, Fe.EVM.calldatacopy,
-        Fe.EVM.mcopy, word, hp]
+        Fe.EVM.mcopy, Fe.EVM.selfbalance, Fe.EVM.balance, Fe.EVM.extcodesize,
+        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.next, exec_returndatacopy, word, hp, hf]
+    all_goals split_ifs <;> simp
+
 
 end Fe.Sonatina.Check

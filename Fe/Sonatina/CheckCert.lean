@@ -45,6 +45,7 @@ theorem Xi_agrees {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : Exec
       exact ⟨_, _, Reasoning.Theory.Xi_revert_of_X hx, fun _ => rfl⟩
     | some (.error .static), hx => exact Reasoning.Theory.Xi_error_of_X hx
     | some (.error .trap), hx => exact Reasoning.Theory.Xi_error_of_X hx
+    | some (.error .oob), hx => exact Reasoning.Theory.Xi_error_of_X hx
 
 /-- The machine IR's run of a section is the prologue and its entry function's blocks from the
     entry block, ended where it would return. -/
@@ -116,8 +117,8 @@ theorem lookup_entries {secs : List Section} {name entry : String}
 theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
     {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail) :
-    (Exhausted (Ξ σ σ₀ g A I) ∨
-      Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A))) ∧
+    (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed,
+      Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A feed))) ∧
       ∀ Q, Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨hall, -, -⟩ := check_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
@@ -145,7 +146,10 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     rw [hname] at hf
     have hcode' : s.code name = code.bytecode := by simp [Sidecar.code, hcode]
     rw [hcode'] at hI
-    rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
+    -- The feed is what the bytes' run supplies.
+    obtain ⟨feed, hfeed⟩ := feeds_exists (g.toNat + 1)
+      (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I)
+      (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
     obtain ⟨hebm, hblk⟩ := head_block he
     obtain ⟨hb, hhb, hentry⟩ : ∃ hb, hint.blocks.find? (·.block == eb.id) = some hb ∧
         hb.entryStack = [] := by
@@ -161,18 +165,20 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     have hfin := func_run (tail := tail)
       (ic := ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩) hI hsize rfl
       hfuncs (g.toNat + 1) hint f eb eb none {}
-      (World.init σ A) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] hmemh
+      (World.init σ A feed) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] hmemh
       (by rw [hname]; exact hf) he
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
-      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl⟩, hb, 0, {}, [], hhb, hplace,
+      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl, rfl, hfeed⟩, hb, 0, {}, [], hhb, hplace,
         rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
         by simp [hephi]⟩
       (fun h => by rw [hret] at h; cases h)
     simp only [show (hint.name == entry) = true by simp [hname], preIf, if_true, ite_self] at hfin
     have hF := hfin.final
-    exact ⟨Xi_agrees (hF.agrees (by
-      simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)),
-      fun Q => hF.xOk (g.toNat + 1)⟩
+    refine ⟨(Xi_agrees (hF.agrees (by
+      simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp
+      id fun h => ⟨feed, ?_⟩, fun Q => hF.xOk (g.toNat + 1)⟩
+    rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
+    exact h
   · simp at hce
 
 /-- A section's run never returns: it ends stuck where its entry would. -/
@@ -192,16 +198,14 @@ theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : Exe
 theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
   obtain ⟨-, hinit, hrt⟩ := check_ok h
   refine ⟨fun σ σ₀ g A I tail hI _ _ => ?_, fun σ σ₀ g A I args _ hI _ => ?_⟩
-  · rcases (section_sound h hrt hI).1 with hx | hx
+  · exact (section_sound h hrt hI).1
+  · rcases (section_sound h hinit hI).1 with hx | ⟨feed, hx⟩
     · exact .inl hx
-    · exact .inr ⟨[], hx⟩
-  · rcases (section_sound h hinit hI).1 with hx | hx
-    · exact .inl hx
-    · refine .inr ⟨[], ?_⟩
+    · refine .inr ⟨feed, ?_⟩
       show Agrees .P1 _ ((s.runSection "init" .machine >>= fun tail => pure (.empty ++ tail)).exec
-        I (World.init σ A []))
+        I (World.init σ A feed))
       rw [Fe.M.exec_bind]
-      cases hr : (s.runSection "init" .machine).exec I (World.init σ A) with
+      cases hr : (s.runSection "init" .machine).exec I (World.init σ A feed) with
       | none => rw [hr] at hx; exact hx
       | some x =>
         cases x with

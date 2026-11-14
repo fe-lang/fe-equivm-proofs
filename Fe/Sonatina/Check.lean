@@ -76,13 +76,15 @@ def pureOps : List Operation :=
    .CALLER, .CALLVALUE, .CALLDATALOAD, .CALLDATASIZE, .CODESIZE, .CHAINID, .TIMESTAMP, .NUMBER,
    .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO]
 
-/-- The opcodes that read state: their result is an event's. -/
-def readOps : List Operation := [.SLOAD, .MLOAD, .KECCAK256]
+/-- The opcodes that read state: their result is an event's.  `GAS` reads the gas left, which
+    the model takes from its feed. -/
+def readOps : List Operation :=
+  [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS]
 
 /-- The opcodes that write state. -/
 def writeOps : List Operation :=
   [.SSTORE, .MSTORE, .MSTORE8, .CODECOPY, .CALLDATACOPY, .MCOPY, .LOG0, .LOG1, .LOG2, .LOG3,
-   .LOG4]
+   .LOG4, .RETURNDATACOPY]
 
 /-- The halting opcodes, with the operands they take. -/
 def haltOps : List Operation := [.RETURN, .REVERT, .STOP, .INVALID]
@@ -198,6 +200,9 @@ def evmEventOpcode : EvmOp → Option Operation
   | .codeCopy => some .CODECOPY | .calldataCopy => some .CALLDATACOPY | .mcopy => some .MCOPY
   | .log 0 => some .LOG0 | .log 1 => some .LOG1 | .log 2 => some .LOG2 | .log 3 => some .LOG3
   | .log 4 => some .LOG4
+  | .selfBalance => some .SELFBALANCE | .balance => some .BALANCE
+  | .extCodeSize => some .EXTCODESIZE | .returnDataSize => some .RETURNDATASIZE
+  | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
   | _ => none
 
 /-- The value a statement defines, if one, with its instruction. -/

@@ -350,6 +350,7 @@ def XAgrees (x : Except ExecutionException (ExecutionResult State))
   | some (.error (.revert data)) => ∃ g, x = .ok (.revert g data)
   | some (.error .static) => x = .error .StaticModeViolation
   | some (.error .trap) => x = .error .InvalidInstruction
+  | some (.error .oob) => x = .error .InvalidMemoryAccess
   | _ => False
 
 /-- The bytes end from `st` as the IR's run `r` ends, in steps. -/
@@ -357,7 +358,8 @@ def Final (D : Array UInt256) (st : State)
     (r : Option (Except (Fe.Exit World) (List Val × World))) : Prop :=
   (∃ n e, Steps D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
     (e = .StaticModeViolation ∧ r = some (.error .static)) ∨
-    (e = .InvalidInstruction ∧ r = some (.error .trap)))) ∨
+    (e = .InvalidInstruction ∧ r = some (.error .trap)) ∨
+    (e = .InvalidMemoryAccess ∧ r = some (.error .oob)))) ∨
   (∃ n s' out w', Steps D st (.ok (s', some (.success, out))) n ∧
     r = some (.error (.stop out w')) ∧ s'.accountMap = w'.accounts ∧
     s'.substate.logSeries = w'.logs) ∨
@@ -373,9 +375,10 @@ theorem Final.agrees {D : Array UInt256} {st : State}
     have hX := XstepN_X_error hx (fuel - n)
     rw [Nat.sub_add_cancel hn] at hX
     rw [hX]
-    rcases he with rfl | rfl | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    rcases he with rfl | rfl | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact .inl rfl
     · exact .inr (.inl rfl)
+    · exact .inr (.inr rfl)
     · exact .inr (.inr rfl)
     · exact .inr (.inr rfl)
   · have hn := XstepN_fuel hx hg

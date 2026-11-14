@@ -348,9 +348,11 @@ with the results' words on top of the caller's stack.
 `Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
 no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
 the pure, read, write and halting instructions `Check.lean` translates (no external call, no
-`gas`, no `create`), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
-FeERC20. On the corpus (`corpus-v3`) it accepts 387 of 430 sections, 31 of them with internal
-calls; it rejects 42 for an instruction outside the class and one for a dynamic frame. It matches
+`create`, no transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
+state reads below, 31 of them with internal calls, and accepts 391 with them; it rejects 38 for an
+instruction outside the class (calls, creations, transient storage, `blockhash`, `clz`) and one for
+a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
@@ -360,6 +362,19 @@ constant branches, these raised the count from 282. `scripts/SonatinaCheck.lean`
 fixtures, mutations of their hints (a dropped, added or swapped entry slot, offsets moved by a
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
+
+**The environment, balances, return data and gas.** The block header's and the chain's words
+(`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`) are pure
+opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesize` read the
+accounts, `returndatasize` and `returndatacopy` the return data (a copy past its end is the model's
+`.oob`, the bytes' invalid memory access), and `gas` the gas left: each is an event, its result a
+fresh value. The model's `gas` reads its feed, so the proof builds the feed from the bytes' run:
+`Feeds s f` says `f` is what the run from `s` supplies, at each `GAS` the word it pushes, and
+`Agree` holds it of the world's feed. A run's feed exists because each step that goes on spends
+gas (`feeds_exists`). A `gas` on an empty feed is stuck (`Trace.stuck`), which the bytes match
+only by running out of gas or stack there. These raised the corpus count from 387 to 391:
+`eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
+`payable.PayableBox` (`selfbalance`).
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal
@@ -405,7 +420,8 @@ Proved so far:
    `dup_moves`/`swap_moves` for every `DUPn`/`SWAPn`, and `PUSHn`, `PUSH0`, `POP`, `JUMPDEST`,
    `JUMP`, `JUMPI`. The opcodes on state and the halts use EVMLean's `step_*` lemmas as they are.
 
-3. Steps on state (`CheckEvent.lean`): `Agree` (memory, accounts, logs of an EVM state and the
+3. Steps on state (`CheckEvent.lean`): `Agree` (memory, accounts, logs, return data of an EVM
+   state and the
    model's world), `evRun` (an event's operation on the world) and `EvMoves`, proved for every
    read and write opcode the checker matches (`event_evMoves`), the logs included.
 4. The block lemma (`CheckBlock.lean`): `run_ends`, by induction on `run`'s fuel, says a path of

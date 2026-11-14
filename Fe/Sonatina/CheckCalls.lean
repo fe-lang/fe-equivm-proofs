@@ -24,34 +24,37 @@ open Ethereum Ethereum.EVM Fe Fe.EVM
 inductive Segs (ee : ExecutionEnv) (m : Module) (ic : Fe.Sonatina.Ctx) (ρ : Nat → UInt256) :
     List Event → List CallSeg → World → Option (Except (Fe.Exit World) World) → Prop
   /-- No call is left: the events end the statements. -/
-  | last {evs : List Event} {w : World} {r : Except (Fe.Exit World) World}
-      (h : Trace ee ρ evs w r) : Segs ee m ic ρ evs [] w (some r)
+  | last {evs : List Event} {w : World} {r : Option (Except (Fe.Exit World) World)}
+      (h : Trace ee ρ evs w r) : Segs ee m ic ρ evs [] w r
   /-- An event fails before the next call. -/
   | fail {evs : List Event} {cls : List CallSeg} {w : World} {e : Fe.Exit World}
-      (h : Trace ee ρ evs w (.error e)) : Segs ee m ic ρ evs cls w (some (.error e))
+      (h : Trace ee ρ evs w (some (.error e))) : Segs ee m ic ρ evs cls w (some (.error e))
+  /-- An event is stuck before the next call. -/
+  | stuck {evs : List Event} {cls : List CallSeg} {w : World}
+      (h : Trace ee ρ evs w none) : Segs ee m ic ρ evs cls w none
   /-- The callee's run is stuck. -/
   | callNone {evs : List Event} {cs : CallSeg} {more : List CallSeg} {w w₁ : World}
-      {ws : List UInt256} (h : Trace ee ρ evs w (.ok w₁))
+      {ws : List UInt256} (h : Trace ee ρ evs w (some (.ok w₁)))
       (ha : cs.args.mapM (·.eval ee ρ) = some ws)
       (hz : (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec ee w₁ = none) :
       Segs ee m ic ρ evs (cs :: more) w none
   /-- The callee's run fails. -/
   | callErr {evs : List Event} {cs : CallSeg} {more : List CallSeg} {w w₁ : World}
-      {ws : List UInt256} {e : Fe.Exit World} (h : Trace ee ρ evs w (.ok w₁))
+      {ws : List UInt256} {e : Fe.Exit World} (h : Trace ee ρ evs w (some (.ok w₁)))
       (ha : cs.args.mapM (·.eval ee ρ) = some ws)
       (hz : (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec ee w₁ = some (.error e)) :
       Segs ee m ic ρ evs (cs :: more) w (some (.error e))
   /-- The callee returns the words of the call's results, and the next segment goes on. -/
   | callOk {evs : List Event} {cs : CallSeg} {more : List CallSeg} {w w₁ w₂ : World}
       {ws : List UInt256} {r : Option (Except (Fe.Exit World) World)}
-      (h : Trace ee ρ evs w (.ok w₁)) (ha : cs.args.mapM (·.eval ee ρ) = some ws)
+      (h : Trace ee ρ evs w (some (.ok w₁))) (ha : cs.args.mapM (·.eval ee ρ) = some ws)
       (hz : (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec ee w₁ =
         some (.ok ((cs.dsts.map ρ).map Fe.Sonatina.word, w₂)))
       (rest : Segs ee m ic ρ cs.events more w₂ r) : Segs ee m ic ρ evs (cs :: more) w r
   /-- The callee returns other than as many words as the call has results. -/
   | callOther {evs : List Event} {cs : CallSeg} {more : List CallSeg} {w w₁ w₂ : World}
       {ws : List UInt256} {vals : List Val} {r : Option (Except (Fe.Exit World) World)}
-      (h : Trace ee ρ evs w (.ok w₁)) (ha : cs.args.mapM (·.eval ee ρ) = some ws)
+      (h : Trace ee ρ evs w (some (.ok w₁))) (ha : cs.args.mapM (·.eval ee ρ) = some ws)
       (hz : (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec ee w₁ =
         some (.ok (vals, w₂)))
       (hv : ∀ ws' : List UInt256, vals = ws'.map Fe.Sonatina.word → ws'.length ≠ cs.dsts.length) :
@@ -310,14 +313,13 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
     obtain ⟨x, hx, hends⟩ := body_run (m := m) hsym stmts pre D D' env w evs []
       (by rw [hdefs, List.append_nil]) hpre hd hev
       hbits hw hc
-    refine ⟨some x, hx, ?_⟩
-    cases x with
-    | ok p =>
-      obtain ⟨env', w'⟩ := p
-      obtain ⟨h1, h2, h3⟩ := hends
+    refine ⟨x, hx, ?_⟩
+    rcases x with _ | _ | ⟨env', w'⟩
+    rotate_left 2
+    · obtain ⟨h1, h2, h3⟩ := hends
       exact ⟨env', D', h1, definedAfter_mono hd, fun _ h => h, h2, .inl ⟨(fun _ _ h => by
         cases h; exact ⟨rfl, rfl⟩), fun ρ hρ => ⟨(h3 ρ hρ).1, .last (h3 ρ hρ).2⟩⟩⟩
-    | error e =>
+    all_goals
       obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends
       exact ⟨envf, Df, h1, h2, h2', h3, .inl ⟨(fun _ _ h => by cases h),
         fun ρ hρ => ⟨(h4 ρ hρ).1, .last (h4 ρ hρ).2⟩⟩⟩
@@ -342,16 +344,19 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
     have hx0 : (runBody m ic env (p0 ++ s :: q)).exec ee w =
         (runBody m ic env p0 >>= fun env' => runBody m ic env' (s :: q)).exec ee w := by
       rw [runBody_append]
-    cases x1 with
-    | error e =>
-      have hx : (runBody m ic env (p0 ++ s :: q)).exec ee w = some (.error e) := by
+    rcases x1 with _ | e | ⟨env1, w1⟩
+    · have hx : (runBody m ic env (p0 ++ s :: q)).exec ee w = none := by
+        rw [hx0, Fe.M.exec_bind, hx1]
+      obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends1
+      exact ⟨none, hx, envf, Df, h1, h2,
+        fun id h => definedAfter_mono hd id (List.mem_append_left _ (h2' id h)), h3,
+        .inl ⟨(fun _ _ h => by cases h), fun ρ hρ => ⟨(h4 ρ hρ).1, .stuck (h4 ρ hρ).2⟩⟩⟩
+    · have hx : (runBody m ic env (p0 ++ s :: q)).exec ee w = some (.error e) := by
         rw [hx0, Fe.M.exec_bind, hx1]
       obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends1
       exact ⟨some (.error e), hx, envf, Df, h1, h2,
         fun id h => definedAfter_mono hd id (List.mem_append_left _ (h2' id h)), h3,
         .inl ⟨(fun _ _ h => by cases h), fun ρ hρ => ⟨(h4 ρ hρ).1, .fail (h4 ρ hρ).2⟩⟩⟩
-    | ok p =>
-    obtain ⟨env1, w1⟩ := p
     have hx : (runBody m ic env (p0 ++ s :: q)).exec ee w =
         (runBody m ic env1 (s :: q)).exec ee w1 := by
       rw [hx0, Fe.M.exec_bind, hx1]
@@ -550,13 +555,21 @@ theorem Final.of_ok {D : Array UInt256} {st : State} {vals : List Val} {w : Worl
     {r : Option (Except (Fe.Exit World) (List Val × World))} :
     Final D st r := by
   rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
-  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩
+  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩ | ⟨_, h⟩
     · exact .exhausted hx (.inl rfl)
     · exact .exhausted hx (.inr rfl)
     · cases h
     · cases h
+    · cases h
   · cases h
   · cases h
+
+/-- An event's failure ends the bytes as it ends the IR's run. -/
+theorem Final.of_fails {D : Array UInt256} {st : State} {f : Fe.Exit World}
+    {e : ExecutionException} {n : Nat} (hx : Steps D st (.error e) n) (hf : Fails f e) :
+    Final D st (some (.error f)) := by
+  refine .inl ⟨n, e, hx, ?_⟩
+  cases f <;> simp only [Fails] at hf <;> subst hf <;> simp
 
 /-- A callee's ending is the block's: its failure, or getting stuck. -/
 theorem FinalW.of_callee {D : Array UInt256} {st : State}
@@ -615,14 +628,14 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
       run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s → Agree s w →
       Segs I m ic ρ p.events calls w r → s.machineState.gasAvailable.toNat ≤ G →
       FinalW (D_J I.code 0) s r ∨
-        ∃ w', r = some (.ok w') ∧ Ends code I ρ c hints place b B e0 p.exit [] s (.ok w')
+        ∃ w', r = some (.ok w') ∧ Ends code I ρ c hints place b B e0 p.exit [] s (some (.ok w'))
   | calls, fuel, p, s, w, r, B, hcl, har, hrun, hp, hw, hseg, hg => by
     -- The bytes up to the segment's end, as `run_ends` gives them.
     have hends := fun r' (htr : Trace I ρ p.events w r') =>
       run_ends (tail := tail) (e0 := e0) hsize hretj fuel p s w r' B hrun hp hw htr
     -- A path whose next call is `cs`, its events done: the bytes end as the callee's IR run,
     -- or the callee returns its words to the code the run goes on at.
-    have hcall : ∀ {cs more w₁ ws}, calls = cs :: more → Trace I ρ p.events w (.ok w₁) →
+    have hcall : ∀ {cs more w₁ ws}, calls = cs :: more → Trace I ρ p.events w (some (.ok w₁)) →
         cs.args.mapM (·.eval I ρ) = some ws →
         Final (D_J I.code 0) s ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁) ∨
         ∃ (ws₂ : List UInt256) (w₂ : World) (s₂ : State) (n : Nat) (restE : List Expr)
@@ -640,7 +653,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
       rw [hcl, hcs] at hE
       have hlw : ws.length = ce.params := by
         rw [← hla]; exact (mapM_some_iff.mp hargs).length_eq.symm
-      rcases hE with ⟨n, e, hx, he⟩ | ⟨hr, -⟩ | ⟨w₁', hr, ⟨_, _, _, _, _, _, hc0, -⟩ |
+      rcases hE with ⟨n, e, hx, he⟩ | ⟨_, _, _, hr, -⟩ | ⟨w₁', hr, ⟨_, _, _, _, _, _, hc0, -⟩ |
           ⟨_, _, _, hc0, -⟩ | ⟨_, _, _, _, hc0, -⟩ | hret | hnr⟩
       · exact .inl (.exhausted hx he)
       · cases hr
@@ -678,16 +691,21 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         · cases h
     cases hseg with
     | last htr =>
-      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨rfl, n, hx⟩ | ⟨w', rfl, h⟩
+      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨f, e, n, rfl, hf, hx⟩ | ⟨w', rfl, h⟩
       · exact .inl (.exhausted hx he)
-      · exact .inl (.inl ⟨n, _, hx, .inr (.inr (.inl ⟨rfl, rfl⟩))⟩)
+      · exact .inl (.of_fails hx hf)
       · rw [hcl] at h
         exact .inr ⟨w', rfl, .inr (.inr ⟨w', rfl, h⟩)⟩
     | fail htr =>
-      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨hr, n, hx⟩ | ⟨w', hr, -⟩
+      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨f, e, n, hr, hf, hx⟩ | ⟨w', hr, -⟩
       · exact .inl (.exhausted hx he)
       · cases hr
-        exact .inl (.inl ⟨n, _, hx, .inr (.inr (.inl ⟨rfl, rfl⟩))⟩)
+        exact .inl (.of_fails hx hf)
+      · cases hr
+    | stuck htr =>
+      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨f, e, n, hr, hf, hx⟩ | ⟨w', hr, -⟩
+      · exact .inl (.exhausted hx he)
+      · cases hr
       · cases hr
     | callNone htr ha hz =>
       rcases hcall rfl htr ha with hf | ⟨_, _, _, _, _, _, _, _, _, h, -⟩
@@ -746,6 +764,7 @@ theorem Segs.pre {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {ρ : N
   cases h with
   | last h => exact .last (ht _ h)
   | fail h => exact .fail (ht _ h)
+  | stuck h => exact .stuck (ht _ h)
   | callNone h ha hz => exact .callNone (ht _ h) ha hz
   | callErr h ha hz => exact .callErr (ht _ h) ha hz
   | callOk h ha hz hr => exact .callOk (ht _ h) ha hz hr
@@ -754,9 +773,10 @@ theorem Segs.pre {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {ρ : N
 theorem Final.of_none {D : Array UInt256} {st : State} (h : Final D st none)
     {r : Option (Except (Fe.Exit World) (List Val × World))} : Final D st r := by
   rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
-  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩
+  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩ | ⟨_, h⟩
     · exact .exhausted hx (.inl rfl)
     · exact .exhausted hx (.inr rfl)
+    · cases h
     · cases h
     · cases h
   · cases h
@@ -950,7 +970,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   subst envf
   subst Df
   have hcons := (hall ρ hρ).1
-  rcases hE with ⟨n, e', hxs, he'⟩ | ⟨hr, -⟩ |
+  rcases hE with ⟨n, e', hxs, he'⟩ | ⟨_, _, _, hr, -⟩ |
     ⟨w'', hr, harr | ⟨op, args, hws, -, hex0, hargs, hh⟩ |
     ⟨vals, wsv, nv, sv, -, hex0, hwsv, hstv, hpcv, hstkv, henvv, hagv⟩ |
     ⟨cs, more, -, -, -, -, -, -, -, -, -, hcl, -⟩ | ⟨cs, -, -, -, -, -, hcl, -⟩⟩
@@ -1148,7 +1168,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       exact .inr (.inl ⟨n, s', _, w', hxs, by simp [ht, stopCall], ha, hl⟩)
     · simp at hargs; subst hargs
       obtain ⟨n, hxs⟩ := hh
-      exact .inl ⟨n, _, hxs, .inr (.inr (.inr ⟨rfl, by simp [ht, trap]⟩))⟩
+      exact .inl ⟨n, _, hxs, .inr (.inr (.inr (.inl ⟨rfl, by simp [ht, trap]⟩)))⟩
 
   · -- A return.
     cases hr
