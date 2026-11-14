@@ -112,4 +112,83 @@ theorem Point_double_spec {P : Point_Mont_Base} {x y z : Fp} (hP : RepP P x y z)
     rw [e]
     exact toAffine_two _ hv
 
+/-- `add-2007-bl` is twice the classical sum, a unit multiple of Mathlib's `addXYZ`. -/
+theorem add_formula {x1 y1 z1 x2 y2 z2 : Fp} (h1 : W.Equation ![x1, y1, z1])
+    (h2 : W.Equation ![x2, y2, z2]) :
+    (![(((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2))))))))) - (((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((z1 + z2) * (z1 + z2) - (z1 * z1) - (z2 * z2)) * ((x2 * (z1 * z1)) - (x1 * (z2 * z2))))] : Fin 3 → Fp) = (-(2 * (z1 * z2))) • W.addXYZ ![x1, y1, z1] ![x2, y2, z2] := by
+  rw [smul_fin3]
+  have hX := addX_eq' h1 h2
+  have hY := negAddY_eq' (W' := W) ![x1, y1, z1] ![x2, y2, z2]
+  simp only [addXYZ, addY, negY_eq, addZ] at hX hY ⊢
+  ext i
+  fin_cases i <;> simp [Weierstrass.short] at hX hY ⊢
+  · linear_combination -4 * hX
+  · linear_combination -8 * hY - 8 * (y1 * z2 ^ 3 - y2 * z1 ^ 3) * hX
+  · ring
+
+theorem two_ne_zero' : (2 : Fp) ≠ 0 := by
+  have := Secp256k1.Spec.natCast_ne_zero (k := 2) (by decide) (by decide)
+  exact_mod_cast this
+
+theorem toAffine_eq_zero_of_z {x y z : Fp} (hz : z = 0) : Point.toAffine W ![x, y, z] = 0 :=
+  Point.toAffine_of_Z_eq_zero (by simpa using hz)
+
+/-- `Point::add`: for every two nonsingular triples, a representation of a nonsingular triple
+whose point is the sum. -/
+theorem Point_add_spec {P Q : Point_Mont_Base} {x1 y1 z1 x2 y2 z2 : Fp} (hP : RepP P x1 y1 z1)
+    (hQ : RepP Q x2 y2 z2) (hv1 : W.Nonsingular ![x1, y1, z1]) (hv2 : W.Nonsingular ![x2, y2, z2]) :
+    ∃ P' x' y' z', Point_add_Mont_Base P Q = pure P' ∧ RepP P' x' y' z' ∧
+      W.Nonsingular ![x', y', z'] ∧
+      Point.toAffine W ![x', y', z'] = Point.toAffine W ![x1, y1, z1] + Point.toAffine W ![x2, y2, z2] := by
+  obtain ⟨a, b, c, rfl, ha, hb, hc⟩ := hP
+  obtain ⟨d, e, f, rfl, hd, he, hf⟩ := hQ
+  simp only [Point_add_Mont_Base, is_infinity_eq, is_zero_Base, square_Base, mul_Base, add_Base,
+    sub_Base, double_Base, pure_bind, infinity_eq, RepB.isZero hc, RepB.isZero hf]
+  by_cases hz1 : z1 = 0
+  · simp only [hz1, decide_true, if_true]
+    exact ⟨_, _, _, _, rfl, ⟨d, e, f, rfl, hd, he, hf⟩, hv2, by rw [toAffine_eq_zero_of_z rfl, zero_add]⟩
+  simp only [hz1, decide_false, Bool.false_eq_true, if_false]
+  by_cases hz2 : z2 = 0
+  · simp only [hz2, decide_true, if_true]
+    exact ⟨_, _, _, _, rfl, ⟨a, b, c, rfl, ha, hb, hc⟩, hv1,
+      by rw [toAffine_eq_zero_of_z rfl, _root_.add_zero]⟩
+  simp only [hz2, decide_false, Bool.false_eq_true, if_false]
+  have hH := RepB.isZero (x := ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) (by rep_tac)
+  have hR := RepB.isZero (x := ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2))))) (by rep_tac)
+  rw [hH]
+  by_cases h0 : ((x2 * (z1 * z1)) - (x1 * (z2 * z2))) = 0
+  · rw [hR]
+    simp only [h0, decide_true, if_true]
+    have hx : ![x1, y1, z1] 0 * ![x2, y2, z2] 2 ^ 2 = ![x2, y2, z2] 0 * ![x1, y1, z1] 2 ^ 2 := by
+      simp; linear_combination -h0
+    by_cases h1 : ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) = 0
+    · simp only [h1, decide_true, if_true]
+      obtain ⟨P', x', y', z', hd2, hrep, hns, haff⟩ := Point_double_spec ⟨a, b, c, rfl, ha, hb, hc⟩ hv1
+      rw [hd2, pure_bind]
+      have hy : ![x1, y1, z1] 1 * ![x2, y2, z2] 2 ^ 3 = ![x2, y2, z2] 1 * ![x1, y1, z1] 2 ^ 3 := by
+        simp
+        have := mul_left_cancel₀ two_ne_zero' (show (2 : Fp) * (y2 * z1 * (z1 * z1) - y1 * z2 * (z2 * z2)) = 2 * 0 by
+          linear_combination h1)
+        linear_combination -this
+      have heq := Point.toAffine_of_equiv (W := W) (equiv_of_X_eq_of_Y_eq (by simpa using hz1) (by simpa using hz2) hx hy)
+      exact ⟨P', x', y', z', rfl, hrep, hns, by rw [haff, heq]⟩
+    · simp only [h1, decide_false, Bool.false_eq_true, if_false]
+      have hy : ![x1, y1, z1] 1 * ![x2, y2, z2] 2 ^ 3 ≠ ![x2, y2, z2] 1 * ![x1, y1, z1] 2 ^ 3 := by
+        simp
+        intro h; apply h1; linear_combination -2 * h
+      have hsum := Point.toAffine_add (W := W) hv1 hv2
+      rw [add_of_Y_ne hv1.1 hv2.1 (by simpa using hz1) (by simpa using hz2) hx hy,
+        Point.toAffine_smul _ (isUnit_addU_of_Y_ne (by simpa using hz1) (by simpa using hz2) hy),
+        Point.toAffine_of_Z_eq_zero (by simp)] at hsum
+      exact ⟨_, _, _, _, rfl, infinity_rep, nonsingular_zero, by rw [toAffine_inf, hsum]⟩
+  · simp only [h0, decide_false, Bool.false_eq_true, if_false]
+    refine ⟨_, (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2))))))))) - (((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((z1 + z2) * (z1 + z2) - (z1 * z1) - (z2 * z2)) * ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))), rfl, ⟨_, _, _, rfl, by rep_tac, by rep_tac, by rep_tac⟩, ?_⟩
+    have hx : ![x1, y1, z1] 0 * ![x2, y2, z2] 2 ^ 2 ≠ ![x2, y2, z2] 0 * ![x1, y1, z1] 2 ^ 2 := by
+      simp; intro h; apply h0; linear_combination -h
+    have hu : IsUnit (-(2 * (z1 * z2))) :=
+      (neg_ne_zero.mpr (mul_ne_zero two_ne_zero' (mul_ne_zero hz1 hz2))).isUnit
+    rw [add_formula hv1.1 hv2.1, ← add_of_not_equiv (not_equiv_of_X_ne hx)]
+    exact ⟨(nonsingular_smul _ hu).mpr (nonsingular_add hv1 hv2),
+      by rw [Point.toAffine_smul _ hu, Point.toAffine_add hv1 hv2]⟩
+
 end FeProofs.Ecrecover
