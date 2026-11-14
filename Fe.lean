@@ -11,3 +11,5 @@ import Fe.EVM.Reach
 import Fe.EVM.Entry
 import Fe.EVM.Diff
 import Fe.EVM.Generate
+import Fe.Sonatina.Syntax
+import Fe.Sonatina.Parse
