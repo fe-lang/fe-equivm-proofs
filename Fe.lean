@@ -16,4 +16,5 @@ import Fe.Sonatina.Parse
 import Fe.Sonatina.Interp
 import Fe.Sonatina.Refine
 import Fe.Sonatina.Hints
+import Fe.Sonatina.Check
 import Fe.Sonatina.Diff
