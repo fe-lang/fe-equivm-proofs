@@ -24,6 +24,12 @@ theorem admissible_outcome {ρ σ α : Type}
   intro w
   exact admissible_flatOrder _ (h env w)
 
+/-- `admissible_pi_apply` for a non-dependent argument, one argument of a curried loop at a
+time. -/
+theorem admissible_arrow {α β : Type} [CCPO β] (P : α → β → Prop) (h : ∀ x, admissible (P x)) :
+    admissible (fun f : α → β => ∀ x, P x (f x)) :=
+  admissible_pi_apply (β := fun _ => β) P h
+
 theorem admissible_exec {ρ σ α : Type} (Q : α → σ → Prop) :
     admissible (fun (m : Fe.M ρ σ α) =>
       ∀ env w r w', m.exec env w = some (.ok (r, w')) → Q r w') := by

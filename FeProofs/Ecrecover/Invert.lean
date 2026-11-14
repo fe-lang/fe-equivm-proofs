@@ -215,4 +215,116 @@ theorem InvState.step {X : ℤ} {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m i
     obtain ⟨a, b, hab⟩ := hs.cop
     exact ⟨a * R - b * Q, b * U - a * V, by rw [e1, e2] at hab; linear_combination hab⟩
 
+/-! ## The loop -/
+
+/-- What a run of the loop may do: diverge, or return the inverse of `X` modulo `M` on
+canonical limbs, the world unchanged. -/
+def Good (M X : ℤ) (w : World) (o : Option (Except (Exit World) (Vector UInt256 5 × World))) : Prop :=
+  o = none ∨ ∃ out, o = some (.ok (vec5 out, w)) ∧ Canon out ∧ 0 ≤ val5 out ∧ val5 out < M ∧
+    val5 out * X ≡ 1 [ZMOD M]
+
+/-- The loop's arguments hold a state. -/
+def St (M X : ℤ) (r0 r1 r2 r3 : Vector UInt256 5) (r4 : UInt256) : Prop :=
+  ∃ d e f g eta, r0 = vec5 d ∧ r1 = vec5 e ∧ r2 = vec5 f ∧ r3 = vec5 g ∧ r4 = I eta ∧
+    InvState M X d e f g eta
+
+theorem R64_of_lim {a : ℕ → ℤ} (h : Lim a) (i : ℕ) : R64 (a i) := by
+  have := h i; rw [abs_le] at this; constructor <;> linarith
+
+theorem val5_eq_zero_iff {a : ℕ → ℤ} (ha : Canon a) :
+    val5 a = 0 ↔ (a 0 = 0 ∧ a 1 = 0 ∧ a 2 = 0 ∧ a 3 = 0 ∧ a 4 = 0) := by
+  have h0 := ha 0 (by decide); have h1 := ha 1 (by decide)
+  have h2 := ha 2 (by decide); have h3 := ha 3 (by decide)
+  unfold val5
+  constructor
+  · intro h; omega
+  · rintro ⟨a0, a1, a2, a3, a4⟩; rw [a0, a1, a2, a3, a4]; ring
+
+theorem odd_limb0 {f : ℕ → ℤ} (hc : Canon f) (h : val5 f % 2 = 1) :
+    (Limb.ofInt (f 0)).val % 2 = 1 := by
+  have := limb0_val hc
+  have hv : val5 f = f 0 + 2 * (2 ^ 61 * (f 1 + 2 ^ 62 * f 2 + 2 ^ 124 * f 3 + 2 ^ 186 * f 4)) := by
+    unfold val5; ring
+  omega
+
+set_option synthInstance.maxSize 8192 in
+set_option synthInstance.maxHeartbeats 2000000 in
+open Lean.Order in
+/-- The loop of `invert`, from any state: it diverges or returns `X⁻¹ mod M`. -/
+theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ)
+    (r11 : Vector UInt256 5) :
+    ∀ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w,
+      Good (val5 m) X w ((invert_5.b1 (vec5 m) inv.w r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11).exec env w) := by
+  refine invert_5.b1.fixpoint_induct (vec5 m) inv.w r11
+    (fun F => ∀ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w,
+      Good (val5 m) X w ((F r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10).exec env w)) ?_ ?_
+  · refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → UInt256 → Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r0 G => ∀ r1 r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r1 r2 r3 r4 r5 r6 r7 r8 r9 r10).exec env w)) (fun r0 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → UInt256 → Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r1 G => ∀ r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r2 r3 r4 r5 r6 r7 r8 r9 r10).exec env w)) (fun r1 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → UInt256 → Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r2 G => ∀ r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r3 r4 r5 r6 r7 r8 r9 r10).exec env w)) (fun r2 => ?_)
+    refine Fe.M.admissible_arrow (β := UInt256 → Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r3 G => ∀ r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r4 r5 r6 r7 r8 r9 r10).exec env w)) (fun r3 => ?_)
+    refine Fe.M.admissible_arrow (β := Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r4 G => ∀ r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r5 r6 r7 r8 r9 r10).exec env w)) (fun r4 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r5 G => ∀ r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r6 r7 r8 r9 r10).exec env w)) (fun r5 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r6 G => ∀ r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r7 r8 r9 r10).exec env w)) (fun r6 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r7 G => ∀ r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r8 r9 r10).exec env w)) (fun r7 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r8 G => ∀ r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r9 r10).exec env w)) (fun r8 => ?_)
+    refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → FeM (Vector UInt256 5))
+      (fun r9 G => ∀ r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G r10).exec env w)) (fun r9 => ?_)
+    refine Fe.M.admissible_arrow (β := FeM (Vector UInt256 5))
+      (fun r10 G => St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w, Good (val5 m) X w ((G).exec env w)) (fun r10 => ?_)
+    refine admissible_pi _ (fun _ => ?_)
+    exact Fe.M.admissible_outcome (fun _ w o => Good (val5 m) X w o) (fun _ _ => Or.inl rfl)
+  · intro F ih r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 hst env w
+    obtain ⟨d, e, f, g, eta, rfl, rfl, rfl, rfl, rfl, hs⟩ := hst
+    simp only [is_zero_5_eq g (R64_of_lim hs.lg), pure_bind]
+    have hM := hm.pos
+    have tf := top20 hs.cf hm.lt (by linarith [neg_abs_le (val5 f), hs.fb]) (Or.inl hs.fb)
+    have tg := top20 hs.cg hm.lt (by linarith [neg_abs_le (val5 g), hs.gb]) (Or.inl hs.gb)
+    have td := top20 hs.cd hm.lt hs.dr.1 (Or.inr hs.dr.2)
+    have te := top20 hs.ce hm.lt hs.er.1 (Or.inr hs.er.2)
+    by_cases hz : g 0 = 0 ∧ g 1 = 0 ∧ g 2 = 0 ∧ g 3 = 0 ∧ g 4 = 0
+    · -- `g = 0`: `f = ±1`, and `normalize` returns `± d`.
+      simp only [hz, decide_true, Bool.not_true, Bool.false_eq_true, if_false, checkIndex, idx_lits,
+        lt5, if_true, pure_bind, vec5, vget5]
+      obtain ⟨out, hout, hco, h0, h1, hc⟩ := normalize_spec d m (f 4) hs.cd hm.canon
+        (R64_of_lim hs.lf 4) hm.pos hm.lt hs.dr.1 hs.dr.2
+      simp only [vec5] at hout
+      rw [hout]
+      refine Or.inr ⟨out, rfl, hco, h0, h1, ?_⟩
+      have hG : val5 g = 0 := (val5_eq_zero_iff hs.cg).mpr hz
+      have hu : IsUnit (val5 f) := by
+        have := hs.cop; rw [hG] at this; exact isCoprime_zero_right.mp this
+      have hsg := val5_neg_iff hs.cf
+      rcases Int.isUnit_iff.mp hu with h | h
+      · have : ¬ f 4 < 0 := fun h' => by have := hsg.mpr h'; omega
+        rw [if_neg this] at hc
+        exact (hc.mul_right X).trans (h ▸ hs.dx)
+      · have : f 4 < 0 := hsg.mp (by omega)
+        rw [if_pos this] at hc
+        have := (hc.mul_right X).trans (show -val5 d * X ≡ -val5 f [ZMOD val5 m] by
+          rw [neg_mul]; exact hs.dx.neg)
+        rwa [h, neg_neg] at this
+    · -- One pass, then the loop again.
+      simp only [hz, decide_false, Bool.not_false, if_true, checkIndex, idx_lits, lt5, pure_bind,
+        vec5, vget5, downcast_i64_u64_I]
+      obtain ⟨eta', U, V, Q, R, hds, he', ht⟩ :=
+        divsteps_spec eta hs.eta (Limb.ofInt (f 0)) (Limb.ofInt (g 0)) (odd_limb0 hs.cf hs.fodd)
+      have hU : |U| ≤ 2 ^ 62 := by linarith [ht.row1, abs_nonneg V]
+      have hV : |V| ≤ 2 ^ 62 := by linarith [ht.row1, abs_nonneg U]
+      have hQ : |Q| ≤ 2 ^ 62 := by linarith [ht.row2, abs_nonneg R]
+      have hR : |R| ≤ 2 ^ 62 := by linarith [ht.row2, abs_nonneg Q]
+      rw [hds]
+      simp only [pure_bind, update_de_eq inv ht.row1 ht.row2 hs.ld hs.le hm.lim td te hm.top,
+        update_fg_eq hU hV hQ hR hs.lf hs.lg tf tg]
+      exact ih _ _ _ _ _ _ _ _ _ _ _
+        ⟨_, _, _, _, _, rfl, rfl, rfl, rfl, rfl, hs.step hm ht he'⟩ env w
+
 end FeProofs.Ecrecover
