@@ -291,7 +291,9 @@ theorem panic_read (mem : ByteArray) (c : UInt256) :
     u256_ofNat_toNat]
 
 /-- Unfold `runBlocks` once and simplify the block the run is at, with the interpreter's
-    definitions, the model library's primitives, the local hypotheses and the extra lemmas. -/
+    definitions, the model library's primitives, the local hypotheses and the extra lemmas.
+    `CharP.cast_eq_zero` is left out: on every cast of a word's value to `ℤ` it searches for a
+    `CharP ℤ` instance, unfolding the word to compare it with `0`. -/
 syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 macro_rules
@@ -309,6 +311,6 @@ macro_rules
       Reasoning.Theory.toByteArray_write32_read_back,
       Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
       show (⟨0⟩ : UInt256).toNat = 0 from rfl,
-      Std.TreeMap.getElem_insert, *, $ls,*]))
+      Std.TreeMap.getElem_insert, -CharP.cast_eq_zero, *, $ls,*]))
 
 end Fe.Sonatina

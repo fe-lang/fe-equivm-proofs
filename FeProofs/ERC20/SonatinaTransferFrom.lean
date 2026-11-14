@@ -12,6 +12,12 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Fe.Sonatina
 open Exported (decodeTransfer_exec decodeApprove_exec decodeTransferFrom_exec
   decodeBalanceOf_exec decodeAllowance_exec decodeTotalSupply_exec initEntry_exec)
 
+/- Mathlib's `bind` and `map` lemmas of other monads, and `le_of_subsingleton`, which searches
+   for a `Subsingleton` instance at every `≤`, only slow `simp` down here. -/
+attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
+  Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
+  Set.fmap_eq_image le_of_subsingleton
+
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
@@ -108,6 +114,10 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
       hAW, hAN, hBW, hperm, checkedSub, Fe.M.ite_bind]
     repeat ir_step
     exact .exit _
+  simp (maxSteps := 4000000) (disch := room) [hwv, hdec, hshort, hna, hnb,
+    Exported.Evm_caller, FeProofs.Lib.locateAddress_exec, FeProofs.Lib.locateAddressMap_exec,
+    hAW, hAN, hBW, hperm, checkedSub, checkedAdd, Fe.M.ite_bind, Fe.M.exec_ite,
+    Exported.emitTransferLit_exec]
   -- `from`'s balance read again after the allowance is written.
   by_cases hU : (slotWord I (storeWord I.codeOwner w.accounts
       (Fe.EVM.mapSlot (UInt256.ofNat I.source.val)
@@ -118,13 +128,12 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
       (Fe.EVM.mapSlot (Fe.EVM.word I.calldata 4) ⟨0⟩)).toNat < (Fe.EVM.word I.calldata 68).toNat
   · have hUW := hU
     simp only [Fe.EVM.word] at hU
-    simp (maxSteps := 2000000) (disch := room) [hwv, hdec, hshort, hna, hnb,
-      Exported.Evm_caller, FeProofs.Lib.locateAddress_exec, FeProofs.Lib.locateAddressMap_exec,
-      hAW, hAN, hBW, hperm, checkedSub, Fe.M.ite_bind, hUW]
+    simp only [hUW, ↓reduceIte]
     repeat ir_step
     exact .panic_revert 17
   have hUW := hU
   simp only [Fe.EVM.word] at hU
+  simp only [hUW, ↓reduceIte]
   -- The receiver's balance after both writes, which both sides read.
   by_cases hO : UInt256.size ≤ (slotWord I (storeWord I.codeOwner (storeWord I.codeOwner
       w.accounts (Fe.EVM.mapSlot (UInt256.ofNat I.source.val)
@@ -147,10 +156,7 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
     simp only [Fe.EVM.word] at hO
     have hOB := hO
     simp only [UInt256.size] at hOB
-    simp (maxSteps := 4000000) (disch := room) [hwv, hdec, hshort, hna, hnb,
-      Exported.Evm_caller, FeProofs.Lib.locateAddress_exec, FeProofs.Lib.locateAddressMap_exec,
-      hAW, hAN, hBW, hperm, checkedSub, checkedAdd, Fe.M.ite_bind, 
-      hUW, hOW]
+    simp only [hOW, ↓reduceIte]
     repeat ir_step
     exact .panic_revert 17
   · have hOW := hO
@@ -159,10 +165,7 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
     simp only [Fe.EVM.word] at hO
     have hOB := hO
     simp only [UInt256.size] at hOB
-    simp (maxSteps := 4000000) (disch := room) [hwv, hdec, hshort, hna, hnb,
-      Exported.Evm_caller, FeProofs.Lib.locateAddress_exec, FeProofs.Lib.locateAddressMap_exec,
-      hAW, hAN, hBW, hperm, checkedSub, checkedAdd, Fe.M.ite_bind, 
-      hUW, hOW, Exported.emitTransferLit_exec]
+    simp only [hOW, ↓reduceIte]
     -- The room the event's buffer needs, from the room the arm has.
     split_ifs with hroom
     swap

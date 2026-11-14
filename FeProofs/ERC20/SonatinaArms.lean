@@ -13,6 +13,12 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Fe.Sonatina
 open Exported (decodeTransfer_exec decodeApprove_exec decodeTransferFrom_exec
   decodeBalanceOf_exec decodeAllowance_exec decodeTotalSupply_exec initEntry_exec)
 
+/- Mathlib's `bind` and `map` lemmas of other monads, and `le_of_subsingleton`, which searches
+   for a `Subsingleton` instance at every `≤`, only slow `simp` down here. -/
+attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
+  Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
+  Set.fmap_eq_image le_of_subsingleton
+
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/

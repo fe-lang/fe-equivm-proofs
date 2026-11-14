@@ -12,6 +12,12 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Fe.Sonatina
 open Exported (decodeTransfer_exec decodeApprove_exec decodeTransferFrom_exec
   decodeBalanceOf_exec decodeAllowance_exec decodeTotalSupply_exec initEntry_exec)
 
+/- Mathlib's `bind` and `map` lemmas of other monads, and `le_of_subsingleton`, which searches
+   for a `Subsingleton` instance at every `≤`, only slow `simp` down here. -/
+attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def
+  Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
+  Set.fmap_eq_image le_of_subsingleton
+
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
@@ -82,6 +88,9 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
   have hk : ∀ k r k' r' k'' r'', (keyed (keyed (keyed w.memory k r) k' r') k'' r'').size + 64 <
       UInt256.size := by
     intro _ _ _ _ _ _; simp only [keyed_size]; omega
+  simp (maxSteps := 2000000) (disch := room) [hwv, hdec, hshort, hna, Exported.Evm_caller,
+    FeProofs.Lib.locateAddress_exec, hperm, checkedSub, checkedAdd, Fe.M.ite_bind,
+    Fe.M.exec_ite, Exported.emitTransferLit_exec, ofNat_zero_eq]
   by_cases hover : UInt256.size ≤ (slotWord I (storeWord I.codeOwner w.accounts
       (Fe.EVM.mapSlot (UInt256.ofNat I.source.val) ⟨0⟩)
       (UInt256.sub (slotWord I w.accounts (Fe.EVM.mapSlot (UInt256.ofNat I.source.val) ⟨0⟩))
@@ -93,9 +102,7 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
     simp only [Fe.EVM.word] at hover
     have hoverB := hover
     simp only [UInt256.size] at hoverB
-    simp (maxSteps := 2000000) (disch := room) [hwv, hdec, hshort, hna, Exported.Evm_caller,
-      FeProofs.Lib.locateAddress_exec, hperm, checkedSub, checkedAdd, Fe.M.ite_bind,
-      Fe.M.exec_ite]
+    simp only [hoverW, ↓reduceIte]
     repeat ir_step
     exact .panic_revert 17
   · have hoverW := hover
@@ -112,10 +119,8 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
         (returned (keyed (keyed (keyed (keyed (keyed w.memory k r) k' r') k'' r'') k3 r3) k4 r4)
           v).size + 32 < UInt256.size := by
       intro _ _ _ _ _ _ _ _ _ _ _; simp only [keyed_size, returned_size]; omega
-    simp (maxSteps := 2000000) (disch := room) [hwv, hdec, hshort, hna, Exported.Evm_caller,
-      FeProofs.Lib.locateAddress_exec, hperm, checkedSub, checkedAdd, Fe.M.ite_bind,
-      Fe.M.exec_ite, he, Exported.emitTransferLit_exec,
-      FeProofs.Lib.returnBool_exec]
+    simp only [hoverW, ↓reduceIte]
+    simp (disch := room) [he, FeProofs.Lib.returnBool_exec]
     repeat ir_step
     simp only [Fe.EVM.word]
     exact .stop_stop rfl rfl rfl
