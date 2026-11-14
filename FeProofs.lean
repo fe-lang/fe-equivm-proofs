@@ -24,7 +24,7 @@ import FeProofs.ERC20.Invariant
 import FeProofs.WETH9.Invariant
 import FeProofs.Fixtures.Exported
 import FeProofs.Precompiles.Exported.Ecrecover
-import FeProofs.Ecrecover.Contract
+import FeProofs.Precompiles.Secp256k1.Contract
 import FeProofs.Precompiles.Exported.Bn254Add
 import FeProofs.Precompiles.Exported.Blake2F
 import FeProofs.Precompiles.Exported.Ripemd160

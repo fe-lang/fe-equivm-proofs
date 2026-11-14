@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Pow
+import FeProofs.Precompiles.Field.Pow
 import Ethereum.Secp256k1.Spec
 import Mathlib.FieldTheory.Finite.Basic
 

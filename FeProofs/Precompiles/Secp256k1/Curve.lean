@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Inverse
+import FeProofs.Precompiles.Secp256k1.Inverse
 import Mathlib.AlgebraicGeometry.EllipticCurve.Jacobian.Point
 
 /-!

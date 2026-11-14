@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.UpdateDE
+import FeProofs.Precompiles.Inverse.UpdateDE
 import Fe.EVM.Entry
 
 /-!

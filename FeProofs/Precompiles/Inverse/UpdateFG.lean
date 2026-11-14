@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.DivstepsSpec
+import FeProofs.Precompiles.Inverse.DivstepsSpec
 
 /-!
 # Ecrecover: `update_fg`

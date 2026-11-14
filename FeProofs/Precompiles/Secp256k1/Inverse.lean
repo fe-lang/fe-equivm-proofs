@@ -1,5 +1,5 @@
-import FeProofs.Ecrecover.Invert
-import FeProofs.Ecrecover.Field
+import FeProofs.Precompiles.Inverse.Invert
+import FeProofs.Precompiles.Secp256k1.Field
 
 /-!
 # Ecrecover: `invert_256` and `Mont::inverse`

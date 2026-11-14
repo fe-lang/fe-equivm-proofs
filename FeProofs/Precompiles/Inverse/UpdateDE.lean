@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.UpdateFG
+import FeProofs.Precompiles.Inverse.UpdateFG
 
 /-!
 # Ecrecover: `update_de`

@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.MontPure
+import FeProofs.Precompiles.Field.MontPure
 
 /-!
 # Ecrecover: the exported Montgomery code is pure

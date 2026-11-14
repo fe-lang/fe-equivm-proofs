@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Combination
+import FeProofs.Precompiles.Secp256k1.Combination
 import Ethereum.Secp256k1.Proofs.Recover
 
 /-!

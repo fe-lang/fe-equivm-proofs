@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Normalize
+import FeProofs.Precompiles.Inverse.Normalize
 import Fe.Partial
 import Mathlib.RingTheory.Coprime.Basic
 

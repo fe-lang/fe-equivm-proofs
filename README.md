@@ -211,7 +211,7 @@ of its own, which need packages this repository does not install, and no test of
 reaches them. An EVMLean that ran ECRECOVER in Python too ran
 `python3 Ethereum/EllipticCurvesPy/recover.py` in the working directory: the audit elaborates from
 this repository's root, where `Ethereum/EllipticCurvesPy/recover.py` stands in for it and runs the
-program `ecrecover` (`FeProofs/Ecrecover/Main.lean`, which the audit builds), which recovers the key
+program `ecrecover` (`FeProofs/Precompiles/Secp256k1/Main.lean`, which the audit builds), which recovers the key
 with the exported model of fevm's secp256k1 code.
 
 `FeProofs/Precompiles` is an ingot of fevm's precompiles as contracts: `Ecrecover`, a message
@@ -221,8 +221,10 @@ the precompile does, or revert without data where it fails. The other files of `
 verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm) at `a631a777b`,
 and `keccak/` (for `ByteSource`) from [keccak](https://github.com/fe-lang/keccak) at `345d5088d`.
 The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one contract
-reaches, once, and `Exported/<Contract>.lean` each contract's own. `FeProofs/Ecrecover` proves the
-exported `Ecrecover` against `Secp256k1.Spec.recover` (`feEcrecoverContractCorrect`).
+reaches, once, and `Exported/<Contract>.lean` each contract's own. `FeProofs/Precompiles/Secp256k1`
+proves the exported `Ecrecover` against `Secp256k1.Spec.recover` (`feEcrecoverContractCorrect`),
+on the Montgomery field arithmetic of `FeProofs/Precompiles/Field` and the safegcd inversion of
+`FeProofs/Precompiles/Inverse`.
 `scripts/Bn254AddDiff.lean`, `scripts/Blake2FDiff.lean` and `scripts/Ripemd160Diff.lean` run the
 exported `Bn254Add`, `Blake2F` and `Ripemd160` against EVMLean's `Ξ_BN_ADD`, `Ξ_BLAKE2_F` and
 `Ξ_RIP160` on go-ethereum's vectors, or the RIPEMD-160 paper's, and on generated inputs

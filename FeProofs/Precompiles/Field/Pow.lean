@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.MontCorrect
+import FeProofs.Precompiles.Field.MontCorrect
 
 /-!
 # Ecrecover: `pow`

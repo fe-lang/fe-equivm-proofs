@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Divsteps
+import FeProofs.Precompiles.Inverse.Divsteps
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity

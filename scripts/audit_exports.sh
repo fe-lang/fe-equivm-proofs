@@ -34,7 +34,7 @@ python3 "$root/scripts/tally_blockers.py" "$out/blockers.txt"
 cd "$root" || exit 1
 # EVMLean's ECRECOVER runs `python3 Ethereum/EllipticCurvesPy/recover.py` in the working
 # directory, this one: that script runs the program `ecrecover`, which recovers keys by the
-# exported model of fevm's secp256k1 code (`FeProofs/Ecrecover/Main.lean`).
+# exported model of fevm's secp256k1 code (`FeProofs/Precompiles/Secp256k1/Main.lean`).
 # shellcheck disable=SC2086 # one module per word
 lake build $imports ecrecover > "$out/lake.log" 2>&1 || { tail -20 "$out/lake.log"; exit 1; }
 # The tests of some files reach the SHA-256 precompile, which EVMLean implements in C.

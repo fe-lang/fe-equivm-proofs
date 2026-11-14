@@ -1,5 +1,5 @@
-import FeProofs.Ecrecover.Recover
-import FeProofs.Ecrecover.Main
+import FeProofs.Precompiles.Secp256k1.Recover
+import FeProofs.Precompiles.Secp256k1.Main
 import FeProofs.Lib.ExportedCorrect
 
 /-!

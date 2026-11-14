@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Curve
+import FeProofs.Precompiles.Secp256k1.Curve
 
 /-!
 # Ecrecover: tables as functions

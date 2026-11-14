@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Table
+import FeProofs.Precompiles.Secp256k1.Table
 
 /-!
 # Ecrecover: `combination`

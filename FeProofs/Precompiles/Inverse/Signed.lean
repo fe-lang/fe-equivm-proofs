@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Purify
+import FeProofs.Precompiles.Secp256k1.Purify
 import Fe.EVM.IntWords
 
 /-!

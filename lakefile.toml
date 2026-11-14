@@ -14,7 +14,7 @@ name = "Fe"
 name = "FeProofs"
 
 # ECDSARECOVER for EVMLean, by the exported model of fevm's secp256k1 code: see
-# `FeProofs/Ecrecover/Main.lean`.  The export audit builds it.
+# `FeProofs/Precompiles/Secp256k1/Main.lean`.  The export audit builds it.
 [[lean_exe]]
 name = "ecrecover"
-root = "FeProofs.Ecrecover.Main"
+root = "FeProofs.Precompiles.Secp256k1.Main"

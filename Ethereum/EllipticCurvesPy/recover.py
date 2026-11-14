@@ -5,7 +5,7 @@ An EVMLean whose ECRECOVER (`Ethereum/EllipticCurves.lean`) runs in Python runs
 repository's root when the export audit elaborates a file; the EVMLean this repository pins
 computes it in Lean.  This file stands in for EVMLean's
 script of that name, which needs the package `coincurve`: it prints what the program
-`.lake/build/bin/ecrecover` (`FeProofs/Ecrecover/Main.lean`, built by `lake build ecrecover`)
+`.lake/build/bin/ecrecover` (`FeProofs/Precompiles/Secp256k1/Main.lean`, built by `lake build ecrecover`)
 prints, the key as 128 hex digits or `error`.  The program's diagnostics are shown only when it
 fails: on every start, EVMLean's module initializers report precompiles they cannot run.
 """

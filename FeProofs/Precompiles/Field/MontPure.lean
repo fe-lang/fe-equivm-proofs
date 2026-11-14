@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Words
+import FeProofs.Precompiles.Field.Words
 
 /-!
 # Ecrecover: the Montgomery arithmetic as pure functions

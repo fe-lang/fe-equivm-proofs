@@ -1,4 +1,4 @@
-import FeProofs.Ecrecover.Signed
+import FeProofs.Precompiles.Inverse.Signed
 
 /-!
 # Ecrecover: `divsteps`
