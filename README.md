@@ -138,7 +138,9 @@ WETH9's `withdraw` sends value to the caller, who may re-enter. The model takes 
 compute, the callee's gas and the substate and original account map it is handed, from the feed:
 `call_feed` (`Fe/EVM/Reach.lean`) shows that a `CALL` in a trace is the model's `call` for some
 entry of the feed, and whatever the callee does, to WETH9's storage as well, is in EVMLean's `Θ`
-on both sides. Unlike the Stele certificate, neither WETH9 certificate assumes anything of
+on both sides. The model records each call and creation it makes, as the inputs it passes to `Θ`
+or `Lambda` (the ghost field `World.calls`), so a statement about the model can say which calls
+it makes. Unlike the Stele certificate, neither WETH9 certificate assumes anything of
 storage: a `name()` or `symbol()` whose ABI encoding takes 2^64 bytes or more panics with
 `Panic(0x41)` in both the bytecode and the model.
 

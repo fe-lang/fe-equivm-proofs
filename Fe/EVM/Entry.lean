@@ -372,13 +372,29 @@ theorem call_noData (gasArg addr value argsPtr retPtr : UInt256) (I : ExecutionE
   cases hf : w.feed with
   | nil => simp [call, message, next, hs, hf]
   | cons s rest =>
-    simp only [call, message, next, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
-      if_neg hs, hf, h0, h0', byteArray_readWithPadding_zero]
-    generalize (if value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
-      I.depth < 1024 then _ else _) = T
-    obtain ⟨σ', g', A', z, o⟩ := T
+    have hT : messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value value
+          argsPtr (UInt256.ofNat 0) I.perm =
+        messageCall I { w with memory := ByteArray.empty } s gasArg I.codeOwner (.ofUInt256 addr)
+          (.ofUInt256 addr) value value ⟨0⟩ ⟨0⟩ I.perm := by
+      simp only [messageCall, h0, h0', byteArray_readWithPadding_zero]
+    have hperm : I.perm = true ∨ value = ⟨0⟩ := by
+      cases hp : I.perm
+      · exact Or.inr (Classical.byContradiction fun hv => hs ⟨hp, hv⟩)
+      · exact Or.inl rfl
     have hmin' : ∀ o : ByteArray, (min (⟨0⟩ : UInt256) (UInt256.ofNat o.size)).toNat = 0 := hmin
-    simp [hmin, hmin', byteArray_write_len_zero]
+    by_cases hmade : value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
+        I.depth < 1024
+    · rcases hr : (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value
+          value argsPtr (UInt256.ofNat 0) I.perm).run with ⟨σ', g', A', z, o⟩
+      rw [call_made hf hperm hmade hr.symm,
+        call_made (w := { w with memory := ByteArray.empty, feed := s :: rest }) rfl hperm hmade
+          (hT ▸ hr.symm), hT]
+      simp [hmin, hmin', byteArray_write_len_zero]
+      rfl
+    · rw [call_notMade hf hperm hmade,
+        call_notMade (w := { w with memory := ByteArray.empty, feed := s :: rest }) rfl hperm hmade]
+      have h00 : (UInt256.ofNat 0 ⊓ UInt256.ofNat 0).toNat = 0 := hmin ByteArray.empty
+      simp [h00, byteArray_write_len_zero]
 
 /-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm'` that
     returns the encoding `enc` of its result, when the two arms end alike up to memory and `ret`
