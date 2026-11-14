@@ -15,8 +15,8 @@ precompile.
   unchanged: four lanes where the bytes are there (`word_at_full`), the byte loop otherwise
   (`word_at_loop`).  So the four words `add` reads are `Spec.word d 0` to `Spec.word d 3`
   (`word_exec`), for input of any length: empty, short, 128 bytes or longer.
-- `input_exec`, `input_holds`: `input()` allocates a buffer of the call data's size at the end of
-  memory and copies the call data in.
+- `input_eq`: `input()` is `copyInput`, which allocates a buffer of the call data's size at the
+  end of memory and copies the call data in (`input_exec`, `input_holds` in `Buffer.lean`).
 - `arm_exec`: the fallback arm diverges, stops with the 64 bytes `Spec.add` gives
   (`toBytes32 x ++ toBytes32 y`, written by two `write_word`s into a fresh buffer and returned),
   or reverts with no data where it gives none.
@@ -168,78 +168,7 @@ theorem word_at_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
 
 /-! ## The input -/
 
-/-- The memory after `input()`: a fresh zeroed buffer at the end, the call data copied in. -/
-def inputMemory (mem cd : ByteArray) : ByteArray :=
-  cd.write 0 ((⟨Array.replicate cd.size 0⟩ : ByteArray).write 0
-    (mem ++ ⟨Array.replicate cd.size 0⟩) mem.size cd.size) mem.size cd.size
-
-/-- The buffer `input()` makes. -/
-def inputBuffer (mem cd : ByteArray) : Lib.MemBuffer :=
-  ⟨UInt256.ofNat mem.size, UInt256.ofNat cd.size, UInt256.ofNat cd.size⟩
-
-theorem inputMemory_size (mem cd : ByteArray) :
-    (inputMemory mem cd).size = mem.size + cd.size := by
-  have hz : (⟨Array.replicate cd.size 0⟩ : ByteArray).size = cd.size := Array.size_replicate
-  rw [inputMemory, byteArray_write_size_of_inBounds _ _ _ _ le_rfl (by
-      rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
-        ByteArray.size_append, hz]),
-    byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
-    ByteArray.size_append, hz]
-
-/-- **The buffer `input()` makes holds the call data.** -/
-theorem input_holds (mem cd : ByteArray) (hmem : mem.size + cd.size < UInt256.size) :
-    Holds (inputBuffer mem cd) cd (inputMemory mem cd) := by
-  have hz : (⟨Array.replicate cd.size 0⟩ : ByteArray).size = cd.size := Array.size_replicate
-  have hp : (UInt256.ofNat mem.size).toNat = mem.size :=
-    toNat_lit (by unfold UInt256.size at hmem; omega)
-  have hsz := inputMemory_size mem cd
-  refine ⟨toNat_lit (by unfold UInt256.size at hmem; omega), by simp [inputBuffer, hp, hsz],
-    ?_, by omega⟩
-  simp only [inputBuffer, hp]
-  by_cases h0 : cd.size = 0
-  · rw [h0, Nat.add_zero, ByteArray.extract_same]
-    exact (ByteArray.size_eq_zero_iff.mp h0).symm
-  rw [inputMemory, write_eq_gen _ _ _ _ h0 le_rfl (by
-      rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
-        ByteArray.size_append, hz])]
-  have hX : ((⟨Array.replicate cd.size 0⟩ : ByteArray).write 0
-      (mem ++ ⟨Array.replicate cd.size 0⟩) mem.size cd.size).size = mem.size + cd.size := by
-    rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
-      ByteArray.size_append, hz]
-  rw [ByteArray.extract_append, ByteArray.extract_zero_size,
-    ByteArray.extract_append_eq_right (by simp [ByteArray.size_extract, hX]) (by
-      simp [ByteArray.size_extract, hX])]
-  simp [ByteArray.size_append, ByteArray.size_extract, hX]
-
-/-- **`input()`** allocates a buffer of the call data's size at the end of memory and copies the
-    call data into it. -/
-theorem input_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
-    (hmem : w.memory.size + I.calldata.size < UInt256.size) :
-    input_Evm.exec I w = some (.ok (inputBuffer w.memory I.calldata,
-      { w with memory := inputMemory w.memory I.calldata })) := by
-  have hc : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
-    toNat_lit (by unfold UInt256.size at hmem; omega)
-  have hsub : (UInt256.ofNat I.calldata.size).sub (UInt256.ofNat 0) =
-      UInt256.ofNat I.calldata.size :=
-    word_eq_of_toNat (by rw [usub_toNat (by rw [toNat0]; omega), toNat0, Nat.sub_zero])
-  have hmax : ¬ UInt256.size - 1 < 18446744073709551615 := by unfold UInt256.size; norm_num
-  have h0a : UInt256.ofNat 0 + UInt256.ofNat I.calldata.size = UInt256.ofNat I.calldata.size :=
-    word_eq_of_toNat (by rw [uadd_toNat, toNat0, Nat.zero_add, hc, Nat.mod_eq_of_lt (by omega)])
-  have hms : w.memory.size < UInt256.size := by omega
-  by_cases h0 : I.calldata.size = 0
-  · have he : UInt256.ofNat I.calldata.size = UInt256.ofNat 0 := by rw [h0]
-    simp [input_Evm, checkedAdd, checkedSub, alloc, zeroMem, toNatMax, toNatU64, toNat0,
-      h0, Fe.EVM.add_zero, hmax, hms, inputBuffer, inputMemory, byteArray_write_len_zero]
-  · have he : UInt256.ofNat I.calldata.size ≠ UInt256.ofNat 0 := fun e => h0 (by
-      have := congrArg UInt256.toNat e; rwa [hc, toNat0] at this)
-    simp [input_Evm, checkedAdd, checkedSub, alloc, zeroMem, toNatMax, toNatU64, toNat0, hc,
-      Fe.EVM.add_zero, hmax, hmem, hsub, h0a, Fe.EVM.calldatacopy, inputBuffer, inputMemory,
-      show ¬ 18446744073709551615 < I.calldata.size by omega,
-      show ¬ UInt256.size ≤ I.calldata.size by omega,
-      show (UInt256.ofNat w.memory.size).toNat = w.memory.size from toNat_lit (by
-        unfold UInt256.size at hmem; omega)]
-    rw [if_neg he]
-    simp
+theorem input_eq : input_Evm = copyInput := rfl
 
 /-! ## The arm -/
 
@@ -289,7 +218,7 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
         recv0_arm0.exec I w = some (.error (.stop o { w with memory := memory }))) ∨
       (r = none ∧ recv0_arm0.exec I w = some (.error (.revert ByteArray.empty))) := by
   intro d r
-  have hin := input_exec I w hfits (by omega)
+  have hin : input_Evm.exec I w = _ := input_exec I w hfits (by omega)
   have hh := input_holds w.memory I.calldata (by omega)
   have hw := fun i hi =>
     word_exec (I := I) (w := { w with memory := inputMemory w.memory I.calldata }) hh i hi

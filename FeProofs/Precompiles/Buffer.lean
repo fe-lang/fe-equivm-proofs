@@ -1,5 +1,6 @@
 import FeProofs.Precompiles.Field.Words
 import Reasoning.Memory
+import Fe.EVM.Entry
 
 /-!
 # Precompiles: the input buffer
@@ -20,9 +21,12 @@ What a contract reading its input through these functions can use:
 - `beAt_add`, `beAt_tail`, `beAt_lt`, `fromByteArrayBigEndian_extract`, `readBytes_be`: reading
   bytes as numbers.
 - `toBytes32_eq`: `Weierstrass.toBytes32` of a number below `2 ^ 256` is its word's bytes.
+- `copyInput`, each contract's `input()`: `input_exec` and `input_holds`, the buffer it makes
+  holds the call data.
 -/
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
+open scoped FeProofs.Lib
 
 namespace FeProofs.Precompiles
 
@@ -302,5 +306,97 @@ theorem lane_exec {b : MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Hol
   have hb' : beAt d j 8 < 18446744073709551616 := hb
   rw [ulit_toNat' _ (by unfold UInt256.size; omega), Int.emod_eq_of_lt (by positivity) (by omega),
     Int.toNat_natCast]
+
+/-! ## The input buffer -/
+
+/-- `input()`, as each precompile's contract has it (`input_Evm`, `input_Evm_1`, `input_Evm_2`,
+    each equal to this by `rfl`): a buffer of the call data's size, the call data copied in. -/
+def copyInput : FeM MemBuffer := do
+  let mut r1 : MemBuffer := default
+  let v1 ← Lib.Evm_calldatasize
+  let v2 := v1
+  let v3 ← Lib.downcast_unchecked_u256_usize v2
+  let v4 ← Lib.MemBuffer_new v3
+  let v5 := v4
+  r1 := v5
+  let v7 := (UInt256.ofNat 0)
+  let v8 := (UInt256.ofNat 0)
+  let (_, v10_0) ← Lib.Evm_calldatacopy r1 v7 v8 v2
+  r1 := v10_0
+  let v11 := r1
+  return v11
+
+/-- The memory after `input()`: a fresh zeroed buffer at the end, the call data copied in. -/
+def inputMemory (mem cd : ByteArray) : ByteArray :=
+  cd.write 0 ((⟨Array.replicate cd.size 0⟩ : ByteArray).write 0
+    (mem ++ ⟨Array.replicate cd.size 0⟩) mem.size cd.size) mem.size cd.size
+
+/-- The buffer `input()` makes. -/
+def inputBuffer (mem cd : ByteArray) : MemBuffer :=
+  ⟨UInt256.ofNat mem.size, UInt256.ofNat cd.size, UInt256.ofNat cd.size⟩
+
+theorem inputMemory_size (mem cd : ByteArray) :
+    (inputMemory mem cd).size = mem.size + cd.size := by
+  have hz : (⟨Array.replicate cd.size 0⟩ : ByteArray).size = cd.size := Array.size_replicate
+  rw [inputMemory, byteArray_write_size_of_inBounds _ _ _ _ le_rfl (by
+      rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
+        ByteArray.size_append, hz]),
+    byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
+    ByteArray.size_append, hz]
+
+/-- **The buffer `input()` makes holds the call data.** -/
+theorem input_holds (mem cd : ByteArray) (hmem : mem.size + cd.size < UInt256.size) :
+    Holds (inputBuffer mem cd) cd (inputMemory mem cd) := by
+  have hz : (⟨Array.replicate cd.size 0⟩ : ByteArray).size = cd.size := Array.size_replicate
+  have hp : (UInt256.ofNat mem.size).toNat = mem.size :=
+    toNat_lit (by unfold UInt256.size at hmem; omega)
+  have hsz := inputMemory_size mem cd
+  refine ⟨toNat_lit (by unfold UInt256.size at hmem; omega), by simp [inputBuffer, hp, hsz],
+    ?_, by omega⟩
+  simp only [inputBuffer, hp]
+  by_cases h0 : cd.size = 0
+  · rw [h0, Nat.add_zero, ByteArray.extract_same]
+    exact (ByteArray.size_eq_zero_iff.mp h0).symm
+  rw [inputMemory, write_eq_gen _ _ _ _ h0 le_rfl (by
+      rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
+        ByteArray.size_append, hz])]
+  have hX : ((⟨Array.replicate cd.size 0⟩ : ByteArray).write 0
+      (mem ++ ⟨Array.replicate cd.size 0⟩) mem.size cd.size).size = mem.size + cd.size := by
+    rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [hz]) (by rw [ByteArray.size_append, hz]),
+      ByteArray.size_append, hz]
+  rw [ByteArray.extract_append, ByteArray.extract_zero_size,
+    ByteArray.extract_append_eq_right (by simp [ByteArray.size_extract, hX]) (by
+      simp [ByteArray.size_extract, hX])]
+  simp [ByteArray.size_append, ByteArray.size_extract, hX]
+
+/-- **`input()`** allocates a buffer of the call data's size at the end of memory and copies the
+    call data into it. -/
+theorem input_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
+    (hmem : w.memory.size + I.calldata.size < UInt256.size) :
+    copyInput.exec I w = some (.ok (inputBuffer w.memory I.calldata,
+      { w with memory := inputMemory w.memory I.calldata })) := by
+  have hc : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
+    toNat_lit (by unfold UInt256.size at hmem; omega)
+  have hsub : (UInt256.ofNat I.calldata.size).sub (UInt256.ofNat 0) =
+      UInt256.ofNat I.calldata.size :=
+    word_eq_of_toNat (by rw [usub_toNat (by rw [toNat0]; omega), toNat0, Nat.sub_zero])
+  have hmax : ¬ UInt256.size - 1 < 18446744073709551615 := by unfold UInt256.size; norm_num
+  have h0a : UInt256.ofNat 0 + UInt256.ofNat I.calldata.size = UInt256.ofNat I.calldata.size :=
+    word_eq_of_toNat (by rw [uadd_toNat, toNat0, Nat.zero_add, hc, Nat.mod_eq_of_lt (by omega)])
+  have hms : w.memory.size < UInt256.size := by omega
+  by_cases h0 : I.calldata.size = 0
+  · have he : UInt256.ofNat I.calldata.size = UInt256.ofNat 0 := by rw [h0]
+    simp [copyInput, checkedAdd, checkedSub, alloc, zeroMem, toNatMax, toNatU64, toNat0,
+      h0, Fe.EVM.add_zero, hmax, hms, inputBuffer, inputMemory, byteArray_write_len_zero]
+  · have he : UInt256.ofNat I.calldata.size ≠ UInt256.ofNat 0 := fun e => h0 (by
+      have := congrArg UInt256.toNat e; rwa [hc, toNat0] at this)
+    simp [copyInput, checkedAdd, checkedSub, alloc, zeroMem, toNatMax, toNatU64, toNat0, hc,
+      Fe.EVM.add_zero, hmax, hmem, hsub, h0a, Fe.EVM.calldatacopy, inputBuffer, inputMemory,
+      show ¬ 18446744073709551615 < I.calldata.size by omega,
+      show ¬ UInt256.size ≤ I.calldata.size by omega,
+      show (UInt256.ofNat w.memory.size).toNat = w.memory.size from toNat_lit (by
+        unfold UInt256.size at hmem; omega)]
+    rw [if_neg he]
+    simp
 
 end FeProofs.Precompiles
