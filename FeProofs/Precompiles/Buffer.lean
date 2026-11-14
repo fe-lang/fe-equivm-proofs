@@ -21,6 +21,8 @@ What a contract reading its input through these functions can use:
 - `beAt_add`, `beAt_tail`, `beAt_lt`, `fromByteArrayBigEndian_extract`, `readBytes_be`: reading
   bytes as numbers.
 - `toBytes32_eq`: `Weierstrass.toBytes32` of a number below `2 ^ 256` is its word's bytes.
+- `le8`, `write_le_exec`, `le8_write_append`, `le8_read`: eight bytes written little-endian
+  (`MemBuffer_write_le_u64`), with `swap_low8` and `swapBytes_u64_toNat`.
 - `copyInput`, each contract's `input()`: `input_exec` and `input_holds`, the buffer it makes
   holds the call data.
 -/
@@ -236,6 +238,100 @@ theorem swap_swap_beAt (d : ByteArray) (j : ℕ) :
   rw [e, swap_be8 (h _) (h _) (h _) (h _) (h _) (h _) (h _) (h _),
     swap_be8 (h _) (h _) (h _) (h _) (h _) (h _) (h _) (h _)]
 
+/-! ## Little-endian bytes -/
+
+/-- The eight bytes of `x`, least significant first. -/
+def le8 (x : ℕ) : ByteArray := ⟨Array.ofFn fun k : Fin 8 => UInt8.ofNat (x / 256 ^ k.val)⟩
+
+theorem le8_size (x : ℕ) : (le8 x).size = 8 := Array.size_ofFn
+
+theorem fromBytesBigEndian_ofFn (g : ℕ → ℕ) (m : ℕ) :
+    fromBytesBigEndian (List.ofFn fun k : Fin m => UInt8.ofNat (g k.val)) =
+      (List.range m).foldl (fun acc n => acc * 256 + g n % 256) 0 := by
+  induction m with
+  | zero => simp [fromBytesBigEndian, fromBytes']
+  | succ m ih =>
+    rw [List.ofFn_succ_last, fromBytesBigEndian_snoc, List.range_succ, List.foldl_append]
+    simp only [Fin.val_castSucc, Fin.val_last, List.foldl_cons, List.foldl_nil, UInt8.toNat_ofNat']
+    rw [ih]
+
+/-- The low eight bytes of a word, big-endian, as `mstoreInt (.u 64)` writes them. -/
+theorem fromByteArrayBigEndian_low8 (y : UInt256) :
+    fromByteArrayBigEndian (y.toByteArray.extract 24 32) = y.toNat % 2 ^ 64 := by
+  have hs := toByteArray_size (v := y)
+  have hsplit : y.toByteArray = y.toByteArray.extract 0 24 ++ y.toByteArray.extract 24 32 := by
+    rw [ByteArray.extract_append_extract, Nat.zero_min, Nat.max_eq_right (by omega), ← hs,
+      ByteArray.extract_zero_size]
+  have hlt : fromByteArrayBigEndian (y.toByteArray.extract 24 32) < 2 ^ 64 := by
+    have := fromBytes'_le (bs := (y.toByteArray.extract 24 32).toList.reverse)
+    rw [List.length_reverse, byteArray_toList_eq, Array.length_toList] at this
+    have h8 : (y.toByteArray.extract 24 32).data.size = 8 := by
+      show (y.toByteArray.extract 24 32).size = 8
+      rw [ByteArray.size_extract, hs]; rfl
+    rw [h8] at this
+    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, byteArray_toList_eq]
+    exact this
+  have h := fromByteArrayBigEndian_toByteArray y
+  rw [hsplit, fromByteArrayBigEndian_append, ByteArray.size_extract, hs] at h
+  rw [← h]
+  simp only [show min 32 32 - 24 = 8 from rfl]
+  omega
+
+theorem foldl_digits_cast (f : ℕ → ℕ) (l : List ℕ) (acc : ℕ) :
+    l.foldl (fun a n => a * 256 + (f n : ℤ)) (acc : ℤ) =
+      ((l.foldl (fun a n => a * 256 + f n) acc : ℕ) : ℤ) := by
+  induction l generalizing acc with
+  | nil => rfl
+  | cons n l ih => simp only [List.foldl_cons]; rw [← ih]; push_cast; rfl
+
+theorem foldl_digits_lt (f : ℕ → ℕ) (hf : ∀ n, f n < 256) (l : List ℕ) (acc k : ℕ)
+    (hacc : acc < 256 ^ k) : l.foldl (fun a n => a * 256 + f n) acc < 256 ^ (k + l.length) := by
+  induction l generalizing acc k with
+  | nil => simpa using hacc
+  | cons n l ih =>
+    simp only [List.foldl_cons, List.length_cons]
+    rw [show k + (l.length + 1) = (k + 1) + l.length by ring]
+    apply ih
+    have := hf n
+    rw [pow_succ]
+    nlinarith
+
+/-- The value `swap_bytes` gives at `u64`: the bytes of `x` from the least significant. -/
+theorem swapBytes_u64_toNat {x : ℕ} (hx : x < 2 ^ 64) :
+    (IntTy.swapBytes (.u 64) (UInt256.ofNat x)).toNat =
+      (List.range 8).foldl (fun acc n => acc * 256 + x / 256 ^ n % 256) 0 := by
+  have hlt := foldl_digits_lt (fun n => x / 256 ^ n % 256) (fun n => Nat.mod_lt _ (by decide))
+    (List.range 8) 0 0 (by decide)
+  simp only [List.length_range, Nat.zero_add] at hlt
+  have hc := foldl_digits_cast (fun n => x / 256 ^ n % 256) (List.range 8) 0
+  simp only [Nat.cast_zero] at hc
+  simp only [IntTy.swapBytes, IntTy.pattern, IntTy.bits, IntTy.wrap,
+    ulit_toNat' _ (lt_trans hx (by decide)), Nat.mod_eq_of_lt hx, show 64 / 8 = 8 from rfl]
+  have hlt' : (List.range 8).foldl (fun acc n => acc * 256 + x / 256 ^ n % 256) 0 < 2 ^ 64 := by
+    simpa using hlt
+  rw [hc, show ((2 : ℤ) ^ 64) = ((2 ^ 64 : ℕ) : ℤ) by norm_num, ← Int.natCast_mod,
+    Int.toNat_natCast, Nat.mod_eq_of_lt hlt', ulit_toNat' _ (lt_trans hlt' (by decide))]
+
+/-- **`swap_bytes` at `u64`, written big-endian, is the bytes little-endian.** -/
+theorem swap_low8 {x : ℕ} (hx : x < 2 ^ 64) :
+    (IntTy.swapBytes (.u 64) (UInt256.ofNat x)).toByteArray.extract 24 32 = le8 x := by
+  have hs := toByteArray_size (v := IntTy.swapBytes (.u 64) (UInt256.ofNat x))
+  have hlt := foldl_digits_lt (fun n => x / 256 ^ n % 256) (fun n => Nat.mod_lt _ (by decide))
+    (List.range 8) 0 0 (by decide)
+  simp only [List.length_range, Nat.zero_add] at hlt
+  apply ByteArray.ext
+  apply Array.ext'
+  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  apply fromBytesBigEndian_inj_of_length
+  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+    show (ByteArray.extract _ 24 32).size = (le8 x).size
+    rw [ByteArray.size_extract, hs, le8_size]; rfl
+  · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian, fromByteArrayBigEndian_low8,
+      swapBytes_u64_toNat hx, Nat.mod_eq_of_lt (by simpa using hlt), fromByteArrayBigEndian,
+      byteArray_toList_eq]
+    show _ = fromBytesBigEndian (Array.ofFn _).toList
+    rw [Array.toList_ofFn, fromBytesBigEndian_ofFn (fun n => x / 256 ^ n) 8]
+
 /-! ## A buffer that holds bytes -/
 
 open Lib (MemBuffer)
@@ -306,6 +402,55 @@ theorem lane_exec {b : MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Hol
   have hb' : beAt d j 8 < 18446744073709551616 := hb
   rw [ulit_toNat' _ (by unfold UInt256.size; omega), Int.emod_eq_of_lt (by positivity) (by omega),
     Int.toNat_natCast]
+
+/-- **Eight bytes written little-endian** into a buffer whose capacity is its length, inside
+    memory: the buffer is unchanged and memory gets the bytes `le8 x` at `off`. -/
+theorem write_le_exec {b : MemBuffer} {I : Env} {w : World} {off x : ℕ}
+    (hcap : b.capacity = b.len) (hoff : off + 8 ≤ b.len.toNat)
+    (hroom : b.ptr.toNat + b.len.toNat ≤ w.memory.size) (hsmall : w.memory.size < UInt256.size)
+    (hx : x < 2 ^ 64) :
+    (Lib.MemBuffer_write_le_u64 b (UInt256.ofNat off) (UInt256.ofNat x)).exec I w =
+      some (.ok (((), b),
+        { w with memory := (le8 x).write 0 w.memory (b.ptr.toNat + off) 8 })) := by
+  have hn : (UInt256.ofNat off).toNat = off := ulit_toNat' _ (by omega)
+  have hsub : (b.len - UInt256.ofNat off).toNat = b.len.toNat - off := by
+    rw [show b.len - UInt256.ofNat off = UInt256.sub _ _ from rfl, usub_toNat (by omega), hn]
+  have h8 : (UInt256.ofNat off + UInt256.ofNat 8).toNat = off + 8 := by
+    rw [uadd_toNat, hn, show (UInt256.ofNat 8).toNat = 8 from rfl, Nat.mod_eq_of_lt (by omega)]
+  have hp : (b.ptr + UInt256.ofNat off).toNat = b.ptr.toNat + off := by
+    rw [uadd_toNat, hn, Nat.mod_eq_of_lt (by omega)]
+  simp [Lib.MemBuffer_write_le_u64, Lib.MemBuffer_extend_over_u64, Lib.cast_u8_u64, mstoreInt,
+    hcap, hn, hsub, h8, hp, show (UInt256.ofNat 8).toNat = 8 from rfl,
+    show ¬ b.len.toNat < off by omega, show ¬ b.len.toNat - off < 8 by omega,
+    show ¬ b.len.toNat < off + 8 by omega]
+  rw [show (IntTy.u 64).bits / 8 = 8 from rfl, show 32 - 8 = 24 from rfl, swap_low8 hx]
+
+/-- Eight bytes written over the start of `C`, after `A ++ B`. -/
+theorem le8_write_append (A B C : ByteArray) (x : ℕ) (hC : 8 ≤ C.size) :
+    (le8 x).write 0 (A ++ B ++ C) (A.size + B.size) 8 =
+      A ++ (B ++ le8 x) ++ C.extract 8 C.size := by
+  rw [write_eq_gen _ _ _ _ (by decide) (by rw [le8_size]) (by simp [ByteArray.size_append]; omega)]
+  have hAB : (A ++ B ++ C).extract 0 (A.size + B.size) = A ++ B :=
+    ByteArray.extract_append_eq_left (by simp [ByteArray.size_append])
+  have hC' : (A ++ B ++ C).extract (A.size + B.size + 8) (A ++ B ++ C).size =
+      C.extract 8 C.size := by
+    rw [show A.size + B.size + 8 = (A ++ B).size + 8 by simp [ByteArray.size_append],
+      show (A ++ B ++ C).size = (A ++ B).size + C.size by simp [ByteArray.size_append],
+      ByteArray.extract_append_size_add]
+  rw [hAB, hC', show (le8 x).extract 0 8 = le8 x by
+    rw [← le8_size x]; exact ByteArray.extract_zero_size, ByteArray.append_assoc (a := A)]
+
+/-- The bytes written read back. -/
+theorem le8_read (mem : ByteArray) (x p : ℕ) (hp : p + 8 ≤ mem.size) :
+    ((le8 x).write 0 mem p 8).readWithPadding p 8 = le8 x := by
+  have hsz := byteArray_write_size_of_inBounds (le8 x) mem p 8 (by rw [le8_size]) hp
+  rw [readWithPadding_eq_extract' _ _ _ (by decide) (by decide) (by omega),
+    write_eq_gen _ _ _ _ (by decide) (by rw [le8_size]) hp, ByteArray.extract_append,
+    ByteArray.extract_append]
+  simp [ByteArray.size_extract, le8_size, show min p mem.size = p by omega]
+  rw [ByteArray.extract_eq_empty_iff.mpr (by simp [ByteArray.size_extract]), ByteArray.empty_append,
+    ByteArray.extract_extract, show min (0 + 8) 8 = 8 from rfl, ← le8_size x,
+    Nat.add_zero, ByteArray.extract_zero_size]
 
 /-! ## The input buffer -/
 
