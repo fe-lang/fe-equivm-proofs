@@ -79,9 +79,9 @@ string. Only the constructor writes those slots, so a deployed contract satisfie
 
 The Stele certificates above compare bytecode with a specification written by hand. A second
 set of certificates compares it with a Lean model of the contract that the Fe compiler prints
-(`fe-lean-export`, Fe branch `lean-export`): each `init` and `recv` arm, the entry code that
-decodes calldata and encodes results, and the core and std functions those reach, as definitions
-in a monad over EVMLean's state.
+(`fe-lean-export`, Fe branch `lean-export`, at the commit `fe.pin` names): each `init` and
+`recv` arm, the entry code that decodes calldata and encodes results, and the core and std
+functions those reach, as definitions in a monad over EVMLean's state.
 
 `Refines p bytecode model` (`Fe/EVM/Refine.lean`) says that on every message call the bytecode
 runs out of gas or of stack, or does what the model does, as far as profile `p` observes.
@@ -185,6 +185,8 @@ scripts/sync_exported.py <fe checkout>
 lake build
 ```
 
+and set `fe.pin` to that Fe commit, pushed to the repository it names.
+
 ### Differential tests
 
 `scripts/audit_exports.sh <fe checkout>` exports every contract of Fe's test fixtures and of this
@@ -245,23 +247,42 @@ uses), `Dups.lean` (theorems duplicating another, in this project or its depende
 `Tactics.lean` (regressions for the side-goal search of the block-stepping tactics), the
 cleanup helpers used to shrink the proofs, and the scripts of the exported models:
 `sync_exported.py`, `audit_exports.sh` with its helpers (`lean_check_one.sh`, `build_ffi.sh`,
-`tally_blockers.py`, `tally_diff.py`).
+`tally_blockers.py`, `tally_diff.py`), and the checks CI runs (`check_*.sh`, `fetch_fe.sh`,
+`install_elan.sh`) with the output they expect (`expected/`).
 
 ## Checking the proofs
 
-```sh
-lake exe cache get   # Mathlib's prebuilt files
-lake build
-```
-
-The build fails on any error. To list the axioms each capstone theorem depends on:
+CI (`.github/workflows/ci.yml`) runs these scripts on pushes to `main` and `fe-model` and on pull
+requests. Each runs the same on a laptop, from any directory.
 
 ```sh
-lake env lean scripts/Audit.lean
+scripts/check_build.sh   # Mathlib's prebuilt files (`lake exe cache get`), then `lake build`
+scripts/check_audit.sh   # the axioms of every capstone, against scripts/expected/audit.txt
 ```
 
-Expect `propext`, `Classical.choice`, `Quot.sound` and a count of `native_decide`
-evaluations of concrete bytecode facts, and no `sorryAx`.
+The build fails on any error. `check_audit.sh` runs `scripts/Audit.lean`, which prints the axioms
+each capstone theorem depends on: `Classical.choice`, `Quot.sound`, `propext` and a count of
+`native_decide` evaluations of concrete bytecode facts. It fails if a capstone depends on any
+other axiom (`sorryAx` among them), and on any difference from the expected file: a new or
+missing capstone, or a changed count.
+
+The exported models are checked with the Fe commit pinned in `fe.pin`:
+
+```sh
+fe=$(scripts/fetch_fe.sh)        # checks it out in .lake/fe
+scripts/check_build.sh Fe
+scripts/check_sync.sh "$fe"      # the golden test passes and the Exported.lean files hold its output
+scripts/check_corpus.sh "$fe"    # the export audit, against scripts/expected/exports.txt
+```
+
+`check_corpus.sh` runs `scripts/audit_exports.sh` and compares the totals, the constructs the
+exporter stopped at, the files that do not elaborate and every differential-test line of each
+file with the expected file.
+
+A change that is meant to change an expected file updates it in the same commit: rerun the check
+with `BLESS=1`, which copies the new output over the expected file, and review `git diff`. To move
+to another Fe commit, change `fe.pin`, update the exported text as in "Exported models", and bless
+the export audit.
 
 ## Reproducing the bytecode
 
