@@ -417,7 +417,7 @@ def parseLowering (json : Json) : P Lowering := do
       ← u.getObjValAs? Nat "size")
   let redirects ← (← json.getObjValAs? (Array Json) "redirects").toList.mapM fun r => do
     return (← parseLabel (← r.getObjVal? "from"), ← parseLabel (← r.getObjVal? "to"))
-  return { source := ← parseModule (← json.getObjValAs? String "source_ir")
+  return { source := (parseModule (← json.getObjValAs? String "source_ir")).toOption
            machine := ← parseModule (← json.getObjValAs? String "machine_ir")
            codeSize := ← json.getObjValAs? Nat "code_size"
            arenaBase := ← json.getObjValAs? Nat "arena_base"

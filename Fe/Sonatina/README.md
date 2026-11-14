@@ -203,16 +203,18 @@ same 180 files, 751 Fe tests and 214 contracts with generated calls:
 
 | IR run as the model | calls of Fe tests: agree, disagree | generated calls: agree, disagree | contracts not read |
 | --- | --- | --- | --- |
-| after optimization | 2689, 1 | 28065, 102 | 68 |
+| after optimization | 2697, 1 | 28197, 102 | 66 |
 | section IR after the pipeline | 2689, 1 | 28065, 102 | 68 |
-| machine IR | 2689, 1 | 28065, 102 | 68 |
+| machine IR | 2697, 1 | 28197, 102 | 66 |
 
 Every disagreement is the `leading_zeros` fixture, whose bytecode uses `CLZ`, which EVMLean lacks.
 The machine IR agrees once its run starts as the section entry's code does, with the initial free
 pointer at `0x40`; without it the deposit contract's machine IR read a zero free pointer, and its
-run exhausted the interpreter's memory. The 68 contracts not read use object or constant
-references, enums or nested arrays; a sidecar is read only when all three of its IRs are, so the
-levels share the count.
+run exhausted the interpreter's memory. The 66 contracts not read use object or constant
+references, enums or nested arrays. One more, `abi_bounded_input_len_untrusted`'s `Decoder`, has a
+`gep` in its section IR alone, which the subset does not read: at that level its 8 test calls and
+132 generated calls are not run. (The first run of this table read a sidecar only when all three of
+its IRs were, which lost that contract at every level.)
 
 `Hints.check` finds no failure in the 7914 machine blocks of the 428 sections of the corpus's
 sidecars (the 34 sidecars the reader stops at aside). It refutes what it can see: on the six

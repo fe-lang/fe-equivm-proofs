@@ -74,6 +74,9 @@ def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List
   sidecars.filterMapM fun (path, interface) => do
     match Parse.parseSidecar (← IO.FS.readFile path) with
     | .ok s =>
+      if level == .source && s.sections.any (·.lowering.any (·.source.isNone)) then
+        IO.println s!"UNSUPPORTED {file}::{path}: a section IR this subset does not read"
+        return none
       for code in s.sections do
         let blocks := (code.lowering.map (·.funcs.foldl (· + ·.blocks.length) 0)).getD 0
         let failures := Hints.check code

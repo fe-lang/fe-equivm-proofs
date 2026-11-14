@@ -409,7 +409,7 @@ inductive Level where
 /-- The module section `code` runs at the level. -/
 def Sidecar.moduleAt (s : Sidecar) (code : CodeSection) : Level → Option Module
   | .postOpt => some s.module
-  | .source => code.lowering.map (·.source)
+  | .source => code.lowering.bind (·.source)
   | .machine => code.lowering.map (·.machine)
 
 /-- Run section `name` of the sidecar's object from its entry, in the IR of the level.  The

@@ -226,7 +226,9 @@ structure FuncHint where
 /-- How the backend lowered a section: the IR machine lowering read (`source`), the machine IR
     the code is emitted from (`machine`), and what connects the machine IR to the bytes. -/
 structure Lowering where
-  source : Module
+  /-- `none` when the section IR uses what the subset does not read: only the machine IR is
+      needed to check the bytes. -/
+  source : Option Module
   machine : Module
   codeSize : Nat
   arenaBase : Nat
