@@ -76,11 +76,8 @@ theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Sectio
     `runtime` among them. -/
 theorem check_ok {s : Sidecar} (h : check s = true) :
     (∀ ne ∈ entries s, checkEntry s ne.1 ne.2 = .ok ()) ∧
-      ((entries s).lookup "init").isSome ∧ ((entries s).lookup "runtime").isSome ∧
-      oneFunction s = true := by
+      ((entries s).lookup "init").isSome ∧ ((entries s).lookup "runtime").isSome := by
   unfold check at h
-  simp only [Bool.and_eq_true] at h
-  obtain ⟨h, hone⟩ := h
   cases hc : checkAll s with
   | error e => rw [hc] at h; cases h
   | ok u =>
@@ -92,7 +89,7 @@ theorem check_ok {s : Sidecar} (h : check s = true) :
   refine ⟨fun ne hne => forM_ok hf ne hne, ?_⟩
   split_ifs at hc with h1
   · simp only [Bool.and_eq_true] at h1
-    exact ⟨h1.1.2, h1.2, hone⟩
+    exact ⟨h1.1.2, h1.2⟩
   · cases hc
 
 theorem lookup_entries {secs : List Section} {name entry : String}
@@ -122,7 +119,7 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     (Exhausted (Ξ σ σ₀ g A I) ∨
       Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A))) ∧
       ∀ Q, Invariant.XiOk Q σ σ₀ g A I := by
-  obtain ⟨hall, -, -, hone⟩ := check_ok h
+  obtain ⟨hall, -, -⟩ := check_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
   unfold entries at hentry hall
   cases hobj : s.module.objects.find? (·.name == s.object) with
@@ -140,62 +137,42 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
   split at hce
   · next hcs =>
     obtain ⟨low, hlow, hsize, hany, hfuncs⟩ := checkSection_ok hcs
-    -- The section's one function is its entry.
-    obtain ⟨hint, hfs⟩ : ∃ hint, low.funcs = [hint] := by
-      have hmem : code ∈ s.sections := List.mem_of_find?_eq_some hcode
-      have := List.all_eq_true.mp hone code hmem
-      rw [hlow] at this
-      simp only [Option.map_some, Option.getD_some, beq_iff_eq] at this
-      match hl : low.funcs, this with
-      | [hint], _ => exact ⟨hint, rfl⟩
-    rw [hfs] at hany hfuncs
-    have hname : hint.name = entry := by simpa using hany
-    obtain ⟨f, eb, hf, he, hchecks, hchk⟩ := checkFunc_ok (hfuncs hint (by simp))
-    simp only [funcChecks, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp,
-      forall_eq, hname, bne_self_eq_false, Bool.false_or, Bool.and_eq_true, Bool.not_eq_true',
-      List.isEmpty_iff, beq_iff_eq] at hchecks
-    obtain ⟨-, ⟨⟨hbits, -⟩, -⟩, hnd, ⟨hephi, hpreds⟩, ⟨⟨hpar, hret⟩, hplace⟩, -⟩ := hchecks
+    obtain ⟨hint, hmemh, hname⟩ := List.any_eq_true.mp hany
+    simp only [beq_iff_eq] at hname
+    obtain ⟨f, eb, hf, he, -, -, -, -, -, -, -, -, -, -, -, hroot, hent, hephi⟩ :=
+      func_facts (hfuncs hint hmemh)
+    obtain ⟨hpar, hret, hplace⟩ := hroot hname
     rw [hname] at hf
-    have hnd' : nodup (f.blocks.flatMap fun b =>
-        b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true := by
-      simpa [Func.defs, hpar] using hnd
-    have hcal : ∀ g, (frameOf low entry f).callee g = none := fun g => by
-      simp only [frameOf, callees]
-      by_cases hg : g = entry
-      · simp [hg]
-      · have : (g == entry) = false := by simpa using hg
-        simp only [this, Bool.false_eq_true, if_false, hfs, List.find?_cons, hname]
-        have : (entry == g) = false := by simpa using Ne.symm hg
-        simp [this]
-    replace hchk := fun b hb => (show (hint.name == entry) = true by simp [hname]) ▸ hchk b hb
     have hcode' : s.code name = code.bytecode := by simp [Sidecar.code, hcode]
     rw [hcode'] at hI
     rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
-    have hebm : eb ∈ f.blocks := List.mem_of_mem_head? he
-    obtain ⟨hb, pc, stack, events, calls, exit, hhb, hpc, hst, -, -, hempty, -, -, -⟩ :=
-      checkBlock_ok (hchk eb hebm)
-    have hstack : stack = [] := hempty (by simp)
-    subst hstack
+    obtain ⟨hebm, hblk⟩ := head_block he
+    obtain ⟨hb, hhb, hentry⟩ : ∃ hb, hint.blocks.find? (·.block == eb.id) = some hb ∧
+        hb.entryStack = [] := by
+      cases hfe : hint.blocks.find? (·.block == eb.id) with
+      | none => rw [hfe] at hent; cases hent
+      | some hb =>
+        rw [hfe] at hent
+        refine ⟨hb, rfl, ?_⟩
+        have := Option.some.inj hent
+        simpa [hpar, hret] using this
     have hslots : (frameOf low entry f).slots hb = [] := by
-      have := (mapM_some_iff.mp hst).length_eq
-      simpa using this
-    have hpc0 : pc = 0 := Option.some.inj (hpc.symm.trans (hname ▸ hplace))
-    refine (fun hrun => ⟨Xi_agrees hrun.1, fun Q => hrun.2 Q⟩) (section_run (tail := tail) hI
-      hsize rfl hbits hnd' hchk ?_ (by simpa using hret) hcal (g.toNat + 1) eb none {}
-      (World.init σ A) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) []
+      unfold Frame.slots; split <;> simp [hentry]
+    have hfin := func_run (tail := tail)
+      (ic := ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩) hI hsize rfl
+      hfuncs (g.toNat + 1) hint f eb eb none {}
+      (World.init σ A) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] hmemh
+      (by rw [hname]; exact hf) he
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
-      ⟨hebm, ?_, rfl, ⟨rfl, rfl, rfl⟩, hb, pc, {}, [], hhb, hpc,
-        by rw [hpc0]; rfl, ?_, rfl,
-        by rw [hslots]; exact .nil, by simp [hephi]⟩)
-    · intro x hx hin
-      have := List.all_eq_true.mp hpreds x hx
-      simp [hin] at this
-    · cases hfb : f.blocks with
-      | nil => simp [hfb] at he
-      | cons b0 bs =>
-        rw [hfb] at he; cases he
-        simp [Func.block?, hfb]
-    · simp [enter, hephi, Fe.Sonatina.bind]
+      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl⟩, hb, 0, {}, [], hhb, hplace,
+        rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
+        by simp [hephi]⟩
+      (fun h => by rw [hret] at h; cases h)
+    simp only [show (hint.name == entry) = true by simp [hname], preIf, if_true, ite_self] at hfin
+    have hF := hfin.final
+    exact ⟨Xi_agrees (hF.agrees (by
+      simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)),
+      fun Q => hF.xOk (g.toNat + 1)⟩
   · simp at hce
 
 /-- A section's run never returns: it ends stuck where its entry would. -/
@@ -213,7 +190,7 @@ theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : Exe
     runtime on every call whose calldata fits and the constructor on every deployment, at
     profile `P1`. -/
 theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
-  obtain ⟨-, hinit, hrt, -⟩ := check_ok h
+  obtain ⟨-, hinit, hrt⟩ := check_ok h
   refine ⟨fun σ σ₀ g A I tail hI _ _ => ?_, fun σ σ₀ g A I args _ hI _ => ?_⟩
   · rcases (section_sound h hrt hI).1 with hx | hx
     · exact .inl hx
@@ -239,7 +216,7 @@ theorem check_xiOk {s : Sidecar} (h : check s = true) :
       Invariant.XiOk Q σ σ₀ g A I) ∧
     ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args →
       Invariant.XiOk Q σ σ₀ g A I := by
-  obtain ⟨-, hinit, hrt, -⟩ := check_ok h
+  obtain ⟨-, hinit, hrt⟩ := check_ok h
   exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2 Q,
     fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2 Q⟩
 

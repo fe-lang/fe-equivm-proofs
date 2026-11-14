@@ -313,12 +313,45 @@ agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_imp
 
 ## The checker as built
 
-`Check.lean` is the first checker. `check s` covers sections of one function (no internal call)
-with no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses
-only the pure, read, write and halting instructions `Check.lean` translates (no external call, no
-`gas`, no `create`). It accepts both sections of FeConstant, FeScalarStore and FeERC20. On the
-corpus it accepts 356 of 430 sections and rejects 40 as more than one function and 34 for an
-instruction outside the class. It matches the bytes of every section in its class: the
+**Internal calls.** Each function of a section is checked block by block (`checkFunc`). A
+function returns if its entry block reaches a `ret` (`returning`, closed under predecessors and
+checked so). Its return address is a value no value of the function is (`Func.fresh`); its entry
+block is entered with its arguments on top of the return address if it returns, and the section's
+entry with nothing. A call is a `JUMP` to the callee's entry block with the arguments on top and,
+if the callee returns, below them the address of a `JUMPDEST` at which the block's bytes go on
+with the callee's results on top of what was below the arguments; a call to a function that does
+not return ends the block, which ends in `unreachable`. A `ret` is a `JUMP` to the return address
+with exactly the results below it.
+
+Where the function may return from a block, the block's entry stack is the whole of its frame:
+the lowering record lists the return address last, and every arrival there hands over exactly the
+planned entry stack (`Frame.exact`), so the words below the frame are the caller's, untouched.
+Where it cannot (a block that only halts, as a panic block), the record still lists
+`func_return`, as the bottom slot of the frame, but the bytes hold more of the frame above it than
+the record lists: in `Case44Bank`'s `credit`, the panic block's entry stack is `[func_return]`
+while the bytes arrive there with two of the function's values above the return address. The
+checker leaves `func_return` out of the planned entry stack of such a block (`Frame.slots`) and
+arrives there as anywhere else, with the planned slots on top. That is sound because nothing
+there reads the return address: no block the function cannot return from reaches one it can
+(`returningClosed`), so none of them returns, and the proof states such a block's ending without
+the return address and with any words below its stack (`func_run`, whose return disjunct needs
+`Frame.exact`).
+
+The proof (`CheckCalls.lean`) runs the IR first: `body_calls` gives, under any valuation of the
+values a block defines, its events segment by segment and each callee's run on its arguments'
+words (`Segs`). `segs_ends` steps the bytes segment by segment with `run_ends`, at each call
+handing the callee's entry state to the function theorem at lower gas; `block_run` is one block;
+`func_run` is the function theorem, by strong induction on gas and on `zeroRank`, its conclusion
+`Final'`: the bytes end as the IR's run of the function does, or return to the return address
+with the results' words on top of the caller's stack.
+
+`Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
+no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
+the pure, read, write and halting instructions `Check.lean` translates (no external call, no
+`gas`, no `create`), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+FeERC20. On the corpus (`corpus-v3`) it accepts 387 of 430 sections, 31 of them with internal
+calls; it rejects 42 for an instruction outside the class and one for a dynamic frame. It matches
+the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
 operations as the IR wrote them, which the bytes often swap); three `ISZERO`s are one, as the
@@ -329,7 +362,9 @@ byte, a moved free pointer, dropped redirects: all rejected; moved symbols are a
 section's IR reads none) and a corpus directory.
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
-FeScalarStore sections and 2.4 s for FeERC20's (from 1.8 s and 259 s). Nearly all of the old time
+FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal
+calls), and 11.3 s for the largest section with calls, lane_pattern_writes.Store's runtime
+(2,151 bytes, five functions, 33 calls). Nearly all of the old time
 was the kernel reading the code: `ByteArray.get?` walks the byte list to the offset, about
 14 ms at FeERC20's sizes, and EVMLean's `parseInstr` compares the byte with each pattern, about
 13 ms; `validJump` ran `D_J` over the whole code (13 s), and `decode` ran at every step of every

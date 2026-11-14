@@ -460,4 +460,1016 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
     · exact .inl ⟨gok, fun ρ hρ => ⟨(gs ρ hρ).1, hseg ρ hρ _ (gs ρ hρ).2⟩⟩
     · exact .inr fun ρ hρ => ⟨(gs ρ hρ).1, hseg ρ hρ _ (gs ρ hρ).2⟩
 
+/-! ## The bytes of a block with calls -/
+
+theorem Steps.append {D : Array UInt256} {s s₁ : State}
+    {r : Except ExecutionException (State × Option (HaltCause × ByteArray))} {n k : Nat}
+    (h : Steps D s (.ok (s₁, none)) n) (h' : Steps D s₁ r k) : Steps D s r (n + k) := by
+  generalize hx : (Except.ok (s₁, none) : Except ExecutionException _) = x at h
+  induction h with
+  | step hc hs henv =>
+    subst hx
+    rw [Nat.add_comm]
+    exact .trans hc hs (henv _ rfl) h'
+  | trans hc hs henv _ ih =>
+    rw [Nat.add_right_comm]
+    exact .trans hc hs henv (ih hx)
+
+theorem Steps.gas_lt {D : Array UInt256} {s s' : State} {n : Nat}
+    (h : Steps D s (.ok (s', none)) n) :
+    s'.machineState.gasAvailable.toNat < s.machineState.gasAvailable.toNat := by
+  generalize hx : (Except.ok (s', none) : Except ExecutionException _) = x at h
+  induction h with
+  | step _ hs _ =>
+    subst hx
+    have := Xstep_gas_decreases_of_continues hs
+    omega
+  | trans _ hs _ _ ih =>
+    have := Xstep_gas_decreases_of_continues hs
+    have := ih hx
+    omega
+
+theorem Steps.env {D : Array UInt256} {s s' : State} {n : Nat}
+    (h : Steps D s (.ok (s', none)) n) : s'.executionEnv = s.executionEnv := by
+  generalize hx : (Except.ok (s', none) : Except ExecutionException _) = x at h
+  induction h with
+  | step _ _ henv => subst hx; exact henv _ rfl
+  | trans _ _ henv _ ih => exact (ih hx).trans henv
+
+theorem Final.prepend {D : Array UInt256} {s s₁ : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} {n : Nat}
+    (h : Steps D s (.ok (s₁, none)) n) (hf : Final D s₁ r) : Final D s r := by
+  rcases hf with ⟨k, e, hx, he⟩ | ⟨k, s', out, w', hx, h2⟩ | ⟨k, s', data, hx, h2⟩
+  · exact .inl ⟨n + k, e, h.append hx, he⟩
+  · exact .inr (.inl ⟨n + k, s', out, w', h.append hx, h2⟩)
+  · exact .inr (.inr ⟨n + k, s', data, h.append hx, h2⟩)
+
+theorem Ends.prepend {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx}
+    {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {B : List UInt256}
+    {e0 ex ex₁ : Exit} {cls : List CallSeg} {s s₁ : State} {r : Except (Fe.Exit World) World}
+    {n : Nat} (h : Steps (D_J I.code 0) s (.ok (s₁, none)) n)
+    (he : Ends code I ρ c hints place b B e0 ex₁ cls s₁ r) :
+    Ends code I ρ c hints place b B e0 ex cls s r := by
+  generalize hx : (Except.ok (s₁, none) : Except ExecutionException _) = x at h
+  induction h generalizing ex with
+  | step hc hs henv => subst hx; exact Ends.cons hc hs (henv _ rfl) he
+  | trans hc hs henv _ ih => exact Ends.cons (ex₁ := ex) hc hs henv (ih hx)
+
+/-- The bytes end from `st` as the IR's run `r` ends, or return as it does: they reach the
+    return address `ret` with the values' words on top of `B`, the world agreeing. -/
+def Final' (D : Array UInt256) (st : State)
+    (r : Option (Except (Fe.Exit World) (List Val × World))) (ret : Option UInt256)
+    (B : List UInt256) (nrets : Nat) : Prop :=
+  Final D st r ∨ ∃ k ws w' n st', ret = some k ∧ r = some (.ok (ws.map Fe.Sonatina.word, w')) ∧
+    ws.length = nrets ∧ Steps D st (.ok (st', none)) n ∧ st'.machineState.pc = k ∧
+    st'.machineState.stack = ws ++ B ∧ st'.executionEnv = st.executionEnv ∧ Agree st' w'
+
+theorem Final'.prepend {D : Array UInt256} {s s₁ : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} {ret : Option UInt256}
+    {B : List UInt256} {nrets n : Nat} (h : Steps D s (.ok (s₁, none)) n)
+    (hf : Final' D s₁ r ret B nrets) : Final' D s r ret B nrets := by
+  rcases hf with hf | ⟨k, ws, w', m, st', h1, h2, h3, hx, h4, h5, h6, h7⟩
+  · exact .inl (hf.prepend h)
+  · exact .inr ⟨k, ws, w', n + m, st', h1, h2, h3, h.append hx, h4, h5, h6.trans h.env, h7⟩
+
+/-- How the bytes end as the IR's run of a block's statements `r` ends, the world only. -/
+def FinalW (D : Array UInt256) (st : State) (r : Option (Except (Fe.Exit World) World)) :
+    Prop :=
+  Final D st (r.map (·.map fun w => ([], w)))
+
+/-- Out of gas or stack, the bytes end as any run of the IR. -/
+theorem Final.exhausted {D : Array UInt256} {st : State} {e : ExecutionException} {n : Nat}
+    (h : Steps D st (.error e) n) (he : e = .OutOfGass ∨ e = .StackOverflow)
+    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final D st r :=
+  .inl ⟨n, e, h, by rcases he with rfl | rfl <;> simp⟩
+
+/-- What the bytes do from where a callee's result is not the IR's: they run out of gas or
+    stack. -/
+theorem Final.of_ok {D : Array UInt256} {st : State} {vals : List Val} {w : World}
+    (h : Final D st (some (.ok (vals, w))))
+    {r : Option (Except (Fe.Exit World) (List Val × World))} :
+    Final D st r := by
+  rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
+  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩
+    · exact .exhausted hx (.inl rfl)
+    · exact .exhausted hx (.inr rfl)
+    · cases h
+    · cases h
+  · cases h
+  · cases h
+
+/-- A callee's ending is the block's: its failure, or getting stuck. -/
+theorem FinalW.of_callee {D : Array UInt256} {st : State}
+    {z : Option (Except (Fe.Exit World) (List Val × World))}
+    (h : Final D st z) (hz : ∀ vals w, z ≠ some (.ok (vals, w))) :
+    FinalW D st (z.map (·.map Prod.snd)) := by
+  unfold FinalW
+  rcases z with _ | _ | ⟨vals, w⟩
+  · exact h
+  · exact h
+  · exact absurd rfl (hz vals w)
+
+theorem validJump_D_J {code tail : ByteArray} {I : ExecutionEnv} {t : Nat}
+    (hsize : code.size < UInt256.size) (hI : I.code = code ++ tail)
+    (hj : validJump code t = true) :
+    (D_J I.code 0).contains (UInt256.ofNat t) = true ∧ (UInt256.ofNat t).toNat = t := by
+  simp only [validJump, Bool.and_eq_true, decide_eq_true_eq] at hj
+  refine ⟨by rw [hI]; exact D_J_append (jumpdests_D_J hj.2), ?_⟩
+  rw [toNat_ofNat, Nat.mod_eq_of_lt (by omega)]
+
+/-- The calls of a block's segments name callees, with as many arguments as they take and as
+    many results as they return. -/
+theorem segments_calls {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event}
+    {calls : List CallSeg}, c.segments stmts = some (evs, calls) → ∀ cs ∈ calls, ∃ ce,
+      c.frame.callee cs.callee = some ce ∧ cs.args.length = ce.params ∧
+      cs.dsts.length = (if ce.returns then ce.rets else 0)
+  | stmts, evs, [], _, cs, hcs => by cases hcs
+  | stmts, evs, cs' :: more, h, cs, hcs => by
+    obtain ⟨pre, s, q, args, ce, -, -, -, -, -, hdsts, hce, hargs, hdl, hq⟩ := segments_call h
+    rcases List.mem_cons.mp hcs with rfl | hcs
+    · exact ⟨ce, hce, hargs, by rw [hdsts, List.length_map]; exact hdl⟩
+    · exact segments_calls hq cs hcs
+
+/-- The block lemma with calls: a path of block `b`'s bytes that `run` accepts, from where it
+    is, under the valuation whose IR's run of the block's statements is `Segs`, ends as that
+    run does, at a callee's failure or getting stuck included, or ends as the block's last
+    segment does, given that every callee's bytes from its entry, below the block's gas, end as
+    its IR's run does. -/
+theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx}
+    {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {e0 : Exit} {m : Module}
+    {ic : Fe.Sonatina.Ctx} {G : Nat} (hsize : code.size < UInt256.size)
+    (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true)
+    (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
+      (ret' : Option UInt256) (B' : List UInt256), c.frame.callee cs.callee = some ce →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      ws.length = ce.params →
+      st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
+      (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
+      (ce.returns = false → ret' = none) → st'.machineState.gasAvailable.toNat < G →
+      Final' (D_J I.code 0) st' ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w')
+        ret' B' ce.rets) :
+    ∀ (calls : List CallSeg) (fuel : Nat) (p : Path) (s : State) (w : World)
+      (r : Option (Except (Fe.Exit World) World)) (B : List UInt256), p.calls = calls →
+      (∀ cs ∈ calls, ∃ ce, c.frame.callee cs.callee = some ce ∧ cs.args.length = ce.params ∧
+        cs.dsts.length = (if ce.returns then ce.rets else 0)) →
+      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s → Agree s w →
+      Segs I m ic ρ p.events calls w r → s.machineState.gasAvailable.toNat ≤ G →
+      FinalW (D_J I.code 0) s r ∨
+        ∃ w', r = some (.ok w') ∧ Ends code I ρ c hints place b B e0 p.exit [] s (.ok w')
+  | calls, fuel, p, s, w, r, B, hcl, har, hrun, hp, hw, hseg, hg => by
+    -- The bytes up to the segment's end, as `run_ends` gives them.
+    have hends := fun r' (htr : Trace I ρ p.events w r') =>
+      run_ends (tail := tail) (e0 := e0) hsize hretj fuel p s w r' B hrun hp hw htr
+    -- A path whose next call is `cs`, its events done: the bytes end as the callee's IR run,
+    -- or the callee returns its words to the code the run goes on at.
+    have hcall : ∀ {cs more w₁ ws}, calls = cs :: more → Trace I ρ p.events w (.ok w₁) →
+        cs.args.mapM (·.eval I ρ) = some ws →
+        Final (D_J I.code 0) s ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁) ∨
+        ∃ (ws₂ : List UInt256) (w₂ : World) (s₂ : State) (n : Nat) (restE : List Expr)
+          (restW : List UInt256) (ex' : Exit) (fuel' k : Nat),
+          (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁ =
+            some (.ok (ws₂.map Fe.Sonatina.word, w₂)) ∧ ws₂.length = cs.dsts.length ∧
+          Steps (D_J I.code 0) s (.ok (s₂, none)) n ∧ s₂.machineState.pc = UInt256.ofNat k ∧
+          validJump code k = true ∧ s₂.machineState.stack = ws₂ ++ restW ++ B ∧
+          restE.mapM (·.eval I ρ) = some restW ∧
+          run code c hints place b fuel' ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ =
+            true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree s₂ w₂ := by
+      intro cs more w₁ ws hcs htr hargs
+      obtain ⟨ce, hce, hla, hld⟩ := har cs (by rw [hcs]; simp)
+      have hE := hends _ htr
+      rw [hcl, hcs] at hE
+      have hlw : ws.length = ce.params := by
+        rw [← hla]; exact (mapM_some_iff.mp hargs).length_eq.symm
+      rcases hE with ⟨n, e, hx, he⟩ | ⟨hr, -⟩ | ⟨w₁', hr, ⟨_, _, _, _, _, _, hc0, -⟩ |
+          ⟨_, _, _, hc0, -⟩ | ⟨_, _, _, _, hc0, -⟩ | hret | hnr⟩
+      · exact .inl (.exhausted hx he)
+      · cases hr
+      · cases hc0
+      · cases hc0
+      · cases hc0
+      · obtain ⟨cs', more', ce', n, s', ws', k, restE, restW, ex', fuel', hc', hce', hret', hst,
+          hpc, hargs', hrestW, hstk, hkj, hrun', hval, hexr, henv, hag⟩ := hret
+        simp only [List.cons.injEq] at hc'
+        obtain ⟨rfl, rfl⟩ := hc'
+        cases hr
+        rw [hce] at hce'; cases hce'
+        rw [hargs] at hargs'; cases hargs'
+        obtain ⟨hkd, -⟩ := validJump_D_J hsize hp.code hkj
+        have hf := hcallee cs ce ws s' w₁ (some (UInt256.ofNat k)) (restW ++ B) hce hpc henv hag
+          hlw (by simpa using hstk) (fun _ => ⟨_, rfl, hkd⟩) (fun h => by rw [hret'] at h; cases h)
+          (by have := hst.gas_lt; omega)
+        rcases hf with hf | ⟨k', ws₂, w₂, n₂, s₂, hk', hr₂, hl₂, hx₂, hpc₂, hstk₂, henv₂, hag₂⟩
+        · exact .inl (hf.prepend hst)
+        · simp only [Option.some.injEq] at hk'
+          subst hk'
+          refine .inr ⟨ws₂, w₂, s₂, n + n₂, restE, restW, ex', fuel', k, hr₂,
+            by rw [hl₂, hld, if_pos hret'], hst.append hx₂, hpc₂, hkj,
+            by rw [hstk₂, List.append_assoc], hrestW, hrun', hval, hexr, henv₂.trans henv, hag₂⟩
+      · obtain ⟨cs', ce', n, s', ws', t, hc', hce', hnr, hst, hpc, hargs', hstk, henv, hag⟩ := hnr
+        simp only [List.cons.injEq] at hc'
+        obtain ⟨rfl, rfl⟩ := hc'
+        cases hr
+        rw [hce] at hce'; cases hce'
+        rw [hargs] at hargs'; cases hargs'
+        have hf := hcallee cs ce ws s' w₁ none t hce hpc henv hag hlw (by simpa using hstk)
+          (fun h => by rw [hnr] at h; cases h) (fun _ => rfl) (by have := hst.gas_lt; omega)
+        rcases hf with hf | ⟨_, _, _, _, _, h, -⟩
+        · exact .inl (hf.prepend hst)
+        · cases h
+    cases hseg with
+    | last htr =>
+      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨rfl, n, hx⟩ | ⟨w', rfl, h⟩
+      · exact .inl (.exhausted hx he)
+      · exact .inl (.inl ⟨n, _, hx, .inr (.inr (.inl ⟨rfl, rfl⟩))⟩)
+      · rw [hcl] at h
+        exact .inr ⟨w', rfl, .inr (.inr ⟨w', rfl, h⟩)⟩
+    | fail htr =>
+      rcases hends _ htr with ⟨n, e, hx, he⟩ | ⟨hr, n, hx⟩ | ⟨w', hr, -⟩
+      · exact .inl (.exhausted hx he)
+      · cases hr
+        exact .inl (.inl ⟨n, _, hx, .inr (.inr (.inl ⟨rfl, rfl⟩))⟩)
+      · cases hr
+    | callNone htr ha hz =>
+      rcases hcall rfl htr ha with hf | ⟨_, _, _, _, _, _, _, _, _, h, -⟩
+      · rw [hz] at hf; exact .inl hf
+      · rw [hz] at h; cases h
+    | callErr htr ha hz =>
+      rcases hcall rfl htr ha with hf | ⟨_, _, _, _, _, _, _, _, _, h, -⟩
+      · rw [hz] at hf; exact .inl hf
+      · rw [hz] at h; cases h
+    | @callOk _ cs more _ w₁ w₂ ws r htr ha hz hrest =>
+      rcases hcall rfl htr ha with hf | ⟨ws₂, w₂', s₂, n, restE, restW, ex', fuel', k, h, hl,
+          hx, hpc, hkj, hstk, hrestW, hrun', hval, hexr, henv, hag⟩
+      · rw [hz] at hf; exact .inl hf.of_ok
+      · rw [hz] at h
+        simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+        obtain ⟨hv, rfl⟩ := h
+        have hws₂ := map_word_inj hv
+        obtain ⟨hkd, hkn⟩ := validJump_D_J hsize hp.code hkj
+        have hp' : PathRel code tail I ρ B e0 ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩
+            s₂ := ⟨henv, hp.code, by rw [hpc, hkn], ⟨cs.dsts.map ρ ++ restW, by
+              simp only [List.mapM_append, hrestW]
+              rw [show (cs.dsts.map Expr.atom).mapM (·.eval I ρ) = some (cs.dsts.map ρ) by
+                clear * -; induction cs.dsts <;> simp_all [List.mapM_cons, Expr.eval]]
+              rfl, by rw [hstk, hws₂, List.append_assoc]⟩, hval, hexr⟩
+        have har' := fun cs' (h : cs' ∈ more) => har cs' (.tail _ h)
+        rcases segs_ends hsize hretj hcallee more fuel' _ s₂ w₂ r B rfl har' hrun' hp' hag hrest
+            (by have := hx.gas_lt; omega) with h | ⟨w', hr, h⟩
+        · exact .inl (h.prepend hx)
+        · exact .inr ⟨w', hr, Ends.prepend hx h⟩
+    | callOther htr ha hz hv =>
+      rcases hcall rfl htr ha with hf | ⟨ws₂, _, _, _, _, _, _, _, _, h, hl, -⟩
+      · rw [hz] at hf; exact .inl hf.of_ok
+      · rw [hz] at h
+        simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+        exact absurd hl (hv ws₂ h.1)
+
+/-- Before a function's entry block, the section entry's code stores the free pointer. -/
+def preIf (isRoot : Bool) (low : Lowering) (eb b : Block) : FeM Unit :=
+  if isRoot then pre low eb b else pure ()
+
+theorem pre_trace' (isRoot : Bool) (low : Lowering) (eb b : Block) (I : ExecutionEnv)
+    (w : World) :
+    ∃ w₀, (preIf isRoot low eb b).exec I w = some (.ok ((), w₀)) ∧
+      ∀ ρ evs r, Trace I ρ evs w₀ r →
+        Trace I ρ (prologue low (isRoot && b.id == eb.id) evs) w r := by
+  cases isRoot
+  · refine ⟨w, rfl, fun ρ evs r h => ?_⟩
+    cases low.entryFreePtr <;> simpa [prologue] using h
+  · simpa [preIf] using pre_trace low eb b I w
+
+theorem Segs.pre {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {ρ : Nat → UInt256}
+    {evs evs' : List Event} {cls : List CallSeg} {w w₀ : World}
+    {r : Option (Except (Fe.Exit World) World)}
+    (ht : ∀ r, Trace ee ρ evs w₀ r → Trace ee ρ evs' w r) (h : Segs ee m ic ρ evs cls w₀ r) :
+    Segs ee m ic ρ evs' cls w r := by
+  cases h with
+  | last h => exact .last (ht _ h)
+  | fail h => exact .fail (ht _ h)
+  | callNone h ha hz => exact .callNone (ht _ h) ha hz
+  | callErr h ha hz => exact .callErr (ht _ h) ha hz
+  | callOk h ha hz hr => exact .callOk (ht _ h) ha hz hr
+  | callOther h ha hz hv => exact .callOther (ht _ h) ha hz hv
+
+theorem Final.of_none {D : Array UInt256} {st : State} (h : Final D st none)
+    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final D st r := by
+  rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
+  · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩
+    · exact .exhausted hx (.inl rfl)
+    · exact .exhausted hx (.inr rfl)
+    · cases h
+    · cases h
+  · cases h
+  · cases h
+
+/-- A value of the block after its statements was before them, or a statement defines it. -/
+theorem definedAfter_sub : ∀ {stmts : List Stmt} {D D' : List Nat},
+    definedAfter D stmts = some D' → ∀ id ∈ D', id ∈ D ∨ ∃ s ∈ stmts, ∃ d ∈ s.dsts, d.1 = id
+  | [], D, D', h, id, hid => by simp [definedAfter] at h; exact .inl (h ▸ hid)
+  | s :: rest, D, D', h, id, hid => by
+    simp only [definedAfter] at h
+    split_ifs at h
+    rcases definedAfter_sub h id hid with h' | ⟨t, ht, d, hd, rfl⟩
+    · rcases List.mem_append.mp h' with h' | h'
+      · exact .inl h'
+      · obtain ⟨d, hd, rfl⟩ := List.mem_map.mp h'
+        exact .inr ⟨s, by simp, d, hd, rfl⟩
+    · exact .inr ⟨t, List.mem_cons_of_mem _ ht, d, hd, rfl⟩
+
+/-- A block whose exit is a return ends in `ret`. -/
+theorem exitOf_ret_eq {c : Ctx} {t : Term} {vals : List Expr}
+    (h : c.exitOf t = some (.ret vals)) :
+    ∃ vs, t = .ret vs ∧ vs.mapM (c.operand depth) = some vals := by
+  cases t with
+  | ret vs =>
+    unfold Ctx.exitOf at h
+    split_ifs at h
+    simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h
+    obtain ⟨es, hes, he⟩ := h
+    cases he
+    exact ⟨vs, rfl, hes⟩
+  | brTable sc d cases =>
+    cases d with
+    | none => simp [Ctx.exitOf] at h
+    | some d =>
+      simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at h
+      obtain ⟨_, _, _, _, h⟩ := h
+      cases h
+  | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
+
+set_option maxHeartbeats 2000000 in
+/-- One block of a checked function: the bytes end as the IR's run does, return as it does,
+    or reach the next block's code where the IR's run goes on there, given that every callee's
+    bytes from its entry, below the block's gas, end as its IR's run does. -/
+theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : Func}
+    {fr : Frame} {isRoot : Bool} {eb : Block} {I : ExecutionEnv} {tail : ByteArray}
+    {ic : Fe.Sonatina.Ctx}
+    (hI : I.code = code.bytecode ++ tail) (hsize : code.bytecode.size < UInt256.size)
+    (hsym : ic.symbol = (code.symbols.lookup ·))
+    (hbits : (f.blocks.all fun b => b.phis.all (·.ty.bits == 256) &&
+        b.body.all (·.dsts.all (·.2.bits == 256))) = true)
+    (hnd : nodup (f.blocks.flatMap fun b =>
+        b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true)
+    (hchk : ∀ b ∈ f.blocks, checkBlock code low hint f fr isRoot eb
+        (placeIn low hint.name) (zeroRank f (placeIn low hint.name) f.blocks.length) b = .ok ())
+    (hpred : ∀ x ∈ f.blocks, eb.id ∉ x.term.succs)
+    (hexact : ∀ b ∈ f.blocks, fr.exact b.id = false → ∀ s ∈ b.term.succs, fr.exact s = false)
+    (hretx : ∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → fr.exact b.id = true)
+    (hexr : ∀ b, fr.exact b = true → fr.returns = true)
+    (hrets : ∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → vs.length = f.rets.length)
+    (hfresh : ∀ b ∈ f.blocks, ∀ h ∈ hint.blocks, ∀ id,
+      (id ∈ slotValues h.entryStack ∨ id ∈ b.phis.map (·.dst) ∨
+        ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) → id < fr.retId)
+    {b : Block} {prev : Option Nat} {env : Env} {w : World} {st : State} {ret : Option UInt256}
+    {B : List UInt256} (hat : AtBlock low hint f fr I b prev env w st ret B)
+    (hretk : fr.returns = true → ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true)
+    (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
+      (ret' : Option UInt256) (B' : List UInt256), fr.callee cs.callee = some ce →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      ws.length = ce.params →
+      st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
+      (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
+      (ce.returns = false → ret' = none) →
+      st'.machineState.gasAvailable.toNat < st.machineState.gasAvailable.toNat →
+      Final' (D_J I.code 0) st'
+        ((runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w') ret' B'
+        ce.rets) :
+    Final' (D_J I.code 0) st
+        ((preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w)
+        (if fr.exact b.id then ret else none) B f.rets.length ∨
+      ∃ S env' w' st' n B', Reach (D_J I.code 0) st st' n ∧
+        (n = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S.id <
+          zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
+        AtBlock low hint f fr I S (some b.id) env' w' st' ret B' ∧
+        (fr.exact S.id = true → B' = B ∧ fr.exact b.id = true) ∧ S.id ≠ eb.id ∧
+        (preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
+          (runBlocks low.machine ic f env' (some b.id) S.id).exec I w' := by
+  obtain ⟨hmem, hblk, henv, hw, hb, pc, envB, ws, hhb, hpc, hstpc, henter, hstk, hslots,
+    hphis⟩ := hat
+  obtain ⟨hb', pc', stack, events, calls, exit, hhb', hpc', hst, hseg, hex, hempty, hdef, hrank,
+    hrun⟩ := checkBlock_ok (hchk b hmem)
+  rw [hhb] at hhb'; cases hhb'
+  rw [hpc] at hpc'; cases hpc'
+  replace hdef : defined f hint.blocks b (slotValues hb.entryStack) = true := hdef
+  set c := Ctx.ofBlock f b code.symbols fr with hc
+  unfold defined at hdef
+  cases hDA : definedAfter (slotValues hb.entryStack ++ b.phis.map (·.dst)) b.body with
+  | none => simp [hDA] at hdef
+  | some D' =>
+  simp only [hDA, Bool.and_eq_true, List.all_eq_true] at hdef
+  set D := slotValues hb.entryStack ++ b.phis.map (·.dst) with hD
+  obtain ⟨hterm, hsucc⟩ := hdef
+  have hfreshS := definedAfter_fresh hDA
+  have hnone : ∀ id ∈ D, c.defs.lookup id = none := fun id hid =>
+    lookup_none fun s hs d hd h => hfreshS s hs d hd (h ▸ hid)
+  have hwB : WordsOf envB (wordsOf envB) D := wordsOf_words fun id hid => by
+    rcases List.mem_append.mp hid with h | h
+    · obtain ⟨v, hv⟩ := slot_word hslots (by rw [slotValues_slots]; exact h)
+      exact ⟨v.toNat, hv, v.val.isLt⟩
+    · obtain ⟨phi, hp, rfl⟩ := List.mem_map.mp h
+      exact hphis phi hp
+  obtain ⟨w₀, hpre, htrace⟩ := pre_trace' isRoot low eb b I w
+  have hbitsb : ∀ s ∈ b.body, ∀ d ∈ s.dsts, d.2.bits = 256 := by
+    have := List.all_eq_true.mp hbits b hmem
+    simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at this
+    exact fun s hs d hd => this.2 s hs d hd
+  have hndb : ∀ s ∈ b.body, (s.dsts.map (·.1)).Nodup := fun s hs => by
+    have h1 := ((List.nodup_flatMap.mp ((nodup_iff _).mp hnd)).1 b hmem).of_append_right
+    exact (List.nodup_flatMap.mp h1).1 s hs
+  have hhint : hb ∈ hint.blocks := List.mem_of_find?_eq_some hhb
+  -- Every value of the block is one its return address is not.
+  have hRD' : ∀ id ∈ D', id ≠ fr.retId := fun id hid h => by
+    have := hfresh b hmem hb hhint id (by
+      rcases definedAfter_sub hDA id hid with h' | h'
+      · rcases List.mem_append.mp h' with h' | h'
+        · exact .inl h'
+        · exact .inr (.inl h')
+      · exact .inr (.inr h'))
+    omega
+  obtain ⟨x, hx, envf, Df, hagr, hsub, hDf, ⟨ρ0, hρ0⟩, hcase⟩ :=
+    body_calls (ee := I) (m := low.machine) (c := c) hsym calls b.body [] D D' envB w₀ events
+      (by simp [c, Ctx.ofBlock]) (by simp) hDA hseg hbitsb hndb ⟨_, hwB⟩
+      fun ρ _ id hid inst hl => by rw [hnone id hid] at hl; cases hl
+  -- The valuation, its return address the function's.
+  set ρ := Function.update ρ0 fr.retId (ret.getD ⟨0⟩) with hρdef
+  have hρR : ρ fr.retId = ret.getD ⟨0⟩ := by simp [hρdef]
+  have hρ : WordsOf envf ρ Df := fun id h => by
+    rw [hρdef, Function.update_of_ne (hRD' id (hDf id h))]
+    exact hρ0 id h
+  have hR : (preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
+      (runBlocks low.machine ic f env prev b.id).exec I w₀ := by
+    rw [Fe.M.exec_bind, hpre]
+  rw [hR]
+  have hρD : WordsOf envB ρ D := fun id hid => (hagr id hid).symm.trans (hρ id (hsub id hid))
+  have hpath : PathRel code.bytecode tail I ρ B exit
+      ⟨pc, stack, prologue low (isRoot && b.id == eb.id) events, exit, calls⟩ st :=
+    ⟨henv, hI, hstpc, ⟨ws,
+      entryStack_rel (fun v h => by show ρ fr.retId = v; rw [hρR, h]; rfl)
+        (fun id hid => hnone id (List.mem_append_left _ (by rwa [slotValues_slots] at hid)))
+        (fun id hid => hρD id (List.mem_append_left _ (by rwa [slotValues_slots] at hid))) hslots
+        hst, hstk⟩,
+      exitOf_valid hex I ρ, .inl rfl⟩
+  have hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true :=
+    fun h => by
+      obtain ⟨k, hk, hkj⟩ := hretk h
+      simpa [c, Ctx.ofBlock, hρR, hk] using hkj
+  have har := segments_calls hseg
+  -- Where a callee's result is not the IR's, the bytes run out of gas or stack.
+  rcases hcase with ⟨hok, hall⟩ | hall
+  swap
+  · left; left
+    rcases segs_ends (m := low.machine) (ic := ic) (G := st.machineState.gasAvailable.toNat)
+        hsize hretj hcallee calls _ _ st w none B rfl har hrun hpath hw
+        (Segs.pre (htrace ρ _) (hall ρ hρ).2) (le_refl _) with h | ⟨_, h, -⟩
+    · exact Final.of_none h
+    · cases h
+  have hE := segs_ends (m := low.machine) (ic := ic) (G := st.machineState.gasAvailable.toNat)
+    hsize hretj hcallee calls _ _ st w _ B rfl har hrun hpath hw
+    (Segs.pre (htrace ρ _) (hall ρ hρ).2) (le_refl _)
+  rw [runBlocks.eq_1, hblk]
+  simp only [henter, pure_bind, Fe.M.exec_bind, hx]
+  rcases hE with hE | ⟨w', hxw, hE⟩
+  · left; left
+    cases x with
+    | none => exact hE
+    | some x => cases x with
+      | error e => exact hE
+      | ok p => exact Final.of_ok hE
+  cases x with
+  | none => cases hxw
+  | some x =>
+  cases x with
+  | error e => cases hxw
+  | ok p =>
+  obtain ⟨env', w₁⟩ := p
+  simp only [Option.map_some, Except.map, Option.some.injEq, Except.ok.injEq] at hxw
+  subst w₁
+  obtain ⟨h1, h2⟩ := hok env' w' rfl
+  subst envf
+  subst Df
+  have hcons := (hall ρ hρ).1
+  rcases hE with ⟨n, e', hxs, he'⟩ | ⟨hr, -⟩ |
+    ⟨w'', hr, harr | ⟨op, args, hws, -, hex0, hargs, hh⟩ |
+    ⟨vals, wsv, nv, sv, -, hex0, hwsv, hstv, hpcv, hstkv, henvv, hagv⟩ |
+    ⟨cs, more, -, -, -, -, -, -, -, -, -, hcl, -⟩ | ⟨cs, -, -, -, -, -, hcl, -⟩⟩
+  · left; left; exact .exhausted hxs he'
+  · cases hr
+  · cases hr
+    obtain ⟨S, n, st', pc', exprs, B', -, hnh, hjmp, hzero, hreach, hnext, hplS, hpcS, harr, hrel,
+      hBS, henvS, hagS⟩ := harr
+    simp only [Ctx.arrival, Option.bind_eq_bind, Option.bind_eq_some_iff] at harr
+    obtain ⟨hbS, hhbS, Sb, hSb, hmapS⟩ := harr
+    change f.block? S = some Sb at hSb
+    have hSbmem : Sb ∈ f.blocks := List.mem_of_find?_eq_some hSb
+    have hSid : Sb.id = S := by simpa using List.find?_some hSb
+    -- The successor, entered from `b`, is where the bytes are.
+    have key : ∀ d, exit.next I ρ = some d →
+        AtBlock low hint f fr I Sb (some b.id) env' w' st' ret B' ∧
+        d = Sb.id := by
+      intro d hd
+      have hdS := hnext d hd
+      subst hdS
+      refine ⟨?_, hSid.symm⟩
+      have hsuccS := hsucc _ (exitOf_succ hex hd)
+      rw [hSb] at hsuccS
+      simp only [Bool.and_eq_true, List.all_eq_true] at hsuccS
+      obtain ⟨hphisS, hslotsS⟩ := hsuccS
+      have hndS : (Sb.phis.map (·.dst)).Nodup := by
+        have := (nodup_iff _).mp hnd
+        exact ((List.nodup_flatMap.mp this).1 Sb hSbmem).of_append_left
+      have hbitsS := List.all_eq_true.mp hbits Sb hSbmem
+      simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hbitsS
+      have hin : ∀ phi ∈ Sb.phis, ∃ o d, phi.incoming.find? (·.2 == b.id) = some (o, d) ∧
+          reads D' [o] = true ∧ ∀ ty, o ≠ .undef ty := fun phi hp => by
+        have := hphisS phi hp
+        rcases hf : phi.incoming.find? (fun x => x.2 == b.id) with _ | ⟨o, d⟩
+        · simp [hf] at this
+        · refine ⟨o, d, hf, ?_⟩
+          rw [hf] at this
+          cases o <;> simp_all
+      obtain ⟨envS, henterS, hphiS, hkeepS⟩ := enter_run (fun phi hp => by
+        obtain ⟨o, d, hf, hr, -⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
+      obtain ⟨ws', hws', hstk'⟩ := hrel
+      refine ⟨hSbmem, by rw [hSid]; exact hSb, henvS, hagS, hbS, pc', envS, ws',
+        by rw [hSid]; exact hhbS, by rw [hSid]; exact hplS, hpcS, henterS, hstk', ?_, ?_⟩
+      · have hall : (fr.slots hbS).all (slotDefined D' Sb) = true := by
+          have := hslotsS
+          rw [hhbS] at this
+          simp only [Option.all_some] at this
+          exact List.all_eq_true.mpr fun x hx => List.all_eq_true.mp this x (slots_sub hx)
+        exact arrival_rel hcons hρ (ret := ret) (fun phi hp => by
+          obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
+          obtain ⟨o', d', hf', hr', -⟩ := hin phi hp
+          rw [hf] at hf'; cases hf'
+          exact ⟨hbitsS.1 phi hp, o, d, val, hf, hr', hev, hS⟩) hkeepS
+          (fun h => by
+            obtain ⟨k, hk, -⟩ := hretk h
+            show ret = some (ρ fr.retId)
+            rw [hρR, hk]; rfl) hall hmapS hws'
+      · intro phi hp
+        obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
+        obtain ⟨o', d', hf', hr', hnu⟩ := hin phi hp
+        rw [hf] at hf'; cases hf'
+        have hval : ∃ bits k, val = .int bits k := by
+          have hex' : ∀ {a b : FeM Val}, a = b →
+              a.exec I (World.init ∅ default) = b.exec I (World.init ∅ default) :=
+            fun h => h ▸ rfl
+          cases o with
+          | var id =>
+            have hid : id ∈ D' := by simpa [reads, Operand.var?] using hr'
+            have := hex' hev
+            simp [evalOperand, hρ id hid] at this
+            exact ⟨_, _, this.symm⟩
+          | imm bits k =>
+            have := hex' hev
+            simp [evalOperand] at this
+            exact ⟨_, _, this.symm⟩
+          | undef ty => exact absurd rfl (hnu ty)
+        obtain ⟨bits, k, rfl⟩ := hval
+        exact ⟨_, by rw [hS, as_int _ _ (hbitsS.1 phi hp)]; rfl, (UInt256.ofNat k).val.isLt⟩
+    -- In no step the exit selected the successor: its code is at `b`'s, so it is lower.
+    have hlow : n = 0 → zeroRank f (placeIn low hint.name) f.blocks.length Sb.id <
+        zeroRank f (placeIn low hint.name) f.blocks.length b.id := fun hn => by
+      have hsel := hzero hn
+      have honly := exitOf_only hex hsel
+      rw [honly] at hrank
+      simp only [Option.all_some, Bool.or_eq_true, bne_iff_ne, ne_eq, decide_eq_true_eq] at hrank
+      rcases hreach with ⟨-, rfl⟩ | hx
+      · rcases hrank with h | h
+        · exact absurd (by rw [hplS, ← hpcS, hstpc]) h
+        · rw [hSid]; exact h
+      · subst hn; cases hx
+    have hfin : ∀ d, exit.next I ρ = some d →
+        ∃ S' env'' w'' st'' n' B'', Reach (D_J I.code 0) st st'' n' ∧
+          (n' = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S'.id <
+            zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
+          AtBlock low hint f fr I S' (some b.id) env'' w'' st'' ret B'' ∧
+          (fr.exact S'.id = true → B'' = B ∧ fr.exact b.id = true) ∧ S'.id ≠ eb.id ∧
+          (runBlocks low.machine ic f env' (some b.id) d).exec I w' =
+            (runBlocks low.machine ic f env'' (some b.id) S'.id).exec I w'' := fun d hd => by
+      obtain ⟨hat', hdS⟩ := key d hd
+      have hSs : Sb.id ∈ b.term.succs := hdS ▸ exitOf_succ hex hd
+      exact ⟨Sb, env', w', st', n, B', hreach, hlow, hat', fun hx => by
+        refine ⟨hBS (by rw [← hSid]; exact hx), ?_⟩
+        by_contra hb
+        exact absurd hx (by simp [hexact b hmem (by simpa using hb) Sb.id hSs]),
+        fun h => hpred b hmem (h ▸ hSs), by rw [hdS]⟩
+    right
+    cases ht : b.term with
+    | jump d =>
+      rw [ht] at hex; simp only [Ctx.exitOf, Option.some.injEq] at hex; subst hex
+      simpa using hfin d rfl
+    | br cond nz z =>
+      rw [ht] at hex hterm
+      simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at hex
+      obtain ⟨ce, hce, rfl⟩ := hex
+      obtain ⟨v, hv, -, hev⟩ := operand_words hcons hρ (by simpa [Term.operands] using hterm) hce
+      have := hfin (if v.toNat != 0 then nz else z) (by simp [Exit.next, hv])
+      simpa [evalInt, hev] using this
+    | brTable sc def? cases =>
+      cases def? with
+      | none => rw [ht] at hex; simp [Ctx.exitOf] at hex
+      | some dd =>
+      rw [ht] at hex hterm
+      simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at hex
+      obtain ⟨cs, hcs, ce, hce, rfl⟩ := hex
+      simp only [Term.operands, reads, List.all_cons, Bool.and_eq_true] at hterm
+      obtain ⟨v, hv, -, hev⟩ := operand_words hcons hρ (by simpa [reads] using hterm.1) hce
+      have hlt : ∀ kd ∈ cs, kd.1 < UInt256.size := mapM_forall hcs fun x y hxy => by
+        obtain ⟨o, dest⟩ := x
+        simp only at hxy
+        split at hxy
+        · split_ifs at hxy with hv'; cases hxy; exact hv'
+        · cases hxy
+      have := hfin (((cs.find? (UInt256.ofNat ·.1 == v)).map (·.2)).getD dd)
+        (by simp [Exit.next, hv])
+      have hei : evalInt env' sc = pure (256, v.toNat) := by simp [evalInt, hev]
+      simp only [hei, pure_bind]
+      rw [table_vals (env := env') hcs]
+      simp only [pure_bind]
+      rw [← find_table hlt] at this
+      cases hf : cs.find? (·.1 == v.toNat) with
+      | none => simpa [hf] using this
+      | some kd => simpa [hf] using this
+    | evmReturn a l | evmRevert a l =>
+      rw [ht] at hex
+      simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at hex
+      obtain ⟨_, _, _, _, rfl⟩ := hex
+      exact absurd rfl (hnh _ _)
+    | evmStop | evmInvalid =>
+      rw [ht] at hex
+      simp only [Ctx.exitOf, Option.some.injEq] at hex
+      subst hex
+      exact absurd rfl (hnh _ _)
+    | ret vs =>
+      rw [ht] at hex
+      unfold Ctx.exitOf at hex
+      split_ifs at hex
+      simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at hex
+      obtain ⟨_, _, rfl⟩ := hex
+      exact hjmp.elim
+    | unreachable =>
+      rw [ht] at hex
+      simp only [Ctx.exitOf, Option.some.injEq] at hex
+      subst hex
+      exact hjmp.elim
+  · cases hr
+    left; left
+    subst hex0
+    have hw2 : ∀ {a l : Operand} {ea el : Expr}, reads D' [a, l] = true →
+        c.operand depth a = some ea → c.operand depth l = some el →
+        [ea, el].mapM (·.eval I ρ) = some hws → ∃ va vl, hws = [va, vl] ∧
+          evalWord env' a = pure va ∧ evalWord env' l = pure vl := by
+      intro a l ea el hr ha hl hm
+      simp only [reads, List.all_cons, List.all_nil, Bool.and_true, Bool.and_eq_true] at hr
+      obtain ⟨va, hva, -, hea⟩ := operand_words hcons hρ (by simpa [reads] using hr.1) ha
+      obtain ⟨vl, hvl, -, hel⟩ := operand_words hcons hρ (by simpa [reads] using hr.2) hl
+      refine ⟨va, vl, by simpa [List.mapM_cons, hva, hvl] using hm.symm, ?_, ?_⟩
+      · simp [evalWord, evalInt, hea, Reasoning.Theory.u256_ofNat_toNat]
+      · simp [evalWord, evalInt, hel, Reasoning.Theory.u256_ofNat_toNat]
+    rcases exitOf_halt hex with ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ |
+      ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ | ⟨ht, rfl, rfl⟩ | ⟨ht, rfl, rfl⟩
+    · rw [ht] at hterm
+      obtain ⟨va, vl, rfl, hva, hvl⟩ := hw2 hterm hea hel hargs
+      obtain ⟨n, s', hxs, ha, hl⟩ := hh
+      exact .inr (.inl ⟨n, s', _, w', hxs, by simp [ht, hva, hvl, returnData], ha, hl⟩)
+    · rw [ht] at hterm
+      obtain ⟨va, vl, rfl, hva, hvl⟩ := hw2 hterm hea hel hargs
+      obtain ⟨n, s', hxs⟩ := hh
+      exact .inr (.inr ⟨n, s', _, hxs, by simp [ht, hva, hvl, revertData]⟩)
+    · simp at hargs; subst hargs
+      obtain ⟨n, s', hxs, ha, hl⟩ := hh
+      exact .inr (.inl ⟨n, s', _, w', hxs, by simp [ht, stopCall], ha, hl⟩)
+    · simp at hargs; subst hargs
+      obtain ⟨n, hxs⟩ := hh
+      exact .inl ⟨n, _, hxs, .inr (.inr (.inr ⟨rfl, by simp [ht, trap]⟩))⟩
+
+  · -- A return.
+    cases hr
+    left; right
+    subst hex0
+    obtain ⟨vs, hvs, hmv⟩ := exitOf_ret_eq hex
+    have hexb := hretx b hmem vs hvs
+    obtain ⟨k, hk, -⟩ := hretk (hexr b.id hexb)
+    rw [hvs] at hterm
+    obtain ⟨ws', hws', hev'⟩ := args_words hcons hρ (by simpa [Term.operands] using hterm) hmv
+    rw [hwsv] at hws'; cases hws'
+    refine ⟨k, wsv, w', nv, sv, by rw [if_pos hexb, hk], ?_, ?_, hstv, ?_, hstkv,
+      henvv.trans henv.symm, hagv⟩
+    · simp only [hvs, hev']; rfl
+    · rw [(mapM_some_iff.mp hwsv).length_eq.symm, (mapM_some_iff.mp hmv).length_eq.symm]
+      exact hrets b hmem vs hvs
+    · rw [hpcv]; show ρ fr.retId = k; rw [hρR, hk]; rfl
+  · cases hcl
+  · cases hcl
+
+
+/-! ## A function -/
+
+theorem foldl_max : ∀ (l : List Nat) (a : Nat), a ≤ l.foldl max a ∧ ∀ x ∈ l, x ≤ l.foldl max a
+  | [], a => ⟨le_refl _, fun _ h => by cases h⟩
+  | y :: l, a => by
+    obtain ⟨h1, h2⟩ := foldl_max l (max a y)
+    refine ⟨le_trans (le_max_left _ _) h1, fun x hx => ?_⟩
+    rcases List.mem_cons.mp hx with rfl | hx
+    · exact le_trans (le_max_right _ _) h1
+    · exact h2 x hx
+
+theorem lt_fresh {f : Func} {id : Nat} (h : id ∈ f.defs) : id < f.fresh := by
+  have := (foldl_max f.defs 0).2 id h
+  unfold Func.fresh; omega
+
+/-- A block of a function that does not return has no `ret`. -/
+theorem exitOf_ret_term {c : Ctx} {vs : List Operand} {e : Exit}
+    (h : c.exitOf (.ret vs) = some e) : c.frame.returns = true := by
+  unfold Ctx.exitOf at h
+  split_ifs at h with hr
+  · exact hr
+
+/-- What a function the checker accepts is, as `block_run` asks it. -/
+theorem func_facts {code : CodeSection} {low : Lowering} {entry : String} {hint : FuncHint}
+    (h : checkFunc code low entry hint = .ok ()) :
+    ∃ f eb, low.machine.func? hint.name = some f ∧ f.blocks.head? = some eb ∧
+      (f.blocks.all fun b => b.phis.all (·.ty.bits == 256) &&
+        b.body.all (·.dsts.all (·.2.bits == 256))) = true ∧
+      nodup (f.blocks.flatMap fun b =>
+        b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true ∧
+      (∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f) (hint.name == entry) eb
+        (placeIn low hint.name) (zeroRank f (placeIn low hint.name) f.blocks.length) b = .ok ()) ∧
+      (∀ x ∈ f.blocks, eb.id ∉ x.term.succs) ∧
+      (∀ b ∈ f.blocks, (frameOf low entry f).exact b.id = false →
+        ∀ s ∈ b.term.succs, (frameOf low entry f).exact s = false) ∧
+      (∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → (frameOf low entry f).exact b.id = true) ∧
+      (∀ b, (frameOf low entry f).exact b = true → (frameOf low entry f).returns = true) ∧
+      (∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → vs.length = f.rets.length) ∧
+      (∀ b ∈ f.blocks, ∀ h ∈ hint.blocks, ∀ id,
+        (id ∈ slotValues h.entryStack ∨ id ∈ b.phis.map (·.dst) ∨
+          ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) → id < (frameOf low entry f).retId) ∧
+      (f.params.all (·.2.bits == 256)) = true ∧ (f.params.map (·.1)).Nodup ∧
+      (hint.name = entry → f.params = [] ∧ (frameOf low entry f).returns = false ∧
+        placeIn low hint.name eb.id = some 0) ∧
+      (hint.blocks.find? (·.block == eb.id)).map (·.entryStack) =
+        some (f.params.map (.value ·.1) ++
+          if (frameOf low entry f).returns then [.funcReturn] else []) ∧
+      eb.phis = [] := by
+  obtain ⟨f, eb, hf, he, hchecks, hchk⟩ := checkFunc_ok h
+  simp only [funcChecks, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp,
+    forall_eq, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_iff, beq_iff_eq,
+    Bool.or_eq_true, bne_iff_ne, ne_eq] at hchecks
+  obtain ⟨-, ⟨⟨hbits, hpb⟩, -⟩, hnd, ⟨hephi, hpreds⟩, hroot, hclosed, hretn, -, hslotids,
+    hentry⟩ := hchecks
+  have hnd' := (nodup_iff _).mp hnd
+  unfold Func.defs at hnd'
+  have hfr : ∀ id ∈ f.defs, id < (frameOf low entry f).retId := fun id h => lt_fresh h
+  refine ⟨f, eb, hf, he, hbits, (nodup_iff _).mpr hnd'.of_append_right, hchk,
+    fun x hx hin => by
+      have := List.all_eq_true.mp hpreds x hx
+      simp [hin] at this,
+    fun b hb hx s hs => ?_, fun b hb vs ht => ?_, fun b hx => ?_, fun b hb vs ht => ?_,
+    fun b hb h hh id hid => ?_, hpb, (nodup_iff _).mp hnd |>.of_append_left |> fun h => by
+      simpa using h, fun hr => ?_, by simpa using hentry, by simpa using hephi⟩
+  · simp only [frameOf, Bool.and_eq_false_iff] at hx ⊢
+    rcases hx with hx | hx
+    · exact .inl hx
+    · right
+      have := List.all_eq_true.mp hclosed b hb
+      simp only [hx, Bool.false_or, Bool.and_eq_true, Bool.not_eq_true', List.any_eq_false,
+        Bool.not_eq_true] at this
+      simpa using this.2 s hs
+  · obtain ⟨-, -, -, -, -, exit, -, -, -, -, hex, -⟩ := checkBlock_ok (hchk b hb)
+    rw [ht] at hex
+    have hr := exitOf_ret_term hex
+    simp only [Ctx.ofBlock] at hr
+    have := List.all_eq_true.mp hclosed b hb
+    simp only [frameOf, Bool.and_eq_true] at hr ⊢
+    refine ⟨hr, ?_⟩
+    simp only [ht, Bool.or_eq_true] at this
+    rcases this with h | h
+    · exact h
+    · simp at h
+  · simp only [frameOf, Bool.and_eq_true] at hx ⊢
+    exact hx.1
+  · have := List.all_eq_true.mp hretn b hb
+    rw [ht] at this
+    simpa using this
+  · show id < f.fresh
+    rcases hid with h1 | h1 | ⟨s, hs, d, hd, rfl⟩
+    · obtain ⟨sl, hsl, he'⟩ := List.mem_filterMap.mp h1
+      cases sl <;> simp at he'
+      subst he'
+      have := List.all_eq_true.mp (List.all_eq_true.mp hslotids h hh) _ hsl
+      simpa using this
+    · exact lt_fresh (List.mem_append_right _ (List.mem_flatMap.mpr ⟨b, hb,
+        List.mem_append_left _ h1⟩))
+    · exact lt_fresh (List.mem_append_right _ (List.mem_flatMap.mpr ⟨b, hb,
+        List.mem_append_right _ (List.mem_flatMap.mpr ⟨s, hs, List.mem_map_of_mem hd⟩)⟩))
+  · rcases hroot with h | h
+    · exact absurd hr h
+    · exact ⟨by simpa using h.1.1, by simpa using h.1.2, h.2⟩
+
+theorem forall₂_append {α β : Type} {R : α → β → Prop} :
+    ∀ {l₁ : List α} {l₂ : List β} {l₃ : List α} {l₄ : List β}, List.Forall₂ R l₁ l₂ →
+      List.Forall₂ R l₃ l₄ → List.Forall₂ R (l₁ ++ l₃) (l₂ ++ l₄)
+  | [], [], _, _, .nil, h => h
+  | _ :: _, _ :: _, _, _, .cons h hr, h' => .cons h (forall₂_append hr h')
+
+theorem forall₂_slots {env : Env} {ret : Option UInt256} :
+    ∀ {ps : List (Nat × Ty)} {ws : List UInt256},
+    List.Forall₂ (fun d w => env[d.1]? = some (.int 256 w.toNat)) ps ws →
+    List.Forall₂ (SlotWord env ret) (ps.map (.value ·.1)) ws
+  | [], [], .nil => .nil
+  | _ :: _, _ :: _, .cons h hr => .cons h (forall₂_slots hr)
+
+theorem callees_some {low : Lowering} {entry g : String} {ce : Callee}
+    (h : callees low entry g = some ce) :
+    g ≠ entry ∧ ∃ hint f eb, low.funcs.find? (·.name == g) = some hint ∧
+      low.machine.func? g = some f ∧ f.blocks.head? = some eb ∧
+      placeIn low g eb.id = some ce.offset ∧ ce.params = f.params.length ∧
+      ce.rets = f.rets.length ∧ ce.returns = returns f := by
+  unfold callees at h
+  by_cases hg : (g == entry) = true
+  · simp [hg] at h
+  · simp only [hg, Bool.false_eq_true, if_false] at h
+    simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
+    obtain ⟨_, -, hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
+    cases hce
+    exact ⟨by simpa using hg, hint, f, eb, hh, hf, he, ho, rfl, rfl, rfl⟩
+
+theorem preIf_succ {isRoot : Bool} {low : Lowering} {eb S : Block} (h : S.id ≠ eb.id) {β : Type}
+    (k : FeM β) : (preIf isRoot low eb S >>= fun _ => k) = k := by
+  cases isRoot <;> simp [preIf, pre, h]
+
+theorem Final'.of_none {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} {B B' : List UInt256} {n n' : Nat}
+    (h : Final' D st r none B n) {ret : Option UInt256} : Final' D st r ret B' n' := by
+  rcases h with h | ⟨_, _, _, _, _, h, -⟩
+  · exact .inl h
+  · cases h
+
+/-- Where the function cannot return, the bytes end as the IR's run does. -/
+theorem Final'.final {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} {B : List UInt256} {n : Nat}
+    (h : Final' D st r none B n) : Final D st r := by
+  rcases h with h | ⟨_, _, _, _, _, h, -⟩
+  · exact h
+  · cases h
+
+theorem Final'.reach {D : Array UInt256} {s s₁ : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} {ret : Option UInt256}
+    {B : List UInt256} {nrets n : Nat} (h : Reach D s s₁ n) (hf : Final' D s₁ r ret B nrets) :
+    Final' D s r ret B nrets := by
+  rcases h with ⟨-, rfl⟩ | hx
+  · exact hf
+  · exact hf.prepend hx
+
+theorem head_block {f : Func} {eb : Block} (he : f.blocks.head? = some eb) :
+    eb ∈ f.blocks ∧ f.block? eb.id = some eb := by
+  cases hb : f.blocks with
+  | nil => simp [hb] at he
+  | cons b bs =>
+    rw [hb] at he
+    cases he
+    exact ⟨by simp, by simp [Func.block?, hb]⟩
+
+set_option maxHeartbeats 1000000 in
+/-- The function theorem: from a block's start of a function of a checked section, below the
+    fuel's gas, the bytes end as the IR's run of the function from that block does, or return
+    as it does where the function may return from the block, at profile `P1`. -/
+theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : ExecutionEnv}
+    {tail : ByteArray} {ic : Fe.Sonatina.Ctx}
+    (hI : I.code = code.bytecode ++ tail) (hsize : code.bytecode.size < UInt256.size)
+    (hsym : ic.symbol = (code.symbols.lookup ·))
+    (hfs : ∀ hint ∈ low.funcs, checkFunc code low entry hint = .ok ()) :
+    ∀ fuel (hint : FuncHint) (f : Func) (eb b : Block) prev env w st ret B,
+      hint ∈ low.funcs → low.machine.func? hint.name = some f → f.blocks.head? = some eb →
+      st.machineState.gasAvailable.toNat < fuel →
+      AtBlock low hint f (frameOf low entry f) I b prev env w st ret B →
+      ((frameOf low entry f).returns = true →
+        ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true) →
+      Final' (D_J I.code 0) st
+        ((preIf (hint.name == entry) low eb b >>= fun _ =>
+          runBlocks low.machine ic f env prev b.id).exec I w)
+        (if (frameOf low entry f).exact b.id then ret else none) B f.rets.length := by
+  intro fuel
+  induction fuel using Nat.strong_induction_on with
+  | _ fuel ihf =>
+  intro hint f eb b
+  generalize hr : zeroRank f (placeIn low hint.name) f.blocks.length b.id = r
+  induction r using Nat.strong_induction_on generalizing b with
+  | _ r ihr =>
+  intro prev env w st ret B hmem hf he hg hat hretk
+  obtain ⟨f', eb', hf', he', hbits, hnd, hchk, hpred, hexact, hretx, hexr, hrets, hfresh, -, -, -,
+    -, -⟩ := func_facts (hfs hint hmem)
+  rw [hf] at hf'; cases hf'
+  rw [he] at he'; cases he'
+  -- A callee's bytes from its entry, below this block's gas, end as its IR's run.
+  have hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
+      (ret' : Option UInt256) (B' : List UInt256),
+      (frameOf low entry f).callee cs.callee = some ce →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      ws.length = ce.params →
+      st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
+      (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
+      (ce.returns = false → ret' = none) →
+      st'.machineState.gasAvailable.toNat < st.machineState.gasAvailable.toNat →
+      Final' (D_J I.code 0) st'
+        ((runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w') ret' B'
+        ce.rets := by
+    intro cs ce ws st' w' ret' B' hce hpc henv' hag hlen hstk hrk hnr hg'
+    obtain ⟨hne, hint', f', eb', hh, hf', he', hpl, hpar, hrt, hrr⟩ := callees_some hce
+    have hmem' := List.mem_of_find?_eq_some hh
+    have hname : hint'.name = cs.callee := by simpa using List.find?_some hh
+    obtain ⟨f'', eb'', hf'', he'', -, -, -, -, -, -, -, -, -, hpb, hpnd, -, hent, hephi⟩ :=
+      func_facts (hfs hint' hmem')
+    rw [hname, hf'] at hf''; cases hf''
+    rw [he'] at he''; cases he''
+    have hlen' : ws.length = f'.params.length := hlen.trans hpar
+    have hpb' : ∀ d ∈ f'.params, d.2.bits = 256 := fun d hd => by
+      simpa using List.all_eq_true.mp hpb d hd
+    obtain ⟨-, hfa⟩ := foldl_words {} hlen' hpnd hpb'
+    set env0 := (f'.params.zip (ws.map Fe.Sonatina.word)).foldl
+      (fun env ((id, ty), v) => env.insert id (v.as ty)) ({} : Env) with henv0
+    have hbind : Fe.Sonatina.bind {} f'.params (ws.map Fe.Sonatina.word) = pure env0 := by
+      simp [Fe.Sonatina.bind, hlen', henv0]
+    have hrun : (runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w' =
+        (preIf (hint'.name == entry) low eb' eb' >>= fun _ =>
+          runBlocks low.machine ic f' env0 none eb'.id).exec I w' := by
+      rw [runFunc.eq_1]
+      have : (hint'.name == entry) = false := by rw [hname]; simpa using hne
+      simp [hf', he', hbind, preIf, this]
+    obtain ⟨hebm, hblk⟩ := head_block he'
+    obtain ⟨hbE, hfind, hentry⟩ : ∃ hbE, hint'.blocks.find? (·.block == eb'.id) = some hbE ∧
+        hbE.entryStack = f'.params.map (.value ·.1) ++
+          if (frameOf low entry f').returns then [.funcReturn] else [] := by
+      cases hfe : hint'.blocks.find? (·.block == eb'.id) with
+      | none => rw [hfe] at hent; cases hent
+      | some hbE => rw [hfe] at hent; exact ⟨hbE, rfl, Option.some.inj hent⟩
+    have hbid : hbE.block = eb'.id := by simpa using List.find?_some hfind
+    have hexE : (frameOf low entry f').exact eb'.id = returns f' := by
+      simp only [frameOf, returns, he', Option.map_some, Option.getD_some, Bool.and_self]
+    -- The callee's words on its entry stack.
+    have hvals : List.Forall₂ (SlotWord env0 ret') (f'.params.map (.value ·.1)) ws :=
+      forall₂_slots hfa
+    have hat' : AtBlock low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' := by
+      have hmk : ∀ wsE, st'.machineState.stack = wsE ++ B' →
+          List.Forall₂ (SlotWord env0 ret') ((frameOf low entry f').slots hbE) wsE →
+          AtBlock low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' :=
+        fun wsE h1 h2 => ⟨hebm, hblk, henv', hag, hbE, ce.offset, env0, wsE, hfind,
+          by rw [hname]; exact hpl, hpc, by simp [enter, hephi, Fe.Sonatina.bind], h1, h2,
+          by simp [hephi]⟩
+      have hret0 : (frameOf low entry f').returns = returns f' := rfl
+      cases hR : returns f'
+      · have hret' : ret' = none := hnr (hrr.trans hR)
+        subst hret'
+        refine hmk ws (by simpa using hstk) ?_
+        unfold Frame.slots
+        rw [hbid, hexE, hR, hentry, hret0, hR]
+        simp only [Bool.false_eq_true, if_false, List.append_nil]
+        rw [List.filter_eq_self.mpr fun x hx => by
+          obtain ⟨d, -, rfl⟩ := List.mem_map.mp hx; rfl]
+        exact hvals
+      · obtain ⟨k, rfl, -⟩ := hrk (hrr.trans hR)
+        refine hmk (ws ++ [k]) (by simpa using hstk) ?_
+        unfold Frame.slots
+        rw [hbid, hexE, hR, hentry, hret0, hR]
+        simp only [if_true]
+        exact forall₂_append hvals (.cons rfl .nil)
+    have hrk' : (frameOf low entry f').returns = true →
+        ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true := fun h => hrk (hrr.trans h)
+    have hf2 := ihf st.machineState.gasAvailable.toNat hg hint' f' eb' eb' none env0 w' st' ret' B'
+      hmem' (by rw [hname]; exact hf') he' hg' hat' hrk'
+    rw [hrun, hrt]
+    rw [hexE] at hf2
+    cases hR : returns f'
+    · rw [hR] at hf2
+      exact hf2.of_none
+    · rw [hR] at hf2
+      exact hf2
+  rcases block_run hI hsize hsym hbits hnd hchk hpred hexact hretx hexr hrets hfresh hat hretk
+      hcallee with hfin | ⟨S, env', w', st', n, B', hreach, hlow, hat', hBB, hne, hIR⟩
+  · exact hfin
+  rw [hIR]
+  have key : Final' (D_J I.code 0) st'
+      ((preIf (hint.name == entry) low eb S >>= fun _ =>
+        runBlocks low.machine ic f env' (some b.id) S.id).exec I w')
+      (if (frameOf low entry f).exact S.id then ret else none) B' f.rets.length := by
+    rcases hreach with ⟨rfl, rfl⟩ | hx
+    · exact ihr _ (hr ▸ hlow rfl) S rfl (some b.id) env' w' st' ret B' hmem hf he hg hat' hretk
+    · exact ihf st.machineState.gasAvailable.toNat hg hint f eb S (some b.id) env' w' st' ret B'
+        hmem hf he hx.gas_lt hat' hretk
+  rw [preIf_succ hne] at key
+  cases hS : (frameOf low entry f).exact S.id
+  · rw [hS] at key
+    exact Final'.reach hreach key.of_none
+  · rw [hS] at key
+    obtain ⟨rfl, hb⟩ := hBB hS
+    rw [hb]
+    exact Final'.reach hreach key
+
 end Fe.Sonatina.Check

@@ -8,8 +8,7 @@ import Fe.Sonatina.Decode
 class of sections the checker covers: no memory spills, no dynamic frames, no dynamic stack
 pointer, no call preserves, every value and immediate a word (as the EVM computes on words),
 and only the instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.
-The hints are inputs: a wrong one makes `check` false.  Until the soundness proof covers
-internal calls, `check` also asks for one function a section (`oneFunction`).
+The hints are inputs: a wrong one makes `check` false.
 
 A section may have several functions; each is checked block by block.  A function returns if
 its entry block reaches a `ret` (`returning`).  Its return address is a value no value of the
@@ -776,6 +775,8 @@ def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
         !h.entryStack.dropLast.contains .funcReturn
       else fr.returns || !h.entryStack.contains .funcReturn,
     s!"a block of {hint.name} has the return address out of place"),
+   (hint.blocks.all (·.entryStack.all fun | .value id => id < f.fresh | _ => true),
+    s!"a block of {hint.name} is entered with a value it has not"),
    ((hint.blocks.find? (·.block == entryBlock.id)).map (·.entryStack) ==
       some (f.params.map (.value ·.1) ++ if fr.returns then [.funcReturn] else []),
     s!"the entry block of {hint.name} is not entered with its arguments")]
@@ -817,10 +818,6 @@ def checkAll (s : Sidecar) : Except String Unit := do
       ((entries s).lookup "init").isSome && ((entries s).lookup "runtime").isSome do
     throw "no init or runtime section"
 
-/-- Every section of the sidecar has one function. -/
-def oneFunction (s : Sidecar) : Bool :=
-  s.sections.all fun code => (code.lowering.map (·.funcs.length == 1)).getD true
-
-def check (s : Sidecar) : Bool := (checkAll s).isOk && oneFunction s
+def check (s : Sidecar) : Bool := (checkAll s).isOk
 
 end Fe.Sonatina.Check
