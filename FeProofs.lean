@@ -30,6 +30,7 @@ import FeProofs.Precompiles.Bn254.Add
 import FeProofs.Precompiles.Bn254.Contract
 import FeProofs.Precompiles.Exported.Blake2F
 import FeProofs.Precompiles.Blake2F.Compress
+import FeProofs.Precompiles.Blake2F.Contract
 import FeProofs.Precompiles.Exported.Ripemd160
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode

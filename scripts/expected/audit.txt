@@ -1,3 +1,4 @@
+FeProofs.Blake2F.feBlake2FContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Bn254Add.feBn254AddContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.CodeScalar.Exported.feCodeScalarDeployRefinesExported: [Classical.choice, Quot.sound, propext] + 226 native_decide
 FeProofs.CodeScalar.Exported.feCodeScalarRefinesExported: [Classical.choice, Quot.sound, propext] + 200 native_decide
