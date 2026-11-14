@@ -523,6 +523,11 @@ def definedAfter (defs : List Nat) : List Stmt → Option (List Nat)
       definedAfter (defs ++ s.dsts.map (·.1)) rest
     else none
 
+/-- An entry slot of block `sb` holds a value of `defs` or a phi of `sb`. -/
+def slotDefined (defs : List Nat) (sb : Block) : Slot → Bool
+  | .value id => defs.contains id || sb.phis.any (·.dst == id)
+  | _ => true
+
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
     its phis, or those its statements define earlier; it defines none of those again (an entry
     value it defined would be the last run's); and each phi of each successor has an operand
@@ -538,9 +543,7 @@ def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) :
       | some (.undef _, _) | none => false
       | some (o, _) => reads defs [o]) &&
       -- A value of the successor's entry stack not its phi is one `b` has defined.
-      (hints.find? (·.block == succ)).all fun h => h.entryStack.all fun
-        | .value id => defs.contains id || sb.phis.any (·.dst == id)
-        | _ => true
+      (hints.find? (·.block == succ)).all fun h => h.entryStack.all (slotDefined defs sb)
     | none => false
 
 /-- The successor a terminator goes to whatever the values, if any. -/
