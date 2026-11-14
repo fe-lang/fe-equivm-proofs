@@ -193,6 +193,8 @@ def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Pro
     (ir.runtime.exec I (World.init σ A feed))
 ```
 
+`ImplementsDeploy` is the constructor's counterpart, on deployments whose code is the creation
+code followed by the arguments, which the init IR reads from its own code.
 `RefinesOn.of_implements` and `RefinesDeploy.of_implements` (`Refine.lean`, proved) compose the
 two into `RefinesOn`/`Refines` and `RefinesDeploy` of the hand-written or exported model. The stack,
 pcs and jump destinations never appear in the second half; memory addresses do, as constants.
