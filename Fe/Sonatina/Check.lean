@@ -259,7 +259,7 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .br cond nz z => do return .br (← c.operand depth cond) nz z
   | .brTable s (some default) cases => do
     let cases ← cases.mapM fun (o, dest) => match o with
-      | .imm _ v => some (v, dest)
+      | .imm _ v => if v < UInt256.size then some (v, dest) else none
       | _ => none
     return .table (← c.operand depth s) default cases []
   | .evmReturn a l => do return .halt .RETURN [← c.operand depth a, ← c.operand depth l]
@@ -325,10 +325,15 @@ inductive Way where
   | exit (e : Exit)
   | never
 
+/-- The case a condition compares the scrutinee `s` with. -/
+def Expr.caseOf (s : Expr) : Expr → Option Nat
+  | .op2 .EQ (.const k) s' | .op2 .EQ s' (.const k) => if s' == s then some k else none
+  | _ => none
+
 /-- What a jump's condition says of the block's exit when the jump is taken (`true`) or not:
     the successor it selects, the `br_table` with more cases ruled out, or that the jump never
     goes that way. -/
-def decide (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
+def Exit.way (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
   match e with
   | .br c nz z =>
     match c, cond with
@@ -341,11 +346,7 @@ def decide (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
       else if cond == .op1 .ISZERO c then some (.succ (if taken then z else nz))
       else none
   | .table s default cases ruled =>
-    let case? := match cond with
-      | .op2 .EQ (.const k) s' => if s' == s then some k else none
-      | .op2 .EQ s' (.const k) => if s' == s then some k else none
-      | _ => none
-    match case? with
+    match s.caseOf cond with
     | some k =>
       if taken then ((cases.lookup k).filter fun _ => !ruled.contains k).map .succ
       else some (.exit (.table s default cases (k :: ruled)))
@@ -431,11 +432,11 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
         match p.stack with
         | .const t :: cond :: rest =>
           p.events.isEmpty && validJump code t &&
-          (match decide p.exit cond true with
+          (match p.exit.way cond true with
             | some (.succ s) => place s == some t && arrives c hints b s rest
             | some .never => true
             | _ => false) &&
-          (match decide p.exit cond false with
+          (match p.exit.way cond false with
             | some (.succ s) =>
               run code c hints place b fuel { p with pc := next, stack := rest, exit := .goto s }
             | some .never => true
