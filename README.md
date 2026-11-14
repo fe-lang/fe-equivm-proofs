@@ -144,6 +144,14 @@ it makes. Unlike the Stele certificate, neither WETH9 certificate assumes anythi
 storage: a `name()` or `symbol()` whose ABI encoding takes 2^64 bytes or more panics with
 `Panic(0x41)` in both the bytecode and the model.
 
+`FeProofs/WETH9/Solvency.lean` proves, of the hand-written model, the per-frame half of WETH9's
+solvency: the ether the contract holds covers the tokens at every set of distinct balance slots
+(`Solvent`). Every entry keeps it (`runtime_solvent`) when the allowance slot `approve` or
+`transferFrom` writes is no balance slot (`Admits`), the account was solvent before the call's
+value arrived and gained the value since, and the call `withdraw` makes keeps it; the constructor
+keeps it when no balance slot is that of `name`, `symbol` or `decimals` (`init_solvent`). The
+statement through every message call is not proved yet.
+
 The files of an exported contract:
 
 - `Exported.lean`: the exporter's output between two marker lines, and nothing else.
