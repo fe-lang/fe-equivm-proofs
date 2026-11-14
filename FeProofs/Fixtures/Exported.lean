@@ -1045,6 +1045,13 @@ def recv0_arm1 (v0 : (Vector UInt256 3)) : FeM UInt256 := do
 
 end
 
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: arrays.checks
+
+set_option maxRecDepth 10000 in
+example : WEIGHTS = pure #v[(UInt256.ofNat 1), (UInt256.ofNat 10), (UInt256.ofNat 100)] := rfl
+-- END fe-lean-export
+
 /-- `pick` with an index past the array panics with `Panic(0x32)` at the helper's check. -/
 theorem pick_out_of_bounds (value : UInt256) (I : ExecutionEnv) (w : World) :
     (recv0_arm0 (UInt256.ofNat 4) value).exec I w = some (.error (.panic 0x32)) := by
@@ -1566,6 +1573,13 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
 -- END fe-lean-export
 
 end
+
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: wide.checks
+
+set_option maxRecDepth 10000 in
+example : Sum_HEAD_SIZE = pure (UInt256.ofNat 320) := rfl
+-- END fe-lean-export
 
 end FeProofs.Fixtures.Wide
 

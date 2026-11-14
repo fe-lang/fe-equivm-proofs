@@ -1281,6 +1281,33 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
 
 end
 
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: weth9.checks
+
+set_option maxRecDepth 10000 in
+example : Name_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : Approve_HEAD_SIZE = pure (UInt256.ofNat 64) := rfl
+set_option maxRecDepth 10000 in
+example : TotalSupply_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : TransferFrom_HEAD_SIZE = pure (UInt256.ofNat 96) := rfl
+set_option maxRecDepth 10000 in
+example : Withdraw_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : Decimals_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : BalanceOf_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : Symbol_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : Transfer_HEAD_SIZE = pure (UInt256.ofNat 64) := rfl
+set_option maxRecDepth 10000 in
+example : Deposit_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : Allowance_HEAD_SIZE = pure (UInt256.ofNat 64) := rfl
+-- END fe-lean-export
+
 /- The proofs name the library's other definitions too. -/
 export_all FeProofs.Lib
 

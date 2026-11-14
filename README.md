@@ -165,7 +165,14 @@ balance slot is the slot of `name`, `symbol` or `decimals`.
 
 The files of an exported contract:
 
-- `Exported.lean`: the exporter's output between two marker lines, and nothing else.
+- `Exported.lean`: the exporter's output between marker lines, and nothing else: the
+  definitions, then a check by `rfl` of each constant the compiler folded, that its definition
+  evaluates to the value printed in its place.
+- `<name>.trust`: the exporter's trust ledger, one line per place, in the contract (`own`),
+  `core` or `std`: what Fe's checks take on trust there (unsafe blocks, functions and impls, raw
+  memory and storage accesses), what the model's prelude defines (externs, external calls and
+  creations), and each constant held as the value the compiler computed, its definition not
+  exported.
 - `ExportedCorrect.lean` (PackedStore, ERC20, WETH9): what the exported arms and std code do.
 - `RuntimeCorrect.lean`: the bytecode refines the exported contract.
 - `Model.lean`, `ModelCorrect.lean`: the hand-written model and its certificate, which the
@@ -298,7 +305,7 @@ The exported models are checked with the Fe commit pinned in `fe.pin`:
 ```sh
 fe=$(scripts/fetch_fe.sh)        # checks it out in .lake/fe
 scripts/check_build.sh Fe
-scripts/check_sync.sh "$fe"      # the golden test passes and the Exported.lean files hold its output
+scripts/check_sync.sh "$fe"      # the golden test passes; Exported.lean and .trust files hold its output
 scripts/check_corpus.sh "$fe"    # the export audit, against scripts/expected/exports.txt
 ```
 

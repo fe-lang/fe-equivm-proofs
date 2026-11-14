@@ -312,6 +312,21 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
 
 end
 
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: packed_store.checks
+
+set_option maxRecDepth 10000 in
+example : Get0_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : Get1_HEAD_SIZE = pure (UInt256.ofNat 0) := rfl
+set_option maxRecDepth 10000 in
+example : Set0_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : Set1_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : SetBoth_HEAD_SIZE = pure (UInt256.ofNat 64) := rfl
+-- END fe-lean-export
+
 /- The proofs name the library's other definitions too. -/
 export_all FeProofs.Lib
 
