@@ -52,10 +52,16 @@ inductive EndsAs : Option (Except (Exit World) (ByteArray × World)) →
   | stop_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
       (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
       EndsAs (some (.error (.stop out w'))) (some (.ok (out, w)))
+  | stop_stop {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
+      (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
+      EndsAs (some (.error (.stop out w'))) (some (.error (.stop out w)))
   | exit (f : Exit World) : EndsAs (some (.error f)) (some (.error f))
   | ok_ok {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
       (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
       EndsAs (some (.ok (out, w'))) (some (.ok (out, w)))
+  | ok_stop {out : ByteArray} {w w' : World} (ha : w'.accounts = w.accounts)
+      (hl : w'.logs = w.logs) (hc : w'.calls = w.calls) :
+      EndsAs (some (.ok (out, w'))) (some (.error (.stop out w)))
   | diverge : EndsAs none none
 
 /-- A result that agrees with a run agrees with any run that ends as it does. -/
@@ -63,9 +69,9 @@ theorem Agrees.of_endsAs {p : Profile} {evm : EvmResult}
     {a b : Option (Except (Exit World) (ByteArray × World))} (h : EndsAs a b)
     (hb : Agrees p evm b) : Agrees p evm a := by
   cases h with
-  | stop_ok ha hl _ => simpa only [Agrees, ha, hl] using hb
+  | stop_ok ha hl _ | stop_stop ha hl _ | ok_ok ha hl _ | ok_stop ha hl _ =>
+    simpa only [Agrees, ha, hl] using hb
   | exit f => exact hb
-  | ok_ok ha hl _ => simpa only [Agrees, ha, hl] using hb
   | diverge => exact hb
 
 /-- A contract's model.  The deployed code is the runtime bytecode followed by the words of the
@@ -200,13 +206,13 @@ theorem EndsAs.succeeds_calls {a b : Option (Except (Exit World) (ByteArray × W
     (h : EndsAs a b) {out : ByteArray} {w' : World} (ha : Succeeds a out w') :
     ∃ w, Succeeds b out w ∧ w.accounts = w'.accounts ∧ w.calls = w'.calls := by
   cases h with
-  | stop_ok hacc _ hc =>
+  | stop_ok hacc _ hc | ok_ok hacc _ hc =>
     rcases ha with ha | ha <;> cases ha
     exact ⟨_, Or.inl rfl, hacc.symm, hc.symm⟩
+  | stop_stop hacc _ hc | ok_stop hacc _ hc =>
+    rcases ha with ha | ha <;> cases ha
+    exact ⟨_, Or.inr rfl, hacc.symm, hc.symm⟩
   | exit f => exact ⟨w', ha.imp (fun h => by cases h) id, rfl, rfl⟩
-  | ok_ok hacc _ hc =>
-    rcases ha with ha | ha <;> cases ha
-    exact ⟨_, Or.inl rfl, hacc.symm, hc.symm⟩
   | diverge => rcases ha with ha | ha <;> cases ha
 
 /-- A run that ends as another does succeeds when it does, with the same accounts. -/
