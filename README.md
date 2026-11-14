@@ -194,7 +194,8 @@ and set `fe.pin` to that Fe commit, pushed to the repository it names.
 `scripts/audit_exports.sh <fe checkout>` exports every contract of Fe's test fixtures and of this
 repository, elaborates each export, and compares model and bytecode in EVMLean
 (`Fe/EVM/Diff.lean`, `Fe/EVM/Generate.lean`) at `P1`: on each call the file's Fe tests make, and
-on sequences of generated calls. It prints the constructs the exporter stopped at and the
+on sequences of generated calls, in an Osaka block, the fork Fe compiles for (EVMLean runs Osaka's
+`CLZ` only there). It prints the constructs the exporter stopped at and the
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
 EVMLean computes ECRECOVER by running `python3 Ethereum/EllipticCurvesPy/recover.py` in the
@@ -205,8 +206,8 @@ recovers the key with the exported model of fevm's secp256k1 code, in under a se
 `FeProofs/Ecrecover` is a contract around `secp256k1::recover` of fevm's precompiles: its other
 files are copied verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm)
 at `a631a777b`. The audit compares the contract's model and bytecode on generated calls too, but
-a call that recovers a key runs past their step bound, and fevm's test traps: Fe counts trailing
-zeros with Osaka's `CLZ`, which EVMLean lacks. The other precompiles EVMLean computes in Python
+a call that recovers a key runs past their step bound, and fevm's test runs past the bound of a
+test's own frame before it calls the contract. The other precompiles EVMLean computes in Python
 (RIPEMD-160, the BN254 operations and the KZG point evaluation) have no stand-in; no test of the
 corpus reaches them.
 
