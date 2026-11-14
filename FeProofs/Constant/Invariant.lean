@@ -6,7 +6,8 @@ import Fe.EVM.RefineInvariant
 
 An instance of `Fe.EVM.refines_keeps`: the account at `a` running the FeConstant bytecode keeps
 whatever storage it has, through every message call and creation, at every depth, whoever makes
-them.  The model never writes storage and makes no call, so `ModelKeeps` is immediate.
+them.  The model never writes storage and makes no call, so `ModelKeeps` is immediate, and
+nothing is asked of the calls its frames make (`callsAt := fun _ _ _ _ _ _ => True`).
 -/
 
 open Ethereum Ethereum.EVM Ethereum.EVM.Invariant Fe Fe.EVM
@@ -25,8 +26,9 @@ theorem fixed_admissible (st : Storage) : Admissible (Fixed st) (· = feConstant
   trusted _ h := h.1
 
 theorem model_keeps (a : AccountAddress) (st : Storage) :
-    ModelKeeps a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) Model.contract := by
-  intro I σ A feed out w _ _ _ _ _ _ hH hrun acc acc' hacc hacc' _
+    ModelKeeps a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) (fun _ _ _ _ _ _ => True)
+      Model.contract := by
+  intro I _ σ _ _ A feed out w _ _ _ _ _ _ _ _ _ _ hH hrun acc acc' hacc hacc' _
   have hsame : ∀ r, Model.runtime.exec I (World.init σ A feed) = r →
       Succeeds r out w → w.accounts = σ := by
     intro r hr hr'
@@ -56,8 +58,8 @@ theorem model_keeps (a : AccountAddress) (st : Storage) :
 /-- Every message call and creation, at any depth, keeps the storage of an account that runs the
     FeConstant bytecode. -/
 theorem feConstantKeepsStorage (a : AccountAddress) (st : Storage) (e : Fin 1025) :
-    ThetaGood a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) e
-      ∧ LambdaGood a (Fixed st) (fun _ _ => True) e :=
+    ThetaGood a (Fixed st) (· = feConstantBytecode) (fun _ _ => True) (fun _ _ _ _ _ _ => True) e
+      ∧ LambdaGood a (Fixed st) (fun _ _ => True) (fun _ _ _ _ _ _ => True) e :=
   refines_keeps feConstantRefinesModel (fixed_admissible st)
     (fun code h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
     (model_keeps a st) e

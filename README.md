@@ -114,7 +114,11 @@ frame do. Code elsewhere changes the account only by calling it or by sending it
 conditions: the invariant tolerates any increase of the balance that does not wrap, the account
 has code, and a `DELEGATECALL` from it runs only code the hypothesis covers. An invariant that
 holds only for some calls is stated relative to admission: the conclusion is about executions in
-which every successful frame at the address is admitted (`Admitted`).
+which every successful frame at the address is admitted (`Admitted`). Which calls of a frame at the
+address admission reaches is a parameter (`callsAt`): the bytecode's own calls (`XiOk`), a
+description by the model, or none. A frame at the address knows how it was entered: from an
+account map where the invariant holds, by moving the value it reports; every call to the address
+moves the value it reports, which the walk checks of code elsewhere.
 
 `Fe/EVM/RefineInvariant.lean` derives the per-frame hypothesis from a certificate and a property
 of the model (`refinesOn_keeps`), and the base case from a deployment certificate

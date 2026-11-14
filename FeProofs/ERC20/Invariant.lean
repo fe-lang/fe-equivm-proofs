@@ -9,7 +9,8 @@ every message call and creation, at every depth, whoever makes them, in every ex
 each successful frame at `a` is admitted: its calldata is shorter than `2 ^ 64` bytes, and the
 holders cover it (`Covers`).  An instance of `Fe.EVM.refinesOn_keeps`, from the certificate of the
 exported model (`feERC20RefinesExported`) and its conservation (`Exported.runtime_conserves`).
-The token makes no external call, so its model never uses `Deeper`.
+The token makes no external call, so its model never uses `Deeper`, and admission asks nothing of
+the calls a frame at the token makes (`callsAt := fun _ _ _ _ _ _ => True`).
 
 From deployment on: `deploy_conserves_token`, a successful creation of the creation bytecode by a
 holder establishes the invariant at the new address (the new account's storage starts empty, so
@@ -56,8 +57,9 @@ theorem token_admissible (S : List UInt256) :
   trusted _ h := h.1
 
 theorem model_keeps (a : AccountAddress) {S : List UInt256} (hS : CollisionFree S) :
-    ModelKeeps a (Token S) (· = feERC20Bytecode) (Admits S) Exported.contract := by
-  intro I σ A feed out w howner _ _ hadm _ _ hH hrun acc acc' hacc hacc' hcode
+    ModelKeeps a (Token S) (· = feERC20Bytecode) (Admits S) (fun _ _ _ _ _ _ => True)
+      Exported.contract := by
+  intro I _ σ _ _ A feed out w howner _ _ hadm _ _ _ _ _ _ hH hrun acc acc' hacc hacc' hcode
   obtain ⟨acc0, h0, hP⟩ := hH
   rw [hacc] at h0
   cases h0
@@ -77,8 +79,8 @@ theorem model_keeps (a : AccountAddress) {S : List UInt256} (hS : CollisionFree 
     `2 ^ 64` bytes and is covered by `S`, ends where the same holds. -/
 theorem every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : CollisionFree S)
     (e : Fin 1025) :
-    ThetaGood a (Token S) (· = feERC20Bytecode) (Admits S) e
-      ∧ LambdaGood a (Token S) (Admits S) e :=
+    ThetaGood a (Token S) (· = feERC20Bytecode) (Admits S) (fun _ _ _ _ _ _ => True) e
+      ∧ LambdaGood a (Token S) (Admits S) (fun _ _ _ _ _ _ => True) e :=
   refinesOn_keeps Exported.feERC20RefinesExported (token_admissible S)
     (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩)
     (fun _ _ _ h => h.1) (model_keeps a hS) e
@@ -155,7 +157,7 @@ theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
       ≤ (balOf σ S_T).toNat)
     (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
     (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
-    (hadmit : TxAdmitted a (Admits S) σ H_f H blocks T S_T)
+    (hadmit : TxAdmitted a (Admits S) (fun _ _ _ _ _ _ => True) σ H_f H blocks T S_T)
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
     Holds a (Token S) σ' ∧ total σ' ≤ total σ :=
   tx_holds (token_admissible S)
