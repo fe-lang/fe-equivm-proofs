@@ -307,18 +307,22 @@ def Ctx.slotExpr (c : Ctx) : Slot → Option Expr
 def Ctx.entryStack (c : Ctx) (hint : BlockHint) : Option (List Expr) :=
   hint.entryStack.mapM c.slotExpr
 
+/-- What an entry slot of block `b` must be when `pred` jumps to it: a phi its operand from
+    `pred`. -/
+def Ctx.arrivalSlot (c : Ctx) (b : Block) (pred : Nat) : Slot → Option Expr
+  | .value id =>
+    match b.phis.find? (·.dst == id) with
+    | some phi => do c.operand depth (← phi.incoming.find? (·.2 == pred)).1
+    | none => c.expand depth id
+  | .imm v => some (.const v)
+  | _ => none
+
 /-- What the entry stack of `succ` must be when `pred` jumps to it: each phi of `succ` replaced
     by its operand from `pred`. -/
 def Ctx.arrival (c : Ctx) (hints : List BlockHint) (pred succ : Nat) : Option (List Expr) := do
   let hint ← hints.find? (·.block == succ)
   let b ← c.func.block? succ
-  hint.entryStack.mapM fun
-    | .value id =>
-      match b.phis.find? (·.dst == id) with
-      | some phi => do c.operand depth (← phi.incoming.find? (·.2 == pred)).1
-      | none => c.expand depth id
-    | .imm v => some (.const v)
-    | _ => none
+  hint.entryStack.mapM (c.arrivalSlot b pred)
 
 /-- A run of the bytes for one block, at `pc`. -/
 structure Path where
@@ -522,7 +526,8 @@ def definedAfter (defs : List Nat) : List Stmt → Option (List Nat)
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
     its phis, or those its statements define earlier; it defines none of those again (an entry
     value it defined would be the last run's); and each phi of each successor has an operand
-    from `b`, so defined, and each value of its entry stack is a phi or defined by `b`.  The
+    from `b`, so defined and not `undef`, and each value of its entry stack is a phi or defined
+    by `b`.  The
     machine IR runs a read of an undefined value nowhere. -/
 def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) : Bool :=
   match definedAfter (entry ++ b.phis.map (·.dst)) b.body with
@@ -530,8 +535,8 @@ def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) :
   | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
     match f.block? succ with
     | some sb => (sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
-      | some (o, _) => reads defs [o]
-      | none => false) &&
+      | some (.undef _, _) | none => false
+      | some (o, _) => reads defs [o]) &&
       -- A value of the successor's entry stack not its phi is one `b` has defined.
       (hints.find? (·.block == succ)).all fun h => h.entryStack.all fun
         | .value id => defs.contains id || sb.phis.any (·.dst == id)
