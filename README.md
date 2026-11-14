@@ -202,7 +202,9 @@ calls that disagree, and writes its output under `.lake/export-corpus/`.
 `Fe/Sonatina/` has a semantics of Sonatina IR, the IR the Fe compiler's EVM backend compiles: the
 IR of an object is a contract model (`Sidecar.model`), compared with the bytecode compiled from
 it as exported models are. `fe build --emit sidecar` (Fe branch `sidecar`) writes the IR together
-with the bytes and symbols of each section from one compilation. `scripts/SonatinaDiff.lean` runs
+with the bytes, symbols and lowering record of each section from one compilation: the section
+IR after the backend's pipeline, the machine IR the bytes are emitted from, and the hints that
+connect the machine IR to the bytes. Each of the three IRs runs as a model. `scripts/SonatinaDiff.lean` runs
 the certified contracts, `scripts/audit_sonatina.sh <fe checkout>` every contract of Fe's test
 fixtures. `Fe/Sonatina/README.md` describes the subset and the design for splitting a certificate
 at the IR.
