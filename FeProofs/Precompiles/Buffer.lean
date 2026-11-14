@@ -380,6 +380,25 @@ theorem byte_exec {b : MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Hol
   norm_cast
   rw [Int.toNat_natCast, Nat.mod_eq_of_lt hb]
 
+/-- The two steps of `MemBuffer_byte_at`, for a contract that inlines it: the address of the
+    byte, -/
+theorem index_exec {b : MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Holds b d w.memory)
+    {j : ℕ} (hj : j < d.size) :
+    (Lib.MemBuffer_index_ref b (UInt256.ofNat j)).exec I w =
+      some (.ok (b.ptr + UInt256.ofNat j, w)) := by
+  have hjn : (UInt256.ofNat j).toNat = j :=
+    ulit_toNat' _ (by have := h.bound; have := h.small; omega)
+  simp [Lib.MemBuffer_index_ref, hjn, h.len, Nat.not_le.mpr hj]
+
+/-- and the byte there. -/
+theorem load_byte_exec {b : MemBuffer} {d : ByteArray} {I : Env} {w : World}
+    (h : Holds b d w.memory) {j : ℕ} (hj : j < d.size) :
+    (mloadInt (.u 8) (b.ptr + UInt256.ofNat j)).exec I w =
+      some (.ok (UInt256.ofNat (byteAt d j), w)) := by
+  have hb := byte_exec (I := I) h hj
+  rw [MemBuffer_byte_at, Fe.M.exec_bind, index_exec h hj] at hb
+  simpa using hb
+
 set_option maxRecDepth 10000 in
 /-- **Eight bytes** of the buffer, read little-endian: the bytes of their big-endian number
     swapped. -/
