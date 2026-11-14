@@ -400,21 +400,6 @@ theorem call_cases {I : Env} {w w' : World}
       rw [← h.2]
       exact Or.inl ⟨h.1.symm, rfl, rfl⟩
 
-/-- A property of the accounts that holds before a `call`, and after every call it makes, holds
-    after it. -/
-theorem call_keeps {Inv : AccountMap → Prop} {I : Env} {w w' : World}
-    {gasArg addr value argsPtr argsLen retPtr retLen x : UInt256}
-    (h : (call gasArg addr value argsPtr argsLen retPtr retLen).exec I w = some (.ok (x, w')))
-    (hbefore : Inv w.accounts)
-    (hmade : ∀ s rest, w.feed = s :: rest →
-      (value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024) →
-      Inv (messageCall I w s gasArg I.codeOwner (.ofUInt256 addr) (.ofUInt256 addr) value value
-        argsPtr argsLen I.perm).run.1) :
-    Inv w'.accounts := by
-  rcases call_cases h with ⟨-, ha, -⟩ | ⟨s, rest, hf, hm, ha, -⟩
-  · rw [ha]; exact hbefore
-  · rw [ha]; exact hmade s rest hf hm
-
 /-- A message call never stops the run from inside: the callee's halt is its own. -/
 theorem noStop_message (gasArg : UInt256) (source recipient t : AccountAddress)
     (value value' argsPtr argsLen retPtr retLen : UInt256) (perm : Bool) :
