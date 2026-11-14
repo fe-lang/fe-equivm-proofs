@@ -1,7 +1,6 @@
 import FeProofs.Precompiles.Bn254.Purify
 import FeProofs.Precompiles.Field.MField
-import FeProofs.Precompiles.Field.Cube
-import Ethereum.BN254.Spec
+import Ethereum.BN254.Order
 
 /-!
 # Bn254Add: the base field
@@ -10,8 +9,8 @@ The constants `KBn` of `Bn254Base` checked by `decide` (`KBn_valid`, `KBn_R2`), 
 `KBn.p = BN254.p`: so `Bn254Base` is the field `Fq = ZMod BN254.p` of the specification
 (`FBn`), and `RepBn a x` is `MField.Rep` at it.  The exported methods are `pure` of the
 functions of `MontPure.lean` (`Purify.lean`), which compute on `RepBn` the field operations
-(`MField.Rep.mul` and the rest).  `cube_add_three_ne_zero`: `x ^ 3 + 3` has no root modulo `p`,
-so BN254 has no point with `y = 0`.
+(`MField.Rep.mul` and the rest).  `cube_add_three_ne_zero` is EVMLean's: `x ^ 3 + 3` has no
+root modulo `p`, so BN254 has no point with `y = 0`.
 -/
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
@@ -62,14 +61,6 @@ theorem Mont_equals_Bn254Base_repBn {a b : L4} {x y : Fq} (ha : RepBn a x) (hb :
     Mont_equals_Bn254Base (toBn a) (toBn b) = pure (decide (x = y)) := by
   rw [equals_Bn254Base, MField.Rep.equals ha hb]
 
-/-- `-3` is not a cube modulo `p`: its `(p - 1) / 3`-th power is not one. -/
-theorem neg_three_pow_ne_one :
-    powMod BN254.p 256 (BN254.p - 3) ((BN254.p - 1) / 3) 1 % BN254.p ≠ 1 := by
-  decide +kernel
-
-/-- `x ^ 3 + 3` has no root modulo `p`: BN254 has no point of order two. -/
-theorem cube_add_three_ne_zero (x : Fq) : x ^ 3 + 3 ≠ 0 := by
-  simpa using cube_add_ne_zero (c := 3) (by decide) (by decide) (by norm_num [BN254.p])
-    (by norm_num [BN254.p]) neg_three_pow_ne_one x
+export Ethereum.BN254 (cube_add_three_ne_zero)
 
 end FeProofs.Bn254Add

@@ -1,6 +1,5 @@
 import FeProofs.Precompiles.Secp256k1.Mont
-import FeProofs.Precompiles.Field.Cube
-import Ethereum.Secp256k1.Spec
+import Ethereum.Secp256k1.Proofs.Order
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -14,7 +13,7 @@ is restated on it (`Mont_mul_Base_repB` and the rest).  The curve layer works ov
 
 Then the square root `recover` takes: `p ≡ 3 (mod 4)`, so `β = α ^ ((p + 1) / 4)` has
 `β ^ 2 = α` exactly when `α` is a square (`sqrt_iff`).  As `x ^ 3 + 7` has no root modulo `p`
-(`cube_add_seven_ne_zero`, by `Cube.lean` and a modular power checked by `decide`), such a `β`
+(`cube_add_seven_ne_zero`, EVMLean's, by a modular power the kernel evaluates), such a `β`
 is not zero, its negation has the other parity, and the code's choice between them is the point
 `liftX x v` of the specification (`liftX_eq`); with no root, `liftX` is `none` (`liftX_none`).
 -/
@@ -173,15 +172,7 @@ theorem sqrt_iff (α : Fp) : (α ^ ((Secp256k1.p + 1) / 4)) ^ 2 = α ↔ IsSquar
     · rw [show 2 * ((Secp256k1.p + 1) / 4 * 2) = (Secp256k1.p - 1) + 2 by norm_num [Secp256k1.p], pow_add,
         ZMod.pow_card_sub_one_eq_one ht, one_mul]
 
-/-- `-7` is not a cube modulo `p`: its `(p - 1) / 3`-th power is not one. -/
-theorem neg_seven_pow_ne_one :
-    powMod Secp256k1.p 256 (Secp256k1.p - 7) ((Secp256k1.p - 1) / 3) 1 % Secp256k1.p ≠ 1 := by
-  decide +kernel
-
-/-- `x ^ 3 + 7` has no root modulo `p`: secp256k1 has no point of order two. -/
-theorem cube_add_seven_ne_zero (x : Fp) : x ^ 3 + 7 ≠ 0 := by
-  simpa using cube_add_ne_zero (c := 7) (by decide) (by decide) (by norm_num [Secp256k1.p])
-    (by norm_num [Secp256k1.p]) neg_seven_pow_ne_one x
+export Ethereum.Secp256k1 (cube_add_seven_ne_zero)
 
 /-! ## The point with a given abscissa and parity -/
 
