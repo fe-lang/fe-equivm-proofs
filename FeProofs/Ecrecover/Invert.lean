@@ -327,4 +327,60 @@ theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ
       exact ih _ _ _ _ _ _ _ _ _ _ _
         ⟨_, _, _, _, _, rfl, rfl, rfl, rfl, rfl, hs.step hm ht he'⟩ env w
 
+theorem replicate_zero : Vector.replicate 5 (UInt256.ofNat 0) = vec5 (fun _ => 0) := rfl
+
+theorem e_init : (vec5 fun _ => 0).set! 0 (UInt256.ofNat 1) =
+    vec5 (fun i => if i = 0 then 1 else 0) := rfl
+
+theorem wrap_neg_one : IntTy.wrap (.i 256) (-1) = I (-1) := by
+  rw [wrap_i 256 (by decide)]; rfl
+
+/-- `invert` on canonical `x ∈ [0, m)`: every run diverges or returns `x⁻¹ mod m`, which is `0`
+for `x = 0`, on canonical limbs, the world unchanged. -/
+theorem invert_5_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1 : 1 < val5 m)
+    {x : ℕ → ℤ} (hx : Canon x) (hxl : Lim x) (hX0 : 0 ≤ val5 x) (hX1 : val5 x < val5 m)
+    (hcop : val5 x ≠ 0 → IsCoprime (val5 m) (val5 x)) (env : Env) (w : World) :
+    (invert_5 (vec5 x) (vec5 m) inv.w).exec env w = none ∨
+      ∃ out, (invert_5 (vec5 x) (vec5 m) inv.w).exec env w = some (.ok (vec5 out, w)) ∧
+        Canon out ∧ 0 ≤ val5 out ∧ val5 out < val5 m ∧
+        (if val5 x = 0 then val5 out = 0 else val5 out * val5 x ≡ 1 [ZMOD val5 m]) := by
+  simp only [invert_5, checkIndex, idx_lits, lt5, if_true, pure_bind, wrap_neg_one]
+  rw [replicate_zero, e_init]
+  by_cases hz : val5 x = 0
+  · -- `x = 0`: the loop exits at once with `d = 0`.
+    simp only [hz, if_true]
+    have hz' := (val5_eq_zero_iff hx).mp hz
+    rw [invert_5.b1.eq_1, is_zero_5_eq x (R64_of_lim hxl)]
+    simp only [hz', and_self, decide_true, Bool.not_true,
+      Bool.false_eq_true, if_false, checkIndex, idx_lits, lt5, if_true, pure_bind, vec5, vget5]
+    have hd0 : Canon (fun _ => (0 : ℤ)) := fun _ _ => ⟨le_rfl, by norm_num⟩
+    have hv0 : val5 (fun _ => (0 : ℤ)) = 0 := by simp [val5]
+    obtain ⟨out, hout, hco, h0, h1, hc⟩ := normalize_spec (fun _ => 0) m (m 4) hd0 hm.canon
+      (R64_of_lim hm.lim 4) hm.pos hm.lt (by rw [hv0]; linarith [hm.pos]) (by rw [hv0]; exact hm.pos)
+    simp only [vec5] at hout
+    rw [hout]
+    refine Or.inr ⟨out, rfl, hco, h0, h1, ?_⟩
+    rw [hv0] at hc
+    have hc' : val5 out ≡ 0 [ZMOD val5 m] := by split at hc <;> simpa using hc
+    unfold Int.ModEq at hc'
+    rw [Int.emod_eq_of_lt h0 h1, Int.zero_emod] at hc'
+    exact hc'
+  · simp only [hz, if_false]
+    have hd : val5 (fun _ => (0 : ℤ)) = 0 := by simp [val5]
+    have he : val5 (fun i => if i = 0 then (1 : ℤ) else 0) = 1 := by simp [val5]
+    have hinv : InvState (val5 m) (val5 x) (fun _ => 0) (fun i => if i = 0 then 1 else 0) m x (-1) := by
+      have hM := hm.pos
+      refine ⟨fun _ _ => ⟨le_rfl, by norm_num⟩, fun i hi => ?_, hm.canon, hx, fun _ => by norm_num,
+        fun i => by split <;> norm_num, hm.lim, hxl, by decide, hm.odd, by rw [abs_of_pos hM],
+        by rw [abs_of_nonneg hX0]; exact hX1.le, ?_, ?_, ?_, ?_, hcop hz⟩
+      · split <;> norm_num
+      · rw [hd]; constructor <;> linarith
+      · rw [he]; constructor <;> linarith
+      · rw [hd, zero_mul]; exact (Int.emod_self).symm
+      · rw [he, one_mul]
+    rcases invert_loop hm (val5 x) default _ _ _ _ _ default default default default default default
+      ⟨_, _, _, _, _, rfl, rfl, rfl, rfl, rfl, hinv⟩ env w with h | ⟨out, h, h1, h2, h3, h4⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨out, h, h1, h2, h3, h4⟩
+
 end FeProofs.Ecrecover
