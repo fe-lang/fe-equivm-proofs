@@ -369,3 +369,124 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
         (by rw [hprs, if_pos hA]; exact RepB.mul hrun hc) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
 
 end FeProofs.Ecrecover
+
+namespace FeProofs.Ecrecover
+open Exported
+/-- The rows of the table done at outer step `p`: the multiples of `G` and `Q` alone, and the
+rows below `4 (p + 1)`. -/
+def DO (p k : ℕ) : Prop := k % 4 = 0 ∨ k < 4 * (p + 1)
+
+/-- The table is good where it is done. -/
+def TabGood (G Q : W.toAffine.Point) (t : ℕ → Point_Mont_Base) (D : ℕ → Prop) : Prop :=
+  ∀ k < 16, D k → ∃ z, GoodP (t k) ((k / 4) • G + (k % 4) • Q) z
+
+theorem arr_at {p : ℕ} (hp : p < 3) :
+    #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12][p]! = UInt256.ofNat (4 * (p + 1)) := by
+  interval_cases p <;> rfl
+
+theorem checkedAdd_small {a b : ℕ} (h : a + b < 2 ^ 256) :
+    checkedAdd (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a + b)) := by
+  unfold checkedAdd
+  rw [toNat_lit (by omega), toNat_lit (by omega), if_neg (by change ¬ 2 ^ 256 ≤ _; omega)]
+  congr 1
+  exact Fe.EVM.ofNat_add_ofNat h
+
+/-- The inner loop of the table, at outer step `p` and column `j`. -/
+theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3)
+    (ih : ∀ t, TabGood G Q t (DO (p + 1)) → ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17
+      r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
+        r10 r11 #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19
+        r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+        (UInt256.ofNat (p + 1))).exec env w)) :
+    ∀ m j, j + m = 4 → 1 ≤ j → ∀ t, TabGood G Q t (fun k => DO p k ∨ (k / 4 = p + 1 ∧ k % 4 < j)) →
+      ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26
+        r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1.b5 U V (UInt256.ofNat p)
+        (UInt256.ofNat (4 * (p + 1))) r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
+        #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19 r20 r21
+        r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat j)).exec env w)
+  | 0, j, hjm, _, t, ht, r0, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r15, r16, r17, r18,
+      r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env,
+      w => by
+    obtain rfl : j = 4 := by omega
+    rw [combination_k2.b1.b5.eq_1]
+    simp only [has4 _ (show 4 < 2 ^ 256 by decide), pure_bind, show (1 ≤ 4 ∧ 4 < 4) = False by decide,
+      decide_false, Bool.false_eq_true, if_false, Lib.array_next_usize_3,
+      next_eq (show p + 1 < 2 ^ 256 by omega)]
+    refine ih t (fun k hk hd => ht k hk ?_) r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17 r18
+      r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w
+    unfold DO at hd ⊢
+    omega
+  | m + 1, j, hjm, hj1, t, ht, r0, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r15, r16, r17,
+      r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36,
+      env, w => by
+    have hj : j < 4 := by omega
+    rw [combination_k2.b1.b5.eq_1]
+    have hi16 : 4 * (p + 1) < 16 := by omega
+    have hk16 : 4 * (p + 1) + j < 16 := by omega
+    obtain ⟨zi, hgi⟩ := ht (4 * (p + 1)) hi16 (Or.inl (Or.inl (by omega)))
+    obtain ⟨zj, hgj⟩ := ht j (by omega) (Or.inl (Or.inr (by omega)))
+    obtain ⟨P', z', e, hP⟩ := hgi.add hgj
+    simp only [has4 _ (show j < 2 ^ 256 by omega), show 1 ≤ j ∧ j < 4 from ⟨hj1, hj⟩,
+      if_true, Range_at_1_4, pure_bind, checkIndex, toNat_lit (show j < 2 ^ 256 by omega),
+      toNat_lit (show 4 * (p + 1) < 2 ^ 256 by omega), show j < 16 by omega, hi16,
+      tbl_get t hi16, tbl_get t (show j < 16 by omega), e,
+      checkedAdd_small (show 4 * (p + 1) + j < 2 ^ 256 by omega),
+      toNat_lit (show 4 * (p + 1) + j < 2 ^ 256 by omega), hk16, next4 _ (show j + 1 < 2 ^ 256 by omega),
+      tbl_set t hk16]
+    refine tab_inner U V G Q hp ih m (j + 1) (by omega) (by omega) _ (fun k hk hd => ?_) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+    by_cases hkk : k = 4 * (p + 1) + j
+    · subst hkk
+      rw [Function.update_self]
+      refine ⟨z', ?_⟩
+      have h1 : (4 * (p + 1) + j) / 4 = p + 1 := by omega
+      have h2 : (4 * (p + 1) + j) % 4 = j := by omega
+      have h3 : (4 * (p + 1)) / 4 = p + 1 := by omega
+      have h4 : (4 * (p + 1)) % 4 = 0 := by omega
+      have h5 : j / 4 = 0 := by omega
+      have h6 : j % 4 = j := by omega
+      rw [h1, h2]
+      rw [h3, h4, h5, h6, zero_nsmul, _root_.add_zero, zero_nsmul, zero_add] at hP
+      exact hP
+    · rw [Function.update_of_ne hkk]
+      exact ht k hk (by unfold DO at hd ⊢; omega)
+
+theorem pr_one (A : ℕ → W.toAffine.Point) (zs : ℕ → Fp) : pr A zs 1 = 1 := by
+  simp [pr]
+
+/-- The outer loop of the table, at step `p`, then the prefix loop and the rest. -/
+theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
+    ∀ n p, p + n = 3 → ∀ t, TabGood G Q t (DO p) → ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15
+      r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
+        r10 r11 #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19
+        r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat p)).exec env w)
+  | 0, p, hp, t, ht, r0, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r15, r16, r17, r18, r19,
+      r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env, w => by
+    obtain rfl : p = 3 := by omega
+    rw [combination_k2.b1.eq_1]
+    simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide), Nat.lt_irrefl,
+      decide_false, Bool.false_eq_true, if_false, pure_bind, one_Base, Range_start_1_16, tbl_replicate]
+    have hall : ∀ k, ∃ z, k < 16 → GoodP (t k) ((k / 4) • G + (k % 4) • Q) z := by
+      intro k
+      by_cases hk : k < 16
+      · obtain ⟨z, hz⟩ := ht k hk (by unfold DO; omega)
+        exact ⟨z, fun _ => hz⟩
+      · exact ⟨0, fun h => absurd h hk⟩
+    choose zs hzs using hall
+    exact prefix_loop U V G Q zs t (fun i hi hA hz => hA ((hzs i hi).zero_iff.mp hz))
+      (tabOK_of_zero (hzs 0 (by decide)) (by simp)) (fun j _ h2 => hzs j h2) 15 1 rfl le_rfl _ _
+      (fun j h1 h2 => by omega) (by rw [pr_one]; exact RepB.one) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+  | n + 1, p, hp, t, ht, r0, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r15, r16, r17, r18,
+      r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env,
+      w => by
+    have hp3 : p < 3 := by omega
+    rw [combination_k2.b1.eq_1]
+    simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide),
+      toNat_lit (show p < 2 ^ 256 by omega), hp3, decide_true, if_true, pure_bind,
+      Lib.array_at_ref_usize_3, checkIndex, arr_at hp3, Range_start_1_4]
+    exact tab_inner U V G Q hp3 (fun t' ht' => tab_outer U V G Q n (p + 1) (by omega) t' ht') 3 1 rfl
+      le_rfl t (fun k hk hd => ht k hk (by unfold DO at hd ⊢; omega)) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+
+end FeProofs.Ecrecover
