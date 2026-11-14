@@ -408,9 +408,6 @@ FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the bytecode of `FeP
 (`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`). `ir_dispatch` takes the runtime
 from its entry to the block of the selector's arm, one lemma per arm runs that block to its end
 against the arm of the exported contract from any environment, and `runtime_endsAs` composes them.
-The runtime certificate depends on one `native_decide`, `EVM.twoPow 160 ≠ 0` in
-`shiftRight160_ne_zero` (`FeProofs/Common/Abi.lean`), through the exported model's address
-decoders.
 
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
