@@ -21,9 +21,11 @@ pass.
 
 What the semantics fixes where Sonatina leaves a choice:
 - `undef` and a struct field never written read as zero; a division by zero gives zero.
-- `evm_malloc` gives fresh zero bytes at the end of memory, where `alloc` of the model library
-  puts them.  The bytecode places allocations elsewhere; only return data, logs and accounts
-  are compared, so the addresses do not matter unless the program makes them observable.
+- `evm_malloc` gives fresh zero bytes at the end of memory, and above every range the module
+  accesses at a constant address (`Module.fixedEnd`), which Sonatina keeps the memory it
+  manages out of.  The bytecode places allocations elsewhere; only return data, logs and
+  accounts are compared, so the addresses do not matter unless the program makes them
+  observable.
 - `sym_addr` and `sym_size` read the symbol table of the compiled section, a fact of the
   layout the IR does not fix.
 -/
@@ -44,8 +46,13 @@ abbrev Env := Std.TreeMap Nat Val
 /-- How an instruction runs a callee: from its name and arguments to its results. -/
 abbrev Callee := String → List Val → FeM (List Val)
 
-/-- The offset and size of each symbol of the running section. -/
-abbrev Symbols := String → Option (Nat × Nat)
+/-- What an instruction needs besides its operands: how to run a callee, the offset and size of
+    each symbol of the running section, and the address below which `evm_malloc` places
+    nothing. -/
+structure Ctx where
+  call : Callee
+  symbol : String → Option (Nat × Nat)
+  heap : Nat
 
 /-- A run past what the semantics defines: it does not terminate. -/
 def stuck {α : Type} : FeM α := Fe.M.diverge
@@ -201,9 +208,41 @@ def EvmOp.run (op : EvmOp) (args : List UInt256) : FeM (List Val) :=
 def keccakOfWords (words : List UInt256) : UInt256 :=
   .ofNat (fromByteArrayBigEndian (KEC (words.foldl (fun b w => b ++ w.toByteArray) .empty)))
 
-/-- Run an instruction to the values it defines.  `call` runs a callee, `symbol` reads the
-    symbol table of the running section. -/
-def runInst (call : Callee) (symbol : Symbols) (env : Env) : Inst → FeM (List Val)
+/-- The memory an instruction accesses at a constant address with a constant length: where the
+    access ends. -/
+def Inst.fixedEnds : Inst → List (Option Nat)
+  | .mload a _ | .mstore a _ _ => [constRange a (.imm 256 32)]
+  | .memzero d l => [constRange d l]
+  | .evm op args =>
+    match op, args with
+    | .mstore8, [p, _] => [constRange p (.imm 256 1)]
+    | .calldataCopy, [d, _, l] | .codeCopy, [d, _, l] | .returnDataCopy, [d, _, l]
+    | .extCodeCopy, [_, d, _, l] | .keccak256, [d, l] | .create, [_, d, l]
+    | .create2, [_, d, l, _] => [constRange d l]
+    | .log _, p :: l :: _ => [constRange p l]
+    | .mcopy, [d, s, l] => [constRange d l, constRange s l]
+    | .call, [_, _, _, ap, al, rp, rl] | .staticCall, [_, _, ap, al, rp, rl]
+    | .delegateCall, [_, _, ap, al, rp, rl] => [constRange ap al, constRange rp rl]
+    | _, _ => []
+  | _ => []
+where
+  constRange : Operand → Operand → Option Nat
+    | .imm _ a, .imm _ l => some (a + l)
+    | _, _ => none
+
+/-- The word above the memory the module accesses at constant addresses with constant lengths.
+    Sonatina keeps the memory it manages, `evm_malloc`'s among it, out of each such range
+    (`scan_fixed_reservations`), and rejects an access at a constant address with another length
+    unless it is the payload of the `evm_return` or `evm_revert` that follows. -/
+def Module.fixedEnd (m : Module) : Nat :=
+  let ends := m.funcs.flatMap fun f => f.blocks.flatMap fun b =>
+    (b.body.flatMap (·.inst.fixedEnds)) ++ match b.term with
+      | .evmReturn a l | .evmRevert a l => [Inst.fixedEnds.constRange a l]
+      | _ => []
+  ((ends.filterMap id).foldl max 0 + 31) / 32 * 32
+
+/-- Run an instruction to the values it defines. -/
+def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
   | .bin op a b => do
     let (bits, x, y) ← evalPair env a b
     return [.int bits (op.eval bits x y)]
@@ -245,12 +284,19 @@ def runInst (call : Callee) (symbol : Symbols) (env : Env) : Inst → FeM (List 
   | .memzero dest len => do
     zeroMem (← evalWord env dest) (← evalWord env len)
     return []
-  | .malloc size => do return [word (← alloc (← evalWord env size))]
+  | .malloc size => do
+    let size := (← evalWord env size).toNat
+    let w ← get
+    let base := max w.memory.size c.heap
+    unless base + size < UInt256.size do Fe.M.diverge
+    let fresh : ByteArray := ⟨Array.replicate (base + size - w.memory.size) 0⟩
+    set { w with memory := w.memory ++ fresh }
+    return [.int 256 base]
   | .symAddr s => do
-    let some (offset, _) := symbol s | stuck
+    let some (offset, _) := c.symbol s | stuck
     return [.int 256 offset]
   | .symSize s => do
-    let some (_, size) := symbol s | stuck
+    let some (_, size) := c.symbol s | stuck
     return [.int 256 size]
   | .insertValue agg index value => do
     let .agg fields ← evalOperand env agg | stuck
@@ -263,7 +309,7 @@ def runInst (call : Callee) (symbol : Symbols) (env : Env) : Inst → FeM (List 
     let (_, i) ← evalInt env index
     return [fields.getD i (.int 256 0)]
   | .keccakWords words => do return [word (keccakOfWords (← words.mapM (evalWord env)))]
-  | .call callee args => do call callee (← args.mapM (evalOperand env))
+  | .call callee args => do c.call callee (← args.mapM (evalOperand env))
 
 /-- Bind each value to its id. -/
 def bind (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) : FeM Env :=
@@ -280,24 +326,23 @@ def enter (env : Env) (prev : Option Nat) (b : Block) : FeM Env := do
   bind env (b.phis.map fun phi => (phi.dst, phi.ty)) vals
 
 /-- Run `f` from block `id`, entered from `prev`, for at most `fuel` blocks. -/
-def runBlocks (call : Callee) (symbol : Symbols) (f : Func) :
-    Nat → Env → Option Nat → Nat → FeM (List Val)
+def runBlocks (c : Ctx) (f : Func) : Nat → Env → Option Nat → Nat → FeM (List Val)
   | 0, _, _, _ => stuck
   | fuel + 1, env, prev, id => do
     let some b := f.block? id | stuck
     let env ← enter env prev b
     let env ← b.body.foldlM (init := env) fun env s => do
-      bind env s.dsts (← runInst call symbol env s.inst)
+      bind env s.dsts (← runInst c env s.inst)
     match b.term with
-    | .jump dest => runBlocks call symbol f fuel env (some id) dest
-    | .br c nz z => do
-      let (_, c) ← evalInt env c
-      runBlocks call symbol f fuel env (some id) (if c != 0 then nz else z)
+    | .jump dest => runBlocks c f fuel env (some id) dest
+    | .br cond nz z => do
+      let (_, v) ← evalInt env cond
+      runBlocks c f fuel env (some id) (if v != 0 then nz else z)
     | .brTable s default cases => do
       let (_, v) ← evalInt env s
       let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
       match (vals.find? (·.1 == v)).map (·.2) <|> default with
-      | some dest => runBlocks call symbol f fuel env (some id) dest
+      | some dest => runBlocks c f fuel env (some id) dest
       | none => stuck
     | .ret values => values.mapM (evalOperand env)
     | .evmReturn a l => do
@@ -315,14 +360,15 @@ def runBlocks (call : Callee) (symbol : Symbols) (f : Func) :
     | .unreachable => stuck
 
 /-- Run function `name` of `m` on `args`: at most `fuel` calls deep, each running at most `fuel`
-    blocks. -/
-def runFunc (m : Module) (symbol : Symbols) : Nat → Callee
+    blocks, with the symbols of the running section and allocations from `heap`. -/
+def runFunc (m : Module) (symbol : String → Option (Nat × Nat)) (heap : Nat) : Nat → Callee
   | 0, _, _ => stuck
   | fuel + 1, name, args => do
     let some f := m.func? name | stuck
     let some entry := f.blocks.head? | stuck
     let env ← bind {} f.params args
-    runBlocks (fun g vs => runFunc m symbol fuel g vs) symbol f fuel env none entry.id
+    let c : Ctx := ⟨fun g vs => runFunc m symbol heap fuel g vs, symbol, heap⟩
+    runBlocks c f fuel env none entry.id
 
 /-- The fuel a section runs with. -/
 def defaultFuel : Nat := 1000000
@@ -334,7 +380,7 @@ def Sidecar.runSection (s : Sidecar) (name : String) (fuel : Nat := defaultFuel)
   let some obj := s.module.objects.find? (·.name == s.object) | stuck
   let some sec := obj.sections.find? (·.name == name) | stuck
   let some code := s.section? name | stuck
-  let _ ← runFunc s.module (fun sym => code.symbols.lookup sym) fuel sec.entry []
+  let _ ← runFunc s.module (code.symbols.lookup ·) s.module.fixedEnd fuel sec.entry []
   stuck
 
 /-- The contract model the IR gives.  The constructor reads its arguments from the running
