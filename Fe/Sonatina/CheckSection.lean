@@ -984,7 +984,7 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
     simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at this
     exact fun s hs d hd => this.2 s hs d hd
   obtain ⟨x, hx, hends⟩ := body_run (ee := I) (m := low.machine) (c := c) hsym b.body [] D D'
-    envB w₀ events (by simp [c, Ctx.ofBlock]) (by simp) hDA hev hbitsb ⟨_, hwB⟩
+    envB w₀ events [] (by simp [c, Ctx.ofBlock]) (by simp) hDA hev hbitsb ⟨_, hwB⟩
     fun ρ _ id hid inst hl => by rw [hnone id hid] at hl; cases hl
   -- The IR's run of the block from its start.
   have hR : (pre low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
@@ -1005,7 +1005,7 @@ theorem block_step {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : 
       (htrace ρ _ r htr)
   cases x with
   | error e =>
-    obtain ⟨envf, Df, hagr, hsub, ⟨ρ, hρ⟩, hall⟩ := hends
+    obtain ⟨envf, Df, hagr, hsub, -, ⟨ρ, hρ⟩, hall⟩ := hends
     have hρD : WordsOf envB ρ D := fun id hid => (hagr id hid).symm.trans (hρ id (hsub id hid))
     have hE := hends' ρ _ hρD (hall ρ hρ).2
     left
