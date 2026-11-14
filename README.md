@@ -205,25 +205,28 @@ on sequences of generated calls, in an Osaka block, the fork Fe compiles for (EV
 `CLZ` only there). It prints the constructs the exporter stopped at and the
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
-EVMLean computes ECRECOVER by running `python3 Ethereum/EllipticCurvesPy/recover.py` in the
-working directory, a script of its own that needs the Python package `coincurve`. The audit
-elaborates from this repository's root, where `Ethereum/EllipticCurvesPy/recover.py` stands in for
-it: it runs the program `ecrecover` (`FeProofs/Ecrecover/Main.lean`, which the audit builds), which
-recovers the key with the exported model of fevm's secp256k1 code, in under a second.
-`FeProofs/Ecrecover` is a contract around `secp256k1::recover` of fevm's precompiles: its other
-files are copied verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm)
-at `a631a777b`. The audit compares the contract's model and bytecode on generated calls too, but
-a call that recovers a key runs past their step bound, and fevm's test runs past the bound of a
-test's own frame before it calls the contract. The other precompiles EVMLean computes in Python
-(RIPEMD-160, the BN254 operations and the KZG point evaluation) have no stand-in; no test of the
-corpus reaches them.
+EVMLean computes ECRECOVER, RIPEMD-160, SHA-256, BLAKE2 F and the BN254 addition and
+multiplication with Lean definitions; SNARKV and the KZG point evaluation still run Python scripts
+of its own, which need packages this repository does not install, and no test of the corpus
+reaches them. An EVMLean that ran ECRECOVER in Python too ran
+`python3 Ethereum/EllipticCurvesPy/recover.py` in the working directory: the audit elaborates from
+this repository's root, where `Ethereum/EllipticCurvesPy/recover.py` stands in for it and runs the
+program `ecrecover` (`FeProofs/Ecrecover/Main.lean`, which the audit builds), which recovers the key
+with the exported model of fevm's secp256k1 code.
 
-`FeProofs/Bn254` is fevm's ECADD as a contract: its fallback arm hands `bn254::add` the call data
-in memory, and returns the 64-byte sum or reverts without data. Its BN254 files are copied
-verbatim from fevm at `a631a777b`, and `keccak/` (for `ByteSource`) from
-[keccak](https://github.com/fe-lang/keccak) at `345d5088d`. `scripts/Bn254AddDiff.lean` runs the
-exported model against EVMLean's ECADD (`Ξ_BN_ADD`) on go-ethereum's `bn256Add` vectors and on
-generated inputs (`lake env lean scripts/Bn254AddDiff.lean`).
+`FeProofs/Precompiles` is an ingot of fevm's precompiles as contracts: `Ecrecover`, a message
+`recover` around `secp256k1::recover`, and `Bn254Add`, `Blake2F` and `Ripemd160`, whose fallback
+arms hand fevm's ECADD, BLAKE2 F compression and RIPEMD-160 the call data in memory and return what
+the precompile does, or revert without data where it fails. The other files of `src/` are copied
+verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm) at `a631a777b`,
+and `keccak/` (for `ByteSource`) from [keccak](https://github.com/fe-lang/keccak) at `345d5088d`.
+The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one contract
+reaches, once, and `Exported/<Contract>.lean` each contract's own. `FeProofs/Ecrecover` proves the
+exported `Ecrecover` against `Secp256k1.Spec.recover` (`feEcrecoverContractCorrect`).
+`scripts/Bn254AddDiff.lean`, `scripts/Blake2FDiff.lean` and `scripts/Ripemd160Diff.lean` run the
+exported `Bn254Add`, `Blake2F` and `Ripemd160` against EVMLean's `Ξ_BN_ADD`, `Ξ_BLAKE2_F` and
+`Ξ_RIP160` on go-ethereum's vectors, or the RIPEMD-160 paper's, and on generated inputs
+(`lake env lean scripts/<name>.lean`).
 
 ### Sonatina IR
 
