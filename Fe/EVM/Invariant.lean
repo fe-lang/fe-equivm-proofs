@@ -50,37 +50,48 @@ What it does not constrain:
 (`toList`).  Writing one account changes it by the difference of the balances (`total_insert`,
 `total_of_some`, by a permutation of the entry lists).
 
-`ThetaGood a P Trusted admits callsAt e`: every admitted message call at depth `e` ends where
-`Holds` holds, if it starts where `Holds` holds both before and after its value moves (`sendEth`,
-as `Θ` moves it), its calldata size fits a word, it runs code `Trusted` admits (or a precompile)
-when its recipient is `a`, the payer has the value, the balances add up to less than `2 ^ 256`,
-and, when its recipient is `a`, the value it moves is the value it reports (`weiValue`) or `P`
-sees only the code (`GoodTheta`).  It ends with no more ether in total than it started with.  It
+`Enters : AccountMap → ExecutionEnv → UInt256 → Prop` is the entry condition, on how a frame at
+`a` is entered: the account map before the value moves, the frame's environment, and the value
+moved.  `Enters σ I v := v = I.weiValue` says the call moves the value it reports; WETH9 adds
+`I.source ≠ a`, since a frame entered from `a` itself with value is credited ether that did not
+move.  It is not hardcoded, as a contract may call itself.  `FromOthers a Enters`: every entry
+from another account by a call that moves the value it reports satisfies `Enters`.  That is what
+the transaction's outermost call and the frames elsewhere give (below).
+
+`ThetaGood a P Trusted Enters admits callsAt e`: every admitted message call at depth `e` ends
+where `Holds` holds, if it starts where `Holds` holds both before and after its value moves
+(`sendEth`, as `Θ` moves it), its calldata size fits a word, it runs code `Trusted` admits (or a
+precompile) when its recipient is `a`, the payer has the value, the balances add up to less than
+`2 ^ 256`, and, when its recipient is `a`, its entry satisfies `Enters` or `P` sees only the code
+(`GoodTheta`).  It ends with no more ether in total than it started with.  It
 also keeps `a` out of the created accounts and the self-destruct set of the substate (`SubOk`), if
 the substate it starts with does.  `LambdaGood a P admits callsAt e` is the same for `Lambda`, with
 the creator's payment (`debit`, `GoodLambda`), when the creator has the endowment and a nonce.
 `Deeper` is both, at every depth below a given one.  The substate part does not depend on `P`: a
 model that makes calls under a feed of arbitrary substates uses only the account part.
 
-`FrameHyp a P Trusted admits callsAt`, the per-frame hypothesis: every successful `Ξ` with code
-owner `a`, running code `Trusted` admits, with calldata that fits a word, admitted, ends with `a`'s
-account satisfying `P`, if its code is still what it was.  The frame knows how it was entered: from
-an account map `σpre` where `Holds` holds and the balances add up to less than `2 ^ 256`, by moving
-`weiValue`, which the source has, from the source to `a` (`σ = sendEth a source weiValue true
-σpre`), and `Holds` holds after the move too.  The frame may assume `Deeper` (the admitted calls
-and creations below it are good) and that the calls and creations `callsAt` describes are
-admitted; it must show `Holds` before each call it makes, with any value already taken from `a`,
-and, for a call to `a`, that it moves the value it reports.  That the code is kept, and the
-substate part, need not be shown: `Xi_code` proves them of every frame, whatever it runs, and also
-that it adds no ether.
+`FrameHyp a P Trusted Enters admits callsAt`, the per-frame hypothesis: every successful `Ξ` with
+code owner `a`, running code `Trusted` admits, with calldata that fits a word, admitted, ends with
+`a`'s account satisfying `P`, if its code is still what it was.  The frame knows how it was
+entered: from an account map `σpre` where `Holds` holds and the balances add up to less than
+`2 ^ 256`, by moving `v`, which the source has, from the source to `a` (`σ = sendEth a source v
+true σpre`), with `Enters σpre I v`, and `Holds` holds after the move too.  The frame may assume
+`Deeper` (the admitted calls and creations below it are good) and that the calls and creations
+`callsAt` describes are admitted; it must show `Holds` before each call it makes, with any value
+already taken from `a`, and, for a call to `a`, `Enters` of that call.  That the code is kept, and
+the substate part, need not be shown: `Xi_code` proves them of every frame, whatever it runs, and
+also that it adds no ether.
 
-Every frame at `a` is entered that way.  `Θ` moves the value it is given and reports `v'`; every
-call whose recipient is `a` moves what it reports: the transaction's call moves the value, and a
-frame elsewhere makes only `CALL` and `CALLCODE` (the value moved and reported), `STATICCALL` (zero
-and zero) and `DELEGATECALL` (recipient its own address, not `a`), which the walk checks.  A
-`DELEGATECALL` from a frame at `a` moves nothing and reports the frame's value; the frame's own
-proof states its calls, so `Deeper` asks it of them.  When `P` sees only the code, as for
-`code_good`, the value plays no part.  No creation runs at `a` with effect.
+Every frame at `a` is entered so, given `FromOthers a Enters`.  `Θ` moves the value it is given
+and reports `v'`.  The transaction's call comes from the sender, which is not `a` (EIP-3607), and
+moves the value it reports.  A frame elsewhere, at `b`, makes only `CALL` and `CALLCODE` (source
+`b`, the value moved and reported), `STATICCALL` (source `b`, zero and zero) and `DELEGATECALL`
+(recipient `b`, not `a`), which the walk checks (`call_holds`).  The calls a frame at `a` makes
+are its own proof's to state, so `Deeper` asks `Enters` of them.  When `P` sees only the code, as
+for `code_good`, the entry plays no part.  No creation runs at `a` with effect.  The walk could
+also show, of an entry from elsewhere, that its depth is one more than the caller's, that its
+write permission is the caller's (or none, for `STATICCALL`) and that its sender is the
+transaction's; `FromOthers` does not ask for these.
 
 A frame at `a` that executes `SELFDESTRUCT` moves `a`'s balance out.  That is not a balance
 increase, so it is the frame's own effect, which `FrameHyp` speaks about: the frame's result must
@@ -88,9 +99,10 @@ satisfy `P`.  It does not remove `a`: EVMLean adds the running account to the se
 only when the substate lists it among the accounts this transaction created, and `a` is never
 listed (`SubOk`).
 
-`good`: from `Admissible P Trusted` and `FrameHyp a P Trusted admits callsAt`, `ThetaGood` and
-`LambdaGood` hold at every depth.  With `admits := fun _ _ => True` and a `callsAt` that holds of
-every call when `Q` does (`XiOk`, or `True`), every execution is admitted (`admitted_of_all`), and
+`good`: from `Admissible P Trusted`, `FromOthers a Enters` and `FrameHyp a P Trusted Enters
+admits callsAt`, `ThetaGood` and `LambdaGood` hold at every depth.  With `admits := fun _ _ => True`
+and a `callsAt` that holds of every call when `Q` does (`XiOk`, or `True`), every execution is
+admitted (`admitted_of_all`), and
 the theorem is about every message call and creation.
 `Fe.EVM.RefineInvariant` derives `FrameHyp` from a certificate of the bytecode.
 
@@ -790,17 +802,29 @@ theorem SubOk.selfdestruct {a o r : AccountAddress} {A : Substate} (h : SubOk a 
 
 /-! ## What the calls must do -/
 
+/-- The environment `Θ` runs code `code` in. -/
+def ThetaCall.env (T : ThetaCall) (code : ByteArray) : ExecutionEnv :=
+  { codeOwner := T.r, sender := T.o, gasPrice := T.p.toNat, calldata := T.d, source := T.s,
+    weiValue := T.v', depth := T.e, perm := T.w, code := code, header := T.H,
+    blobVersionedHashes := T.bvh, blocks := T.blocks }
+
 section Good
 
 variable (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray → Prop)
+  (Enters : AccountMap → ExecutionEnv → UInt256 → Prop)
+
+/-- Every entry into a frame at `a` from another account, by a call that moves the value it
+    reports, satisfies `Enters`: what frames elsewhere and the transaction's outermost call give. -/
+def FromOthers : Prop := ∀ σ (I : ExecutionEnv) v, I.source ≠ a → v = I.weiValue → Enters σ I v
 
 /-- A message call keeps `Holds`, if it starts from a state where it holds both before and after
     the value moves, has calldata that fits a word, and, when its recipient is `a`, runs `Trusted`
-    code and moves the value it reports (unless `P` sees only the code); and it keeps `SubOk` of
-    the substate. -/
+    code and is entered as `Enters` allows (unless `P` sees only the code); and it keeps `SubOk`
+    of the substate. -/
 def GoodTheta (T : ThetaCall) : Prop :=
   T.d.size < UInt256.size → (T.r = a → CodeOk Trusted T.c) →
-    (T.r = a → T.v = T.v' ∨ CodeOnly P) → T.v ≤ balOf T.σ T.s →
+    (T.r = a → (∀ code, T.c = .Code code → Enters T.σ (T.env code) T.v) ∨ CodeOnly P) →
+    T.v ≤ balOf T.σ T.s →
     total T.σ < UInt256.size → Holds a P T.σ → Holds a P (sendEth T.r T.s T.v true T.σ) →
       Holds a P T.run.1 ∧ (SubOk a T.A → SubOk a T.run.2.2.1) ∧ total T.run.1 ≤ total T.σ
 
@@ -820,6 +844,7 @@ end Good
 section Frame
 
 variable {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray → Prop}
+  {Enters : AccountMap → ExecutionEnv → UInt256 → Prop}
 
 variable (a P Trusted) in
 /-- A frame owned by `o` writes `a`'s account only through what it calls, or `P` sees only code
@@ -926,15 +951,16 @@ theorem succ_depth_val {e : Fin 1025} (h : e < 1024) : (e + 1).val = e.val + 1 :
 /-- A `CALL`-family instruction keeps `Holds` when the message call it makes is good. -/
 theorem call_holds {Q : CallPreds} {gasCost : Nat}
     {gas source recipient t value value' inOffset inSize outOffset outSize x : UInt256}
-    {permission : Bool} {evmState state' : State}
+    {permission : Bool} {evmState state' : State} (hent : FromOthers a Enters)
     (hQ : ∀ T : ThetaCall, T.e.val = evmState.executionEnv.depth.val + 1 → Q.theta T →
-      GoodTheta a P Trusted T)
+      GoodTheta a P Trusted Enters T)
     (hok : callOk Q gas source recipient t value value' inOffset inSize permission evmState)
     (hH : Holds a P evmState.accountMap)
     (hT : total evmState.accountMap < UInt256.size)
     (hcode : AccountAddress.ofUInt256 recipient = a →
       CodeOk Trusted (toExecute evmState.accountMap (AccountAddress.ofUInt256 t)))
-    (hval : AccountAddress.ofUInt256 recipient = a → value = value' ∨ CodeOnly P)
+    (hval : AccountAddress.ofUInt256 recipient = a →
+      (AccountAddress.ofUInt256 source ≠ a ∧ value = value') ∨ CodeOnly P)
     (hsrc : value ≤ balOf evmState.accountMap evmState.executionEnv.codeOwner →
       value ≤ balOf evmState.accountMap (AccountAddress.ofUInt256 source))
     (hpre : value ≤ balOf evmState.accountMap (AccountAddress.ofUInt256 source) →
@@ -955,7 +981,8 @@ theorem call_holds {Q : CallPreds} {gasCost : Nat}
       simpa [balOf, Std.ExtTreeMap.get?_eq_getElem?] using hcall
     have hv := hsrc hmade.1
     have hg := hQ _ (succ_depth_val hcall.2) (hok hmade)
-      (readWithPadding_size_lt _ _ _) hcode hval hv hT hH (hpre hv)
+      (readWithPadding_size_lt _ _ _) hcode
+      (fun hr => (hval hr).imp_left fun h _ _ => hent _ _ _ h.1 h.2) hv hT hH (hpre hv)
     exact ⟨hg.1, fun hS => hg.2.1 (hS.of_sets ⟨rfl, rfl⟩), hg.2.2⟩
   · rcases h with ⟨_, hstate⟩
     rw [← hstate]
@@ -1112,11 +1139,11 @@ theorem Holds.selfdestruct (hadm : Admissible P Trusted) {σ : AccountMap}
 
 /-- A system instruction keeps `Holds` when the message calls and creations it makes are
     good. -/
-theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operation.SOp}
-    {gasCost : Nat} {arg : Option (UInt256 × Nat)} {state state' : State}
+theorem step_system (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {Q : CallPreds}
+    {op : Operation.SOp} {gasCost : Nat} {arg : Option (UInt256 × Nat)} {state state' : State}
     (hown : OwnerOk a P Trusted state.executionEnv.codeOwner)
     (hQ : ∀ T : ThetaCall, T.e.val = state.executionEnv.depth.val + 1 → Q.theta T →
-      GoodTheta a P Trusted T)
+      GoodTheta a P Trusted Enters T)
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : stepOk Q gasCost (.System op, arg) state)
@@ -1164,6 +1191,12 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     rw [AccountAddress.ofUInt256_ofNat]
     exact hv
   have hzero : ∀ x : UInt256, (⟨0⟩ : UInt256) ≤ x := fun _ => Nat.zero_le _
+  have hfrom : ∀ v : UInt256,
+      (AccountAddress.ofUInt256 (UInt256.ofNat ↑state.executionEnv.codeOwner) ≠ a ∧ v = v) ∨
+        CodeOnly P := by
+    intro v
+    rw [AccountAddress.ofUInt256_ofNat]
+    exact hown.ne_or_codeOnly.imp_left fun h => ⟨h, rfl⟩
   cases op
   · -- CREATE
     simp [step, bind, Except.bind] at h
@@ -1192,8 +1225,8 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     show Holds a P callState.accountMap ∧
       (SubOk a state.substate → SubOk a callState.substate) ∧
         total callState.accountMap ≤ total state.accountMap
-    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
-      (fun _ => Or.inl rfl) (hown_src _) (hsend _ _)
+    refine (call_holds (h := hcall)) hent hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
+      (fun _ => hfrom _) (hown_src _) (hsend _ _)
     intro hr
     rw [hr]
     exact codeOk_toExecute hadm hH
@@ -1210,8 +1243,8 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     show Holds a P callState.accountMap ∧
       (SubOk a state.substate → SubOk a callState.substate) ∧
         total callState.accountMap ≤ total state.accountMap
-    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
-      (hself _) (fun _ => Or.inl rfl) (hown_src _) (hpay _)
+    exact (call_holds (h := hcall)) hent hQ (hok _ _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
+      (hself _) (fun _ => hfrom _) (hown_src _) (hpay _)
   · -- RETURN
     simp [step] at h
     have hs := sets_binaryMachineStateOp h
@@ -1231,7 +1264,7 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     show Holds a P callState.accountMap ∧
       (SubOk a state.substate → SubOk a callState.substate) ∧
         total callState.accountMap ≤ total state.accountMap
-    exact (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
+    exact (call_holds (h := hcall)) hent hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT
       (hself _) (fun hr => Or.inr (hcodeOnly hr)) (fun _ => hzero _)
       (fun hv => hH.transfer hadm (Or.inr (Or.inl rfl)) hv hT)
   · -- CREATE2
@@ -1261,8 +1294,8 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
     show Holds a P callState.accountMap ∧
       (SubOk a state.substate → SubOk a callState.substate) ∧
         total callState.accountMap ≤ total state.accountMap
-    refine (call_holds (h := hcall)) hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
-      (fun _ => Or.inl rfl) (fun _ => hzero _) (hsend _ _)
+    refine (call_holds (h := hcall)) hent hQ (hok _ _ _ _ _ _ _ (eq_some_of_liftM hpop)) hH hT ?_
+      (fun _ => hfrom _) (fun _ => hzero _) (hsend _ _)
     intro hr
     rw [hr]
     exact codeOk_toExecute hadm hH
@@ -1350,11 +1383,11 @@ theorem step_system (hadm : Admissible P Trusted) {Q : CallPreds} {op : Operatio
                       le_of_eq (total_sd_move htarget howner' hsame hT)⟩
 
 /-- One instruction keeps `Holds` when the message calls and creations it makes are good. -/
-theorem step_holds (hadm : Admissible P Trusted) {Q : CallPreds} {gasCost : Nat}
-    {instr : Operation × Option (UInt256 × Nat)} {state state' : State}
+theorem step_holds (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {Q : CallPreds}
+    {gasCost : Nat} {instr : Operation × Option (UInt256 × Nat)} {state state' : State}
     (hown : OwnerOk a P Trusted state.executionEnv.codeOwner)
     (hQ : ∀ T : ThetaCall, T.e.val = state.executionEnv.depth.val + 1 → Q.theta T →
-      GoodTheta a P Trusted T)
+      GoodTheta a P Trusted Enters T)
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : stepOk Q gasCost instr state)
@@ -1382,7 +1415,7 @@ theorem step_holds (hadm : Admissible P Trusted) {Q : CallPreds} {gasCost : Nat}
   | Dup op => exact hsame (static_step_dup_accountMap_eq h) nofun
   | Exchange op => exact hsame (static_step_exchange_accountMap_eq h) nofun
   | Log op => exact hsame (static_step_log_accountMap_eq h) nofun
-  | System op => exact step_system hadm hown hQ hQl hok hH hT h
+  | System op => exact step_system hadm hent hown hQ hQl hok hH hT h
 
 theorem Xstep_executionEnv_eq {validJumps : Array UInt256} {state state' : State}
     {ret : Option (HaltCause × ByteArray)}
@@ -1409,11 +1442,11 @@ theorem Xstep_executionEnv_eq {validJumps : Array UInt256} {state state' : State
             (simp at h
              simpa using congrArg (fun st : State => st.executionEnv) (And.left h).symm)
 
-theorem Xstep_holds (hadm : Admissible P Trusted) {Q : CallPreds} {validJumps : Array UInt256}
-    {state state' : State} {ret : Option (HaltCause × ByteArray)}
+theorem Xstep_holds (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {Q : CallPreds}
+    {validJumps : Array UInt256} {state state' : State} {ret : Option (HaltCause × ByteArray)}
     (hown : OwnerOk a P Trusted state.executionEnv.codeOwner)
     (hQ : ∀ T : ThetaCall, T.e.val = state.executionEnv.depth.val + 1 → Q.theta T →
-      GoodTheta a P Trusted T)
+      GoodTheta a P Trusted Enters T)
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : XstepOk Q validJumps state)
@@ -1445,7 +1478,7 @@ theorem Xstep_holds (hadm : Admissible P Trusted) {Q : CallPreds} {validJumps : 
       have hprefix : Holds a P stepped.accountMap ∧
           (SubOk a state.substate → SubOk a stepped.substate) ∧
             total stepped.accountMap ≤ total state.accountMap :=
-        (step_holds hadm (h := hStep')) hown hQ hQl hokZ hH hT
+        (step_holds hadm hent (h := hStep')) hown hQ hQl hokZ hH hT
       repeat split at hXstep
       all_goals
         try contradiction
@@ -1468,11 +1501,11 @@ theorem Xstep_holds (hadm : Admissible P Trusted) {Q : CallPreds} {validJumps : 
             rw [← hstateEq]
             exact hprefix
 
-theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
+theorem X_holds (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {Q : CallPreds} {f : Nat}
     {validJumps : Array UInt256} {state state' : State} {o : ByteArray}
     (hown : OwnerOk a P Trusted state.executionEnv.codeOwner)
     (hQ : ∀ T : ThetaCall, T.e.val = state.executionEnv.depth.val + 1 → Q.theta T →
-      GoodTheta a P Trusted T)
+      GoodTheta a P Trusted Enters T)
     (hQl : ∀ L : LambdaCall, L.e.val = state.executionEnv.depth.val + 1 → Q.lambda L →
       GoodLambda a P L)
     (hok : XOk Q f validJumps state)
@@ -1491,7 +1524,7 @@ theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
           contradiction
       | ok stepRes =>
           rcases stepRes with ⟨state₁, ret⟩
-          have h₁ := Xstep_holds hadm hown hQ hQl hok.1 hH hT hstep
+          have h₁ := Xstep_holds hadm hent hown hQ hQl hok.1 hH hT hstep
           rw [hstep] at hX
           cases ret with
           | none =>
@@ -1528,10 +1561,10 @@ theorem X_holds (hadm : Admissible P Trusted) {Q : CallPreds} {f : Nat}
     creations it makes and by sending value to `a`, unless it runs at `a`: if those calls keep
     `Holds`, so does the frame.  A frame at `a` is covered too when `P` sees only the code, since
     no instruction changes the code of the running account. -/
-theorem Xi_holds (hadm : Admissible P Trusted) {Q : CallPreds} {σ σ₀ σ' : AccountMap}
-    {g g' : UInt256} {A A' : Substate} {I : ExecutionEnv} {o : ByteArray}
+theorem Xi_holds (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {Q : CallPreds}
+    {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate} {I : ExecutionEnv} {o : ByteArray}
     (hown : OwnerOk a P Trusted I.codeOwner)
-    (hQ : ∀ T : ThetaCall, T.e.val = I.depth.val + 1 → Q.theta T → GoodTheta a P Trusted T)
+    (hQ : ∀ T : ThetaCall, T.e.val = I.depth.val + 1 → Q.theta T → GoodTheta a P Trusted Enters T)
     (hQl : ∀ L : LambdaCall, L.e.val = I.depth.val + 1 → Q.lambda L → GoodLambda a P L)
     (hok : XiOk Q σ σ₀ g A I) (hH : Holds a P σ) (hT : total σ < UInt256.size)
     (hXi : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
@@ -1555,17 +1588,11 @@ theorem Xi_holds (hadm : Admissible P Trusted) {Q : CallPreds} {σ σ₀ σ' : A
           simp [hX, Except.bind] at hXi
           rcases hXi with ⟨⟨hσ, -, hA⟩, -⟩
           rw [← hσ, ← hA]
-          exact X_holds hadm (state := xiState σ σ₀ g A I) hown hQ hQl hok hH hT hX
+          exact X_holds hadm hent (state := xiState σ σ₀ g A I) hown hQ hQl hok hH hT hX
 
 end Frame
 
 /-! ## Admission -/
-
-/-- The environment `Θ` runs code `code` in. -/
-def ThetaCall.env (T : ThetaCall) (code : ByteArray) : ExecutionEnv :=
-  { codeOwner := T.r, sender := T.o, gasPrice := T.p.toNat, calldata := T.d, source := T.s,
-    weiValue := T.v', depth := T.e, perm := T.w, code := code, header := T.H,
-    blobVersionedHashes := T.bvh, blocks := T.blocks }
 
 /-- The account map `Θ` runs code on, after the value moves. -/
 def ThetaCall.σ₁ (T : ThetaCall) : AccountMap := sendEth T.r T.s T.v true T.σ
@@ -1682,11 +1709,12 @@ end Admission
 section Statement
 
 variable (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray → Prop)
-  (admits : AccountMap → ExecutionEnv → Prop) (callsAt : CallsAt)
+  (Enters : AccountMap → ExecutionEnv → UInt256 → Prop) (admits : AccountMap → ExecutionEnv → Prop)
+  (callsAt : CallsAt)
 
 /-- Every admitted message call at depth `e` is good. -/
 def ThetaGood (e : Fin 1025) : Prop :=
-  ∀ T : ThetaCall, T.e = e → Admitted a admits callsAt T → GoodTheta a P Trusted T
+  ∀ T : ThetaCall, T.e = e → Admitted a admits callsAt T → GoodTheta a P Trusted Enters T
 
 /-- Every admitted creation at depth `e` is good. -/
 def LambdaGood (e : Fin 1025) : Prop :=
@@ -1694,29 +1722,34 @@ def LambdaGood (e : Fin 1025) : Prop :=
 
 /-- Every admitted message call and creation deeper than `d` is good. -/
 def Deeper (d : Fin 1025) : Prop :=
-  ∀ e : Fin 1025, d < e → ThetaGood a P Trusted admits callsAt e ∧ LambdaGood a P admits callsAt e
+  ∀ e : Fin 1025, d < e →
+    ThetaGood a P Trusted Enters admits callsAt e ∧ LambdaGood a P admits callsAt e
 
 /-- The per-frame hypothesis: a successful frame at `a` that is admitted and runs code `Trusted`
     admits, entered from `σpre`, where `Holds` holds and the balances add up to less than
-    `2 ^ 256`, by moving `weiValue` from the source to `a`, ends with `a`'s account satisfying
-    `P`, if its code is still what it was.  The frame may assume that the admitted calls and
-    creations below it are good (`Deeper`), and that the ones `callsAt` describes are admitted. -/
+    `2 ^ 256`, by moving `v` from the source to `a` as `Enters` allows, ends with `a`'s account
+    satisfying `P`, if its code is still what it was.  The frame may assume that the admitted
+    calls and creations below it are good (`Deeper`), and that the ones `callsAt` describes are
+    admitted. -/
 def FrameHyp : Prop :=
-  ∀ σpre σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
-    I.calldata.size < UInt256.size → admits σ I → Deeper a P Trusted admits callsAt I.depth →
+  ∀ σpre v σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
+    I.calldata.size < UInt256.size → admits σ I →
+    Deeper a P Trusted Enters admits callsAt I.depth →
     callsAt (admBelow a admits callsAt (1024 - I.depth.val)) σ σ₀ g A I →
-    σ = sendEth a I.source I.weiValue true σpre → I.weiValue ≤ balOf σpre I.source →
+    σ = sendEth a I.source v true σpre → Enters σpre I v → v ≤ balOf σpre I.source →
     total σpre < UInt256.size → Holds a P σpre → Holds a P σ →
     Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
     ∀ acc acc', σ[a]? = some acc → σ'[a]? = some acc' → acc'.code = acc.code → P acc'
 
 /-- `FrameHyp`, concluding `Holds` outright, and `SubOk` of the substate, for a frame entered by
-    moving `v`, which is its `weiValue` unless `P` sees only the code. -/
+    moving `v` as `Enters` allows, or with any entry when `P` sees only the code. -/
 def FrameHolds : Prop :=
   ∀ σpre v σ σ₀ g A (I : ExecutionEnv) σ' g' A' o, I.codeOwner = a → Trusted I.code →
-    I.calldata.size < UInt256.size → admits σ I → Deeper a P Trusted admits callsAt I.depth →
+    I.calldata.size < UInt256.size → admits σ I →
+    Deeper a P Trusted Enters admits callsAt I.depth →
     callsAt (admBelow a admits callsAt (1024 - I.depth.val)) σ σ₀ g A I →
-    σ = sendEth a I.source v true σpre → (v = I.weiValue ∨ CodeOnly P) → v ≤ balOf σpre I.source →
+    σ = sendEth a I.source v true σpre → (Enters σpre I v ∨ CodeOnly P) →
+    v ≤ balOf σpre I.source →
     total σpre < UInt256.size → Holds a P σpre → Holds a P σ →
     Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o) →
       Holds a P σ' ∧ (SubOk a A → SubOk a A') ∧ total σ' ≤ total σ
@@ -1962,19 +1995,22 @@ theorem precompiled_Theta_substate (σ σ₀ : AccountMap) (A : Substate) (s o r
 section Proof
 
 variable {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray → Prop}
-  {admits : AccountMap → ExecutionEnv → Prop} {callsAt : CallsAt}
+  {Enters : AccountMap → ExecutionEnv → UInt256 → Prop} {admits : AccountMap → ExecutionEnv → Prop}
+  {callsAt : CallsAt}
 
 /-- What `Deeper` gives the calls a frame at depth `d` makes. -/
-theorem Deeper.theta {d : Fin 1025} (hdeep : Deeper a P Trusted admits callsAt d) (T : ThetaCall)
+theorem Deeper.theta {d : Fin 1025} (hdeep : Deeper a P Trusted Enters admits callsAt d)
+    (T : ThetaCall)
     (he : T.e.val = d.val + 1) (hT : (admBelow a admits callsAt (1024 - d.val)).theta T) :
-    GoodTheta a P Trusted T := by
+    GoodTheta a P Trusted Enters T := by
   have hlt := T.e.isLt
   have hm : 1024 - d.val = (1024 - T.e.val) + 1 := by omega
   rw [hm] at hT
   exact (hdeep T.e (by rw [Fin.lt_def]; omega)).1 T rfl hT
 
 /-- What `Deeper` gives the creations a frame at depth `d` makes. -/
-theorem Deeper.lambda {d : Fin 1025} (hdeep : Deeper a P Trusted admits callsAt d) (L : LambdaCall)
+theorem Deeper.lambda {d : Fin 1025} (hdeep : Deeper a P Trusted Enters admits callsAt d)
+    (L : LambdaCall)
     (he : L.e.val = d.val + 1) (hL : (admBelow a admits callsAt (1024 - d.val)).lambda L) :
     GoodLambda a P L := by
   have hlt := L.e.isLt
@@ -2087,8 +2123,8 @@ theorem LambdaCall.frame_total {L : LambdaCall} (hv : L.v ≤ balOf L.σ L.s)
 
 /-- An admitted creation keeps `Holds` if the admitted calls and creations below it do.  One
     that lands on `a` fails, since `a` has code, and leaves the account map as it was. -/
-theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
-    (hdeep : Deeper a P Trusted admits callsAt e) : LambdaGood a P admits callsAt e := by
+theorem lambda_good (hadm : Admissible P Trusted) (hent : FromOthers a Enters) {e : Fin 1025}
+    (hdeep : Deeper a P Trusted Enters admits callsAt e) : LambdaGood a P admits callsAt e := by
   intro L he hadmL hv hn hT hH hdebit
   subst he
   have hAS : SubOk a L.A → SubOk a L.frame.2.1 := L.frame_subOk hadm hH
@@ -2122,7 +2158,7 @@ theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
       rw [hb] at hb'
       cases hb'
     · have hTs : total L.frame.1 < UInt256.size := by rw [hfr hb]; exact hT
-      have hf := (Xi_holds hadm (hXi := hXi)) (Or.inl ha') (hdeep.theta) (hdeep.lambda) hok
+      have hf := (Xi_holds hadm hent (hXi := hXi)) (Or.inl ha') (hdeep.theta) (hdeep.lambda) hok
         (Holds.lambdaStar ha' hdebit) hTs
       refine ⟨Holds.ite hH (hf.1.insert_ne ha'),
         fun hS => SubOk.ite (hAS hS) (hf.2.1 (hAS hS)), total_ite_le (le_refl _) ?_⟩
@@ -2131,9 +2167,10 @@ theorem lambda_good (hadm : Admissible P Trusted) {e : Fin 1025}
 
 /-- An admitted message call keeps `Holds` if the admitted calls and creations below it do: by
     the per-frame hypothesis when it runs code at `a`, by the frame property otherwise. -/
-theorem theta_good (hadm : Admissible P Trusted) (hframe : FrameHolds a P Trusted admits callsAt)
-    {e : Fin 1025} (hdeep : Deeper a P Trusted admits callsAt e) :
-    ThetaGood a P Trusted admits callsAt e := by
+theorem theta_good (hadm : Admissible P Trusted) (hent : FromOthers a Enters)
+    (hframe : FrameHolds a P Trusted Enters admits callsAt)
+    {e : Fin 1025} (hdeep : Deeper a P Trusted Enters admits callsAt e) :
+    ThetaGood a P Trusted Enters admits callsAt e := by
   intro T he hadmT hd hcode hval hv hT hH hpre
   subst he
   obtain ⟨σ, σ₀, A, s, o, r, c, g, p, v, v', d, e, H, bvh, blocks, w⟩ := T
@@ -2179,34 +2216,36 @@ theorem theta_good (hadm : Admissible P Trusted) (hframe : FrameHolds a P Truste
         · subst hr
           obtain ⟨hadmits, hcalls⟩ := hadmT.1 rfl
           exact hframe σ v _ _ _ _ _ _ _ _ _ rfl (by exact hcode rfl) hd hadmits hdeep hcalls rfl
-            (hval rfl) hv hT hH hpre hxi
-        · exact (Xi_holds hadm (hXi := hxi)) (Or.inl hr) hdeep.theta hdeep.lambda (hadmT.2 hr)
+            ((hval rfl).imp_left fun h => h code rfl) hv hT hH hpre hxi
+        · exact (Xi_holds hadm hent (hXi := hxi)) (Or.inl hr) hdeep.theta hdeep.lambda (hadmT.2 hr)
             hpre (by rw [hT1]; exact hT)
       exact ⟨hres.1, hres.2.1, hres.2.2.trans (le_of_eq hT1)⟩
     exact ⟨hH.thetaXi fun hxi => (hrun hxi).1, fun hS => hS.thetaXi fun hxi => (hrun hxi).2.1 hS,
       total_thetaXi (le_refl _) fun hxi => (hrun hxi).2.2⟩
 
 /-- The induction on the depth left below a call, from `FrameHolds`. -/
-theorem good_core (hadm : Admissible P Trusted) (hframe : FrameHolds a P Trusted admits callsAt)
-    (e : Fin 1025) : ThetaGood a P Trusted admits callsAt e ∧ LambdaGood a P admits callsAt e := by
+theorem good_core (hadm : Admissible P Trusted) (hent : FromOthers a Enters)
+    (hframe : FrameHolds a P Trusted Enters admits callsAt) (e : Fin 1025) :
+    ThetaGood a P Trusted Enters admits callsAt e ∧ LambdaGood a P admits callsAt e := by
   suffices key : ∀ n, ∀ e : Fin 1025, 1024 - e.val ≤ n →
-      ThetaGood a P Trusted admits callsAt e ∧ LambdaGood a P admits callsAt e from key _ e le_rfl
+      ThetaGood a P Trusted Enters admits callsAt e ∧ LambdaGood a P admits callsAt e from
+    key _ e le_rfl
   intro n
   induction n with
   | zero =>
     intro e he
-    have hdeep : Deeper a P Trusted admits callsAt e := fun e' he' => by
+    have hdeep : Deeper a P Trusted Enters admits callsAt e := fun e' he' => by
       have := e'.isLt
       rw [Fin.lt_def] at he'
       omega
-    exact ⟨theta_good hadm hframe hdeep, lambda_good hadm hdeep⟩
+    exact ⟨theta_good hadm hent hframe hdeep, lambda_good hadm hent hdeep⟩
   | succ n ih =>
     intro e he
-    have hdeep : Deeper a P Trusted admits callsAt e := fun e' he' => ih e' (by
+    have hdeep : Deeper a P Trusted Enters admits callsAt e := fun e' he' => ih e' (by
       have := e'.isLt
       rw [Fin.lt_def] at he'
       omega)
-    exact ⟨theta_good hadm hframe hdeep, lambda_good hadm hdeep⟩
+    exact ⟨theta_good hadm hent hframe hdeep, lambda_good hadm hent hdeep⟩
 
 end Proof
 
@@ -2223,12 +2262,13 @@ theorem admissible_code {c : ByteArray} (hc : c.size ≠ 0) :
     whatever runs, keeps `a`'s account present with code `c`, if it is to begin with and `c` is
     not empty. -/
 theorem code_good (a : AccountAddress) {c : ByteArray} (hc : c.size ≠ 0) (e : Fin 1025) :
-    ThetaGood a (·.code = c) (fun _ => True) (fun _ _ => True) XiOk e
+    ThetaGood a (·.code = c) (fun _ => True) (fun _ _ _ => True) (fun _ _ => True) XiOk e
       ∧ LambdaGood a (·.code = c) (fun _ _ => True) XiOk e :=
-  good_core (admissible_code hc)
+  good_core (admissible_code hc) (fun _ _ _ _ _ => trivial)
     (fun _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ hdeep hok hσ _ hv hT _ hH hXi =>
-      Xi_holds (admissible_code hc) (Or.inr ⟨codeOnly_code c, fun _ => trivial⟩)
-        hdeep.theta hdeep.lambda hok hH (by rw [hσ, total_sendEth hv hT]; exact hT) hXi) e
+      Xi_holds (admissible_code hc) (fun _ _ _ _ _ => trivial)
+        (Or.inr ⟨codeOnly_code c, fun _ => trivial⟩) hdeep.theta hdeep.lambda hok hH
+        (by rw [hσ, total_sendEth hv hT]; exact hT) hXi) e
 
 /-- A frame keeps the code at `a`, whatever it runs, and keeps `a` out of the created accounts and
     the self-destruct set. -/
@@ -2238,7 +2278,8 @@ theorem Xi_code {a : AccountAddress} {σ σ₀ σ' : AccountMap} {g g' : UInt256
     (hXi : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
     (∃ acc', σ'[a]? = some acc' ∧ acc'.code = acc.code) ∧ (SubOk a A → SubOk a A') ∧
       total σ' ≤ total σ :=
-  Xi_holds (admissible_code hc) (Q := CallPreds.all)
+  Xi_holds (admissible_code hc) (Enters := fun _ _ _ => True) (fun _ _ _ _ _ => trivial)
+    (Q := CallPreds.all)
     (Or.inr ⟨codeOnly_code _, fun _ => trivial⟩)
     (fun T _ _ => (code_good a hc T.e).1 T rfl
       ((admitted_of_all a (fun _ _ => True) XiOk (fun _ _ => trivial) fun _ => XiOk_of_all).1 T))
@@ -2253,19 +2294,21 @@ theorem Xi_code {a : AccountAddress} {σ σ₀ σ' : AccountMap} {g g' : UInt256
     creations below it do, then at every depth every message call and creation whose execution
     admits every successful frame at `a` does, by induction on the depth left below it. -/
 theorem good {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray → Prop}
+    {Enters : AccountMap → ExecutionEnv → UInt256 → Prop}
     {admits : AccountMap → ExecutionEnv → Prop} {callsAt : CallsAt} (hadm : Admissible P Trusted)
-    (hframe : FrameHyp a P Trusted admits callsAt) (e : Fin 1025) :
-    ThetaGood a P Trusted admits callsAt e ∧ LambdaGood a P admits callsAt e := by
-  refine good_core hadm ?_ e
+    (hent : FromOthers a Enters)
+    (hframe : FrameHyp a P Trusted Enters admits callsAt) (e : Fin 1025) :
+    ThetaGood a P Trusted Enters admits callsAt e ∧ LambdaGood a P admits callsAt e := by
+  refine good_core hadm hent ?_ e
   intro σpre v σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hσ hvw hv hTpre hHpre hH
     hXi
   obtain ⟨acc, hacc, hP⟩ := id hH
   obtain ⟨⟨acc', hacc', hcode⟩, hsub, htot⟩ :=
     Xi_code (hadm.code acc hP) hacc (by rw [hσ, total_sendEth hv hTpre]; exact hTpre) hXi
   refine ⟨⟨acc', hacc', ?_⟩, hsub, htot⟩
-  rcases hvw with rfl | hco
-  · exact hframe σpre σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hσ hv hTpre hHpre hH
-      hXi acc acc' hacc hacc' hcode
+  rcases hvw with hen | hco
+  · exact hframe σpre v σ σ₀ g A I σ' g' A' o howner htr hcd hadmits hdeep hok hσ hen hv hTpre hHpre
+      hH hXi acc acc' hacc hacc' hcode
   · exact hco acc acc' hcode.symm hP
 
 /-! ## Deployment -/
@@ -2379,7 +2422,8 @@ def txCall (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBl
 section Tx
 
 variable {a : AccountAddress} {P : Account → Prop} {Trusted : ByteArray → Prop}
-  {admits : AccountMap → ExecutionEnv → Prop} {callsAt : CallsAt}
+  {Enters : AccountMap → ExecutionEnv → UInt256 → Prop} {admits : AccountMap → ExecutionEnv → Prop}
+  {callsAt : CallsAt}
 
 theorem Holds.erase_ne {σ : AccountMap} {k : AccountAddress} (hk : k ≠ a) (h : Holds a P σ) :
     Holds a P (σ.erase k) := by
@@ -2688,7 +2732,8 @@ theorem lambda_gas_le (σ σ₀ : AccountMap) (A : Substate) (s o : AccountAddre
     transient storage, and the transaction is valid as the chain checks it: the sender can pay
     for gas, blobs and value, the priority fee is at most the price (the price covers the base
     fee), and the sender's nonce is below `2 ^ 64 - 1` (EIP-2681). -/
-theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted admits callsAt)
+theorem tx_holds (hadm : Admissible P Trusted) (hent : FromOthers a Enters)
+    (hframe : FrameHyp a P Trusted Enters admits callsAt)
     (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty})
     {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader} {blocks : ProcessedBlocks}
     {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool} {gu : UInt256}
@@ -2729,7 +2774,7 @@ theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted ad
     simp only [hr] at hadmit hΥ
     injection hΥ with hΥ
     injection hΥ with h1 h2
-    have hL := (good hadm hframe 0).2 _ rfl hadmit hv0 hn0 hT0 hH0 (hH0.pay (Or.inl hSa))
+    have hL := (good hadm hent hframe 0).2 _ rfl hadmit hv0 hn0 hT0 hH0 (hH0.pay (Or.inl hSa))
     have hle := hL.2.2
     replace hle : _ ≤ total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) :=
       hle
@@ -2753,9 +2798,9 @@ theorem tx_holds (hadm : Admissible P Trusted) (hframe : FrameHyp a P Trusted ad
     simp only [hr] at hadmit hΥ
     injection hΥ with hΥ
     injection hΥ with h1 h2
-    have hC := (good hadm hframe 0).1 _ rfl hadmit hdata
+    have hC := (good hadm hent hframe 0).1 _ rfl hadmit hdata
       (fun ht => by rw [show t = a from ht]; exact codeOk_toExecute hadm hH0)
-      (fun _ => Or.inl rfl) hv0 hT0 hH0
+      (fun _ => Or.inl fun _ _ => hent _ _ _ hSa rfl) hv0 hT0 hH0
       (hH0.transfer hadm (Or.inl hSa) hv0 hT0)
     have hle := hC.2.2
     replace hle : _ ≤ total (txState σ S_T T.base.gasLimit (txPrice T H_f) (calcBlobFee H T)) :=
