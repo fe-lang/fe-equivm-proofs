@@ -622,13 +622,16 @@ def entries (s : Sidecar) : List (String × String) :=
   ((s.module.objects.find? (·.name == s.object)).map (·.sections)).getD [] |>.map
     fun sec => (sec.name, sec.entry)
 
+/-- The section `name` of the sidecar is checked against its entry function `entry`. -/
+def checkEntry (s : Sidecar) (name entry : String) : Except String Unit := do
+  let some code := s.section? name | throw s!"no section {name}"
+  match checkSection code entry with
+  | .ok () => pure ()
+  | .error e => throw s!"{name}: {e}"
+
 /-- Each of the sidecar's sections is checked, and it has an `init` and a `runtime`. -/
 def checkAll (s : Sidecar) : Except String Unit := do
-  for (name, entry) in entries s do
-    let some code := s.section? name | throw s!"no section {name}"
-    match checkSection code entry with
-    | .ok () => pure ()
-    | .error e => throw s!"{name}: {e}"
+  (entries s).forM fun (name, entry) => checkEntry s name entry
   unless (s.section? "init").isSome && (s.section? "runtime").isSome &&
       ((entries s).lookup "init").isSome && ((entries s).lookup "runtime").isSome do
     throw "no init or runtime section"

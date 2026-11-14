@@ -15,13 +15,13 @@ namespace Fe.Sonatina.Check
 
 open Ethereum Ethereum.EVM
 
-/-- The word of an operand, the value \`v\` being \`ρ v\`. -/
+/-- The word of an operand, the value `v` being `ρ v`. -/
 def opWord (ρ : Nat → UInt256) : Operand → Option UInt256
   | .var id => some (ρ id)
   | .imm bits v => if bits == 256 && v < UInt256.size then some (.ofNat v) else none
   | .undef _ => none
 
-/-- The word a pure instruction of the class computes, its operands' words given by \`ρ\`. -/
+/-- The word a pure instruction of the class computes, its operands' words given by `ρ`. -/
 def instWord (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat)) :
     Inst → Option UInt256
   | .bin op a b => do opEval ee (← binOpcode op) [← opWord ρ a, ← opWord ρ b]
