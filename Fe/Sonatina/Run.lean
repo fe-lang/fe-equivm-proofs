@@ -6,9 +6,10 @@ import Reasoning.Memory
 # Running the machine IR of a contract
 
 Lemmas for running a function of the machine IR on a call by `simp`, block by block: `ir_step`
-unfolds `runBlocks` once and simplifies the block it is at, with the interpreter's definitions
-and the model library's primitives.  A contract's run lemmas give it the function and the facts
-of the call (`calldata_facts` for an arm's head check) and apply it once per block on the path.
+unfolds `runBlocks` once and simplifies the block it is at, found by the block lemmas
+`sonatina_func` makes, with the interpreter's definitions, the model library's primitives and
+the memory lemmas below.  A contract's run lemmas give it the facts of the call
+(`calldata_facts` for an arm's head check) and apply it once per block on the path.
 -/
 
 namespace Fe.Sonatina
@@ -39,6 +40,22 @@ theorem selWord_eq_iff {cd : ByteArray} {k : Nat} (hk : k < UInt256.size) :
   constructor
   · intro h; rw [h, Check.toNat_ofNat_lt hk]
   · intro h; exact Check.eq_of_toNat (by rw [h, Check.toNat_ofNat_lt hk])
+
+/-- A word of a value is the word of the value modulo `2 ^ 256`. -/
+theorem ofNat_mod (n : Nat) : UInt256.ofNat (n % size256) = UInt256.ofNat n :=
+  Check.eq_of_toNat (by simp [Check.toNat_ofNat, UInt256.size])
+
+/-- A word shifted right, below `2 ^ 256`. -/
+theorem shr_mod (u : UInt256) (k : Nat) : u.toNat >>> k % size256 = u.toNat >>> k :=
+  Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) u.val.isLt)
+
+/-- Std's address check, as the machine IR's `shr 160` makes it. -/
+theorem notAddress_iff (v : UInt256) : NotAddress v ↔ v.toNat >>> 160 ≠ 0 := by
+  unfold NotAddress
+  rw [Nat.shiftRight_eq_div_pow]
+  constructor
+  · intro h; exact Nat.pos_iff_ne_zero.mp (Nat.div_pos h (by positivity))
+  · intro h; by_contra hn; exact h (Nat.div_eq_of_lt (by omega))
 
 /-- The selector word of calldata as the IR computes it, below `2 ^ 256`. -/
 theorem sel_mod (cd : ByteArray) : (uInt256OfByteArray (cd.readBytes 0 32)).toNat >>> 224 %
@@ -210,14 +227,17 @@ syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 macro_rules
   | `(tactic| ir_step) => `(tactic| ir_step [])
-  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks.eq_1]; simp [Func.block?, enter,
+  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks.eq_1]; simp [enter,
       Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
       Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
-      Fe.EVM.callvalue, Fe.EVM.codesize, Fe.EVM.codecopy, Fe.EVM.sload, Fe.EVM.sstore,
-      Fe.EVM.mstore, Fe.EVM.mload, revertData, returnData,
-      Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, sel_mod,
+      Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
+      Fe.EVM.codecopy, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore, Fe.EVM.mload,
+      Fe.EVM.keccak256, revertData, returnData, Reasoning.Theory.byteArray_readWithPadding_zero,
+      toNat_mod, sel_mod, shr_mod, ofNat_mod, pair_slot,
+      Reasoning.Theory.toByteArray_write32_read_back,
       Reasoning.Theory.u256_ofNat_toNat, show UInt256.ofNat 0 = ⟨0⟩ from rfl,
+      show (⟨0⟩ : UInt256).toNat = 0 from rfl,
       Std.TreeMap.getElem_insert, *, $ls,*]))
 
 end Fe.Sonatina
