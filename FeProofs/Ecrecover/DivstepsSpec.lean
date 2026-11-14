@@ -303,6 +303,7 @@ variable (f0 g0 : Limb)
 by `2 ^ i`, the second by `2 ^ (i + c)` with `2 ^ c ∣ g`, and the rows mapping `(f0, g0)` to
 `2 ^ i (f, g)` modulo `2 ^ 64`. -/
 structure DS.Inv (s : DS) (c : ℕ) : Prop where
+  left_pos : 1 ≤ s.left.val
   left_le : s.left.val ≤ 62
   c_le : c ≤ s.left.val
   dvd : 2 ^ c ∣ s.g.val
@@ -356,7 +357,7 @@ theorem cancel_core {s : DS} (hs : s.Pre f0 g0) (w : Limb) (c : ℕ) (hcl : c �
     sgn_add_mul (by nlinarith)
   have hr' : (s.r + s.v * w).sgn = s.r.sgn + s.v.sgn * w.val :=
     sgn_add_mul (by nlinarith)
-  refine ⟨hs.left_le, hcl, hdvd, hs.row1, ?_, hs.odd, hs.cong1, ?_, ?_, hs.eta⟩
+  refine ⟨hs.left1, hs.left_le, hcl, hdvd, hs.row1, ?_, hs.odd, hs.cong1, ?_, ?_, hs.eta⟩
   · simp only [hq', hr']
     calc |s.q.sgn + s.u.sgn * w.val| + |s.r.sgn + s.v.sgn * w.val|
         ≤ (|s.q.sgn| + |s.u.sgn| * w.val) + (|s.r.sgn| + |s.v.sgn| * w.val) := by
@@ -473,6 +474,9 @@ structure TSpec (f0 g0 : Limb) (U V Q R : ℤ) : Prop where
   cong1 : U * f0.val + V * g0.val ≡ 0 [ZMOD 2 ^ 62]
   cong2 : Q * f0.val + R * g0.val ≡ 0 [ZMOD 2 ^ 62]
   det : U * R - V * Q = 2 ^ 62
+  odd1 : U * f0.val + V * g0.val ≡ 2 ^ 62 [ZMOD 2 ^ 63]
+  even_u : 2 ∣ U
+  even_v : 2 ∣ V
 
 theorem bmod_ne_neg_one {x : ℤ} (h1 : 1 ≤ x) (h2 : x ≤ 2 ^ 63) : x.bmod (2 ^ 64) ≠ -1 := by
   intro h
@@ -552,11 +556,20 @@ theorem run_spec (f0 g0 : Limb) : ∀ n (s : DS) c, s.Inv f0 g0 c → s.left.val
     · -- No divsteps left: the matrix.
       have h62 : 62 - s.shift.left.val = 62 := by rw [h0]; rfl
       rw [h62] at row1 row2 cong1 cong2 det
-      refine ⟨_, _, _, _, _, rfl, heta, row1, row2, ?_, ?_, det⟩
+      have hz0 : 1 ≤ z := by have := hs.left_pos; omega
+      have h2 : (2 : ℤ) ∣ 2 ^ z := dvd_pow_self 2 (by omega)
+      refine ⟨_, _, _, _, _, rfl, heta, row1, row2, ?_, ?_, det, ?_, ?_, ?_⟩
       · exact (modEq_two_pow_of_le cong1 (by omega)).trans
           (Int.modEq_zero_iff_dvd.mpr (dvd_mul_right _ _))
       · exact (modEq_two_pow_of_le cong2 (by omega)).trans
           (Int.modEq_zero_iff_dvd.mpr (dvd_mul_right _ _))
+      · refine (modEq_two_pow_of_le cong1 (by omega)).trans ?_
+        obtain ⟨k, hk⟩ : ∃ k, (s.f.val : ℤ) = 2 * k + 1 := ⟨s.f.val / 2, by
+          have := hs.odd; omega⟩
+        rw [show s.shift.f = s.f from rfl, hk]
+        exact Int.modEq_iff_dvd.mpr ⟨-k, by ring⟩
+      · rw [hsu]; exact Dvd.dvd.mul_left h2 _
+      · rw [hsv]; exact Dvd.dvd.mul_left h2 _
     all_goals
       have hl0 : s.shift.left.val ≠ 0 := fun h => h0 (Fin.ext h)
       have hl1 : 1 ≤ s.shift.left.val := Nat.one_le_iff_ne_zero.mpr hl0
@@ -610,7 +623,7 @@ theorem divsteps_spec (eta : ℤ) (he : eta.bmod (2 ^ 64) = eta) (f0 g0 : Limb)
       eta'.bmod (2 ^ 64) = eta' ∧ TSpec f0 g0 U V Q R := by
   have hinv : (⟨1, 0, 0, 1, f0, g0, 62, eta⟩ : DS).Inv f0 g0 0 := by
     have h62 : (62 : Limb).val = 62 := rfl
-    refine ⟨by simp only [h62]; omega, by omega, by simp, ?_, ?_, hf, ?_, ?_, ?_, he⟩ <;>
+    refine ⟨by simp only [h62]; omega, by simp only [h62]; omega, by omega, by simp, ?_, ?_, hf, ?_, ?_, ?_, he⟩ <;>
       simp only [sgn_one, sgn_zero, h62] <;> norm_num
   exact run_spec f0 g0 62 _ 0 hinv (by show (62 : Limb).val - 0 ≤ 62; decide) default
 
