@@ -7,6 +7,9 @@ import FeProofs.ScalarStore.RuntimeCorrect
 The machine IR ends as the hand-written model does on each call (`model_endsAs`), so it
 implements the exported contract (`feScalarStoreImplements`, through `runtime_endsAs`), and the
 checker's certificate of the sidecar carries over to the exported contract at profile `P1`.
+Deployment goes the same way (`init_ir_endsAs`, `feScalarStoreImplementsDeploy`): the init IR
+reads its argument and the runtime it returns from its own code, the creation code with the
+argument after it.
 -/
 
 namespace FeProofs.ScalarStore.Sonatina
@@ -88,5 +91,62 @@ theorem feScalarStoreImplements :
 theorem feScalarStoreRefinesExportedP1 :
     RefinesOn .P1 feScalarStoreBytecode Exported.contract CalldataFits :=
   RefinesOn.of_implements (sidecar_runtime ▸ sidecar_sound.1) feScalarStoreImplements rfl
+
+/-! ## Deployment -/
+
+/-- The machine IR's constructor ends as the hand-written model's does, on one argument word
+    after the pinned creation code. -/
+theorem init_ir_endsAs (v : UInt256)
+    (hcode : I.code = feScalarStoreCreationBytecode ++ ctorTail v) (hperm : I.perm = true) :
+    EndsAs ((Model.init (ctorTail v) >>= fun _ => pure feScalarStoreBytecode).exec I w)
+      (((sidecar.model .machine).init (ctorTail v) >>= fun tail =>
+        pure (ByteArray.empty ++ tail)).exec I w) := by
+  obtain ⟨hrt, hcs⟩ := creation_runtime
+  have hts : (ctorTail v).size = 32 := Reasoning.Theory.word_toBytesBE_toByteArray_size v
+  have hsize : I.code.size = 165 := by rw [hcode, ByteArray.size_append, hcs, hts]
+  have harg : I.code.extract 133 165 = ctorTail v := by
+    rw [hcode, Reasoning.Theory.extract_append_right_window _ _ _ _ (by omega), hcs]
+    show (ctorTail v).extract 0 32 = _
+    rw [← hts, Reasoning.Theory.byteArray_extract_self]
+  -- The prologue's world, whose memory reaches past address 96.
+  let w₀ := { w with memory := (UInt256.ofNat 96).toByteArray.write 0 w.memory 64 32 }
+  have hmem : 96 ≤ w₀.memory.size :=
+    Reasoning.Theory.toByteArray_write_size_ge_off_add32 _ _ 64
+      (lt_of_le_of_lt (Nat.sub_le _ _) (lt_of_lt_of_le (by decide) USize.le_size))
+  have hword : uInt256OfByteArray ((I.code.write 133 w₀.memory 96 32).readWithPadding 96 32) =
+      v := by
+    rw [write_window _ _ _ _ _ (by decide) (by omega), harg,
+      Reasoning.Theory.write32_read_back _ _ _ (by omega) hmem, ← hts,
+      Reasoning.Theory.byteArray_extract_self, Exported.ctorTail_eq,
+      Reasoning.Theory.uInt256OfByteArray_toByteArray]
+  have hret : ∀ M, (I.code.write 53 M 0 80).readWithPadding 0 80 = feScalarStoreBytecode := by
+    intro M
+    rw [Reasoning.Theory.write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide),
+      hcode, Reasoning.Theory.extract_append_left _ _ _ _ (by omega), hrt]
+  by_cases hwv : I.weiValue = ⟨0⟩
+  · rw [init_ok v hwv hperm, Fe.M.exec_bind, ir_init_run (fun m ic hs0 hs1 =>
+      ir_init m ic w₀ hs0 hs1 hwv hperm hsize hword), hret]
+    exact .ok_stop rfl rfl rfl
+  · rw [init_value hwv, Fe.M.exec_bind, ir_init_run (fun m ic _ _ => ir_init_value m ic w₀ hwv)]
+    exact .exit _
+
+/-- The machine IR's constructor implements the exported one on one argument word: it ends as
+    the hand-written model's does, which ends as the exported entry does. -/
+theorem feScalarStoreImplementsDeploy :
+    ImplementsDeploy Exported.contract (sidecar.model .machine) feScalarStoreCreationBytecode
+      feScalarStoreBytecode .empty (fun args => ∃ v, args = ctorTail v) := by
+  rintro I σ A feed args ⟨v, rfl⟩ hcode hperm
+  exact ⟨feed, (Exported.init_endsAs v _ I (World.init σ A feed)
+    (by simp [World.init, UInt256.size])).trans (init_ir_endsAs I _ v hcode hperm)⟩
+
+/-- Deployment by the pinned creation bytecode with one ABI-encoded `uint256` argument refines
+    the exported deployment entry at profile `P1`: the checker's certificate of the sidecar,
+    whose init bytes are the pinned ones, composed with `feScalarStoreImplementsDeploy`. -/
+theorem feScalarStoreDeployRefinesExportedP1 :
+    RefinesDeploy .P1 feScalarStoreCreationBytecode feScalarStoreBytecode Exported.contract
+      (fun args => ∃ v, args = ctorTail v) :=
+  RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hperm =>
+    sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hperm)
+    feScalarStoreImplementsDeploy
 
 end FeProofs.ScalarStore.Sonatina

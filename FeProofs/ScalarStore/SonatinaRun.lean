@@ -205,4 +205,136 @@ theorem ir_runtime {I : ExecutionEnv} {w : World}
     Check.runSection_eq (f := runtimeFunc) rfl rfl rfl rfl rfl rfl rfl]
   simp [Check.pre, h]
 
+/-! ## The constructor -/
+
+/-- The machine IR's init function, as the sidecar has it. -/
+def initFunc : Func :=
+  { name := "contract_init_root_FeScalarStore",
+    params := [],
+    rets := [],
+    blocks := [{ id := 0,
+                 phis := [],
+                 body := [{ dsts := [(0, Ty.int 256)],
+                            inst := Inst.evm
+                                      (EvmOp.callValue)
+                                      [] }],
+                 term := Term.br (Operand.var 0) 1 2 },
+               { id := 1,
+                 phis := [],
+                 body := [],
+                 term := Term.evmRevert
+                           (Operand.imm 256 0)
+                           (Operand.imm 256 0) },
+               { id := 2,
+                 phis := [],
+                 body := [{ dsts := [(3, Ty.int 256)],
+                            inst := Inst.symSize "." },
+                          { dsts := [(4, Ty.int 256)],
+                            inst := Inst.evm (EvmOp.codeSize) [] },
+                          { dsts := [(5, Ty.int 256)],
+                            inst := Inst.cmp
+                                      (CmpOp.lt)
+                                      (Operand.var 4)
+                                      (Operand.var 3) }],
+                 term := Term.br (Operand.var 5) 3 4 },
+               { id := 3,
+                 phis := [],
+                 body := [],
+                 term := Term.evmRevert
+                           (Operand.imm 256 0)
+                           (Operand.imm 256 0) },
+               { id := 4,
+                 phis := [],
+                 body := [{ dsts := [(6, Ty.int 256)],
+                            inst := Inst.bin
+                                      (BinOp.sub)
+                                      (Operand.var 4)
+                                      (Operand.var 3) },
+                          { dsts := [],
+                            inst := Inst.evm
+                                      (EvmOp.codeCopy)
+                                      [Operand.imm 256 96,
+                                       Operand.var 3,
+                                       Operand.var 6] },
+                          { dsts := [(9, Ty.int 256)],
+                            inst := Inst.cmp
+                                      (CmpOp.gt)
+                                      (Operand.imm 256 32)
+                                      (Operand.var 6) }],
+                 term := Term.br (Operand.var 9) 5 6 },
+               { id := 5,
+                 phis := [],
+                 body := [],
+                 term := Term.evmRevert
+                           (Operand.imm 256 0)
+                           (Operand.imm 256 0) },
+               { id := 6,
+                 phis := [],
+                 body := [{ dsts := [(10, Ty.int 256)],
+                            inst := Inst.evm
+                                      (EvmOp.mload)
+                                      [Operand.imm 256 96] },
+                          { dsts := [],
+                            inst := Inst.evm
+                                      (EvmOp.sstore)
+                                      [Operand.imm 256 0,
+                                       Operand.var 10] },
+                          { dsts := [(11, Ty.int 256)],
+                            inst := Inst.symAddr "&FeScalarStore_runtime" },
+                          { dsts := [(12, Ty.int 256)],
+                            inst := Inst.symSize "&FeScalarStore_runtime" },
+                          { dsts := [],
+                            inst := Inst.evm
+                                      (EvmOp.codeCopy)
+                                      [Operand.imm 256 0,
+                                       Operand.var 11,
+                                       Operand.var 12] }],
+                 term := Term.evmReturn
+                           (Operand.imm 256 0)
+                           (Operand.var 12) }] }
+
+theorem initFunc_eq : (((sidecar.section? "init").bind (·.lowering)).map fun low =>
+    low.machine.func? "contract_init_root_FeScalarStore") = some (some initFunc) := by
+  rfl
+
+section Init
+
+variable {I}
+
+/-- The constructor with call value: the machine IR reverts with no data. -/
+theorem ir_init_value (hwv : I.weiValue ≠ ⟨0⟩) :
+    (runBlocks m ic initFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
+  have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
+  repeat ir_step [initFunc]
+
+/-- The constructor on code of 165 bytes, whose last 32 bytes, copied to address 96, read as
+    `v`: the machine IR stores `v` at slot 0 and returns the 80 bytes of code at offset 53. -/
+theorem ir_init {v : UInt256} (hs0 : ic.symbol "." = some (0, 133))
+    (hs1 : ic.symbol "&FeScalarStore_runtime" = some (53, 80)) (hwv : I.weiValue = ⟨0⟩)
+    (hperm : I.perm = true) (hsize : I.code.size = 165)
+    (hword : uInt256OfByteArray ((I.code.write 133 w.memory 96 32).readWithPadding 96 32) = v) :
+    (runBlocks m ic initFunc ∅ none 0).exec I w = some (.error (.stop
+      ((I.code.write 53 (I.code.write 133 w.memory 96 32) 0 80).readWithPadding 0 80)
+      { w with
+        accounts := storeWord I.codeOwner w.accounts ⟨0⟩ v
+        memory := I.code.write 53 (I.code.write 133 w.memory 96 32) 0 80 })) := by
+  repeat ir_step [initFunc, wrap]
+
+end Init
+
+/-- The machine IR's constructor: the prologue stores the free pointer 96 at address 64, then
+    the init function runs from its entry block, with the symbols of the init section. -/
+theorem ir_init_run {I : ExecutionEnv} {w : World} {args : ByteArray}
+    {r : Option (Except (Fe.Exit World) (List Val × World))}
+    (h : ∀ m ic, ic.symbol "." = some (0, 133) →
+      ic.symbol "&FeScalarStore_runtime" = some (53, 80) →
+      (runBlocks m ic initFunc ∅ none 0).exec I
+        { w with memory := (UInt256.ofNat 96).toByteArray.write 0 w.memory 64 32 } = r) :
+    ((sidecar.model .machine).init args).exec I w = Check.endRun r := by
+  rw [show (sidecar.model .machine).init args = sidecar.runSection "init" .machine from rfl,
+    Check.runSection_eq (f := initFunc) rfl rfl rfl rfl rfl rfl rfl]
+  simp only [Check.pre, if_pos, Fe.M.exec_bind]
+  simp [Fe.EVM.mstore, Check.toNat_ofNat, UInt256.size]
+  rw [h] <;> rfl
+
 end FeProofs.ScalarStore.Sonatina

@@ -7,8 +7,9 @@ import FeProofs.ScalarStore.Bytecode
 
 The sidecar `fe build --emit sidecar` wrote for FeScalarStore (`Fe/Sonatina/Fixtures`), and the
 facts the certificate through `check_sound` needs of it: its runtime and init bytes are the
-pinned `runtime.hex` and `creation.hex`, and the checker accepts it.  All three are decided by
-the kernel.
+pinned `runtime.hex` and `creation.hex`, the creation code holds the runtime code where the init
+section's symbol `&FeScalarStore_runtime` puts it, and the checker accepts the sidecar.  All four
+are decided by the kernel.
 -/
 
 namespace FeProofs.ScalarStore.Sonatina
@@ -22,6 +23,11 @@ theorem sidecar_runtime : sidecar.code "runtime" = feScalarStoreBytecode := by d
 
 /-- The sidecar's init bytes are the pinned creation bytecode. -/
 theorem sidecar_init : sidecar.code "init" = feScalarStoreCreationBytecode := by decide +kernel
+
+/-- The creation bytecode holds the runtime bytecode at offset 53, as the init section's symbol
+    `&FeScalarStore_runtime` says, and is 133 bytes long, its symbol `.`. -/
+theorem creation_runtime : feScalarStoreCreationBytecode.extract 53 133 = feScalarStoreBytecode
+    ∧ feScalarStoreCreationBytecode.size = 133 := by decide +kernel
 
 set_option maxRecDepth 100000 in
 /-- The checker accepts the sidecar. -/

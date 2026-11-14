@@ -49,6 +49,29 @@ theorem calldata_facts {n : Nat} (hsz : 4 ≤ n) (hfits : n < 2 ^ 64) :
 @[simp] theorem signed_of_lt {bits v : Nat} (h : v < 2 ^ (bits - 1)) : signed bits v = v := by
   simp [signed, h]
 
+/-- A copy of `len` bytes from offset `so` of `src` is a copy of that window from its start: the
+    shape `codecopy` and `calldatacopy` leave in memory, for the read-back lemmas of writes from
+    offset 0. -/
+theorem write_window (src base : ByteArray) (so d len : ℕ) (hlen : len ≠ 0)
+    (hsrc : so + len ≤ src.size) :
+    src.write so base d len = (src.extract so (so + len)).write 0 base d len := by
+  have hs : (src.extract so (so + len)).size = len := by
+    rw [ByteArray.size_extract]; omega
+  apply ByteArray.ext
+  unfold ByteArray.write
+  rw [if_neg hlen, if_neg hlen, if_neg (by omega), if_neg (by omega), hs]
+  have hz : (ByteArray.zeroes (min base.size (d + len) - (d + len))).data = #[] := by
+    rw [show min base.size (d + len) - (d + len) = 0 by omega,
+      Reasoning.Theory.zeroes_zero (n := 0) (by rfl)]; rfl
+  have hd : src.data.size = src.size := rfl
+  simp only [ByteArray.data_copySlice, ByteArray.data_append,
+    show min len (src.size - so) = len by omega, show min len (len - 0) = len by omega, hz,
+    Array.append_empty, hd, Nat.zero_add]
+  rw [show min base.size (d + len) - (d + len) = 0 by omega, Nat.add_zero,
+    show (src.extract so (so + len)).data.size - 0 = len from hs, Nat.min_self,
+    show min len (src.size - so) = len by omega, ByteArray.data_extract, Array.extract_extract]
+  simp
+
 /-- Unfold `runBlocks` once and simplify the block the run is at, with the interpreter's
     definitions, the model library's primitives, the local hypotheses and the extra lemmas. -/
 syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
@@ -59,8 +82,10 @@ macro_rules
       Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
       Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
-      Fe.EVM.callvalue, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore, Fe.EVM.mload, revertData,
-      returnData, Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, sel_mod,
-      Reasoning.Theory.u256_ofNat_toNat, show UInt256.ofNat 0 = ⟨0⟩ from rfl, *, $ls,*]))
+      Fe.EVM.callvalue, Fe.EVM.codesize, Fe.EVM.codecopy, Fe.EVM.sload, Fe.EVM.sstore,
+      Fe.EVM.mstore, Fe.EVM.mload, revertData, returnData,
+      Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, sel_mod,
+      Reasoning.Theory.u256_ofNat_toNat, show UInt256.ofNat 0 = ⟨0⟩ from rfl,
+      Std.TreeMap.getElem_insert, *, $ls,*]))
 
 end Fe.Sonatina
