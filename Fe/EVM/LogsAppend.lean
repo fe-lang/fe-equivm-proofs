@@ -612,6 +612,7 @@ theorem logs_step {op : Operation} {gasCost : ℕ} {arg : Option (UInt256 × Nat
   all_goals cases op <;> simp [EVM.step] at h
   all_goals first
     | (have hs := logs_execUnOp h; exact same hs)
+    | (split at h <;> first | contradiction | (have hs := logs_execUnOp h; exact same hs))
     | (have hs := logs_execBinOp h; exact same hs)
     | (have hs := logs_execTriOp h; exact same hs)
     | (have hs := logs_machineStateOp h; exact same hs)
