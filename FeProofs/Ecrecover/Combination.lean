@@ -489,4 +489,50 @@ theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
     exact tab_inner U V G Q hp3 (fun t' ht' => tab_outer U V G Q n (p + 1) (by omega) t' ht') 3 1 rfl
       le_rfl t (fun k hk hd => ht k hk (by unfold DO at hd ⊢; omega)) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
 
+
+/-- The generator `G` of the specification, as a point of `W`. -/
+theorem generator_spec : ∃ P, generator = pure P ∧ GoodP P Secp256k1.Spec.G 1 := by
+  obtain ⟨cx, ex, hx⟩ := Mont_new_Base_repB (UInt256.ofNat Secp256k1.gx) (by
+    rw [toNat_lit (by decide)]; decide)
+  obtain ⟨cy, ey, hy⟩ := Mont_new_Base_repB (UInt256.ofNat Secp256k1.gy) (by
+    rw [toNat_lit (by decide)]; decide)
+  have hgx : GX = pure (UInt256.ofNat Secp256k1.gx) := rfl
+  have hgy : GY = pure (UInt256.ofNat Secp256k1.gy) := rfl
+  rw [toNat_lit (by decide)] at hx hy
+  have hv : W.Nonsingular ![(Secp256k1.gx : Fp), (Secp256k1.gy : Fp), 1] :=
+    (nonsingular_some _ _).mpr Secp256k1.Spec.G_nonsingular
+  refine ⟨_, ?_, _, _, ⟨cx, cy, _, rfl, hx, hy, RepB.one⟩, hv, Point.toAffine_some hv⟩
+  simp only [generator, hgx, hgy, ex, ey, pure_bind, affine_eq]
+
+/-- `combination u v q`: every run diverges or returns a representation of `u • G + v • Q`. -/
+theorem combination_spec (U V : UInt256) {q : Point_Mont_Base} {Qpt : W.toAffine.Point} {zq : Fp}
+    (hq : GoodP q Qpt zq) (env : Env) (w : World) :
+    OutP (U.toNat • Secp256k1.Spec.G + V.toNat • Qpt) w ((combination U V q).exec env w) := by
+  obtain ⟨g, eg, hg⟩ := generator_spec
+  obtain ⟨q2, z2, e2, h2⟩ := hq.double
+  obtain ⟨q3, z3, e3, h3⟩ := h2.add hq
+  obtain ⟨g2, z5, e5, h5⟩ := hg.double
+  obtain ⟨g3, z6, e6, h6⟩ := h5.add hg
+  simp only [combination, combination_k1, combination_k2, eg, infinity_eq, pure_bind, tbl_replicate,
+    checkIndex, idx_lits, show (1 : ℕ) < 16 by decide, show (2 : ℕ) < 16 by decide,
+    show (3 : ℕ) < 16 by decide, show (4 : ℕ) < 16 by decide, show (8 : ℕ) < 16 by decide,
+    show (12 : ℕ) < 16 by decide, toNat_lit (show 3 < 2 ^ 256 by decide),
+    toNat_lit (show 8 < 2 ^ 256 by decide), toNat_lit (show 12 < 2 ^ 256 by decide), if_true,
+    tbl_set _ (show 1 < 16 by decide), tbl_set _ (show 2 < 16 by decide),
+    tbl_set _ (show 3 < 16 by decide), tbl_set _ (show 4 < 16 by decide),
+    tbl_set _ (show 8 < 16 by decide), tbl_set _ (show 12 < 16 by decide),
+    tbl_get _ (show 2 < 16 by decide), tbl_get _ (show 8 < 16 by decide), e2, e5, Lib.array_start_usize_3]
+  simp only [Function.update_self, Function.update_of_ne (show (2 : ℕ) ≠ 8 by decide), e3, e6, pure_bind]
+  refine tab_outer U V Secp256k1.Spec.G Qpt 3 0 rfl _ (fun k hk hd => ?_) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+  have hd' : k = 0 ∨ k = 1 ∨ k = 2 ∨ k = 3 ∨ k = 4 ∨ k = 8 ∨ k = 12 := by unfold DO at hd; omega
+  rcases hd' with rfl | rfl | rfl | rfl | rfl | rfl | rfl <;> simp only [Function.update_apply] <;>
+    norm_num
+  · exact ⟨0, GoodP.infinity⟩
+  · exact ⟨zq, hq⟩
+  · exact ⟨z2, by rw [two_nsmul]; exact h2⟩
+  · exact ⟨z3, by rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul, two_nsmul, one_nsmul]; exact h3⟩
+  · exact ⟨1, hg⟩
+  · exact ⟨z5, by rw [two_nsmul]; exact h5⟩
+  · exact ⟨z6, by rw [show (3 : ℕ) = 2 + 1 from rfl, add_nsmul, two_nsmul, one_nsmul]; exact h6⟩
+
 end FeProofs.Ecrecover
