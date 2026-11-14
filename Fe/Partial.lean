@@ -12,6 +12,18 @@ open Lean.Order
 
 namespace Fe.M
 
+/-- Any property of every run's outcome that a diverging run has is admissible. -/
+theorem admissible_outcome {ρ σ α : Type}
+    (P : ρ → σ → Option (Except (Exit σ) (α × σ)) → Prop) (h : ∀ env w, P env w none) :
+    admissible (fun (m : Fe.M ρ σ α) => ∀ env w, P env w (m.exec env w)) := by
+  apply admissible_pi_apply (β := fun _ : ρ => StateT σ (ExceptT (Exit σ) Option) α)
+    (P := fun env g => ∀ w, P env w ((g.run w).run))
+  intro env
+  apply admissible_pi_apply (β := fun _ : σ => ExceptT (Exit σ) Option (α × σ))
+    (P := fun w g => P env w g.run)
+  intro w
+  exact admissible_flatOrder _ (h env w)
+
 theorem admissible_exec {ρ σ α : Type} (Q : α → σ → Prop) :
     admissible (fun (m : Fe.M ρ σ α) =>
       ∀ env w r w', m.exec env w = some (.ok (r, w')) → Q r w') := by
