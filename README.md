@@ -226,10 +226,10 @@ with the exported model of fevm's secp256k1 code.
 
 `FeProofs/Precompiles` is an ingot of fevm's precompiles as contracts: `Ecrecover`, a message
 `recover` around `secp256k1::recover`, and `Bn254Add`, `Bn254Mul`, `Blake2F`, `Ripemd160`,
-`EcrecoverPrecompile` and `Identity`, whose fallback arms hand fevm's ECADD, ECMUL, BLAKE2 F
-compression, RIPEMD-160, ECRECOVER in the precompile's format and IDENTITY copy the call data in
-memory and return what the precompile does, or revert without data where it fails. The other files
-of `src/` are copied verbatim from `ingots/precompiles/src` of
+`EcrecoverPrecompile`, `Identity` and `Modexp`, whose fallback arms hand fevm's ECADD, ECMUL, BLAKE2
+F compression, RIPEMD-160, ECRECOVER in the precompile's format, IDENTITY copy and MODEXP the call
+data in memory and return what the precompile does, or revert without data where it fails. The other
+files of `src/` are copied verbatim from `ingots/precompiles/src` of
 [fevm](https://github.com/fe-lang/fevm) at `a631a777b`, as are the definitions of `lib.fe` it names,
 and `keccak/` (for `ByteSource` and `Keccak256`) from [keccak](https://github.com/fe-lang/keccak) at
 `345d5088d`. The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one
@@ -238,8 +238,14 @@ contract reaches, once, and `Exported/<Contract>.lean` each contract's own.
 (`feEcrecoverContractCorrect`), on the Montgomery field arithmetic of `FeProofs/Precompiles/Field`
 and the safegcd inversion of `FeProofs/Precompiles/Inverse`. `scripts/<Contract>Diff.lean` runs an
 exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BLAKE2_F`, `Ξ_RIP160`,
-`Ξ_ECREC`, `Ξ_ID`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on generated
-inputs (`lake env lean scripts/<name>.lean`).
+`Ξ_ECREC`, `Ξ_ID`, `Ξ_EXPMOD`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on
+generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
+on go-ethereum's MODEXP vectors against their outputs, since EVMLean's MODEXP reduces the base
+modulo `2 ^ 256`. Two disagreements are known: `Identity` reverts on empty call data, because the
+model's first allocation is at address 0, which `try_alloc_bytes` takes for a failure; and `Modexp`
+returns each whole eight-byte limb of its output with its bytes reversed, in the model and the
+bytecode alike, because `modexp.fe` writes the limb as `swap_bytes` of it through a `*u64`, which
+gives big-endian bytes only where memory is little-endian.
 
 ### Sonatina IR
 

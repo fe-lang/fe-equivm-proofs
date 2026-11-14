@@ -57,20 +57,29 @@ abbrev Gen := StateM StdGen
 def below (n : Nat) : Gen Nat := modifyGet fun g => randNat g 0 (n - 1)
 
 /-- Bytes of a length near where the padding takes another block, or of any up to 300. -/
-def input : Gen ByteArray := do
+def input : Gen (String × ByteArray) := do
   let near : List Nat := [0, 1, 54, 55, 56, 57, 63, 64, 65, 119, 120, 128]
-  let len ← do if (← below 2) == 0 then pure near[← below near.length]! else below 301
+  let atBlock ← below 2
+  let nearLen ← below near.length
+  let anyLen ← below 301
+  let (kind, len) := if atBlock == 0 then ("near a block", near[nearLen]!) else ("any", anyLen)
   let mut b := ByteArray.empty
   for _ in [:len] do b := b.push (UInt8.ofNat (← below 256))
-  return b
+  return (kind, b)
 
 /-! ## Comparing -/
 
 def main : IO Unit := do
   let mut agree := 0
   let mut disagree := 0
+  let mut generated := #[]
+  let mut gen := mkStdGen 1
+  for _ in [:200] do
+    let ((kind, d), next) := input.run gen
+    gen := next
+    generated := generated.push (kind, d, none)
   let inputs := paper.map (fun (m, h) => (s!"paper {repr m}", m.toUTF8, some h)) ++
-    (List.range 200).map (fun seed => ("generated", input.run' (mkStdGen seed), none))
+    generated.toList
   for (name, d, hash) in inputs do
     let s := spec d
     if let some h := hash then
@@ -86,8 +95,9 @@ def main : IO Unit := do
     | .error how =>
       disagree := disagree + 1
       IO.println s!"DISAGREE {name} {Ethereum.toHex d}: the model {how}"
-  IO.println s!"RIPEMD-160: {paper.length} vectors of the paper and 200 generated inputs; \
-    {agree} agree, {disagree} disagree"
+  let near := generated.filter (·.1 == "near a block") |>.size
+  IO.println s!"RIPEMD-160: {paper.length} vectors of the paper and 200 generated inputs (near a \
+    block {near}, any {200 - near}); {agree} agree, {disagree} disagree"
 
 end Ripemd160Diff
 

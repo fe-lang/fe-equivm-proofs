@@ -239,8 +239,10 @@ def main : IO Unit := do
       disagree := disagree + 1
       IO.println s!"DISAGREE geth {name} {i}: the model {how}"
   let mut kinds : List (String × Nat) := []
-  for seed in [:400] do
-    let (kind, d) := input.run' (mkStdGen seed)
+  let mut gen := mkStdGen 1
+  for _ in [:400] do
+    let ((kind, d), next) := input.run gen
+    gen := next
     let s := spec d
     if s.isSome then successes := successes + 1
     kinds := match kinds.lookup kind with
