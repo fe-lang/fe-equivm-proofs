@@ -3,6 +3,7 @@ import Fe.Partial
 import Fe.EVM.World
 import Fe.EVM.Calls
 import Fe.EVM.Int
+import Fe.EVM.IntWords
 import Fe.EVM.Storage
 import Fe.EVM.Refine
 import Fe.EVM.FrameCalls
