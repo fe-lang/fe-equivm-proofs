@@ -1,6 +1,7 @@
 import Fe.Sonatina.Syntax
 import Fe.EVM.Calls
 import Fe.EVM.Refine
+import Std.Data.TreeMap
 
 /-!
 # An interpreter of Sonatina IR
@@ -35,10 +36,10 @@ open Ethereum Fe Fe.EVM
 inductive Val where
   | int (bits value : Nat)
   | agg (fields : List Val)
-  deriving Repr, BEq, Inhabited
+  deriving Repr, Inhabited
 
 /-- The values a function has defined. -/
-abbrev Env := Std.HashMap Nat Val
+abbrev Env := Std.TreeMap Nat Val
 
 /-- How an instruction runs a callee: from its name and arguments to its results. -/
 abbrev Callee := String → List Val → FeM (List Val)
@@ -293,8 +294,8 @@ def runBlocks (call : Callee) (symbol : Symbols) (f : Func) :
       let (_, c) ← evalInt env c
       runBlocks call symbol f fuel env (some id) (if c != 0 then nz else z)
     | .brTable s default cases => do
-      let v ← evalOperand env s
-      let vals ← cases.mapM fun (o, dest) => return (← evalOperand env o, dest)
+      let (_, v) ← evalInt env s
+      let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
       match (vals.find? (·.1 == v)).map (·.2) <|> default with
       | some dest => runBlocks call symbol f fuel env (some id) dest
       | none => stuck
