@@ -316,9 +316,10 @@ structure Path where
   events : List Event
   exit : Exit
 
-/-- The bytes' opcode at `pc`, its immediate, and the next pc. -/
+/-- The bytes' opcode at `pc`, its immediate, and the next pc, if the instruction lies in the
+    code: what follows the code (a constructor's arguments) does not change it. -/
 def opAt (code : ByteArray) (pc : Nat) : Option (Operation × Option Nat × Nat) :=
-  Hints.decodeAt code pc
+  (Hints.decodeAt code pc).filter fun (_, _, next) => next ≤ code.size
 
 /-- `true` if `t` is a valid jump destination of the code. -/
 def validJump (code : ByteArray) (t : Nat) : Bool := (D_J code 0).contains (UInt256.ofNat t)
