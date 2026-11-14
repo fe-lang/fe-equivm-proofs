@@ -326,8 +326,10 @@ fixtures, mutations of their hints (a dropped, added or swapped entry slot, offs
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
 
-The verdict evaluates by the kernel (`decide +kernel`, 10.5 s for both FeScalarStore sections,
-3.1 s before the total order on operands and the word checks) and by `native_decide` (0.4 s). Kernel evaluation needs the expressions non-nested and the checker
+The verdict evaluates by the kernel (`decide +kernel`) and by `native_decide` (0.4 s). On a
+loaded machine the kernel takes 11.5 to 17.1 s for both FeScalarStore sections against 6.3 to
+7.9 s for the checker of stage D's first commit measured alongside; the well-formedness checks
+and the total order on operands account for it. Kernel evaluation needs the expressions non-nested and the checker
 structurally recursive, which is why `Expr` has fixed arities.
 
 What `check s = true` is to imply is stated in `CheckSound.lean` as `Sound s`, at `P1`; it is not
@@ -361,18 +363,41 @@ Proved so far:
    `dup_moves`/`swap_moves` for every `DUPn`/`SWAPn`, and `PUSHn`, `PUSH0`, `POP`, `JUMPDEST`,
    `JUMP`, `JUMPI`. The opcodes on state and the halts use EVMLean's `step_*` lemmas as they are.
 
-Left, in order: the block lemma by induction on `run`'s fuel, stated with `XstepN`; the IR side,
-`runBlocks` unfolded one block at a time, with per-instruction lemmas (the interpreter's
-arithmetic on words is EVMLean's: `BinOp.eval` at 256 bits against `evalOp`, the signed ones
-through `signed`); the section, from the entry block at offset 0 with an empty stack and the free
-pointer prologue; deployment (`CODECOPY` of the runtime and `RETURN`, the constructor arguments
-read from the code); `check_sound`; then the model half for FeScalarStore.
+3. Steps on state (`CheckEvent.lean`): `Agree` (memory, accounts, logs of an EVM state and the
+   model's world), `evRun` (an event's operation on the world) and `EvMoves`, proved for every
+   read and write opcode the checker matches (`event_evMoves`), the logs included.
+4. The block lemma (`CheckBlock.lean`): `run_ends`, by induction on `run`'s fuel, says a path of
+   a block's bytes that `run` accepts, from a state where it is (`PathRel`) with the world
+   agreeing, ends as `Ends` says for the world the block's events leave (`Trace`): out of gas or
+   stack, failing under a static call where an event does, at the successor's code with its entry
+   stack on top (`Reach`, 0 or more steps by `XstepN`), or halting as the block's exit does.
+   `decode_append`/`D_J_append` cover the constructor's arguments after the code.
+5. The IR's arithmetic (`CheckArith.lean`): `bin_word`/`cmp_word`, `BinOp.eval`/`CmpOp.eval`
+   at 256 bits against `opEval`, the signed comparisons included.
+6. The IR's run of a block's statements (`CheckIR.lean`, `CheckBody.lean`): `body_run` says the
+   interpreter runs a checked block's statements without diverging, returning or failing at an
+   event, and under any valuation of the values it defined the events trace the world (`Trace`)
+   and the checker's expressions have their words (`Cons`, `expand_eval`).
 
-Two checker changes the proof needed: `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`,
-`MULMOD` and `EXP` their values (an expression using one had none, so no frame satisfied a path
-through it), and the checker rejects a machine IR value or immediate that is not a word (the
-interpreter computes `add` at the operands' width, the bytes at 256 bits). Neither changes a
-verdict on the fixtures or the corpus.
+Left, in order: the section (an induction on `X`'s fuel and `zeroRank`, joining `run_ends` and
+`body_run` block by block, the IR's `enter` and terminator against `Exit.next`, from the entry
+block at offset 0 with the free pointer prologue as the first event); deployment (the same with
+the constructor's arguments after the code); `check_sound`; the model half for FeScalarStore.
+
+Checker changes the proof needed, none changing a verdict except the third:
+- `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
+- the machine IR must be word-typed (the interpreter computes `add` at the operands' width);
+- `sar`, `evm_sdiv` and `evm_smod` are out of the class until their signed arithmetic is proved
+  (356 to 351 accepted sections);
+- the machine IR must run where the bytes do (it is the specification; where its run is stuck the
+  model diverges): each value defined once, read only after its definition in the block or from
+  the entry stack and phis, a block's statements defining nothing they read at entry, successor
+  phis with an operand from the block, an event's operand count its opcode's, a read defining its
+  word, the entry function without parameters and its entry block without phis or predecessors;
+- each pure value of a block is expanded in that block only (another block's is the word the run
+  holds), and a block whose successor's code starts at its own offset is reached in no step only
+  down a chain that ends (`zeroRank`);
+- decoded instructions lie in the code, jump targets are in the code, and the code fits a word.
 
 ## What is hard
 
