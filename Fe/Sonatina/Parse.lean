@@ -482,4 +482,23 @@ elab "sonatina_sidecar " name:ident path:str : command => do
       safety := .safe }
     liftCoreM (addAndCompile decl)
 
+/-- `sonatina_func name "path" "section" "entry"`: define `name : Func` as the machine IR's
+    function `entry` of section `section` of the sidecar at `path`, for proofs that run it. -/
+elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
+  let text ← IO.FS.readFile path.getString
+  match Parse.parseSidecar text with
+  | .error e => throwError "{path.getString}: {e}"
+  | .ok sidecar =>
+    let some f := ((sidecar.section? sec.getString).bind (·.lowering)).bind
+        (·.machine.func? fn.getString)
+      | throwError "{path.getString}: no machine function {fn.getString} in {sec.getString}"
+    let decl := Declaration.defnDecl {
+      name := (← getCurrNamespace) ++ name.getId
+      levelParams := []
+      type := mkConst ``Func
+      value := toExpr f
+      hints := .abbrev
+      safety := .safe }
+    liftCoreM (addAndCompile decl)
+
 end Fe.Sonatina
