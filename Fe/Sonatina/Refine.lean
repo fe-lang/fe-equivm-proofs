@@ -65,4 +65,8 @@ theorem _root_.Fe.EVM.EndsAs.trans {a b c : Option (Except (Exit World) (ByteArr
     | exact .diverge | exact .exit _
     | (constructor <;> simp_all)
 
+/-- Two reverts with equal payloads end alike. -/
+theorem endsAs_revert {a b : ByteArray} (h : a = b) :
+    EndsAs (some (.error (.revert a))) (some (.error (.revert b))) := h ▸ .exit _
+
 end Fe.Sonatina
