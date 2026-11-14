@@ -254,4 +254,34 @@ theorem Point_add_affine_spec {P : Point_Mont_Base} {a2 b2 : L4} {x1 y1 z1 x2 y2
     exact ⟨(nonsingular_smul _ hu).mpr (nonsingular_add hv1 hv2),
       by rw [Point.toAffine_smul _ hu, Point.toAffine_add hv1 hv2]⟩
 
+/-- `Point::to_affine`, partial (through the inversion): every run diverges or returns, the
+world unchanged, representations of `x / z ^ 2` and `y / z ^ 3` (both `0` for `z = 0`); for a
+nonsingular triple with `z ≠ 0` these are its affine coordinates. -/
+theorem Point_to_affine_spec {P : Point_Mont_Base} {x y z : Fp} (hP : RepP P x y z)
+    (env : Env) (w : World) :
+    (Point_to_affine_Mont_Base P).exec env w = none ∨
+      ∃ c1 c2, (Point_to_affine_Mont_Base P).exec env w = some (.ok ((toB c1, toB c2), w)) ∧
+        RepB c1 (x * (z⁻¹ * z⁻¹)) ∧ RepB c2 (y * (z⁻¹ * z⁻¹ * z⁻¹)) := by
+  obtain ⟨a, b, c, rfl, ha, hb, hc⟩ := hP
+  simp only [Point_to_affine_Mont_Base]
+  rw [Fe.M.exec_bind]
+  rcases Mont_inverse_Base_spec hc env w with h | ⟨i, h, hi⟩
+  · rw [h]; exact Or.inl rfl
+  · rw [h]
+    simp only [square_Base, mul_Base, pure_bind, Fe.M.exec_pure]
+    exact Or.inr ⟨_, _, rfl, by rep_tac, by rep_tac⟩
+
+/-- On a nonsingular triple with `z ≠ 0`, those are the affine coordinates of its point. -/
+theorem toAffine_some {x y z : Fp} (hv : W.Nonsingular ![x, y, z]) (hz : z ≠ 0) :
+    ∃ h, Point.toAffine W ![x, y, z] = .some (x * (z⁻¹ * z⁻¹)) (y * (z⁻¹ * z⁻¹ * z⁻¹)) h := by
+  have e1 : x * (z⁻¹ * z⁻¹) = ![x, y, z] 0 / ![x, y, z] 2 ^ 2 := by
+    simp only [Matrix.cons_val_zero, Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons]
+    field_simp
+  have e2 : y * (z⁻¹ * z⁻¹ * z⁻¹) = ![x, y, z] 1 / ![x, y, z] 2 ^ 3 := by
+    simp only [Matrix.cons_val_one, Matrix.cons_val_two, Matrix.tail_cons, Matrix.head_cons]
+    field_simp
+    rfl
+  rw [e1, e2]
+  exact ⟨_, Point.toAffine_of_Z_ne_zero hv (by simpa using hz)⟩
+
 end FeProofs.Ecrecover
