@@ -26,7 +26,7 @@ def opTable : List (Option Operation) := [
     some (.CompBit .GT), some (.CompBit .SLT), some (.CompBit .SGT), some (.CompBit .EQ),
     some (.CompBit .ISZERO), some (.CompBit .AND), some (.CompBit .OR), some (.CompBit .XOR),
     some (.CompBit .NOT), some (.CompBit .BYTE), some (.CompBit .SHL), some (.CompBit .SHR),
-    some (.CompBit .SAR), some (.System .INVALID), some (.System .INVALID),
+    some (.CompBit .SAR), some (.CompBit .CLZ), some (.System .INVALID),
     some (.Keccak .KECCAK256), some (.System .INVALID), some (.System .INVALID),
     some (.System .INVALID), some (.System .INVALID), some (.System .INVALID),
     some (.System .INVALID), some (.System .INVALID), some (.System .INVALID),
