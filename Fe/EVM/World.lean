@@ -659,8 +659,10 @@ theorem KeepsCalls.bind {α β : Type} {m : FeM α} {k : α → FeM β} (hm : Ke
       exact ⟨fun b w' h => ((hk a I v).1 b w' h).trans hv,
         fun d w' h => ((hk a I v).2 d w' h).trans hv⟩
 
-theorem KeepsCalls.ite {α : Type} (c : Prop) [Decidable c] {a b : FeM α} (ha : KeepsCalls a)
-    (hb : KeepsCalls b) : KeepsCalls (if c then a else b) := by
+/-- The instance is implicit, so that applying the lemma unifies with the instance a
+    conditional carries instead of synthesizing one to compare it with. -/
+theorem KeepsCalls.ite {α : Type} {c : Prop} {inst : Decidable c} {a b : FeM α}
+    (ha : KeepsCalls a) (hb : KeepsCalls b) : KeepsCalls (@ite _ c inst a b) := by
   split <;> assumption
 
 theorem KeepsCalls.dite {α : Type} (c : Prop) [Decidable c] {a : c → FeM α} {b : ¬ c → FeM α}
@@ -677,13 +679,13 @@ theorem keepsCalls_sload (slot : UInt256) : KeepsCalls (sload slot) := by
 theorem keepsCalls_sstore (slot val : UInt256) : KeepsCalls (sstore slot val) := by
   unfold sstore
   exact KeepsCalls.bind KeepsCalls.read fun _ =>
-    KeepsCalls.ite _ (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
+    KeepsCalls.ite (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
 
 theorem keepsCalls_emit (topics : Array UInt256) (data : ByteArray) :
     KeepsCalls (emit topics data) := by
   unfold emit
   exact KeepsCalls.bind KeepsCalls.read fun _ =>
-    KeepsCalls.ite _ (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
+    KeepsCalls.ite (KeepsCalls.modify fun _ => rfl) KeepsCalls.fail_static
 
 theorem keepsCalls_caller : KeepsCalls caller := by
   unfold caller; exact KeepsCalls.bind KeepsCalls.read fun _ => KeepsCalls.pure _
@@ -702,7 +704,7 @@ theorem keepsCalls_selfbalance : KeepsCalls selfbalance := by
 theorem keepsCalls_nonPayable : KeepsCalls nonPayable := by
   unfold nonPayable
   exact KeepsCalls.bind KeepsCalls.read fun _ =>
-    KeepsCalls.ite _ (KeepsCalls.revert _) (KeepsCalls.pure _)
+    KeepsCalls.ite (KeepsCalls.revert _) (KeepsCalls.pure _)
 
 /-- Prove `KeepsCalls` for a computation built from binds, conditionals and the operations of
     this file.  Unfold the definitions it should look into first. -/

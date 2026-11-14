@@ -659,6 +659,7 @@ def withdrawCall (I : Env) (w : World) (wad : UInt256) (s : Supply) : ThetaCall 
     what it returned, and it is the one call recorded. -/
 theorem withdraw_run {wad : UInt256} (hrun : (withdraw wad).exec I w = some (.ok ((), w'))) :
     ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat < wad.toNat ∧
+      I.depth < 1024 ∧
       ∃ s rest, w.feed = s :: rest ∧ w'.accounts = (withdrawCall I w wad s).run.1 ∧
         w'.calls = w.calls ++ [Made.theta (withdrawCall I w wad s)] := by
   by_cases hlt : (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
@@ -688,9 +689,9 @@ theorem withdraw_run {wad : UInt256} (hrun : (withdraw wad).exec I w = some (.ok
       simp [hc', hx, exec_emit, hp] at hrun
       exact hrun.symm
     subst hw₁ hw'
-    rcases call_cases hc with ⟨hx0, -, -⟩ | ⟨s, rest, hf, -, ha, hcs⟩
+    rcases call_cases hc with ⟨hx0, -, -⟩ | ⟨s, rest, hf, hm, ha, hcs⟩
     · exact absurd hx0 hx
-    · exact ⟨s, rest, hf, ha, hcs⟩
+    · exact ⟨hm.2, s, rest, hf, ha, hcs⟩
 
 /-- **`withdraw`**: up to the call `withdraw_debit`; the call is whatever `Θ` returns, here
     assumed to keep solvency for each call recorded; after it nothing changes the accounts. -/
@@ -698,7 +699,7 @@ theorem withdraw_solvent {wad : UInt256}
     (hrun : (withdraw wad).exec I w = some (.ok ((), w')))
     (hcall : ∀ T, Made.theta T ∈ w'.calls → SolventAt I.codeOwner T.run.1) :
     SolventAt I.codeOwner w'.accounts := by
-  obtain ⟨-, s, rest, -, ha, hcs⟩ := withdraw_run hrun
+  obtain ⟨-, -, s, rest, -, ha, hcs⟩ := withdraw_run hrun
   rw [ha]
   exact hcall _ (by rw [hcs]; simp)
 
@@ -1066,16 +1067,12 @@ theorem entry_account {a src : AccountAddress} {v : UInt256} {σpre σ : Account
 
 /-! ## The calls a run records -/
 
-theorem keepsCalls_ite {α : Type} {c : Prop} {inst : Decidable c} {a b : FeM α}
-    (ha : KeepsCalls a) (hb : KeepsCalls b) : KeepsCalls (@ite _ c inst a b) := by
-  split <;> assumption
-
 theorem keepsCalls_stringReturn (slot : UInt256) : KeepsCalls (stringReturn slot) := by
   unfold stringReturn
   refine KeepsCalls.bind KeepsCalls.read fun I => KeepsCalls.bind KeepsCalls.get fun w => ?_
   dsimp only
   split
-  · exact keepsCalls_ite (KeepsCalls.pure _) (KeepsCalls.panic _)
+  · exact KeepsCalls.ite (KeepsCalls.pure _) (KeepsCalls.panic _)
   · exact KeepsCalls.revert _
 
 theorem keepsCalls_transferFrom (src dst wad : UInt256) :
@@ -1100,7 +1097,7 @@ macro "weth_keeps_calls" : tactic =>
     | with_reducible exact KeepsCalls.revert _
     | with_reducible exact KeepsCalls.panic _
     | with_reducible exact KeepsCalls.fail_static
-    | with_reducible apply keepsCalls_ite
+    | with_reducible apply KeepsCalls.ite
     | with_reducible apply KeepsCalls.bind
     | intro (_ : _))
 
@@ -1129,7 +1126,7 @@ theorem runtime_calls {I : Env} {w w' : World} {out : ByteArray}
     w'.calls = w.calls ∨
       ((withdrawSelector == I.calldata.extract 0 4) = true ∧ I.weiValue = ⟨0⟩ ∧
         ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
-          (word I.calldata 4).toNat ∧
+          (word I.calldata 4).toNat ∧ I.depth < 1024 ∧
         ∃ s rest, w.feed = s :: rest ∧
           w'.accounts = (withdrawCall I w (word I.calldata 4) s).run.1 ∧
           w'.calls = w.calls ++ [Made.theta (withdrawCall I w (word I.calldata 4) s)]) := by
@@ -1191,14 +1188,14 @@ theorem runtime_recorded {I : Env} {w w' : World} {out : ByteArray}
     (hT : Made.theta T ∈ w'.calls) :
     (withdrawSelector == I.calldata.extract 0 4) = true ∧ I.weiValue = ⟨0⟩ ∧
       ¬ (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val))).toNat <
-        (word I.calldata 4).toNat ∧
+        (word I.calldata 4).toNat ∧ I.depth < 1024 ∧
       ∃ s rest, w.feed = s :: rest ∧ T = withdrawCall I w (word I.calldata 4) s ∧
         w'.accounts = T.run.1 := by
-  rcases runtime_calls hrun with h | ⟨h1, h2, h3, s, rest, hf, ha, hcs⟩
+  rcases runtime_calls hrun with h | ⟨h1, h2, h3, h4, s, rest, hf, ha, hcs⟩
   · rw [h, hw] at hT; cases hT
   · rw [hcs, hw] at hT
     obtain rfl := Made.theta.inj (List.mem_singleton.mp hT)
-    exact ⟨h1, h2, h3, s, rest, hf, rfl, ha⟩
+    exact ⟨h1, h2, h3, h4, s, rest, hf, rfl, ha⟩
 
 /-! ## The run, in the terms of `ModelKeeps` -/
 
@@ -1225,11 +1222,11 @@ theorem runtime_keeps {code : ByteArray} {I : Env} {σpre σ : AccountMap} {A : 
     acc' hacc'
 
 /-- **The recorded call, as `GoodTheta` asks of it**: entered as in `runtime_keeps`, the call a
-    run of the runtime entry records has no data, goes to another account than `a` (so it runs
-    no code `Trusted` must admit, and its reported value is no question), moves `wad`, which the
-    contract has, from a map whose balances add up as they did on entry, where the account runs
-    `code` and is solvent before and after the value moves; and the run ends with the accounts
-    the call returned. -/
+    run of the runtime entry records is one level deeper, has no data, goes to another account
+    than `a` (so it runs no code `Trusted` must admit, and needs no `Enters`), moves `wad`, which
+    the contract has, from a map whose balances add up as they did on entry, where the account
+    runs `code` and is solvent before and after the value moves; and the run ends with the
+    accounts the call returned. -/
 theorem recorded_call {code : ByteArray} {I : Env} {σpre σ : AccountMap} {A : Substate}
     {feed : List Supply} {out : ByteArray} {w' : World}
     (hσ : σ = sendEth I.codeOwner I.source I.weiValue true σpre)
@@ -1237,18 +1234,18 @@ theorem recorded_call {code : ByteArray} {I : Env} {σpre σ : AccountMap} {A : 
     (hT : total σpre < UInt256.size) (hpre : Holds I.codeOwner (Weth code) σpre)
     (hrun : runtime.exec I (World.init σ A feed) = some (.ok (out, w'))) {T : ThetaCall}
     (hrec : Made.theta T ∈ w'.calls) :
-    T.d.size < UInt256.size ∧ T.r ≠ I.codeOwner ∧ T.v = T.v' ∧ T.v ≤ balOf T.σ T.s ∧
-      total T.σ < UInt256.size ∧ Holds I.codeOwner (Weth code) T.σ ∧
+    T.e.val = I.depth.val + 1 ∧ T.d.size < UInt256.size ∧ T.r ≠ I.codeOwner ∧ T.v = T.v' ∧
+      T.v ≤ balOf T.σ T.s ∧ total T.σ < UInt256.size ∧ Holds I.codeOwner (Weth code) T.σ ∧
       Holds I.codeOwner (Weth code) (sendEth T.r T.s T.v true T.σ) ∧ w'.accounts = T.run.1 := by
-  obtain ⟨-, hw0, hbal, s, rest, -, rfl, ha⟩ := runtime_recorded hrun rfl hrec
+  obtain ⟨-, hw0, hbal, hd, s, rest, -, rfl, ha⟩ := runtime_recorded hrun rfl hrec
   obtain ⟨acc₀, h₀, hc₀, hs₀⟩ := hpre
   obtain ⟨acc, hacc, hst, hc, hb⟩ := entry_account hσ hne hv hT h₀
   have hs : Solvent acc := solvent_of_noValue hs₀ hst hb hw0
   have hH : Holds I.codeOwner (Weth code) (World.init σ A feed).accounts :=
     ⟨acc, hacc, hc.trans hc₀, hs⟩
   obtain ⟨hH₁, hH₂⟩ := withdrawCall_holds (s := s) hH hbal
-  refine ⟨by simp [UInt256.size], withdrawCall_r_ne hne, rfl, withdrawCall_value hacc hs hbal, ?_,
-    hH₁, hH₂, ha⟩
+  refine ⟨succ_depth_val hd, by simp [UInt256.size], withdrawCall_r_ne hne, rfl,
+    withdrawCall_value hacc hs hbal, ?_, hH₁, hH₂, ha⟩
   rw [withdrawCall_total]
   show total σ < UInt256.size
   rw [hσ, total_sendEth hv hT]
