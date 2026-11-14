@@ -8,7 +8,8 @@ The exported `ripemd_compress`, in 98 pieces, on the state of five words and a b
 bytes, is `pure` of `compressFe` on the sixteen little-endian words of the block
 (`ripemd_compress_eq`): one `simp` over the pieces with the word lemmas of `Words.lean`, then
 one `simp` that names each value by the let of `compressFe` it is (`extract_lets` gives the
-names), so that the two sides meet without unfolding either.
+names), so that the two sides meet without unfolding either.  Closing the goal after the
+first `simp` by `rfl`, or by a `simp` that unfolds `compressFe` on both sides, times out.
 -/
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
