@@ -98,28 +98,44 @@ def constWord : Expr → Option UInt256
 def foldConst (op : Operation) (args : List Expr) : Option Expr := do
   return .const (← evalOp op (← args.mapM constWord)).toNat
 
-/-- A key that orders the operands of a commutative operation: constants last. -/
-def Expr.key : Expr → Nat
-  | .const _ => 0
-  | .atom id => id + 2
-  | _ => 1
+/-- The rank of an expression's constructor, constants lowest. -/
+def Expr.rank : Expr → Nat
+  | .const _ => 0 | .atom _ => 1 | .op0 _ => 2 | .op1 .. => 3 | .op2 .. => 4 | .op3 .. => 5
+
+/-- A total order on expressions, which orders the operands of a commutative operation. -/
+def Expr.cmp : Expr → Expr → Ordering
+  | .const a, .const b | .atom a, .atom b => compare a b
+  | .op0 o, .op0 p => compare (serializeInstr o).toNat (serializeInstr p).toNat
+  | .op1 o a, .op1 p a' => (compare (serializeInstr o).toNat (serializeInstr p).toNat).then
+      (a.cmp a')
+  | .op2 o a b, .op2 p a' b' => (compare (serializeInstr o).toNat (serializeInstr p).toNat).then
+      ((a.cmp a').then (b.cmp b'))
+  | .op3 o a b c, .op3 p a' b' c' =>
+    (compare (serializeInstr o).toNat (serializeInstr p).toNat).then
+      ((a.cmp a').then ((b.cmp b').then (c.cmp c')))
+  | a, b => compare a.rank b.rank
 
 /-- The commutative opcodes. -/
 def commutative : List Operation := [.ADD, .MUL, .AND, .OR, .XOR, .EQ]
 
 /-- An operation on two operands in one form: `GT` and `SGT` as `LT` and `SLT` on swapped
-    operands, a commutative operation with the operand of larger key on top. -/
+    operands, a commutative operation with the greater operand on top. -/
 def normalize (op : Operation) (a b : Expr) : Expr :=
   if op == .GT then .op2 .LT b a
   else if op == .SGT then .op2 .SLT b a
-  else if commutative.contains op && a.key < b.key then .op2 op b a
+  else if commutative.contains op && a.cmp b == .lt then .op2 op b a
   else .op2 op a b
+
+/-- An operation on one operand in one form: three `ISZERO`s as one. -/
+def unary : Operation → Expr → Expr
+  | .ISZERO, .op1 .ISZERO (.op1 .ISZERO a) => .op1 .ISZERO a
+  | op, a => .op1 op a
 
 /-- An expression of an operation on operands, top first; on constants an arithmetic or logic
     operation is its result, as the bytes compute a constant the IR writes as one. -/
 def mkOp (op : Operation) : List Expr → Option Expr
   | [] => some (.op0 op)
-  | [a] => some ((foldConst op [a]).getD (.op1 op a))
+  | [a] => some ((foldConst op [a]).getD (unary op a))
   | [a, b] => some ((foldConst op [a, b]).getD (normalize op a b))
   | [a, b, c] => some (.op3 op a b c)
   | _ => none
@@ -178,8 +194,8 @@ def pureWith (expand : Nat → Option Expr) (symbols : List (String × Nat × Na
     Inst → Option Expr
   | .bin op a b => do mkOp (← binOpcode op) [← operandWith expand a, ← operandWith expand b]
   | .cmp op a b => do mkOp (← cmpOpcode op) [← operandWith expand a, ← operandWith expand b]
-  | .isZero a => do return .op1 .ISZERO (← operandWith expand a)
-  | .not a => do return .op1 .NOT (← operandWith expand a)
+  | .isZero a => do mkOp .ISZERO [← operandWith expand a]
+  | .not a => do mkOp .NOT [← operandWith expand a]
   | .evm op args => do mkOp (← evmPureOpcode op) (← args.mapM (operandWith expand))
   | .symAddr s => do return .const (← symbols.lookup s).1
   | .symSize s => do return .const (← symbols.lookup s).2
@@ -302,21 +318,27 @@ def arrives (c : Ctx) (hints : List BlockHint) (pred succ : Nat) (stack : List E
   | some expected => expected.length ≤ stack.length && stack.take expected.length == expected
   | none => false
 
+/-- Where a conditional jump goes one way: to a successor of the block, on with the block's
+    exit narrowed, or never, its condition a constant. -/
+inductive Way where
+  | succ (s : Nat)
+  | exit (e : Exit)
+  | never
+
 /-- What a jump's condition says of the block's exit when the jump is taken (`true`) or not:
     the successor it selects, the `br_table` with more cases ruled out, or that the jump never
-    goes that way, its condition a constant.  `.inr (.halt …)` stands for never. -/
-def decide (e : Exit) (cond : Expr) (taken : Bool) : Option (Sum Nat Exit) :=
-  let never := some (.inr (.halt .INVALID []))
+    goes that way. -/
+def decide (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
   match e with
   | .br c nz z =>
     match c, cond with
     | .const kc, .const k =>
       if (k % UInt256.size != 0) == taken then
-        some (.inl (if kc % UInt256.size != 0 then nz else z))
-      else never
+        some (.succ (if kc % UInt256.size != 0 then nz else z))
+      else some .never
     | _, _ =>
-      if cond == c then some (.inl (if taken then nz else z))
-      else if cond == .op1 .ISZERO c then some (.inl (if taken then z else nz))
+      if cond == c then some (.succ (if taken then nz else z))
+      else if cond == .op1 .ISZERO c then some (.succ (if taken then z else nz))
       else none
   | .table s default cases ruled =>
     let case? := match cond with
@@ -325,8 +347,8 @@ def decide (e : Exit) (cond : Expr) (taken : Bool) : Option (Sum Nat Exit) :=
       | _ => none
     match case? with
     | some k =>
-      if taken then ((cases.lookup k).filter fun _ => !ruled.contains k).map .inl
-      else some (.inr (.table s default cases (k :: ruled)))
+      if taken then ((cases.lookup k).filter fun _ => !ruled.contains k).map .succ
+      else some (.exit (.table s default cases (k :: ruled)))
     | none => none
   | _ => none
 
@@ -388,10 +410,11 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
           else false
         | _, _ => false
       else if haltOps.contains op then
-        match p.exit, δ op with
-        | .halt hop args, some k =>
+        match p.exit with
+        | .halt hop args =>
+          let k := (δ op).getD 0
           p.events.isEmpty && hop == op && p.stack.length ≥ k && p.stack.take k == args
-        | _, _ => false
+        | _ => false
       else if op == .JUMP then
         match p.stack with
         | .const t :: rest =>
@@ -409,14 +432,14 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
         | .const t :: cond :: rest =>
           p.events.isEmpty && validJump code t &&
           (match decide p.exit cond true with
-            | some (.inl s) => place s == some t && arrives c hints b s rest
-            | some (.inr (.halt .INVALID [])) => true
+            | some (.succ s) => place s == some t && arrives c hints b s rest
+            | some .never => true
             | _ => false) &&
           (match decide p.exit cond false with
-            | some (.inl s) =>
+            | some (.succ s) =>
               run code c hints place b fuel { p with pc := next, stack := rest, exit := .goto s }
-            | some (.inr (.halt .INVALID [])) => true
-            | some (.inr e) =>
+            | some .never => true
+            | some (.exit e) =>
               run code c hints place b fuel { p with pc := next, stack := rest, exit := e }
             | none => false)
         | _ => false

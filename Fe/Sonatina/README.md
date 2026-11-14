@@ -315,10 +315,13 @@ agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_imp
 with no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses
 only the pure, read, write and halting instructions `Check.lean` translates (no external call, no
 `gas`, no `create`). It accepts both sections of FeConstant, FeScalarStore and FeERC20. On the
-corpus it accepts 332 of 430 sections; it rejects 40 as more than one function, 33 for an
-instruction outside the class, and 25 whose bytes it does not match. Those 25 are unclassified:
-they may be patterns the matcher does not know (as the commuted operands and constant branches
-were, which raised the count from 282) or wrong hints. `scripts/SonatinaCheck.lean` runs the
+corpus it accepts 356 of 430 sections and rejects 40 as more than one function and 34 for an
+instruction outside the class. It matches the bytes of every section in its class: the
+mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
+are ordered by a total order on expressions (ordering only constants and values left nested
+operations as the IR wrote them, which the bytes often swap); three `ISZERO`s are one, as the
+bytes compute the IR's `is_zero` of a boolean; and `INVALID` halts with no operands. With the
+constant branches, these raised the count from 282. `scripts/SonatinaCheck.lean` runs the
 fixtures, mutations of their hints (a dropped, added or swapped entry slot, offsets moved by a
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
