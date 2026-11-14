@@ -5,10 +5,22 @@ import Fe.Sonatina.Decode
 # Checking bytes against the machine IR
 
 `check s` decides that each section of the sidecar `s` is emitted from its machine IR, for the
-class of sections the first checker covers: one function a section (no internal calls), no
-memory spills, no dynamic frames, no dynamic stack pointer, no call preserves, every value and
-immediate a word (as the EVM computes on words), and only the instructions `pureWith`,
-`eventWith` and `exitOf` translate.  The hints are inputs: a wrong one makes `check` false.
+class of sections the checker covers: no memory spills, no dynamic frames, no dynamic stack
+pointer, no call preserves, every value and immediate a word (as the EVM computes on words),
+and only the instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.
+The hints are inputs: a wrong one makes `check` false.  Until the soundness proof covers
+internal calls, `check` also asks for one function a section (`oneFunction`).
+
+A section may have several functions; each is checked block by block.  A function returns if
+its entry block reaches a `ret` (`returning`).  Its return address is a value no value of the
+function is (`Func.fresh`), at the bottom of the entry stack of every block it may return from,
+whose entry stacks are then the whole of its frame (`Frame.exact`); its entry block is entered
+with its arguments on top of it.  A call is a `JUMP` to the callee's entry block with its
+arguments on top, and, if the callee returns, below them the address of a `JUMPDEST` where the
+block's bytes go on with the callee's results on top; a call to a function that does not
+return ends the block, whose terminator is `unreachable`.  A `ret` is a `JUMP` to the return
+address with exactly the values below it.  The section's entry takes no arguments, returns
+nowhere, and no block calls it.
 
 The machine IR is the specification, so the checker also makes sure its run never gets stuck
 where the bytes go on: each value is defined once, each read reads a value defined before it
@@ -191,17 +203,46 @@ def _root_.Fe.Sonatina.Stmt.def? (s : Stmt) : Option (Nat × Inst) :=
   | [(id, _)] => some (id, s.inst)
   | _ => none
 
+/-- A function another can call: where its code starts, how many arguments it takes and values
+    it returns, and whether it returns at all. -/
+structure Callee where
+  offset : Nat
+  params : Nat
+  rets : Nat
+  returns : Bool
+
+/-- What the checker knows of the function a block is in: the value that stands for its return
+    address, whether it returns (it has one only then), the blocks from which it may return,
+    whose entry stacks are the whole of its frame, and the functions it may call. -/
+structure Frame where
+  retId : Nat
+  returns : Bool
+  exact : Nat → Bool
+  callee : String → Option Callee
+
+/-- The planned entry stack of a block, top first: where the function cannot return from the
+    block, the lowering record keeps the return address at the bottom of the frame, below slots
+    it does not list, and the checker leaves it out. -/
+def Frame.slots (fr : Frame) (hint : BlockHint) : List Slot :=
+  if fr.exact hint.block then hint.entryStack else hint.entryStack.filter (· != .funcReturn)
+
 /-- What the checker knows of a machine block: its function, the statement defining each
-    value of the block, and the section's symbols. -/
+    value of the block, the section's symbols, and the function's frame. -/
 structure Ctx where
   func : Func
   defs : List (Nat × Inst)
   symbols : List (String × Nat × Nat)
+  frame : Frame
+
+/-- The value a statement defines purely or by an event, if one: a call's results are atoms. -/
+def _root_.Fe.Sonatina.Stmt.local? (s : Stmt) : Option (Nat × Inst) :=
+  if s.inst matches .call _ _ then none else s.def?
 
 /-- The context of block `b`: only its own values are expanded, so a value of another block is
     the word the run of the IR holds for it when `b` runs. -/
-def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) : Ctx :=
-  ⟨f, b.body.filterMap Stmt.def?, symbols⟩
+def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) (fr : Frame) :
+    Ctx :=
+  ⟨f, b.body.filterMap Stmt.local?, symbols, fr⟩
 
 /-- The expression of an operand, given that of a value; an immediate must be a word. -/
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
@@ -271,6 +312,35 @@ def Ctx.eventOfStmt (c : Ctx) (s : Stmt) : Option (Option Event) :=
 def Ctx.events (c : Ctx) (b : Block) : Option (List Event) :=
   b.body.filterMapM c.eventOfStmt
 
+/-- A call of a block: the callee, its arguments' expressions, top first, the values it
+    defines, and the block's events after it up to the next call. -/
+structure CallSeg where
+  callee : String
+  args : List Expr
+  dsts : List Nat
+  events : List Event
+  deriving Repr
+
+/-- The events of statements up to the first call, and each call with the events after it up to
+    the next, or `none` if a statement is outside the class.  A call names a function of the
+    section with as many arguments as it takes, and defines as many values as it returns, none
+    if it does not return. -/
+def Ctx.segments (c : Ctx) : List Stmt → Option (List Event × List CallSeg)
+  | [] => some ([], [])
+  | s :: rest => do
+    let (evs, calls) ← c.segments rest
+    match s.inst with
+    | .call g args =>
+      let ce ← c.frame.callee g
+      let es ← args.mapM (c.operand depth)
+      if es.length == ce.params && s.dsts.length == (if ce.returns then ce.rets else 0) then
+        return ([], ⟨g, es, s.dsts.map (·.1), evs⟩ :: calls)
+      else none
+    | _ =>
+      match ← c.eventOfStmt s with
+      | some e => return (e :: evs, calls)
+      | none => return (evs, calls)
+
 /-- How a block ends, as the bytes must end it. -/
 inductive Exit where
   /-- To a successor. -/
@@ -282,6 +352,10 @@ inductive Exit where
   | table (scrutinee : Expr) (default : Nat) (cases : List (Nat × Nat)) (ruled : List Nat)
   /-- A halt by the opcode, on the operands. -/
   | halt (op : Operation) (args : List Expr)
+  /-- A return to the function's return address with the values, top first. -/
+  | ret (vals : List Expr)
+  /-- None: the block ends in a call to a function that does not return. -/
+  | unreach
   deriving Repr, Inhabited
 
 def Ctx.exitOf (c : Ctx) : Term → Option Exit
@@ -296,17 +370,21 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .evmRevert a l => do return .halt .REVERT [← c.operand depth a, ← c.operand depth l]
   | .evmStop => some (.halt .STOP [])
   | .evmInvalid => some (.halt .INVALID [])
+  | .ret vals =>
+    if c.frame.returns then do return .ret (← vals.mapM (c.operand depth)) else none
+  | .unreachable => some .unreach
   | _ => none
 
 /-- The expression of an entry slot. -/
 def Ctx.slotExpr (c : Ctx) : Slot → Option Expr
   | .value id => c.expand depth id
   | .imm v => some (.const v)
-  | _ => none
+  | .funcReturn => if c.frame.returns then some (.atom c.frame.retId) else none
+  | .callReturn => none
 
 /-- The planned entry stack of a block, as expressions. -/
 def Ctx.entryStack (c : Ctx) (hint : BlockHint) : Option (List Expr) :=
-  hint.entryStack.mapM c.slotExpr
+  (c.frame.slots hint).mapM c.slotExpr
 
 /-- What an entry slot of block `b` must be when `pred` jumps to it: a phi its operand from
     `pred`. -/
@@ -316,21 +394,24 @@ def Ctx.arrivalSlot (c : Ctx) (b : Block) (pred : Nat) : Slot → Option Expr
     | some phi => do c.operand depth (← phi.incoming.find? (·.2 == pred)).1
     | none => c.expand depth id
   | .imm v => some (.const v)
-  | _ => none
+  | .funcReturn => if c.frame.returns then some (.atom c.frame.retId) else none
+  | .callReturn => none
 
 /-- What the entry stack of `succ` must be when `pred` jumps to it: each phi of `succ` replaced
     by its operand from `pred`. -/
 def Ctx.arrival (c : Ctx) (hints : List BlockHint) (pred succ : Nat) : Option (List Expr) := do
   let hint ← hints.find? (·.block == succ)
   let b ← c.func.block? succ
-  hint.entryStack.mapM (c.arrivalSlot b pred)
+  (c.frame.slots hint).mapM (c.arrivalSlot b pred)
 
-/-- A run of the bytes for one block, at `pc`. -/
+/-- A run of the bytes for one block, at `pc`: the events up to the next call, and the calls
+    after them. -/
 structure Path where
   pc : Nat
   stack : List Expr
   events : List Event
   exit : Exit
+  calls : List CallSeg
 
 /-- The bytes' opcode at `pc`, its immediate, and the next pc, if the instruction lies in the
     code: what follows the code (a constructor's arguments) does not change it. -/
@@ -351,10 +432,13 @@ def swapN : Operation → Option Nat
   | .Exchange op => some ((serializeInstr (.Exchange op)).toNat - 0x8f)
   | _ => none
 
-/-- Arrival at `succ` from `pred` with `stack`: `succ`'s entry stack is on top. -/
+/-- Arrival at `succ` from `pred` with `stack`: `succ`'s entry stack is on top, and is the
+    whole of it where the function may return from `succ`, its return address at the bottom. -/
 def arrives (c : Ctx) (hints : List BlockHint) (pred succ : Nat) (stack : List Expr) : Bool :=
   match c.arrival hints pred succ with
-  | some expected => expected.length ≤ stack.length && stack.take expected.length == expected
+  | some expected =>
+    if c.frame.exact succ then stack == expected
+    else expected.length ≤ stack.length && stack.take expected.length == expected
   | none => false
 
 /-- Where a conditional jump goes one way: to a successor of the block, on with the block's
@@ -406,7 +490,7 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
   | 0, _ => false
   | fuel + 1, p =>
     -- Arrival at the selected successor, if the IR has selected one and its code starts here.
-    if p.events.isEmpty && (p.exit.selected.bind place) == some p.pc then
+    if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some p.pc then
       match p.exit.selected with
       | some s => arrives c hints b s p.stack
       | none => false
@@ -453,24 +537,48 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
         match p.exit with
         | .halt hop args =>
           let k := (δ op).getD 0
-          p.events.isEmpty && hop == op && p.stack.length ≥ k && p.stack.take k == args
+          p.events.isEmpty && p.calls.isEmpty && hop == op && p.stack.length ≥ k &&
+            p.stack.take k == args
         | _ => false
       else if op == .JUMP then
         match p.stack with
         | .const t :: rest =>
           validJump code t &&
-          if p.events.isEmpty && (p.exit.selected.bind place) == some t then
-            match p.exit.selected with
-            | some s => arrives c hints b s rest
+          match p.events, p.calls with
+          -- The next call: the callee's arguments on top, then, if it returns, the address of
+          -- the code the run goes on at with its results on top.
+          | [], cs :: more =>
+            match c.frame.callee cs.callee with
+            | some ce =>
+              ce.offset == t && cs.args.length ≤ rest.length &&
+              rest.take cs.args.length == cs.args &&
+              if ce.returns then
+                (match rest.drop cs.args.length with
+                  | .const k :: rest' => validJump code k &&
+                    run code c hints place b fuel
+                      ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more⟩
+                  | _ => false)
+              else more.isEmpty && cs.events.isEmpty && (p.exit matches .unreach)
             | none => false
-          -- Into code that is no block's: an outlined unit, which the run continues in.
-          else if (hints.any (place ·.block == some t)) then false
-          else run code c hints place b fuel { p with pc := t, stack := rest }
+          | _, _ =>
+            if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some t then
+              match p.exit.selected with
+              | some s => arrives c hints b s rest
+              | none => false
+            -- Into code that is no block's: an outlined unit, which the run continues in.
+            else if (hints.any (place ·.block == some t)) then false
+            else run code c hints place b fuel { p with pc := t, stack := rest }
+        -- A return: the return address on top of exactly the values.
+        | .atom r :: rest =>
+          p.events.isEmpty && p.calls.isEmpty && c.frame.returns && r == c.frame.retId &&
+            match p.exit with
+            | .ret vals => rest == vals
+            | _ => false
         | _ => false
       else if op == .JUMPI then
         match p.stack with
         | .const t :: cond :: rest =>
-          p.events.isEmpty && validJump code t &&
+          p.events.isEmpty && p.calls.isEmpty && validJump code t &&
           (match p.exit.way cond true with
             | some (.succ s) => place s == some t && arrives c hints b s rest
             | some .never => true
@@ -494,7 +602,7 @@ def _root_.Fe.Sonatina.Operand.var? : Operand → Option Nat
 def _root_.Fe.Sonatina.Inst.operands : Inst → List Operand
   | .bin _ a b | .cmp _ a b => [a, b]
   | .isZero a | .not a => [a]
-  | .evm _ args => args
+  | .evm _ args | .call _ args => args
   | _ => []
 
 /-- The operands of a terminator. -/
@@ -502,6 +610,7 @@ def _root_.Fe.Sonatina.Term.operands : Term → List Operand
   | .br c _ _ => [c]
   | .brTable s _ cases => s :: cases.map (·.1)
   | .evmReturn a l | .evmRevert a l => [a, l]
+  | .ret vals => vals
   | _ => []
 
 /-- The successors of a terminator. -/
@@ -570,53 +679,120 @@ def inClass (f : FuncHint) : Bool :=
   f.spills.isEmpty && !f.frame.dynamicFrame && !f.frame.lazyFrame && !f.frame.dynSpInit &&
     f.frame.callPreserves == 0
 
-/-- Block `b` of the section's one function matches its bytes, from its offset and planned
-    entry stack, the entry block's events led by the free pointer's store. -/
-def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func)
-    (entryBlock : Block) (place : Nat → Option Nat) (rank : Nat → Nat) (b : Block) :
-    Except String Unit := do
-  let c := Ctx.ofBlock f b code.symbols
+/-- The blocks from which the function may return: those that end in `ret`, and those with a
+    successor among them, found in as many rounds as the function has blocks. -/
+def returning (f : Func) : List Nat :=
+  (List.range f.blocks.length).foldl (fun S _ => f.blocks.filterMap fun b =>
+    if (b.term matches .ret _) || b.term.succs.any S.contains then some b.id else none) []
+
+/-- The blocks found are all of them: no other block ends in `ret` or goes to one of them. -/
+def returningClosed (f : Func) : Bool :=
+  f.blocks.all fun b => (returning f).contains b.id ||
+    !(b.term matches .ret _) && !b.term.succs.any (returning f).contains
+
+/-- Whether the function returns: it may from its entry block. -/
+def returns (f : Func) : Bool := (f.blocks.head?.map ((returning f).contains ·.id)).getD false
+
+/-- The values a function defines: its parameters, phis and statements' results. -/
+def _root_.Fe.Sonatina.Func.defs (f : Func) : List Nat :=
+  f.params.map (·.1) ++
+    f.blocks.flatMap fun b => b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))
+
+/-- A value no value of the function is: the one that stands for its return address. -/
+def _root_.Fe.Sonatina.Func.fresh (f : Func) : Nat := f.defs.foldl max 0 + 1
+
+/-- Where the code of block `b` of function `func` starts. -/
+def placeIn (low : Lowering) (func : String) (b : Nat) : Option Nat :=
+  Hints.place low 16 (.block func b)
+
+/-- The functions of the section that blocks may call: every one but the section's entry. -/
+def callees (low : Lowering) (entry : String) (g : String) : Option Callee := do
+  if g == entry then none
+  let _ ← low.funcs.find? (·.name == g)
+  let f ← low.machine.func? g
+  let eb ← f.blocks.head?
+  return ⟨← placeIn low g eb.id, f.params.length, f.rets.length, returns f⟩
+
+/-- The frame of function `f` of the section. -/
+def frameOf (low : Lowering) (entry : String) (f : Func) : Frame :=
+  ⟨f.fresh, returns f, fun b => returns f && (returning f).contains b, callees low entry⟩
+
+/-- Block `b` of function `f` matches its bytes, from its offset and planned entry stack, the
+    section entry's block's events led by the free pointer's store. -/
+def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame)
+    (isRoot : Bool) (entryBlock : Block) (place : Nat → Option Nat) (rank : Nat → Nat)
+    (b : Block) : Except String Unit := do
+  let c := Ctx.ofBlock f b code.symbols fr
   let some h := hint.blocks.find? (·.block == b.id) | throw s!"block{b.id} has no hint"
   let some pc := place b.id | throw s!"block{b.id} has no place"
   let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
-  let some events := c.events b | throw s!"block{b.id}: an instruction outside the class"
+  let some (events, calls) := c.segments b.body
+    | throw s!"block{b.id}: an instruction outside the class"
   let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
-  if b.id == entryBlock.id then
+  if isRoot && b.id == entryBlock.id then
     unless stack.isEmpty do throw "the entry block's entry stack is not empty"
   let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
-  unless defined f hint.blocks b entryValues do throw s!"block{b.id} reads a value not defined before"
+  unless defined f hint.blocks b entryValues do
+    throw s!"block{b.id} reads a value not defined before"
   -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
   unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
     throw s!"block{b.id} reaches a successor at its own offset and no lower"
   -- The section entry's code stores the initial free pointer first.
-  let events := match low.entryFreePtr, b.id == entryBlock.id with
+  let events := match low.entryFreePtr, isRoot && b.id == entryBlock.id with
     | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
     | _, _ => events
   unless run code.bytecode c hint.blocks place b.id (2 * low.codeSize + 2)
-      ⟨pc, stack, events, exit⟩ do
+      ⟨pc, stack, events, exit, calls⟩ do
     throw s!"block{b.id} at {pc} does not match its bytes"
 
-/-- Every block of the section's one function matches its bytes, the entry block at offset 0
-    with an empty entry stack. -/
+/-- What function `hint` of the section must be, each with what its failure says: its values
+    words and defined once; its entry block without phis or predecessors, entered with the
+    arguments on top of the return address if it returns, at offset 0 with no arguments if it
+    is the section's entry, which returns nowhere; the blocks it returns from those that end in
+    `ret` and their predecessors, with the return address at the bottom of their entry stacks,
+    and none in a function that does not return. -/
+def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
+    (entryBlock : Block) : List (Bool × String) :=
+  let fr := frameOf low entry f
+  [(inClass hint, s!"{hint.name} is outside the class"),
+   (f.blocks.all (fun b =>
+      b.phis.all (·.ty.bits == 256) && b.body.all (·.dsts.all (·.2.bits == 256))) &&
+      f.params.all (·.2.bits == 256) && f.rets.all (·.bits == 256),
+    s!"a value of {hint.name} is not a word"),
+   (nodup f.defs, s!"a value of {hint.name} is defined twice"),
+   (entryBlock.phis.isEmpty && f.blocks.all (!·.term.succs.contains entryBlock.id),
+    s!"the entry block of {hint.name} has phis or predecessors"),
+   (hint.name != entry || f.params.isEmpty && !fr.returns &&
+      placeIn low hint.name entryBlock.id == some 0,
+    "the entry function has parameters, returns, or does not start at offset 0"),
+   (returningClosed f, s!"the blocks {hint.name} returns from are not closed"),
+   (hint.blocks.all fun h =>
+      !h.entryStack.contains .callReturn &&
+      if fr.exact h.block then h.entryStack.getLast? == some .funcReturn &&
+        !h.entryStack.dropLast.contains .funcReturn
+      else fr.returns || !h.entryStack.contains .funcReturn,
+    s!"a block of {hint.name} has the return address out of place"),
+   ((hint.blocks.find? (·.block == entryBlock.id)).map (·.entryStack) ==
+      some (f.params.map (.value ·.1) ++ if fr.returns then [.funcReturn] else []),
+    s!"the entry block of {hint.name} is not entered with its arguments")]
+
+/-- Function `hint` of the section is as `funcChecks` says and matches its bytes, block by
+    block. -/
+def checkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : FuncHint) :
+    Except String Unit := do
+  let some f := low.machine.func? hint.name | throw s!"no machine IR of {hint.name}"
+  let some entryBlock := f.blocks.head? | throw s!"{hint.name} has no entry block"
+  (funcChecks low entry hint f entryBlock).forM fun (ok, msg) => unless ok do throw msg
+  let place := placeIn low hint.name
+  f.blocks.forM (checkBlock code low hint f (frameOf low entry f) (hint.name == entry)
+    entryBlock place (zeroRank f place f.blocks.length))
+
+/-- Every function of the section matches its bytes, the section's entry among them. -/
 def checkSection (code : CodeSection) (entry : String) : Except String Unit := do
   let some low := code.lowering | throw "no lowering record"
   unless code.bytecode.size < UInt256.size do throw "the code does not fit a word"
-  let [hint] := low.funcs | throw "not one function"
-  unless hint.name == entry && inClass hint do throw s!"{hint.name} is outside the class"
-  let some f := low.machine.func? entry | throw "no machine IR of the entry"
-  let some entryBlock := f.blocks.head? | throw "no entry block"
-  unless f.blocks.all fun b =>
-      b.phis.all (·.ty.bits == 256) && b.body.all (·.dsts.all (·.2.bits == 256)) do
-    throw "a value is not a word"
-  let defs := f.blocks.flatMap fun b => b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))
-  unless nodup defs do throw "a value is defined twice"
-  unless f.params.isEmpty && entryBlock.phis.isEmpty &&
-      f.blocks.all (!·.term.succs.contains entryBlock.id) do
-    throw "the entry function has parameters, or its entry block phis or predecessors"
-  let place (b : Nat) := Hints.place low 16 (.block hint.name b)
-  unless place entryBlock.id == some 0 do throw "the entry block is not at offset 0"
-  let rank := zeroRank f place f.blocks.length
-  f.blocks.forM (checkBlock code low hint f entryBlock place rank)
+  unless low.funcs.any (·.name == entry) do throw "no hint of the entry function"
+  low.funcs.forM (checkFunc code low entry)
 
 /-- The entry function of each section of the sidecar's object. -/
 def entries (s : Sidecar) : List (String × String) :=
@@ -637,6 +813,10 @@ def checkAll (s : Sidecar) : Except String Unit := do
       ((entries s).lookup "init").isSome && ((entries s).lookup "runtime").isSome do
     throw "no init or runtime section"
 
-def check (s : Sidecar) : Bool := (checkAll s).isOk
+/-- Every section of the sidecar has one function. -/
+def oneFunction (s : Sidecar) : Bool :=
+  s.sections.all fun code => (code.lowering.map (·.funcs.length == 1)).getD true
+
+def check (s : Sidecar) : Bool := (checkAll s).isOk && oneFunction s
 
 end Fe.Sonatina.Check
