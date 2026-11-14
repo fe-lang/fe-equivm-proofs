@@ -218,6 +218,13 @@ test's own frame before it calls the contract. The other precompiles EVMLean com
 (RIPEMD-160, the BN254 operations and the KZG point evaluation) have no stand-in; no test of the
 corpus reaches them.
 
+`FeProofs/Bn254` is fevm's ECADD as a contract: its fallback arm hands `bn254::add` the call data
+in memory, and returns the 64-byte sum or reverts without data. Its BN254 files are copied
+verbatim from fevm at `a631a777b`, and `keccak/` (for `ByteSource`) from
+[keccak](https://github.com/fe-lang/keccak) at `345d5088d`. `scripts/Bn254AddDiff.lean` runs the
+exported model against EVMLean's ECADD (`Ξ_BN_ADD`) on go-ethereum's `bn256Add` vectors and on
+generated inputs (`lake env lean scripts/Bn254AddDiff.lean`).
+
 ### Sonatina IR
 
 `Fe/Sonatina/` has a semantics of Sonatina IR, the IR the Fe compiler's EVM backend compiles: the
