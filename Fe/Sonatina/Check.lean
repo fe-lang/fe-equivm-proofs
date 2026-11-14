@@ -256,6 +256,8 @@ def Ctx.events (c : Ctx) (b : Block) : Option (List Event) :=
         | _ => true
       if s.dsts.length == 1 && arity then pure none else none
     | none, some (op, args) =>
+      -- An event pops as many operands as the IR gives it.
+      if δ op != some args.length then none else
       match s.dsts with
       | [] => pure (some ⟨op, args, none⟩)
       | [(id, _)] => pure (some ⟨op, args, some id⟩)
