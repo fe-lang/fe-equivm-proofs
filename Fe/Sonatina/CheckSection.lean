@@ -162,4 +162,218 @@ theorem checkSection_ok {code : CodeSection} {entry : String}
   exact ⟨low, hint, f, eb, rfl, h1, hf, rfl, hp, hfn, he, c1, c2, c3.1.1, c3.1.2, c3.2, c4,
     forM_ok h⟩
 
+theorem insert_get {env : Env} {k id : Nat} {v : Val} :
+    (env.insert k v)[id]? = if k = id then some v else env[id]? := by
+  rw [Std.TreeMap.getElem?_insert]
+  by_cases h : k = id
+  · subst h; simp
+  · have : ¬compare k id = .eq := by rw [compare_eq_iff_eq]; exact h
+    simp [this, h]
+
+/-- A fold of inserts at distinct keys finds each key's last value, others as they were. -/
+theorem foldl_insert_get :
+    ∀ (l : List ((Nat × Ty) × Val)) (env : Env), (l.map (·.1.1)).Nodup → ∀ id,
+      (l.foldl (fun env ((id, ty), v) => env.insert id (v.as ty)) env)[id]? =
+        match l.find? (·.1.1 == id) with
+        | some ((_, ty), v) => some (v.as ty)
+        | none => env[id]?
+  | [], env, _, id => by simp
+  | ((k, ty), v) :: l, env, hnd, id => by
+    simp only [List.map_cons, List.nodup_cons] at hnd
+    rw [List.foldl_cons, foldl_insert_get l _ hnd.2 id]
+    by_cases h : k = id
+    · subst h
+      have : l.find? (·.1.1 == k) = none := by
+        rw [List.find?_eq_none]; intro x hx hk
+        exact hnd.1 (by simp only [beq_iff_eq] at hk; exact hk ▸ List.mem_map_of_mem hx)
+      simp [this]
+    · simp [insert_get, h]
+
+theorem mapM_pure {α β : Type} {F : α → FeM β} {g : α → β} :
+    ∀ {l : List α}, (∀ a ∈ l, F a = pure (g a)) → l.mapM F = pure (l.map g)
+  | [], _ => rfl
+  | a :: l, h => by
+    rw [List.mapM_cons, h a (by simp), mapM_pure fun x hx => h x (List.mem_cons_of_mem _ hx)]
+    simp
+
+theorem evalOperand_some {env : Env} {ρ : Nat → UInt256} {D : List Nat} {o : Operand}
+    (hw : WordsOf env ρ D) (hr : reads D [o] = true) : ∃ val, evalOperand env o = pure val := by
+  cases o with
+  | var id =>
+    have hid : id ∈ D := by simpa [reads, Operand.var?] using hr
+    exact ⟨_, by simp [evalOperand, hw id hid]; rfl⟩
+  | imm bits x => exact ⟨_, rfl⟩
+  | undef ty => exact ⟨_, rfl⟩
+
+/-- Entering a block from `p`, each phi of which has a defined operand from `p`: each phi takes
+    its operand's value, other values stay. -/
+theorem enter_run {env : Env} {ρ : Nat → UInt256} {D : List Nat} {p : Nat} {S : Block}
+    (hS : ∀ phi ∈ S.phis, ∃ o d, phi.incoming.find? (·.2 == p) = some (o, d) ∧
+      reads D [o] = true)
+    (hw : WordsOf env ρ D) (hnd : (S.phis.map (·.dst)).Nodup) :
+    ∃ envS, enter env (some p) S = pure envS ∧
+      (∀ phi ∈ S.phis, ∃ o d val, phi.incoming.find? (·.2 == p) = some (o, d) ∧
+        evalOperand env o = pure val ∧ envS[phi.dst]? = some (val.as phi.ty)) ∧
+      ∀ id, id ∉ S.phis.map (·.dst) → envS[id]? = env[id]? := by
+  choose o d hf hr using hS
+  choose val hval using fun phi hp => evalOperand_some hw (hr phi hp)
+  classical
+  let g : Phi → Val := fun phi => if hp : phi ∈ S.phis then val phi hp else default
+  have hzip : ∀ l : List Phi, (l.map fun phi => (phi.dst, phi.ty)).zip (l.map g) =
+      l.map fun phi => ((phi.dst, phi.ty), g phi) := fun l => by
+    induction l <;> simp_all
+  refine ⟨(S.phis.map fun phi => ((phi.dst, phi.ty), g phi)).foldl
+    (fun env ((id, ty), v) => env.insert id (v.as ty)) env, ?_, ?_, ?_⟩
+  · unfold enter
+    rw [mapM_pure (g := g) fun phi hp => by simp only [hf phi hp, g, dif_pos hp, hval phi hp]]
+    simp only [pure_bind, Fe.Sonatina.bind, List.length_map, beq_self_eq_true, if_true, hzip]
+  · intro phi hp
+    refine ⟨o phi hp, d phi hp, val phi hp, hf phi hp, hval phi hp, ?_⟩
+    rw [foldl_insert_get _ _ (by simpa [Function.comp_def] using hnd)]
+    have : (S.phis.map fun phi => ((phi.dst, phi.ty), g phi)).find? (·.1.1 == phi.dst) =
+        some ((phi.dst, phi.ty), g phi) := by
+      rw [List.find?_map]
+      have hfind : S.phis.find? (fun q => q.dst == phi.dst) = some phi := by
+        rw [List.find?_eq_some_iff_getElem]
+        obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hp
+        refine ⟨by simp, i, hi, rfl, fun j hj => ?_⟩
+        have := (List.nodup_iff_injective_get.mp hnd)
+        rw [Bool.not_eq_true', beq_eq_false_iff_ne]
+        intro hjq
+        have := @this ⟨j, by simpa using (by omega : j < S.phis.length)⟩ ⟨i, by simpa using hi⟩
+          (by simpa using hjq)
+        simp at this; omega
+      simp [hfind, Function.comp_def]
+    simp [this, g, dif_pos hp]
+  · intro id hid
+    rw [foldl_insert_get _ _ (by simpa [Function.comp_def] using hnd)]
+    have : (S.phis.map fun phi => ((phi.dst, phi.ty), g phi)).find? (·.1.1 == id) = none := by
+      rw [List.find?_eq_none]
+      intro x hx hxe
+      simp only [List.mem_map] at hx
+      obtain ⟨q, hq, rfl⟩ := hx
+      simp only [beq_iff_eq] at hxe
+      exact hid (hxe ▸ List.mem_map_of_mem hq)
+    simp [this]
+
+/-- A block's statements define nothing defined before them. -/
+theorem definedAfter_fresh : ∀ {stmts : List Stmt} {D D' : List Nat},
+    definedAfter D stmts = some D' → ∀ s ∈ stmts, ∀ d ∈ s.dsts, d.1 ∉ D
+  | [], _, _, _, s, hs, _, _ => by cases hs
+  | t :: rest, D, D', h, s, hs, d, hd => by
+    simp only [definedAfter] at h
+    split_ifs at h with hok
+    simp only [Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at hok
+    rcases List.mem_cons.mp hs with rfl | hs
+    · intro hm; simpa [List.contains_iff_mem, hm] using hok.2 d hd
+    · exact fun hm => definedAfter_fresh h s hs d hd (List.mem_append_left _ hm)
+
+/-- A value no statement defines is not expanded. -/
+theorem lookup_none {stmts : List Stmt} {id : Nat}
+    (h : ∀ s ∈ stmts, ∀ d ∈ s.dsts, d.1 ≠ id) : (stmts.filterMap Stmt.def?).lookup id = none := by
+  induction stmts with
+  | nil => rfl
+  | cons t rest ih =>
+    have ih' := ih fun s hs => h s (List.mem_cons_of_mem _ hs)
+    cases ht : t.def? with
+    | none => simpa [List.filterMap_cons, ht] using ih'
+    | some p =>
+      have hp : p.1 ≠ id := by
+        unfold Stmt.def? at ht
+        split at ht
+        · next id' ty' hd => cases ht; exact h t (by simp) (id', ty') (by simp [hd])
+        · cases ht
+      have hb : (id == p.1) = false := by simpa using Ne.symm hp
+      rw [List.filterMap_cons, ht]
+      simp only [List.lookup, hb]
+      exact ih'
+
+theorem expand_atom {c : Ctx} {id : Nat} (h : c.defs.lookup id = none) (d : Nat) :
+    c.expand (d + 1) id = some (.atom id) := by
+  simp [Ctx.expand, h]
+
+theorem mapM_forall {α β : Type} {f : α → Option β} {P : β → Prop} {l : List α} {l' : List β}
+    (h : l.mapM f = some l') (hf : ∀ x y, f x = some y → P y) : ∀ y ∈ l', P y := by
+  have h2 := mapM_some_iff.mp h
+  clear h
+  intro y hy
+  induction h2 with
+  | nil => cases hy
+  | cons hxy _ ih =>
+    rcases List.mem_cons.mp hy with rfl | hy
+    · exact hf _ _ hxy
+    · exact ih hy
+
+/-- An exit the checker reads of a terminator is valid from the start. -/
+theorem exitOf_valid {c : Ctx} {t : Term} {e : Exit} (h : c.exitOf t = some e)
+    (ee : ExecutionEnv) (ρ : Nat → UInt256) : e.Valid ee ρ := by
+  cases e with
+  | table sc d cs ruled =>
+    cases t with
+    | brTable s' def? cases =>
+      cases def? with
+      | none => simp [Ctx.exitOf] at h
+      | some d' =>
+      simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+        Option.some.injEq] at h
+      obtain ⟨cs', hcs, ex, -, h⟩ := h
+      cases h
+      refine ⟨mapM_forall hcs fun x y hxy => ?_, fun _ _ _ hk => by cases hk⟩
+      obtain ⟨o, dest⟩ := x
+      simp only at hxy
+      split at hxy
+      · split_ifs at hxy with hv; cases hxy; exact hv
+      · cases hxy
+    | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
+  | _ => trivial
+
+/-- The EVM result agrees, at profile `P1`, with how the IR's run ends: out of gas or stack, or
+    the same exit, the logs and the revert data compared. -/
+def XAgrees (x : Except ExecutionException (ExecutionResult State))
+    (r : Option (Except (Fe.Exit World) (List Val × World))) : Prop :=
+  x = .error .OutOfGass ∨ x = .error .StackOverflow ∨
+  match r with
+  | some (.error (.stop out w)) => ∃ s', x = .ok (.success s' out) ∧
+      s'.accountMap = w.accounts ∧ s'.substate.logSeries = w.logs
+  | some (.error (.revert data)) => ∃ g, x = .ok (.revert g data)
+  | some (.error .static) => x = .error .StaticModeViolation
+  | some (.error .trap) => x = .error .InvalidInstruction
+  | _ => False
+
+/-- The bytes end from `st` as the IR's run `r` ends, in steps. -/
+def Final (D : Array UInt256) (st : State)
+    (r : Option (Except (Fe.Exit World) (List Val × World))) : Prop :=
+  (∃ n e, XstepN D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
+    (e = .StaticModeViolation ∧ r = some (.error .static)) ∨
+    (e = .InvalidInstruction ∧ r = some (.error .trap)))) ∨
+  (∃ n s' out w', XstepN D st (.ok (s', some (.success, out))) n ∧
+    r = some (.error (.stop out w')) ∧ s'.accountMap = w'.accounts ∧
+    s'.substate.logSeries = w'.logs) ∨
+  (∃ n s' data, XstepN D st (.ok (s', some (.revert, data))) n ∧
+    r = some (.error (.revert data)))
+
+theorem Final.agrees {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final D st r) {fuel : Nat}
+    (hg : st.machineState.gasAvailable.toNat < fuel) : XAgrees (X fuel D st) r := by
+  rcases h with ⟨n, e, hx, he⟩ | ⟨n, s', out, w', hx, hr, ha, hl⟩ | ⟨n, s', data, hx, hr⟩
+  · have hn := XstepN_fuel hx hg
+    have hX := XstepN_X_error hx (fuel - n)
+    rw [Nat.sub_add_cancel hn] at hX
+    rw [hX]
+    rcases he with rfl | rfl | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · exact .inl rfl
+    · exact .inr (.inl rfl)
+    · exact .inr (.inr rfl)
+    · exact .inr (.inr rfl)
+  · have hn := XstepN_fuel hx hg
+    have hX := XstepN_X_halt_success (f := fuel - n) D hx
+    rw [Nat.sub_add_cancel hn] at hX
+    subst hr
+    exact .inr (.inr ⟨s', hX, ha, hl⟩)
+  · have hn := XstepN_fuel hx hg
+    have hX := XstepN_X_halt_revert (f := fuel - n) D hx
+    rw [Nat.sub_add_cancel hn] at hX
+    subst hr
+    exact .inr (.inr ⟨_, hX⟩)
+
 end Fe.Sonatina.Check
