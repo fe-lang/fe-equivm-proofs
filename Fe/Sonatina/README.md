@@ -192,6 +192,8 @@ def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Pro
     (ir.runtime.exec I (World.init σ A feed))
 ```
 
+`ImplementsDeploy` is the constructor's counterpart, on deployments whose code is the creation
+code followed by the arguments, which the init IR reads from its own code.
 `RefinesOn.of_implements` and `RefinesDeploy.of_implements` (`Refine.lean`, proved) compose the
 two into `RefinesOn`/`Refines` and `RefinesDeploy` of the hand-written or exported model. The stack,
 pcs and jump destinations never appear in the second half; memory addresses do, as constants.
@@ -326,12 +328,16 @@ fixtures, mutations of their hints (a dropped, added or swapped entry slot, offs
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
 section's IR reads none) and a corpus directory.
 
-The verdict evaluates by the kernel (`decide +kernel`) and by `native_decide` (0.4 s). On a
-loaded machine the kernel takes 11.5 to 17.1 s for both FeScalarStore sections against 6.3 to
-7.9 s for the checker of stage D's first commit measured alongside, most likely from the
-well-formedness checks and the total order on operands (not measured apart). Kernel evaluation
-needs the expressions non-nested and the checker structurally recursive, which is why `Expr` has
-fixed arities.
+The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
+FeScalarStore sections and 2.4 s for FeERC20's (from 1.8 s and 259 s). Nearly all of the old time
+was the kernel reading the code: `ByteArray.get?` walks the byte list to the offset, about
+14 ms at FeERC20's sizes, and EVMLean's `parseInstr` compares the byte with each pattern, about
+13 ms; `validJump` ran `D_J` over the whole code (13 s), and `decode` ran at every step of every
+path. `Decode.lean` decodes the code once, in one pass over its bytes with a table for the
+opcodes (`instrs`, `parseByte`), into a search tree by offset (`codeTree`), which `opAt` and the
+jump destinations (`jumpdests`) read; `codeTree_find` and `jumpdests_D_J` prove it agrees with
+`decode` and `D_J`. Kernel evaluation needs the expressions non-nested and the checker
+structurally recursive, which is why `Expr` has fixed arities.
 
 What `check s = true` implies is stated in `CheckSound.lean` as `Sound s`, at `P1`, and proved
 in `CheckCert.lean`. On the statement:
@@ -383,21 +389,26 @@ Proved so far:
 7. The section (`CheckSection.lean`): `block_step` joins `run_ends` and `body_run` with the IR's
    `enter` and terminator for one block; `section_run`, by induction on `X`'s fuel and
    `zeroRank`, gives the P1 agreement (`XAgrees`) of the bytes' iterator with the IR's run of the
-   function from any block's start (`AtBlock`), the prologue first for the entry block.
+   function from any block's start (`AtBlock`), the prologue first for the entry block, and
+   `XOk` of the iterator for every condition on calls: `run_ends` gathers its steps as `Steps`,
+   through states whose instruction is no call nor creation (`Calm`).
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
-   runtime and the constructor (its arguments after the code) at `P1`. It depends on `propext`,
-   `Classical.choice` and `Quot.sound` only.
+   runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
+   of both frames. They depend on `propext`, `Classical.choice` and `Quot.sound` only.
 
-Left: `XiOk` of a checked frame (no call or creation is reached, which needs the bytes'
-reachable states to be the checked paths'), and the model half for FeScalarStore:
-`Implements` of its exported model against the machine IR's (`Sidecar.model .machine`), a run of
-the interpreter over its machine IR, then `RefinesOn.of_implements` for the pinned bytecode.
+The model half for FeScalarStore (`FeProofs/ScalarStore/SonatinaRun.lean`,
+`SonatinaCorrect.lean`): the interpreter's runs of the machine IR's runtime and init functions by
+`ir_step` (`Run.lean`), `Implements` and `ImplementsDeploy` of the exported contract against the
+machine IR through the hand-written model, and `RefinesOn.of_implements` and
+`RefinesDeploy.of_implements` for the pinned runtime and creation bytecode at `P1`
+(`feScalarStoreRefinesExportedP1`, `feScalarStoreDeployRefinesExportedP1`), with no
+`native_decide`.
 
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
 - the machine IR must be word-typed (the interpreter computes `add` at the operands' width);
-- `sar`, `evm_sdiv` and `evm_smod` are out of the class until their signed arithmetic is proved
-  (356 to 351 accepted sections);
+- `sar`, `evm_sdiv` and `evm_smod` were out of the class (356 to 351 accepted sections) until
+  `sar_word`, `sdiv_word` and `smod_word` proved their signed arithmetic;
 - the machine IR must run where the bytes do (it is the specification; where its run is stuck the
   model diverges): each value defined once, read only after its definition in the block or from
   the entry stack and phis, a block's statements defining nothing they read at entry, successor

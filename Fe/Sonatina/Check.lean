@@ -1,4 +1,5 @@
 import Fe.Sonatina.Hints
+import Fe.Sonatina.Decode
 
 /-!
 # Checking bytes against the machine IR
@@ -154,13 +155,13 @@ def mkOp (op : Operation) : List Expr → Option Expr
   | [a, b, c] => some (.op3 op a b c)
   | _ => none
 
-/-- The opcode of a pure machine instruction.  `sar`, `evm_sdiv` and `evm_smod` are left out
-    until their signed arithmetic is proved the EVM's. -/
+/-- The opcode of a pure machine instruction. -/
 def binOpcode : BinOp → Option Operation
   | .add => some .ADD | .sub => some .SUB | .mul => some .MUL | .shl => some .SHL
-  | .shr => some .SHR | .and => some .AND | .or => some .OR | .xor => some .XOR
-  | .evmUdiv => some .DIV | .evmUmod => some .MOD | .evmExp => some .EXP
-  | .evmByte => some .BYTE | .evmSignExtend => some .SIGNEXTEND
+  | .shr => some .SHR | .sar => some .SAR | .and => some .AND | .or => some .OR
+  | .xor => some .XOR | .evmUdiv => some .DIV | .evmSdiv => some .SDIV | .evmUmod => some .MOD
+  | .evmSmod => some .SMOD | .evmExp => some .EXP | .evmByte => some .BYTE
+  | .evmSignExtend => some .SIGNEXTEND
   | _ => none
 
 def cmpOpcode : CmpOp → Option Operation
@@ -334,11 +335,11 @@ structure Path where
 /-- The bytes' opcode at `pc`, its immediate, and the next pc, if the instruction lies in the
     code: what follows the code (a constructor's arguments) does not change it. -/
 def opAt (code : ByteArray) (pc : Nat) : Option (Operation × Option Nat × Nat) :=
-  (Hints.decodeAt code pc).filter fun (_, _, next) => next ≤ code.size
+  ((codeTree code).find pc).filter fun (_, _, next) => next ≤ code.size
 
-/-- `true` if `t` is a valid jump destination of the code. -/
+/-- `true` if `t` is a valid jump destination of the code: one `D_J` finds. -/
 def validJump (code : ByteArray) (t : Nat) : Bool :=
-  t < code.size && (D_J code 0).contains (UInt256.ofNat t)
+  t < code.size && (jumpdests code).contains t
 
 /-- The number of the `DUP` or `SWAP`: `DUPn` copies the `n`-th item, `SWAPn` swaps the first
     with the `n + 1`-th. -/

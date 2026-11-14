@@ -10,7 +10,9 @@ function (`AtBlock`), the bytes' iterator `X` agrees at profile `P1` (`XAgrees`)
 run of the function from that block, the prologue `pre` first for the entry block.  It is an
 induction on `X`'s fuel and on `zeroRank`, each block by `block_step`, which joins the block
 lemma `run_ends` and the IR's run of the statements `body_run` with the IR's `enter` and
-terminator.  `XstepN_X_error` and `XstepN_fuel` take steps to `X` within its fuel;
+terminator.  It also gives `XOk` of the iterator for every condition on calls: the steps of
+a checked block go through calm states only (`Steps`).  `XstepN_X_error` and `XstepN_fuel`
+take steps to `X` within its fuel;
 `checkSection_ok` and `checkBlock_ok` take out of an accepted section what the checker
 established.
 -/
@@ -349,19 +351,20 @@ def XAgrees (x : Except ExecutionException (ExecutionResult State))
 /-- The bytes end from `st` as the IR's run `r` ends, in steps. -/
 def Final (D : Array UInt256) (st : State)
     (r : Option (Except (Fe.Exit World) (List Val × World))) : Prop :=
-  (∃ n e, XstepN D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
+  (∃ n e, Steps D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
     (e = .StaticModeViolation ∧ r = some (.error .static)) ∨
     (e = .InvalidInstruction ∧ r = some (.error .trap)))) ∨
-  (∃ n s' out w', XstepN D st (.ok (s', some (.success, out))) n ∧
+  (∃ n s' out w', Steps D st (.ok (s', some (.success, out))) n ∧
     r = some (.error (.stop out w')) ∧ s'.accountMap = w'.accounts ∧
     s'.substate.logSeries = w'.logs) ∨
-  (∃ n s' data, XstepN D st (.ok (s', some (.revert, data))) n ∧
+  (∃ n s' data, Steps D st (.ok (s', some (.revert, data))) n ∧
     r = some (.error (.revert data)))
 
 theorem Final.agrees {D : Array UInt256} {st : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final D st r) {fuel : Nat}
     (hg : st.machineState.gasAvailable.toNat < fuel) : XAgrees (X fuel D st) r := by
-  rcases h with ⟨n, e, hx, he⟩ | ⟨n, s', out, w', hx, hr, ha, hl⟩ | ⟨n, s', data, hx, hr⟩
+  rcases h with ⟨n, e, hx, he⟩ | ⟨n, s', out, w', hx, hr, ha, hl⟩ | ⟨n, s', data, hx, hr⟩ <;>
+    replace hx := hx.xstepN
   · have hn := XstepN_fuel hx hg
     have hX := XstepN_X_error hx (fuel - n)
     rw [Nat.sub_add_cancel hn] at hX
@@ -381,6 +384,67 @@ theorem Final.agrees {D : Array UInt256} {st : State}
     rw [Nat.sub_add_cancel hn] at hX
     subst hr
     exact .inr (.inr ⟨_, hX⟩)
+
+/-- A calm state's step makes no call nor creation, so any condition on them holds of it. -/
+theorem Calm.xstepOk {Q : Invariant.CallPreds} {D : Array UInt256} {s : State} (h : Calm s) :
+    Invariant.XstepOk Q D s := by
+  intro _ _ _
+  unfold Calm at h
+  unfold Invariant.stepOk
+  generalize (decode s.executionEnv.code s.machineState.pc).getD (.STOP, .none) = instr at h ⊢
+  split <;> simp_all [callOps]
+
+/-- A step that keeps the environment ends in the state `XOk` goes on from. -/
+theorem keep_depth {s s' : State} (h : s'.executionEnv = s.executionEnv) :
+    { s' with executionEnv.depth := s.executionEnv.depth } = s' := by
+  rw [← h]
+
+/-- Calm steps that stop the iterator make no call nor creation. -/
+theorem Steps.xOk_stop {Q : Invariant.CallPreds} {D : Array UInt256} {s : State}
+    {r : Except ExecutionException (State × Option (HaltCause × ByteArray))} {n : Nat}
+    (h : Steps D s r n) (hr : ∀ t, r ≠ .ok (t, none)) : ∀ f, Invariant.XOk Q f D s := by
+  induction h with
+  | step hc hx _ =>
+    intro f
+    cases f with
+    | zero => trivial
+    | succ f => exact ⟨hc.xstepOk, fun t ht => absurd (hx ▸ ht) (hr t)⟩
+  | trans hc hx henv _ ih =>
+    intro f
+    cases f with
+    | zero => trivial
+    | succ f =>
+      refine ⟨hc.xstepOk, fun t ht => ?_⟩
+      rw [hx] at ht
+      cases ht
+      rw [keep_depth henv]
+      exact ih hr f
+
+/-- Calm steps to a state the iterator goes on from add to its `XOk`. -/
+theorem Steps.xOk_cont {Q : Invariant.CallPreds} {D : Array UInt256} {s t : State} {n f : Nat}
+    (h : Steps D s (.ok (t, none)) n) (ht : Invariant.XOk Q f D t) :
+    Invariant.XOk Q (f + n) D s := by
+  generalize hr : (Except.ok (t, none) : Except ExecutionException _) = r at h
+  induction h generalizing f with
+  | step hc hx henv =>
+    refine ⟨hc.xstepOk, fun t' ht' => ?_⟩
+    subst hr
+    rw [hx] at ht'
+    cases ht'
+    rw [keep_depth (henv _ rfl)]
+    exact ht
+  | trans hc hx henv _ ih =>
+    refine ⟨hc.xstepOk, fun t' ht' => ?_⟩
+    rw [hx] at ht'
+    cases ht'
+    rw [keep_depth henv]
+    exact ih ht hr
+
+theorem Final.xOk {Q : Invariant.CallPreds} {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final D st r) (f : Nat) :
+    Invariant.XOk Q f D st := by
+  rcases h with ⟨n, e, hx, -⟩ | ⟨n, s', out, w', hx, -⟩ | ⟨n, s', data, hx, -⟩ <;>
+    exact hx.xOk_stop (by simp) f
 
 /-- The word of an entry slot in an environment. -/
 def SlotWord (env : Env) : Slot → UInt256 → Prop
@@ -1032,7 +1096,8 @@ theorem section_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f :
     ∀ fuel (b : Block) prev env w st, st.machineState.gasAvailable.toNat < fuel →
       AtBlock low hint f I b prev env w st →
       XAgrees (X fuel (D_J I.code 0) st)
-        ((pre low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w) := by
+        ((pre low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w) ∧
+      ∀ Q, Invariant.XOk Q fuel (D_J I.code 0) st := by
   intro fuel
   induction fuel using Nat.strong_induction_on with
   | _ fuel ihf =>
@@ -1043,7 +1108,7 @@ theorem section_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f :
   intro prev env w st hg hat
   rcases block_step hI hsize hsym hbits hnd hchk hpred hat with hfin |
     ⟨S, env', w', st', n, hreach, hlow, hat', hne, hIR⟩
-  · exact hfin.agrees hg
+  · exact ⟨hfin.agrees hg, fun _ => hfin.xOk fuel⟩
   · rw [hIR]
     have hpreS : (pre low eb S >>= fun _ => runBlocks low.machine ic f env' (some b.id) S.id) =
         runBlocks low.machine ic f env' (some b.id) S.id := by
@@ -1051,14 +1116,16 @@ theorem section_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f :
     rcases hreach with ⟨rfl, rfl⟩ | hx
     · have := ihr _ (hr ▸ hlow rfl) S rfl (some b.id) env' w' _ hg hat'
       rwa [hpreS] at this
-    · have hn := XstepN_fuel hx hg
-      have hpos := XstepN_pos hx
+    · have hxs := hx.xstepN
+      have hn := XstepN_fuel hxs hg
+      have hpos := XstepN_pos hxs
       have hg' := XstepN_gas_lt_fuel_of_Xstep_ret_none (f := fuel - n) (D_J I.code 0)
-        (by rw [Nat.sub_add_cancel hn]; exact hg) hx
-      have hX := XstepN_X_continue (f := fuel - n) (D_J I.code 0) hx rfl
+        (by rw [Nat.sub_add_cancel hn]; exact hg) hxs
+      have hX := XstepN_X_continue (f := fuel - n) (D_J I.code 0) hxs rfl
       rw [Nat.sub_add_cancel hn] at hX
-      rw [hX]
-      have := ihf (fuel - n) (by omega) S (some b.id) env' w' st' hg' hat'
-      rwa [hpreS] at this
+      obtain ⟨hag, hok⟩ := ihf (fuel - n) (by omega) S (some b.id) env' w' st' hg' hat'
+      refine ⟨by rw [hX]; rwa [hpreS] at hag, fun Q => ?_⟩
+      have h := hx.xOk_cont (hok Q)
+      rwa [Nat.sub_add_cancel hn] at h
 
 end Fe.Sonatina.Check

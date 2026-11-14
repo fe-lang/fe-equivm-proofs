@@ -348,4 +348,52 @@ theorem withArg_size (memory : ByteArray) (v : UInt256) :
   rw [byteArray_write_size_of_inBounds _ _ _ _ (by rw [toByteArray_size])
     (by rw [ByteArray.size_append, hzeros]), ByteArray.size_append, hzeros]
 
+/-! ## Calldata decoders
+
+Std's pieces of `decode_runtime_args` at a message of static fields: the calldata view's length,
+the head check, and each `u256` or address field.  A contract's decoder of a message unfolds to
+these. -/
+
+set_option maxRecDepth 100000 in
+/-- Std's length of the calldata view from offset 0: the calldata size, which fits a `u64`. -/
+theorem lenCallData_exec (hfits : I.calldata.size < 2 ^ 64) :
+    (len_CallData ⟨UInt256.ofNat 0⟩).exec I w =
+      some (.ok (UInt256.ofNat I.calldata.size, w)) := by
+  simp [len_CallData, CallData_size, toNat0, truncate_size _ hfits, checkedSub]
+
+set_option maxRecDepth 100000 in
+/-- Std's head check of the selector's 4 bytes and a head of `need` bytes: revert on calldata
+    too short for it. -/
+theorem validateHead_exec {need : Nat} (hlo : 4 ≤ I.calldata.size)
+    (hfits : I.calldata.size < 2 ^ 64) (h0 : need ≠ 0) (hneed : need < 2 ^ 64) :
+    (Sol_validate_runtime_head (UInt256.ofNat I.calldata.size) (UInt256.ofNat 4)
+      (UInt256.ofNat need)).exec I w =
+      if I.calldata.size < 4 + need then some (.error (.revert ByteArray.empty))
+      else some (.ok ((), w)) := by
+  have hs : I.calldata.size - 4 < need ↔ I.calldata.size < 4 + need := by omega
+  simp [Sol_validate_runtime_head, i256_from_word, headCheck hlo hfits hneed, hs,
+    ofNat_ne_ofNat_zero h0 (by unfold UInt256.size; omega)]
+  split_ifs <;> simp [revertEmpty]
+
+/-- Std's decoding of a `u256` field of a message at offset `off` after the selector. -/
+theorem decodeU256Field_exec (base len : UInt256) {off : Nat} (hoff : off < UInt256.size) :
+    (decode_msg_field_from_Sol_u256_CallData ⟨UInt256.ofNat 0⟩ base (UInt256.ofNat off)
+      len).exec I w = some (.ok (word I.calldata off, w)) := by
+  simp [decode_msg_field_from_Sol_u256_CallData, u256_IS_DYNAMIC,
+    decode_field_from_Sol_u256_CallData, u256_decode_from_Sol_CallData, CallData_word_at, calldataload, word,
+    ofNat_add_ofNat (show 0 + off < UInt256.size by omega), ulit_toNat' _ hoff]
+
+/-- Std's decoding of an address field at offset `off` after the selector: revert on a word that
+    is not a canonical address. -/
+theorem decodeAddressField_exec (base len : UInt256) {off : Nat} (hoff : off < UInt256.size) :
+    (decode_msg_field_from_Sol_Address_CallData ⟨UInt256.ofNat 0⟩ base (UInt256.ofNat off)
+      len).exec I w =
+      if NotAddress (word I.calldata off) then some (.error (.revert ByteArray.empty))
+      else some (.ok (word I.calldata off, w)) := by
+  simp [decode_msg_field_from_Sol_Address_CallData, Address_IS_DYNAMIC,
+    decode_field_from_Sol_Address_CallData, Address_decode_from_Sol_CallData, CallData_word_at,
+    calldataload, word, ofNat_add_ofNat (show 0 + off < UInt256.size by omega), ulit_toNat' _ hoff,
+    shr160_eq_zero_iff]
+  split_ifs <;> simp [revertEmpty]
+
 end FeProofs.Lib

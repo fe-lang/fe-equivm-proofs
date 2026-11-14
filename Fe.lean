@@ -18,6 +18,7 @@ import Fe.Sonatina.Parse
 import Fe.Sonatina.Interp
 import Fe.Sonatina.Refine
 import Fe.Sonatina.Hints
+import Fe.Sonatina.Decode
 import Fe.Sonatina.Check
 import Fe.Sonatina.CheckSound
 import Fe.Sonatina.CheckStep
@@ -28,4 +29,5 @@ import Fe.Sonatina.CheckIR
 import Fe.Sonatina.CheckBody
 import Fe.Sonatina.CheckSection
 import Fe.Sonatina.CheckCert
+import Fe.Sonatina.Run
 import Fe.Sonatina.Diff
