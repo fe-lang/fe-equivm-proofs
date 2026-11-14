@@ -22,4 +22,5 @@ import Fe.Sonatina.CheckStep
 import Fe.Sonatina.CheckEvent
 import Fe.Sonatina.CheckBlock
 import Fe.Sonatina.CheckArith
+import Fe.Sonatina.CheckIR
 import Fe.Sonatina.Diff
