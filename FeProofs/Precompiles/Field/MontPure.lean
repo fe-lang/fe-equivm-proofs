@@ -1,17 +1,17 @@
 import FeProofs.Precompiles.Field.Words
 
 /-!
-# Ecrecover: the Montgomery arithmetic as pure functions
+# Precompiles: the Montgomery arithmetic as pure functions
 
 `montgomery.fe` implements `Mont<M>` for a modulus `M` given by constants: the limbs `P0 … P3`
 of the modulus, `INV = -p⁻¹ mod 2 ^ 64` and `R2 = 2 ^ 512 mod p`.  The exporter prints one copy
 of each method per modulus, `Mont_mul_Base` and `Mont_mul_Order` and so on.  This file writes
 each method once, as a pure function of the constants (`Modulus`) on four limbs (`L4`),
-following the Fe code step by step: `Purify.lean` shows that each exported copy is `pure` of its
-instance, and `MontCorrect.lean` what the functions compute.
+following the Fe code step by step: each curve's `Purify.lean` shows that each exported copy is
+`pure` of its instance, and `MontCorrect.lean` what the functions compute.
 -/
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
 /-- The constants of a modulus that the Montgomery arithmetic reads. -/
 structure Modulus where
@@ -192,4 +192,4 @@ def equals (a b : L4) : Bool := a.l0 = b.l0 && a.l1 = b.l1 && a.l2 = b.l2 && a.l
 
 end Mont
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

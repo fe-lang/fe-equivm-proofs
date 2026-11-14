@@ -1,8 +1,8 @@
-import FeProofs.Precompiles.Secp256k1.Purify
+import FeProofs.Precompiles.Field.Words
 import Fe.EVM.IntWords
 
 /-!
-# Ecrecover: signed words
+# Precompiles: signed words
 
 The inversion in `inversion.fe` computes with `i64` and `i128` values, which the exporter keeps
 as 256-bit two's-complement words, and with `u64` values as words below `2 ^ 64`.  `I n`, the
@@ -13,7 +13,7 @@ uses, the `u64` operations, the truncations, and `u64` words as limbs.
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
 theorem I_inj {x y : ℤ} (h : x % 2 ^ 256 = y % 2 ^ 256) : I x = I y := by
   unfold I; rw [h]
@@ -93,7 +93,7 @@ theorem I_land_M62 (x : ℤ) : I x &&& UInt256.ofNat 4611686018427387903 = I (x 
 
 /-! ## Truncations -/
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 theorem sign_extend_mod (v : UInt256) :
     ∃ w, Lib.sign_extend v
@@ -268,4 +268,4 @@ theorem downcast_i64_u64_I (x : ℤ) : downcast_truncate_i64_u64 (I x) = pure (L
 
 theorem w_lit (n : ℕ) (h : n < 2 ^ 64) : UInt256.ofNat n = Limb.w ⟨n, h⟩ := rfl
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

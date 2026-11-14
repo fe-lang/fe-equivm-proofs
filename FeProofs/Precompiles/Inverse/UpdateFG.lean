@@ -1,7 +1,7 @@
 import FeProofs.Precompiles.Inverse.DivstepsSpec
 
 /-!
-# Ecrecover: `update_fg`
+# Precompiles: `update_fg`
 
 `update_fg` multiplies `(f, g)`, each five signed 62-bit limbs, by the transition matrix and
 divides by `2 ^ 62`, with one `i128` carry chain per row.  `fg_row` is one row on integers:
@@ -13,9 +13,9 @@ are the chain's remainders and its last quotient (`update_fg_eq`).  When the row
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 /-! ## `i128` words that do not wrap -/
 
@@ -246,4 +246,4 @@ theorem fgOut_low (U V : ℤ) (a b : ℕ → ℤ) {i : ℕ} (hi : i < 4) :
   have h' := fun k => Int.emod_lt_of_pos (fgC U V a b k) (show (0 : ℤ) < 2 ^ 62 by norm_num)
   interval_cases i <;> exact ⟨h _, h' _⟩
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

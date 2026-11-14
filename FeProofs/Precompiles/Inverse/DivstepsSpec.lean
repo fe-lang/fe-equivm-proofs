@@ -4,7 +4,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
 /-!
-# Ecrecover: what `divsteps` returns
+# Precompiles: what `divsteps` returns
 
 For an odd `f0`, `divsteps eta f0 g0` returns a matrix `[u v; q r]` with `|u| + |v| ≤ 2 ^ 62`,
 `|q| + |r| ≤ 2 ^ 62`, determinant `2 ^ 62`, and `u f0 + v g0 ≡ q f0 + r g0 ≡ 0 (mod 2 ^ 62)`
@@ -19,7 +19,7 @@ than the last left pending, so the loop ends.
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
 /-! ## Trailing zeros -/
 
@@ -614,7 +614,7 @@ theorem run_spec (f0 g0 : Limb) : ∀ n (s : DS) c, s.Inv f0 g0 c → s.left.val
 theorem sgn_one : (1 : Limb).sgn = 1 := by decide
 theorem sgn_zero : (0 : Limb).sgn = 0 := by decide
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover in
+open Precompiles.Exported.Shared in
 /-- `divsteps` on an odd `f0` returns, with an `eta` for the next call, the transition matrix
 of 62 divsteps. -/
 theorem divsteps_spec (eta : ℤ) (he : eta.bmod (2 ^ 64) = eta) (f0 g0 : Limb)
@@ -627,4 +627,4 @@ theorem divsteps_spec (eta : ℤ) (he : eta.bmod (2 ^ 64) = eta) (f0 g0 : Limb)
       simp only [sgn_one, sgn_zero, h62] <;> norm_num
   exact run_spec f0 g0 62 _ 0 hinv (by show (62 : Limb).val - 0 ≤ 62; decide) default
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

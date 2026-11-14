@@ -16,6 +16,8 @@ set_option exponentiation.threshold 512
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 /-- The exported key of the specification's result. -/

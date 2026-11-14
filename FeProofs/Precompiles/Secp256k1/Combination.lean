@@ -11,6 +11,8 @@ open Ethereum Fe Fe.EVM Reasoning.Theory WeierstrassCurve WeierstrassCurve.Jacob
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 theorem usize_eq (x : UInt256) : downcast_truncate_u256_usize x = pure x := by
@@ -274,6 +276,8 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
 end FeProofs.Ecrecover
 
 namespace FeProofs.Ecrecover
+
+open FeProofs.Precompiles
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 theorem range_has_eq {k lo hi : ℕ} (hk : k < 2 ^ 256) (hl : lo < 2 ^ 256) (hh : hi < 2 ^ 256) :
@@ -371,6 +375,8 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
 end FeProofs.Ecrecover
 
 namespace FeProofs.Ecrecover
+
+open FeProofs.Precompiles
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 /-- The rows of the table done at outer step `p`: the multiples of `G` and `Q` alone, and the
 rows below `4 (p + 1)`. -/

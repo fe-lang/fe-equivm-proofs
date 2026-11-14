@@ -3,7 +3,7 @@ import Fe.Partial
 import Mathlib.RingTheory.Coprime.Basic
 
 /-!
-# Ecrecover: the loop of `invert`
+# Precompiles: the loop of `invert`
 
 `invert` keeps `d x ≡ f` and `e x ≡ g (mod m)` with `f, g` coprime and `f` odd, and multiplies
 `(d, e)` and `(f, g)` by each transition matrix of `divsteps`, divided by `2 ^ 62` (`InvState`,
@@ -16,9 +16,9 @@ open Ethereum Fe Fe.EVM Reasoning.Theory
 
 set_option exponentiation.threshold 512
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 /-- Limbs that fit the `i128` chains: all below `2 ^ 62`. -/
 def Lim (a : ℕ → ℤ) : Prop := ∀ i, |a i| ≤ 2 ^ 62
@@ -382,4 +382,4 @@ theorem invert_5_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1 :
     · exact Or.inl h
     · exact Or.inr ⟨out, h, h1, h2, h3, h4⟩
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

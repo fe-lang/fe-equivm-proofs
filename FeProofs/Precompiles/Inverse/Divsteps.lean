@@ -1,7 +1,7 @@
 import FeProofs.Precompiles.Inverse.Signed
 
 /-!
-# Ecrecover: `divsteps`
+# Precompiles: `divsteps`
 
 `divsteps` runs 62 divsteps of Bernstein and Yang on the low words `f0, g0` of `f, g` and
 returns the transition matrix `[u v; q r]`, scaled by `2 ^ 62`.  Its state is `DS`: the matrix,
@@ -13,9 +13,9 @@ to six or four low bits of `g`), in `b1_step`.
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 /-- The state of the loop of `divsteps`. -/
 structure DS where
@@ -118,4 +118,4 @@ theorem b1_step (s : DS) (bits : UInt256) (he : s.eta.bmod (2 ^ 64) = s.eta) :
     he, decide_eq_true_eq, h15, if_true, if_false]
   split_ifs <;> rfl
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

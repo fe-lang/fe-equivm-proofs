@@ -1,4 +1,4 @@
-import FeProofs.Precompiles.Field.Pow
+import FeProofs.Precompiles.Secp256k1.Mont
 import Ethereum.Secp256k1.Spec
 import Mathlib.FieldTheory.Finite.Basic
 
@@ -21,6 +21,8 @@ zero, its negation has the other parity, and the code's choice between them is t
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
 namespace FeProofs.Ecrecover
+
+open FeProofs.Precompiles
 
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover Mont
 

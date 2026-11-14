@@ -10,6 +10,8 @@ sixteen is reading and updating `t`.
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 /-- The vector of sixteen values of `t`. -/
 def tbl {α : Type} (t : ℕ → α) : Vector α 16 := Vector.ofFn fun i => t i
 
@@ -34,6 +36,8 @@ theorem tbl_replicate {α : Type} (x : α) : Vector.replicate 16 x = tbl fun _ =
 end FeProofs.Ecrecover
 
 namespace FeProofs.Ecrecover
+
+open FeProofs.Precompiles
 
 open Ethereum Fe Fe.EVM WeierstrassCurve WeierstrassCurve.Jacobian
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover

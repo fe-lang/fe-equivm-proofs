@@ -23,6 +23,8 @@ open Ethereum Ethereum.EVM Fe Fe.EVM
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 /-- The number of at most 32 bytes that a string of hex digits spells, big-endian. -/
 def word? (digits : String) : Option Nat := do
   let bytes ← (ByteArray.ofBlob digits).toOption

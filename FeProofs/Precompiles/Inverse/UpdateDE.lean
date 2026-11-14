@@ -1,7 +1,7 @@
 import FeProofs.Precompiles.Inverse.UpdateFG
 
 /-!
-# Ecrecover: `update_de`
+# Precompiles: `update_de`
 
 `update_de` computes `t [d, e] / 2 ^ 62` modulo `m`: to each row's combination it adds the
 multiple `md` of `m` that makes it divisible by `2 ^ 62`, where `md` starts from the entries of
@@ -12,9 +12,9 @@ out denote, and `de_range` that `d, e ∈ (-2m, m)` is kept.
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 /-! ## Signs and masks -/
 
@@ -374,4 +374,4 @@ theorem de_range {U V D E M k t D' : ℤ} (hUV : |U| + |V| ≤ 2 ^ 62) (hM : 0 <
   rw [abs_le] at hb
   constructor <;> nlinarith
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles

@@ -1,4 +1,5 @@
 import FeProofs.Precompiles.Field.MontPure
+import FeProofs.Precompiles.Exported.Ecrecover
 
 /-!
 # Ecrecover: the exported Montgomery code is pure
@@ -12,6 +13,8 @@ each lemma for both (`purify`).
 open Ethereum Fe Fe.EVM Reasoning.Theory
 
 namespace FeProofs.Ecrecover
+
+open FeProofs.Precompiles
 
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
@@ -39,8 +42,6 @@ def toB (a : L4) : Mont_Base := ⟨a.l0.w, a.l1.w, a.l2.w, a.l3.w⟩
 /-- The word form of four limbs, as `Order`. -/
 def toO (a : L4) : Mont_Order := ⟨a.l0.w, a.l1.w, a.l2.w, a.l3.w⟩
 
-theorem zero_w : UInt256.ofNat 0 = (0 : Limb).w := rfl
-
 theorem Base_P0_eq : Base_P0 = pure KB.P0.w := rfl
 theorem Base_P1_eq : Base_P1 = pure KB.P1.w := rfl
 theorem Base_P2_eq : Base_P2 = pure KB.P2.w := rfl
@@ -51,13 +52,6 @@ theorem Order_P1_eq : Order_P1 = pure KO.P1.w := rfl
 theorem Order_P2_eq : Order_P2 = pure KO.P2.w := rfl
 theorem Order_P3_eq : Order_P3 = pure KO.P3.w := rfl
 theorem Order_INV_eq : Order_INV = pure KO.INV.w := rfl
-
-theorem sbbHi_val_le (a b c : Limb) : (sbbHi a b c).val ≤ 1 := by
-  unfold sbbHi; split <;> simp
-
-theorem zero_val_le : (0 : Limb).val ≤ 1 := by decide
-
-theorem one_w : UInt256.ofNat 1 = (1 : Limb).w := rfl
 
 @[simp] theorem toB_l0 (a : L4) : (toB a).l0 = a.l0.w := rfl
 @[simp] theorem toB_l1 (a : L4) : (toB a).l1 = a.l1.w := rfl
@@ -223,38 +217,6 @@ theorem new_Order (v : UInt256) (hv : v.toNat < Order.value) :
   simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, if_false,
     pure_bind]
   rfl
-
-theorem shiftLeft_toNat (x : UInt256) {k : ℕ} (hk : k < 256) (hx : x.toNat * 2 ^ k < 2 ^ 256) :
-    (x <<< UInt256.ofNat k).toNat = 2 ^ k * x.toNat := by
-  have hkword : (UInt256.ofNat k).toNat = k := toNat_lit (by omega)
-  change (UInt256.shiftLeft x (UInt256.ofNat k)).toNat = _
-  unfold UInt256.shiftLeft
-  rw [if_neg (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
-  change (x.toNat <<< (UInt256.ofNat k).toNat) % UInt256.size = _
-  rw [hkword, Nat.shiftLeft_eq, Nat.mod_eq_of_lt (show _ < UInt256.size from hx), Nat.mul_comm]
-
-/-- The word `value` assembles from four limbs is their sum at their weights. -/
-theorem assemble_eq (x0 x1 x2 x3 : Limb) :
-    x0.w ||| x1.w <<< UInt256.ofNat 64 ||| x2.w <<< UInt256.ofNat 128 |||
-      x3.w <<< UInt256.ofNat 192 =
-    UInt256.ofNat (x0.val + 2 ^ 64 * x1.val + 2 ^ 128 * x2.val + 2 ^ 192 * x3.val) := by
-  have h0 := x0.isLt; have h1 := x1.isLt; have h2 := x2.isLt; have h3 := x3.isLt
-  apply word_eq_of_toNat
-  change (UInt256.lor (UInt256.lor (UInt256.lor _ _) _) _).toNat = _
-  rw [u256_lor_toNat_exact, u256_lor_toNat_exact, u256_lor_toNat_exact,
-    shiftLeft_toNat _ (by decide) (by simp; omega), shiftLeft_toNat _ (by decide) (by simp; omega),
-    shiftLeft_toNat _ (by decide) (by simp; omega), toNat_lit (by omega)]
-  simp only [Limb.toNat_w]
-  have e1 : x0.val ||| 2 ^ 64 * x1.val = 2 ^ 64 * x1.val + x0.val := by
-    rw [Nat.lor_comm]; exact (Nat.two_pow_add_eq_or_of_lt h0 _).symm
-  have e2 : (2 ^ 64 * x1.val + x0.val) ||| 2 ^ 128 * x2.val =
-      2 ^ 128 * x2.val + (2 ^ 64 * x1.val + x0.val) := by
-    rw [Nat.lor_comm]; exact (Nat.two_pow_add_eq_or_of_lt (by omega) _).symm
-  have e3 : (2 ^ 128 * x2.val + (2 ^ 64 * x1.val + x0.val)) ||| 2 ^ 192 * x3.val =
-      2 ^ 192 * x3.val + (2 ^ 128 * x2.val + (2 ^ 64 * x1.val + x0.val)) := by
-    rw [Nat.lor_comm]; exact (Nat.two_pow_add_eq_or_of_lt (by omega) _).symm
-  rw [e1, e2, e3]
-  omega
 
 /-- `value`: `a * 1` reduced, assembled into a word. -/
 theorem value_Base (a : L4) :

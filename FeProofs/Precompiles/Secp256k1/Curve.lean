@@ -16,6 +16,8 @@ open Ethereum Fe Fe.EVM Reasoning.Theory WeierstrassCurve WeierstrassCurve.Jacob
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover Mont
 
 /-! ## The field operations on representations -/

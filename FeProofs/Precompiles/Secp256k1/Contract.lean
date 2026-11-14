@@ -42,6 +42,8 @@ open scoped FeProofs.Lib
 
 namespace FeProofs.Ecrecover
 
+open FeProofs.Precompiles
+
 open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bind_def

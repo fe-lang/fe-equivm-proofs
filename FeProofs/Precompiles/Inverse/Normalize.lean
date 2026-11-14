@@ -2,7 +2,7 @@ import FeProofs.Precompiles.Inverse.UpdateDE
 import Fe.EVM.Entry
 
 /-!
-# Ecrecover: `is_zero`, `add_if_negative`, `carry` and `normalize`
+# Precompiles: `is_zero`, `add_if_negative`, `carry` and `normalize`
 
 The helpers that finish `invert`, on five limbs held as integers.  `add_if_negative` adds the
 modulus when the top limb is negative, `carry` brings every limb but the top one into
@@ -14,9 +14,9 @@ open Ethereum Fe Fe.EVM Reasoning.Theory
 
 set_option exponentiation.threshold 512
 
-namespace FeProofs.Ecrecover
+namespace FeProofs.Precompiles
 
-open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
+open Precompiles.Exported.Shared
 
 /-- The word vector of five integer limbs. -/
 abbrev vec5 (a : ℕ → ℤ) : Vector UInt256 5 := #v[I (a 0), I (a 1), I (a 2), I (a 3), I (a 4)]
@@ -324,4 +324,4 @@ theorem normalize_spec (r m : ℕ → ℤ) (s : ℤ) (hr : Canon r) (hm : Canon 
     rw [if_neg h, _root_.add_zero]
     exact ⟨by linarith, hb2.2, hc⟩
 
-end FeProofs.Ecrecover
+end FeProofs.Precompiles
