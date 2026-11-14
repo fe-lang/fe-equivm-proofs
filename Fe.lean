@@ -1,4 +1,5 @@
 import Fe.Core
+import Fe.Partial
 import Fe.EVM.World
 import Fe.EVM.Calls
 import Fe.EVM.Int

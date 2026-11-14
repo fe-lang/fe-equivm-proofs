@@ -1,13 +1,11 @@
-import FeProofs.Ecrecover.Exported
+import Fe.Core
 
 /-!
-# Ecrecover: partial correctness of exported loops
+# Partial correctness of exported loops
 
-A `partial_fixpoint` loop of the exported model comes with `fixpoint_induct` for admissible
+A `partial_fixpoint` loop of an exported model comes with `fixpoint_induct` for admissible
 predicates.  "Every run that returns satisfies `Q`" is admissible (`admissible_exec`): a run
-that diverges is `none`, the bottom of the flat order, and satisfies it.  This is what the
-partial correctness of `invert`'s outer loop goes through.  The lemma is general in the
-monad's environment and world.
+that diverges is `none`, the bottom of the flat order, and satisfies it.
 -/
 
 open Lean.Order
