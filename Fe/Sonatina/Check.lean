@@ -158,9 +158,10 @@ def mkOp (op : Operation) : List Expr → Option Expr
     until their signed arithmetic is proved the EVM's. -/
 def binOpcode : BinOp → Option Operation
   | .add => some .ADD | .sub => some .SUB | .mul => some .MUL | .shl => some .SHL
-  | .shr => some .SHR | .and => some .AND | .or => some .OR | .xor => some .XOR
-  | .evmUdiv => some .DIV | .evmUmod => some .MOD | .evmExp => some .EXP
-  | .evmByte => some .BYTE | .evmSignExtend => some .SIGNEXTEND
+  | .shr => some .SHR | .sar => some .SAR | .and => some .AND | .or => some .OR
+  | .xor => some .XOR | .evmUdiv => some .DIV | .evmSdiv => some .SDIV | .evmUmod => some .MOD
+  | .evmSmod => some .SMOD | .evmExp => some .EXP | .evmByte => some .BYTE
+  | .evmSignExtend => some .SIGNEXTEND
   | _ => none
 
 def cmpOpcode : CmpOp → Option Operation

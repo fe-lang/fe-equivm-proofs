@@ -317,9 +317,9 @@ agent's `Implements model (s.model .machine) CalldataFits` and `RefinesOn.of_imp
 with no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses
 only the pure, read, write and halting instructions `Check.lean` translates (no external call, no
 `gas`, no `create`). It accepts both sections of FeConstant, FeScalarStore and FeERC20. On the
-corpus it accepts 351 of 430 sections and rejects 40 as more than one function and 39 for an
-instruction outside the class (5 of them for `sar`, `evm_sdiv` or `evm_smod`, out of the class
-until their arithmetic is proved). It matches the bytes of every section in its class: the
+corpus (sidecar version 2, before `sar`, `evm_sdiv` and `evm_smod` joined the class) it
+accepted 351 of 430 sections and rejected 40 as more than one function and 39 for an instruction
+outside the class, 5 of them for one of those three. It matches the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
 operations as the IR wrote them, which the bytes often swap); three `ISZERO`s are one, as the
@@ -404,8 +404,8 @@ machine IR through the hand-written model, and `RefinesOn.of_implements` and
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
 - the machine IR must be word-typed (the interpreter computes `add` at the operands' width);
-- `sar`, `evm_sdiv` and `evm_smod` are out of the class until their signed arithmetic is proved
-  (356 to 351 accepted sections);
+- `sar`, `evm_sdiv` and `evm_smod` were out of the class (356 to 351 accepted sections) until
+  `sar_word`, `sdiv_word` and `smod_word` proved their signed arithmetic;
 - the machine IR must run where the bytes do (it is the specification; where its run is stuck the
   model diverges): each value defined once, read only after its definition in the block or from
   the entry stack and phis, a block's statements defining nothing they read at entry, successor

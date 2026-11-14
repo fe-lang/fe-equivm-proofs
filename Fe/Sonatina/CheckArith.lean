@@ -7,7 +7,9 @@ The interpreter computes an instruction on the values of its operands at their w
 (`BinOp.eval`, `CmpOp.eval`); the checker gives it the value of its EVM opcode (`opEval`).  At
 256 bits, on words, they agree: `bin_word` for every binary instruction `binOpcode` maps,
 `cmp_word` for every comparison `cmpOpcode` maps (the signed ones through `signed`),
-`isZero_word` and `not_word`.
+`isZero_word` and `not_word`.  The signed division, remainder and shift (`sdiv_word`,
+`smod_word`, `sar_word`) go through the absolute value and the sign of each operand's signed
+integer.
 -/
 
 namespace Fe.Sonatina.Check
@@ -206,23 +208,220 @@ theorem signed_gt {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
     | (symm; simp only [decide_eq_true_eq]; omega)
     | (symm; simp only [decide_eq_false_iff_not]; omega)
 
+/-- A word times `-1`, as `UInt256.abs` and `UInt256.sdiv` negate it, is its difference from 0. -/
+theorem neg_sub_word (a : UInt256) : (⟨a.val * (-1)⟩ : UInt256) = UInt256.sub (.ofNat 0) a := by
+  show (⟨a.val * (-1)⟩ : UInt256) = ⟨(Fin.ofNat _ 0) - a.val⟩
+  congr 1
+  rw [mul_neg, mul_one, Fin.ofNat_zero, zero_sub]
+
+/-- The negation of a word below `2 ^ 256`. -/
+theorem neg_word {x : Nat} (hx : x < UInt256.size) :
+    (⟨(UInt256.ofNat x).val * (-1)⟩ : UInt256) = UInt256.ofNat (wrap 256 (-(x : Int))) := by
+  rw [neg_sub_word, sub_word (by decide) hx]
+  simp
+
+/-- `UInt256.abs` of a word is the absolute value of its signed integer. -/
+theorem abs_word {x : Nat} (hx : x < UInt256.size) :
+    UInt256.abs (.ofNat x) = UInt256.ofNat (signed 256 x).natAbs := by
+  unfold UInt256.abs
+  rw [toNat_ofNat_lt hx]
+  rw [size_eq] at hx
+  split_ifs with h
+  · rw [neg_word (by rw [size_eq]; exact hx)]
+    congr 1
+    simp only [wrap, signed]
+    rw [if_neg (by omega)]
+    omega
+  · simp only [signed]
+    rw [if_pos (by omega)]
+    rfl
+
+/-- A word with its top bit set is negative as a signed integer. -/
+theorem signed_neg {x : Nat} (hx : x < UInt256.size) (h : 2 ^ 255 ≤ x) :
+    signed 256 x = -((2 ^ 256 - x : Nat) : Int) := by
+  rw [size_eq] at hx
+  simp only [signed]
+  rw [if_neg (by omega)]
+  omega
+
+/-- A word without its top bit set is itself as a signed integer. -/
+theorem signed_pos {x : Nat} (h : ¬ 2 ^ 255 ≤ x) : signed 256 x = x := by
+  simp only [signed]
+  rw [if_pos (by omega)]
+
+theorem natAbs_neg {x : Nat} (hx : x < UInt256.size) (h : 2 ^ 255 ≤ x) :
+    (signed 256 x).natAbs = 2 ^ 256 - x := by
+  rw [signed_neg hx h]; omega
+
+theorem natAbs_pos {x : Nat} (h : ¬ 2 ^ 255 ≤ x) : (signed 256 x).natAbs = x := by
+  rw [signed_pos h]; omega
+
+theorem wrap_nat_lt {n : Nat} (h : n < UInt256.size) : wrap 256 (n : Int) = n := by
+  rw [size_eq] at h; simp only [wrap]; omega
+
+/-- `evm_sdiv` on words is `SDIV`. -/
+theorem sdiv_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
+    UInt256.sdiv (.ofNat x) (.ofNat y) = UInt256.ofNat (BinOp.eval .evmSdiv 256 x y) := by
+  have hsz : UInt256.size = 2 ^ 256 := size_eq
+  have hq : ∀ a b : Nat, a < UInt256.size → a / b < UInt256.size :=
+    fun a b ha => lt_of_le_of_lt (Nat.div_le_self _ _) ha
+  unfold UInt256.sdiv
+  rw [toNat_ofNat_lt hx, toNat_ofNat_lt hy]
+  simp only [BinOp.eval]
+  have hdiv : ∀ a b : UInt256, a / b = UInt256.div a b := fun _ _ => rfl
+  have hx' := hx
+  have hy' := hy
+  rw [hsz] at hx' hy'
+  by_cases ha : 2 ^ 255 ≤ x <;> by_cases hb : 2 ^ 255 ≤ y <;> by_cases hy0 : y = 0 <;>
+    simp only [ha, hb, hy0, not_false_eq_true, if_pos, if_neg, show ¬ 2 ^ 255 ≤ 0 by decide]
+  · omega
+  · rw [abs_word hx, abs_word hy, natAbs_neg hx ha, natAbs_neg hy hb, hdiv,
+      div_word (by omega) (by omega), if_neg (by omega), signed_neg hx ha, signed_neg hy hb,
+      Int.neg_tdiv_neg, ← Int.ofNat_tdiv, wrap_nat_lt (hq _ _ (by omega))]
+  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) (by decide), if_pos rfl,
+      neg_word (by decide)]
+    rfl
+  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) hy, if_neg hy0,
+      neg_word (hq _ _ (by omega)), signed_neg hx ha, signed_pos hb, Int.neg_tdiv,
+      ← Int.ofNat_tdiv]
+  · omega
+  · rw [abs_word hy, natAbs_neg hy hb, hdiv, div_word hx (by omega), if_neg (by omega),
+      neg_word (hq _ _ hx), signed_pos ha, signed_neg hy hb, Int.tdiv_neg, ← Int.ofNat_tdiv]
+  · rw [hdiv, div_word hx (by decide), if_pos rfl]
+  · rw [hdiv, div_word hx hy, if_neg hy0, signed_pos ha, signed_pos hb, ← Int.ofNat_tdiv,
+      wrap_nat_lt (hq _ _ hx)]
+
+theorem natAbs_lt {x : Nat} (hx : x < UInt256.size) : (signed 256 x).natAbs < UInt256.size := by
+  by_cases h : 2 ^ 255 ≤ x
+  · rw [natAbs_neg hx h, size_eq] at *; omega
+  · rw [natAbs_pos h]; exact hx
+
+/-- A signed integer of 256 bits as a word, as `UInt256.toSigned` gives it. -/
+theorem toSigned_word {i : Int} (h : i.natAbs < UInt256.size) :
+    UInt256.toSigned i = UInt256.ofNat (wrap 256 i) := by
+  cases i with
+  | ofNat n =>
+    simp only [UInt256.toSigned, wrap, Int.ofNat_eq_natCast, Int.natAbs_natCast] at h ⊢
+    rw [size_eq] at h
+    congr 1
+    omega
+  | negSucc n =>
+    simp only [Int.natAbs_negSucc] at h
+    show UInt256.ofNat (UInt256.size - 1 - n) = _
+    have : UInt256.size - 1 - n = wrap 256 (Int.negSucc n) := by
+      rw [size_eq] at h ⊢
+      unfold wrap
+      rw [Int.negSucc_eq]
+      omega
+    rw [this]
+
+/-- `evm_smod` on words is `SMOD`. -/
+theorem smod_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
+    UInt256.smod (.ofNat x) (.ofNat y) = UInt256.ofNat (BinOp.eval .evmSmod 256 x y) := by
+  have hmod : ∀ a b : UInt256, a % b = UInt256.mod a b := fun _ _ => rfl
+  unfold UInt256.smod
+  simp only [BinOp.eval, toNat_ofNat_lt hy]
+  by_cases hy0 : y = 0
+  · subst hy0; rfl
+  rw [if_neg (by simpa using hy0), if_neg hy0, hmod, abs_word hx, abs_word hy,
+    mod_word (natAbs_lt hx) (natAbs_lt hy)]
+  have hB : (signed 256 y).natAbs ≠ 0 := by
+    by_cases hb : 2 ^ 255 ≤ y
+    · rw [natAbs_neg hy hb]; rw [size_eq] at hy; omega
+    · rw [natAbs_pos hb]; exact hy0
+  rw [if_neg hB]
+  have hlt : (signed 256 x).natAbs % (signed 256 y).natAbs < UInt256.size :=
+    lt_of_le_of_lt (Nat.mod_le _ _) (natAbs_lt hx)
+  rw [toNat_ofNat_lt hlt]
+  have hty : ∀ a : Int, a.tmod (signed 256 y) = a.tmod ((signed 256 y).natAbs : Int) := by
+    intro a
+    by_cases hb : 2 ^ 255 ≤ y
+    · rw [natAbs_neg hy hb, signed_neg hy hb, Int.tmod_neg]
+    · rw [natAbs_pos hb, signed_pos hb]
+  rw [hty]
+  unfold UInt256.sgn
+  rw [toNat_ofNat_lt hx, toSigned_word (by
+    split_ifs <;> simp only [Int.natAbs_mul, Int.natAbs_neg, Int.natAbs_one, Int.natAbs_zero,
+      Int.natAbs_natCast, one_mul, zero_mul] <;> omega)]
+  by_cases ha : 2 ^ 255 ≤ x
+  · rw [if_pos ha, natAbs_neg hx ha, signed_neg hx ha, Int.neg_tmod, ← Int.ofNat_tmod]
+    simp
+  · rw [if_neg ha, natAbs_pos ha, signed_pos ha, ← Int.ofNat_tmod]
+    by_cases hx0 : x = 0
+    · subst hx0; simp [UInt256.eq0]
+    · have : UInt256.eq0 (UInt256.ofNat x) = false := by
+        simp only [UInt256.eq0, beq_eq_false_iff_ne, ne_eq]
+        intro h
+        exact hx0 (by simpa [toNat_ofNat_lt hx] using congrArg UInt256.toNat h)
+      simp [this]
+
+/-- `UInt256.complement` of a word, as `SAR` takes it. -/
+theorem complement_word {c : Nat} (hc : c < UInt256.size) :
+    UInt256.complement (.ofNat c) = UInt256.ofNat (2 ^ 256 - 1 - c) := by
+  apply eq_of_toNat
+  have h1 : (1 : Fin UInt256.size).val = 1 := rfl
+  have hs := size_eq
+  unfold UInt256.complement UInt256.toNat
+  simp only [Fin.sub_def, Fin.val_add, Fin.val_zero, h1]
+  rw [ofNat_val hc, ofNat_val (by omega)]
+  rw [hs] at hc ⊢
+  omega
+
+/-- `sar` on words is `SAR`, the amount first. -/
+theorem sar_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
+    UInt256.sar (.ofNat x) (.ofNat y) = UInt256.ofNat (BinOp.eval .sar 256 x y) := by
+  have hsr : ∀ a b : UInt256, a >>> b = UInt256.shiftRight a b := fun _ _ => rfl
+  have hslt : UInt256.sltBool (.ofNat y) ⟨0⟩ = decide (2 ^ 255 ≤ y) := by
+    have := signed_lt hy (show 0 < UInt256.size by decide)
+    rw [show (⟨0⟩ : UInt256) = UInt256.ofNat 0 from rfl, this]
+    by_cases hb : 2 ^ 255 ≤ y
+    · rw [signed_neg hy hb]; rw [signed_pos (x := 0) (by decide)]
+      simp only [decide_eq_decide]
+      rw [size_eq] at hy
+      constructor <;> intro h <;> omega
+    · rw [signed_pos hb]; rw [signed_pos (x := 0) (by decide)]
+      simp only [decide_eq_decide]
+      constructor <;> intro h <;> omega
+  unfold UInt256.sar
+  simp only [BinOp.eval, hslt, hsr]
+  by_cases hb : 2 ^ 255 ≤ y
+  · have hc : 2 ^ 256 - 1 - y < UInt256.size := by rw [size_eq]; omega
+    rw [decide_eq_true hb, if_pos rfl, complement_word hy, shr_word hx hc]
+    rw [complement_word (by split_ifs; decide; exact lt_of_le_of_lt (Nat.shiftRight_le _ _) hc),
+      signed_neg hy hb]
+    congr 1
+    rw [size_eq] at hy hc
+    split_ifs with h256 hneg
+    · rfl
+    · omega
+    · have hq : (2 ^ 256 - 1 - y) / 2 ^ x < 2 ^ 256 := lt_of_le_of_lt (Nat.div_le_self _ _) hc
+      rw [show -((2 ^ 256 - y : Nat) : Int) = Int.negSucc (2 ^ 256 - 1 - y) by omega,
+        Int.negSucc_ediv _ (by positivity), Nat.shiftRight_eq_div_pow,
+        show ((2 : Int) ^ x) = ((2 ^ x : Nat) : Int) by push_cast; rfl,
+        show ∀ a b : Int, a.ediv b = a / b from fun _ _ => rfl, ← Int.natCast_div]
+      generalize (2 ^ 256 - 1 - y) / 2 ^ x = q at hq ⊢
+      simp only [wrap]
+      omega
+  · rw [decide_eq_false hb, if_neg (by simp), shr_word hx hy, signed_pos hb]
+    congr 1
+    split_ifs with h256 hneg
+    · omega
+    · rfl
+    · rw [Nat.shiftRight_eq_div_pow, show ((2 : Int) ^ x) = ((2 ^ x : Nat) : Int) by push_cast; rfl,
+        ← Int.natCast_div, wrap_nat_lt (lt_of_le_of_lt (Nat.div_le_self _ _) hy)]
+
 /-- A pure binary instruction of the class computes on words what its opcode does. -/
 theorem bin_word {ee : ExecutionEnv} {op : BinOp} {opc : Operation} (h : binOpcode op = some opc)
     {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
     opEval ee opc [.ofNat x, .ofNat y] = some (.ofNat (op.eval 256 x y)) := by
   cases op <;> simp only [binOpcode, Option.some.injEq, reduceCtorEq] at h <;> subst h <;>
-    simp only [opEval, evalOp, envOp, BinOp.eval]
-  · rw [add_word]; rfl
-  · rw [sub_word hx hy]; rfl
-  · rw [mul_word]; rfl
-  · rw [shl_word hx hy]; rfl
-  · rw [shr_word hx hy]; rfl
-  · rw [and_word hx hy]; rfl
-  · rw [or_word hx hy]; rfl
-  · rw [xor_word hx hy]; rfl
-  · rw [div_word hx hy]; rfl
-  · rw [mod_word hx hy]; rfl
-  all_goals rw [Reasoning.Theory.u256_ofNat_toNat]; rfl
+    simp only [opEval, evalOp, envOp] <;> first
+    | (rw [sar_word hx hy]; rfl) | (rw [sdiv_word hx hy]; rfl) | (rw [smod_word hx hy]; rfl)
+    | (simp only [BinOp.eval]; first
+      | (rw [add_word]; rfl) | (rw [sub_word hx hy]; rfl) | (rw [mul_word]; rfl)
+      | (rw [shl_word hx hy]; rfl) | (rw [shr_word hx hy]; rfl) | (rw [and_word hx hy]; rfl)
+      | (rw [or_word hx hy]; rfl) | (rw [xor_word hx hy]; rfl) | (rw [div_word hx hy]; rfl)
+      | (rw [mod_word hx hy]; rfl) | (rw [Reasoning.Theory.u256_ofNat_toNat]; rfl))
 
 /-- A comparison of the class computes on words what its opcode does. -/
 theorem cmp_word {ee : ExecutionEnv} {op : CmpOp} {opc : Operation} (h : cmpOpcode op = some opc)
