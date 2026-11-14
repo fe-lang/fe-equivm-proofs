@@ -1,5 +1,6 @@
 import Fe.EVM.Invariant
 import Fe.EVM.Refine
+import Fe.EVM.Calls
 
 /-!
 # A contract invariant from a certificate
@@ -31,6 +32,16 @@ moves.  The model's `call`, `staticcall`, `delegatecall` and `create` run exactl
 to `a`, `Enters` of that call.  A `delegatecall` runs code at `a`, and `Deeper` covers it only
 when `Trusted` admits that code.
 
+## The model's recorded calls
+
+`m.callsAt` (`ContractModel.callsAt`) describes a frame's calls by the model: under every feed, on
+a run of `m.runtime` from the frame's account map and substate that returns or stops, every call
+and creation recorded in `World.calls` satisfies `Q`.  With it, `refinesOn_keeps_calls` asks only
+for `ModelKeeps … m.callsAt m`.  At a call the model records, `made_theta_good` (and
+`made_messageCall_good`, for the inputs `message` passes to `Θ`, one level deeper when the frame
+is below depth 1024) gives `GoodTheta` of it from the premises `ModelKeeps` hands the run:
+`Deeper`, `m.callsAt` of the frame, and the run.  `made_lambda_good` is the same for a creation.
+
 ## Why the certificate suffices, and where admission meets the feed
 
 - A frame that halts exceptionally (the `Exhausted` escape included) ends in `.error`, and `Θ`
@@ -48,8 +59,8 @@ admitted calls.  With `admits := fun _ _ => True` and `callsAt := XiOk` every ca
 (`admitted_of_all`) and the model may use `Deeper` of any call it makes.  With a real admission
 condition, whether every frame at `a` in a callee's execution is admitted depends on the callee's
 gas, which the model takes from its feed, not from the bytecode, so `XiOk` of the bytecode's run
-does not reach the model's calls.  `callsAt` closes that gap: admission can describe the calls of
-a frame at `a` by the model, and `ModelKeeps` receives that of the
+does not reach the model's calls.  `callsAt := m.callsAt` closes that gap: admission describes the
+calls of a frame at `a` by the calls the model records, and `ModelKeeps` receives that of the
 frame's start state, substate and environment, the same `σ`, `A` and `I` its run starts from.  A
 model that makes no call, like ERC20's, never needs `Deeper` and takes
 `callsAt := fun _ _ _ _ _ _ => True`, which asks nothing of the calls below the frame.
@@ -76,6 +87,12 @@ def ModelKeeps (a : AccountAddress) (P : Account → Prop) (Trusted : ByteArray 
     total σpre < UInt256.size → Holds a P σpre → Holds a P σ →
     Succeeds (m.runtime.exec I (World.init σ A feed)) out w →
     ∀ acc acc', σ[a]? = some acc → w.accounts[a]? = some acc' → acc'.code = acc.code → P acc'
+
+/-- The calls and creations the model makes, as a description of a frame's calls: under every
+    feed, on a run of `m.runtime` from the frame's account map and substate that returns or
+    stops, every call and creation it records satisfies `Q`. -/
+def ContractModel.callsAt (m : ContractModel) : CallsAt := fun Q σ _ _ A I =>
+  ∀ feed out w, Succeeds (m.runtime.exec I (World.init σ A feed)) out w → ∀ c ∈ w.calls, c.Ok Q
 
 section Keeps
 
@@ -134,6 +151,66 @@ theorem refines_keeps (hcert : Refines p bytecode m) (hadm : Admissible P Truste
     (hmodel : ModelKeeps a P Trusted Enters admits callsAt m) (e : Fin 1025) :
     ThetaGood a P Trusted Enters admits callsAt e ∧ LambdaGood a P admits callsAt e :=
   refinesOn_keeps hcert hadm hent htrusted (fun _ _ h _ => h) hmodel e
+
+/-! ## The model's recorded calls -/
+
+/-- `frameHyp_of_refinesOn` with admission reaching the calls the model records. -/
+theorem frameHyp_of_refinesOn_calls (hcert : RefinesOn p bytecode m admits')
+    (htrusted : ∀ code, Trusted code →
+      ∃ tail, code = bytecode ++ tail ∧ tail.size = m.immutables)
+    (hadmits : ∀ σ (I : ExecutionEnv), I.calldata.size < UInt256.size → admits σ I →
+      admits' I)
+    (hmodel : ModelKeeps a P Trusted Enters admits m.callsAt m) :
+    FrameHyp a P Trusted Enters admits m.callsAt :=
+  frameHyp_of_refinesOn hcert htrusted hadmits hmodel
+
+/-- `refinesOn_keeps` with admission reaching the calls the model records. -/
+theorem refinesOn_keeps_calls (hcert : RefinesOn p bytecode m admits')
+    (hadm : Admissible P Trusted) (hent : FromOthers a Enters)
+    (htrusted : ∀ code, Trusted code →
+      ∃ tail, code = bytecode ++ tail ∧ tail.size = m.immutables)
+    (hadmits : ∀ σ (I : ExecutionEnv), I.calldata.size < UInt256.size → admits σ I →
+      admits' I)
+    (hmodel : ModelKeeps a P Trusted Enters admits m.callsAt m) (e : Fin 1025) :
+    ThetaGood a P Trusted Enters admits m.callsAt e ∧ LambdaGood a P admits m.callsAt e :=
+  refinesOn_keeps hcert hadm hent htrusted hadmits hmodel e
+
+/-- **A recorded message call is good.**  On a run that returns or stops, from the inputs of a
+    frame at depth `I.depth`, a message call the model recorded one level deeper keeps `Holds`
+    and `SubOk` and adds no ether (`GoodTheta`), given `Deeper` and that the recorded calls are
+    admitted, as `ModelKeeps` supplies them. -/
+theorem made_theta_good {I : Env} {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w : World}
+    (hdeep : Deeper a P Trusted Enters admits m.callsAt I.depth)
+    (hcalls : m.callsAt (admBelow a admits m.callsAt (1024 - I.depth.val)) σ σ₀ g A I)
+    (hrun : Succeeds (m.runtime.exec I (World.init σ A feed)) out w) {T : ThetaCall}
+    (hT : Made.theta T ∈ w.calls) (he : T.e.val = I.depth.val + 1) :
+    GoodTheta a P Trusted Enters T :=
+  hdeep.theta T he (hcalls feed out w hrun _ hT)
+
+/-- `made_theta_good` for the call `message` makes, which is one level deeper whenever it is
+    made (below depth 1024). -/
+theorem made_messageCall_good {I : Env} {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w w₀ : World} {s : Supply}
+    {gasArg value value' argsPtr argsLen : UInt256} {source recipient t : AccountAddress}
+    {perm : Bool} (hdeep : Deeper a P Trusted Enters admits m.callsAt I.depth)
+    (hcalls : m.callsAt (admBelow a admits m.callsAt (1024 - I.depth.val)) σ σ₀ g A I)
+    (hrun : Succeeds (m.runtime.exec I (World.init σ A feed)) out w)
+    (hT : Made.theta (messageCall I w₀ s gasArg source recipient t value value' argsPtr argsLen
+      perm) ∈ w.calls) (hd : I.depth < 1024) :
+    GoodTheta a P Trusted Enters
+      (messageCall I w₀ s gasArg source recipient t value value' argsPtr argsLen perm) :=
+  made_theta_good hdeep hcalls hrun hT (succ_depth_val hd)
+
+/-- **A recorded creation is good**, as `made_theta_good`.  `createWith` records creations one
+    level deeper. -/
+theorem made_lambda_good {I : Env} {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {feed : List Supply} {out : ByteArray} {w : World}
+    (hdeep : Deeper a P Trusted Enters admits m.callsAt I.depth)
+    (hcalls : m.callsAt (admBelow a admits m.callsAt (1024 - I.depth.val)) σ σ₀ g A I)
+    (hrun : Succeeds (m.runtime.exec I (World.init σ A feed)) out w) {L : LambdaCall}
+    (hL : Made.lambda L ∈ w.calls) (he : L.e.val = I.depth.val + 1) : GoodLambda a P L :=
+  hdeep.lambda L he (hcalls feed out w hrun _ hL)
 
 end Keeps
 
