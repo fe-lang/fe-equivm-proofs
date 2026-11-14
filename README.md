@@ -225,20 +225,21 @@ program `ecrecover` (`FeProofs/Precompiles/Secp256k1/Main.lean`, which the audit
 with the exported model of fevm's secp256k1 code.
 
 `FeProofs/Precompiles` is an ingot of fevm's precompiles as contracts: `Ecrecover`, a message
-`recover` around `secp256k1::recover`, and `Bn254Add`, `Blake2F` and `Ripemd160`, whose fallback
-arms hand fevm's ECADD, BLAKE2 F compression and RIPEMD-160 the call data in memory and return what
-the precompile does, or revert without data where it fails. The other files of `src/` are copied
-verbatim from `ingots/precompiles/src` of [fevm](https://github.com/fe-lang/fevm) at `a631a777b`,
-and `keccak/` (for `ByteSource`) from [keccak](https://github.com/fe-lang/keccak) at `345d5088d`.
-The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one contract
-reaches, once, and `Exported/<Contract>.lean` each contract's own. `FeProofs/Precompiles/Secp256k1`
-proves the exported `Ecrecover` against `Secp256k1.Spec.recover` (`feEcrecoverContractCorrect`),
-on the Montgomery field arithmetic of `FeProofs/Precompiles/Field` and the safegcd inversion of
-`FeProofs/Precompiles/Inverse`.
-`scripts/Bn254AddDiff.lean`, `scripts/Blake2FDiff.lean` and `scripts/Ripemd160Diff.lean` run the
-exported `Bn254Add`, `Blake2F` and `Ripemd160` against EVMLean's `Ξ_BN_ADD`, `Ξ_BLAKE2_F` and
-`Ξ_RIP160` on go-ethereum's vectors, or the RIPEMD-160 paper's, and on generated inputs
-(`lake env lean scripts/<name>.lean`).
+`recover` around `secp256k1::recover`, and `Bn254Add`, `Bn254Mul`, `Blake2F`, `Ripemd160`,
+`EcrecoverPrecompile` and `Identity`, whose fallback arms hand fevm's ECADD, ECMUL, BLAKE2 F
+compression, RIPEMD-160, ECRECOVER in the precompile's format and IDENTITY copy the call data in
+memory and return what the precompile does, or revert without data where it fails. The other files
+of `src/` are copied verbatim from `ingots/precompiles/src` of
+[fevm](https://github.com/fe-lang/fevm) at `a631a777b`, as are the definitions of `lib.fe` it names,
+and `keccak/` (for `ByteSource` and `Keccak256`) from [keccak](https://github.com/fe-lang/keccak) at
+`345d5088d`. The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one
+contract reaches, once, and `Exported/<Contract>.lean` each contract's own.
+`FeProofs/Precompiles/Secp256k1` proves the exported `Ecrecover` against `Secp256k1.Spec.recover`
+(`feEcrecoverContractCorrect`), on the Montgomery field arithmetic of `FeProofs/Precompiles/Field`
+and the safegcd inversion of `FeProofs/Precompiles/Inverse`. `scripts/<Contract>Diff.lean` runs an
+exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BLAKE2_F`, `Ξ_RIP160`,
+`Ξ_ECREC`, `Ξ_ID`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on generated
+inputs (`lake env lean scripts/<name>.lean`).
 
 ### Sonatina IR
 
@@ -366,3 +367,12 @@ fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit byteco
 
 `out/FeERC20.bin` and `out/FeERC20.runtime.bin` must match `FeProofs/ERC20/P1/creation.hex` and
 `FeProofs/ERC20/P1/runtime.hex`.
+
+`FeProofs/Case44Bank` is the contract `Case44Bank` of Fe's `acceptance.fe` alone in a file, whose
+runtime calls an internal function twice, with its bytecode and exported model and no proof yet.
+Its bytecode is built with the Fe commit `Case44Bank.build.json` names, and is the same as the
+compiler of the IR checker's sidecar makes:
+
+```sh
+fe build FeProofs/Case44Bank/Case44Bank.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode
+```
