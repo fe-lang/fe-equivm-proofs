@@ -1,6 +1,6 @@
 import FeProofs
-/-! Prints the axioms each capstone theorem depends on, counting the `native_decide` evaluations
-instead of listing them.  The capstones are each contract's Stele certificate
+/-! Prints the axioms each capstone theorem depends on, in order of name, counting the
+`native_decide` evaluations instead of listing them.  The capstones are each contract's Stele certificate
 (`fe…ContractCorrect`), the refinement certificates (`fe…Refines…`), the conservation theorems
 (`…conserves…`) and the invariants through every call and from deployment (`fe…Keeps…`,
 `fe…Solvent…`).  Run: `lake env lean scripts/Audit.lean`. -/
@@ -18,4 +18,5 @@ open Lean
     let axs ← collectAxioms n
     let (nd, other) := axs.partition (fun a => (`_nativeDecide).isPrefixOf a || a.toString.endsWith "_native_decide" ||
       (a.toString.splitOn "native").length > 1)
+    let other := other.qsort (fun a b => a.toString < b.toString)
     IO.println s!"{n}: {other.toList} + {nd.size} native_decide"
