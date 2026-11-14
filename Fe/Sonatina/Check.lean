@@ -73,7 +73,8 @@ structure Event where
 def pureOps : List Operation :=
   [.ADD, .MUL, .SUB, .DIV, .SDIV, .MOD, .SMOD, .ADDMOD, .MULMOD, .EXP, .SIGNEXTEND, .LT, .GT,
    .SLT, .SGT, .EQ, .ISZERO, .AND, .OR, .XOR, .NOT, .BYTE, .SHL, .SHR, .SAR, .ADDRESS, .ORIGIN,
-   .CALLER, .CALLVALUE, .CALLDATALOAD, .CALLDATASIZE, .CODESIZE]
+   .CALLER, .CALLVALUE, .CALLDATALOAD, .CALLDATASIZE, .CODESIZE, .CHAINID, .TIMESTAMP, .NUMBER,
+   .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO]
 
 /-- The opcodes that read state: their result is an event's. -/
 def readOps : List Operation := [.SLOAD, .MLOAD, .KECCAK256]
@@ -184,6 +185,9 @@ def evmPureOpcode : EvmOp → Option Operation
   | .address => some .ADDRESS | .origin => some .ORIGIN | .caller => some .CALLER
   | .callValue => some .CALLVALUE | .calldataLoad => some .CALLDATALOAD
   | .calldataSize => some .CALLDATASIZE | .codeSize => some .CODESIZE
+  | .chainId => some .CHAINID | .timestamp => some .TIMESTAMP | .number => some .NUMBER
+  | .gasLimit => some .GASLIMIT | .baseFee => some .BASEFEE | .coinbase => some .COINBASE
+  | .prevRandao => some .PREVRANDAO
   | .addMod => some .ADDMOD | .mulMod => some .MULMOD
   | _ => none
 

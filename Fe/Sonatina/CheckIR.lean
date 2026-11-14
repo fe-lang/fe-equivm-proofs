@@ -319,7 +319,9 @@ theorem pure_run {ee : ExecutionEnv} {ρ : Nat → UInt256} {D : List Nat} {env 
           simp [opEval, evalOp, envOp] at hv
         subst hv
         simp [runInst, hws, EvmOp.run, Fe.EVM.selfAddress, Fe.EVM.origin, Fe.EVM.caller,
-          Fe.EVM.callvalue, Fe.EVM.calldataload, Fe.EVM.calldatasize, Fe.EVM.codesize, word]
+          Fe.EVM.callvalue, Fe.EVM.calldataload, Fe.EVM.calldatasize, Fe.EVM.codesize,
+          Fe.EVM.chainid, Fe.EVM.timestamp, Fe.EVM.blockNumber, Fe.EVM.gaslimit, Fe.EVM.basefee,
+          Ethereum.basefee, Fe.EVM.coinbase, Fe.EVM.prevrandao, word]
     · rw [as_word _ hty, Reasoning.Theory.u256_ofNat_toNat]
   | _ => simp [pureWith] at he
 
