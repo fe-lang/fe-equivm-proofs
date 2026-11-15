@@ -89,7 +89,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
 /-- The machine IR implements the exported contract on calldata below `2 ^ 64` bytes. -/
 theorem feScalarStoreImplements :
     Implements Exported.contract (sidecar.model .machine) CalldataFits :=
-  fun I σ A feed hfits => ⟨feed, runtime_endsAs I (World.init σ A feed)
+  fun I σ A feed _ hfits => ⟨feed, runtime_endsAs I (World.init σ A feed)
     (by simp [World.init, UInt256.size]) hfits⟩
 
 /-- The runtime bytecode refines the exported contract at profile `P1`, on calldata below
@@ -145,7 +145,7 @@ theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 32 < UInt256.size)
 theorem feScalarStoreImplementsDeploy :
     ImplementsDeploy Exported.contract (sidecar.model .machine) feScalarStoreCreationBytecode
       feScalarStoreBytecode .empty (fun args => ∃ v, args = ctorTail v) := by
-  rintro I σ A feed args ⟨v, rfl⟩ hcode hperm
+  rintro I σ A feed args ⟨v, rfl⟩ hcode _ hperm
   exact ⟨feed, init_endsAs I _ v (by simp [World.init, UInt256.size]) hcode hperm⟩
 
 /-- Deployment by the pinned creation bytecode with one ABI-encoded `uint256` argument refines
@@ -154,8 +154,8 @@ theorem feScalarStoreImplementsDeploy :
 theorem feScalarStoreDeployRefinesExportedP1 :
     RefinesDeploy .P1 feScalarStoreCreationBytecode feScalarStoreBytecode Exported.contract
       (fun args => ∃ v, args = ctorTail v) :=
-  RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hperm =>
-    sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hperm)
+  RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hown hperm =>
+    sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hown hperm)
     feScalarStoreImplementsDeploy
 
 end FeProofs.ScalarStore.Sonatina

@@ -165,13 +165,13 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
 theorem feScalarStoreRefinesExported :
     RefinesOn .P0 feScalarStoreBytecode contract CalldataFits := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hfits
+  intro σ σ₀ g A I hcode hown hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
   rcases feScalarStoreRefinesModel σ σ₀ g A I ByteArray.empty
-      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hown hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -180,8 +180,8 @@ theorem feScalarStoreRefinesExported :
 theorem feScalarStoreDeployRefinesExported :
     RefinesDeploy .P0 feScalarStoreCreationBytecode feScalarStoreBytecode contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
-  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
-  rcases feScalarStoreDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hown hperm
+  rcases feScalarStoreDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hown hperm with h | ⟨feed, h⟩
   · exact Or.inl h
   · replace h : Agrees .P0 (Ξ σ σ₀ g A I) ((Model.init (ctorTail v) >>= fun _ =>
         pure feScalarStoreBytecode).exec I (World.init σ A feed)) := by

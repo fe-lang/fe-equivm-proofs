@@ -71,7 +71,7 @@ theorem runtime_answer {I : ExecutionEnv} {w : World}
 
 theorem feConstantRefinesModel : Refines .P0 feConstantBytecode Model.contract := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hsize
+  intro σ σ₀ g A I hcode _ hsize
   refine RefinesFor.closed ?_
   by_cases hsel : selIs I (feConstantSelBytes 0)
   · by_cases hwv : I.weiValue = ⟨0⟩
@@ -91,7 +91,7 @@ theorem feConstantDeployRefinesModel :
     RefinesDeploy .P0 feConstantCreationBytecode feConstantBytecode Model.contract
       (· = ByteArray.empty) := by
   refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
-  intro σ σ₀ g A I args hargs hcode _
+  intro σ σ₀ g A I args hargs hcode _ _
   subst hargs
   rw [ByteArray.append_empty] at hcode
   by_cases hwv : I.weiValue = ⟨0⟩

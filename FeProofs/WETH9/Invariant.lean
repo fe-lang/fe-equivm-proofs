@@ -44,8 +44,10 @@ the same recorded calls (`Exported.runtime_endsAs`), and its solvency is
   (the sender has no code and can pay the gas limit, the blob fee and the value; the priority fee
   is at most the price; the sender's nonce is below `2 ^ 64 - 1`; the data fits a word).
 - **Deployment**: no key's balance slot is slot 0, 1 or 2, where the constructor writes `name`,
-  `symbol` and `decimals`.  The deployment has no argument bytes and write permission; the new
-  account starts with empty storage, as `Lambda` guarantees.
+  `symbol` and `decimals`.  The deployment has no argument bytes and write permission, and its
+  creator has an account, as every creator does in a real execution, so that `Lambda` adds the new
+  account before it runs the init code; the new account starts with empty storage, as `Lambda`
+  guarantees.
 -/
 
 open Ethereum Ethereum.EVM Ethereum.EVM.Invariant Fe Fe.EVM
@@ -83,17 +85,20 @@ theorem deploy_model {c : AccountAddress} {I : Env} {σ : AccountMap} {A : Subst
   exact ⟨by simp, hs⟩
 
 /-- **A deployment leaves a solvent WETH9.**  A creation of the creation bytecode, with no
-    argument bytes, that succeeds ends with the account at the address it created running the
-    runtime bytecode and solvent, if no key's balance slot is slot 0, 1 or 2.  Through the
-    certificate of the exported deployment entry. -/
+    argument bytes, by an account that exists, that succeeds ends with the account at the address
+    it created running the runtime bytecode and solvent, if no key's balance slot is slot 0, 1 or
+    2.  Through the certificate of the exported deployment entry, which speaks of frames whose
+    account exists: `Lambda` adds the new account before it runs the init code when the creator
+    has an account, as every creator the EVM runs does. -/
 theorem feWETH9DeploySolvent {L : LambdaCall}
-    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hw : L.w = true)
+    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hs : ∃ acc, L.σ[L.s]? = some acc)
+    (hw : L.w = true)
     (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
       decimalsSlot ≠ balanceSlot k)
     (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 := by
   refine refinesDeploy_holds Exported.feWETH9DeployRefinesExported (args := ByteArray.empty) rfl
-    hi hw (fun I σ A feed out w hown _ hperm hempty hrun => ?_) hz
+    hi hs hw (fun I σ A feed out w hown _ hperm hempty hrun => ?_) hz
   obtain ⟨w', hrun', hacc⟩ := (Exported.init_endsAs I (World.init σ A feed) ByteArray.empty
     feWETH9Bytecode rfl hperm).succeeds hrun
   rw [← hacc]

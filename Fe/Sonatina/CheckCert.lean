@@ -231,7 +231,7 @@ theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : Exe
     profile `P1`. -/
 theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
   obtain ⟨-, hinit, hrt⟩ := check_ok h
-  refine ⟨fun σ σ₀ g A I tail hI _ _ => ?_, fun σ σ₀ g A I args _ hI _ => ?_⟩
+  refine ⟨fun σ σ₀ g A I tail hI _ _ _ => ?_, fun σ σ₀ g A I args _ hI _ _ => ?_⟩
   · exact (section_sound h hrt hI).1
   · rcases (section_sound h hinit hI).1 with hx | ⟨feed, hx⟩
     · exact .inl hx

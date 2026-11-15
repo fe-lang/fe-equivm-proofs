@@ -189,9 +189,13 @@ payload. The hints are inputs to `check`, never hypotheses of `check_sound`.
 
 ```lean
 def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Prop :=
-  ∀ I σ A feed, admits I → ∃ feed', EndsAs (model.runtime.exec I (World.init σ A feed'))
-    (ir.runtime.exec I (World.init σ A feed))
+  ∀ I σ A feed, OwnerExists σ I → admits I → ∃ feed',
+    EndsAs (model.runtime.exec I (World.init σ A feed')) (ir.runtime.exec I (World.init σ A feed))
 ```
+
+Like `RefinesOn`, it speaks only of frames whose account exists (`OwnerExists`), as in every
+frame the EVM runs: without the account a store is dropped, so a load after it reads 0, and the
+compiler's forwarding of a stored value to a later load would not be sound.
 
 `ImplementsDeploy` is the constructor's counterpart, on deployments whose code is the creation
 code followed by the arguments, which the init IR reads from its own code.

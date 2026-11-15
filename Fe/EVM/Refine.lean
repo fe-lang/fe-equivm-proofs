@@ -3,8 +3,9 @@ import Fe.EVM.World
 /-!
 # Refinement of a Fe contract model by EVM bytecode
 
-`Refines p bytecode model`: on every message call the bytecode either runs out of gas or of
-stack, or does what the model does, as far as profile `p` observes.  A model that calls other
+`Refines p bytecode model`: on every message call at an account that exists (`OwnerExists`) the
+bytecode either runs out of gas or of stack, or does what the model does, as far as profile `p`
+observes.  A model that calls other
 contracts or reads its gas takes those inputs from a feed, and does what the bytecode does under
 some feed.
 -/
@@ -125,24 +126,37 @@ theorem RefinesFor.closed {p : Profile} {m : ContractModel} {σ σ₀ : AccountM
     RefinesFor p m σ σ₀ g A I :=
   h.imp Or.inl fun h => ⟨[], h⟩
 
-/-- The runtime bytecode refines the model on every message call that `admits` holds of,
-    whatever the immutable fields after it hold. -/
+/-- The account a frame runs at, `I.codeOwner`, exists in its account map.  The certificates
+    speak only of such frames, which are the frames the EVM runs: a message call runs code only
+    at an account that exists, and a creation adds the new account before it runs the init code.
+    Without the account EVMLean's `SSTORE` drops the write, as `storeWord` does, so a load after
+    a store reads 0, while the compiler forwards a stored value to a later load of the same slot.
+    On such a frame a correct compilation and its source-level model can differ. -/
+def OwnerExists (σ : AccountMap) (I : ExecutionEnv) : Prop := ∃ acc, σ[I.codeOwner]? = some acc
+
+/-- `OwnerExists` with the lookup `slotWord` and `storeWord` make. -/
+theorem ownerExists_iff_get? {σ : AccountMap} {I : ExecutionEnv} :
+    OwnerExists σ I ↔ ∃ acc, σ.get? I.codeOwner = some acc := Iff.rfl
+
+/-- The runtime bytecode refines the model on every message call that `admits` holds of, at an
+    account that exists (`OwnerExists`), whatever the immutable fields after it hold. -/
 def RefinesOn (p : Profile) (bytecode : ByteArray) (m : ContractModel)
     (admits : ExecutionEnv → Prop) : Prop :=
-  ∀ σ σ₀ g A I tail, I.code = bytecode ++ tail → tail.size = m.immutables → admits I →
-    RefinesFor p m σ σ₀ g A I
+  ∀ σ σ₀ g A I tail, I.code = bytecode ++ tail → tail.size = m.immutables → OwnerExists σ I →
+    admits I → RefinesFor p m σ σ₀ g A I
 
 /-- A certificate of a contract without immutable fields is one of its runtime bytecode
     alone. -/
 theorem RefinesOn.of_code {p : Profile} {bytecode : ByteArray} {m : ContractModel}
     {admits : ExecutionEnv → Prop} (hm : m.immutables = 0)
-    (h : ∀ σ σ₀ g A I, I.code = bytecode → admits I → RefinesFor p m σ σ₀ g A I) :
+    (h : ∀ σ σ₀ g A I, I.code = bytecode → OwnerExists σ I → admits I →
+      RefinesFor p m σ σ₀ g A I) :
     RefinesOn p bytecode m admits := by
-  intro σ σ₀ g A I tail hcode htail hadmits
+  intro σ σ₀ g A I tail hcode htail hown hadmits
   have hempty : tail = ByteArray.empty := ByteArray.size_eq_zero_iff.mp (hm ▸ htail)
-  exact h σ σ₀ g A I (by rw [hcode, hempty, ByteArray.append_empty]) hadmits
+  exact h σ σ₀ g A I (by rw [hcode, hempty, ByteArray.append_empty]) hown hadmits
 
-/-- The runtime bytecode refines the model on every message call. -/
+/-- The runtime bytecode refines the model on every message call at an account that exists. -/
 def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
   RefinesOn p bytecode m fun I => I.calldata.size < UInt256.size
 
@@ -151,12 +165,14 @@ def Refines (p : Profile) (bytecode : ByteArray) (m : ContractModel) : Prop :=
     such calls.  No transaction comes near the bound. -/
 def CalldataFits (I : ExecutionEnv) : Prop := I.calldata.size < 2 ^ 64
 
-/-- Deployment: run with any valid argument bytes after it, the creation bytecode runs out of
-    gas or of stack, or does what the model's constructor does, under some feed, and returns the
-    runtime bytecode followed by the immutable fields the constructor computed. -/
+/-- Deployment: run with any valid argument bytes after it, at an account that exists
+    (`OwnerExists`), the creation bytecode runs out of gas or of stack, or does what the model's
+    constructor does, under some feed, and returns the runtime bytecode followed by the immutable
+    fields the constructor computed. -/
 def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractModel)
     (validArgs : ByteArray → Prop) : Prop :=
-  ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+  ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → OwnerExists σ I →
+    I.perm = true →
     Exhausted (Ξ σ σ₀ g A I)
       ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
           ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A feed))
@@ -165,39 +181,43 @@ def RefinesDeploy (p : Profile) (creation runtime : ByteArray) (m : ContractMode
     feed, is one. -/
 theorem RefinesDeploy.closed {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
     {validArgs : ByteArray → Prop}
-    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → OwnerExists σ I →
+      I.perm = true →
       Ξ σ σ₀ g A I = .error .OutOfGass
         ∨ Agrees p (Ξ σ σ₀ g A I)
             ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I (World.init σ A))) :
     RefinesDeploy p creation runtime m validArgs :=
-  fun σ σ₀ g A I args hargs hcode hperm =>
-    (h σ σ₀ g A I args hargs hcode hperm).imp Or.inl fun h => ⟨[], h⟩
+  fun σ σ₀ g A I args hargs hcode hown hperm =>
+    (h σ σ₀ g A I args hargs hcode hown hperm).imp Or.inl fun h => ⟨[], h⟩
 
 /-- A constructor of a contract without immutable fields returns no bytes: the model's `init`
     is `init`, a computation of nothing, and the deployed code is the runtime bytecode. -/
 theorem RefinesDeploy.of_unit {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
     {validArgs : ByteArray → Prop} {init : ByteArray → FeM Unit}
     (hm : ∀ args, m.init args = init args >>= fun _ => pure ByteArray.empty)
-    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → OwnerExists σ I →
+      I.perm = true →
       Ξ σ σ₀ g A I = .error .OutOfGass
         ∨ ∃ feed, Agrees p (Ξ σ σ₀ g A I)
             ((init args >>= fun _ => pure runtime).exec I (World.init σ A feed))) :
     RefinesDeploy p creation runtime m validArgs := by
-  intro σ σ₀ g A I args hargs hcode hperm
-  simpa [hm, ByteArray.append_empty] using (h σ σ₀ g A I args hargs hcode hperm).imp Or.inl id
+  intro σ σ₀ g A I args hargs hcode hown hperm
+  simpa [hm, ByteArray.append_empty] using
+    (h σ σ₀ g A I args hargs hcode hown hperm).imp Or.inl id
 
 /-- `RefinesDeploy.of_unit` for a constructor that never consults the context, stated without
     a feed. -/
 theorem RefinesDeploy.of_unit_closed {p : Profile} {creation runtime : ByteArray}
     {m : ContractModel} {validArgs : ByteArray → Prop} {init : ByteArray → FeM Unit}
     (hm : ∀ args, m.init args = init args >>= fun _ => pure ByteArray.empty)
-    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → I.perm = true →
+    (h : ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → OwnerExists σ I →
+      I.perm = true →
       Ξ σ σ₀ g A I = .error .OutOfGass
         ∨ Agrees p (Ξ σ σ₀ g A I)
             ((init args >>= fun _ => pure runtime).exec I (World.init σ A))) :
     RefinesDeploy p creation runtime m validArgs :=
-  RefinesDeploy.of_unit hm fun σ σ₀ g A I args hargs hcode hperm =>
-    (h σ σ₀ g A I args hargs hcode hperm).imp id fun h => ⟨[], h⟩
+  RefinesDeploy.of_unit hm fun σ σ₀ g A I args hargs hcode hown hperm =>
+    (h σ σ₀ g A I args hargs hcode hown hperm).imp id fun h => ⟨[], h⟩
 
 /-- A model run ends successfully: it returns, or stops from inside a callee. -/
 def Succeeds (r : Option (Except (Exit World) (ByteArray × World))) (out : ByteArray)
@@ -276,11 +296,11 @@ theorem RefinesDeploy.accounts {p : Profile} {creation runtime : ByteArray} {m :
     {validArgs : ByteArray → Prop} {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {args o : ByteArray} {P : AccountMap → Prop}
     (h : RefinesDeploy p creation runtime m validArgs) (hargs : validArgs args)
-    (hcode : I.code = creation ++ args) (hperm : I.perm = true)
+    (hcode : I.code = creation ++ args) (hown : OwnerExists σ I) (hperm : I.perm = true)
     (hP : ∀ feed out w, Succeeds ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I
       (World.init σ A feed)) out w → P w.accounts)
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) : P σ' :=
-  Agrees.accounts (h σ σ₀ g A I args hargs hcode hperm) hP hrun
+  Agrees.accounts (h σ σ₀ g A I args hargs hcode hown hperm) hP hrun
 
 /-! ## `P1` is the finer profile
 
@@ -296,14 +316,14 @@ theorem Agrees.toP0 {evm : EvmResult} {r : Option (Except (Exit World) (ByteArra
 /-- A `P1` certificate of a bytecode is a `P0` one. -/
 theorem RefinesOn.toP0 {code : ByteArray} {m : ContractModel} {admits : ExecutionEnv → Prop}
     (h : RefinesOn .P1 code m admits) : RefinesOn .P0 code m admits :=
-  fun σ σ₀ g A I tail hc ht ha => (h σ σ₀ g A I tail hc ht ha).imp id
+  fun σ σ₀ g A I tail hc ht ho ha => (h σ σ₀ g A I tail hc ht ho ha).imp id
     fun ⟨feed, hf⟩ => ⟨feed, hf.toP0⟩
 
 /-- A `P1` deployment certificate is a `P0` one. -/
 theorem RefinesDeploy.toP0 {creation runtime : ByteArray} {m : ContractModel}
     {validArgs : ByteArray → Prop} (h : RefinesDeploy .P1 creation runtime m validArgs) :
     RefinesDeploy .P0 creation runtime m validArgs :=
-  fun σ σ₀ g A I args hv hc hp => (h σ σ₀ g A I args hv hc hp).imp id
+  fun σ σ₀ g A I args hv hc ho hp => (h σ σ₀ g A I args hv hc ho hp).imp id
     fun ⟨feed, hf⟩ => ⟨feed, hf.toP0⟩
 
 end Fe.EVM
