@@ -100,7 +100,7 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
     · simp only [h1, h2, ite_true, pure_bind] at h
       refine ⟨fun _ => List.isEmpty_iff.mp h2, ?_⟩
       split_ifs at h with h3 h4 h5
-      · exact ⟨h3, h4, by simpa [prologue, h1] using h5⟩
+      · exact ⟨h3, h4, by simpa [prologue, h1] using! h5⟩
       all_goals cases h
     · simp only [h1, h2, ite_true] at h
       exact absurd h hthrow
