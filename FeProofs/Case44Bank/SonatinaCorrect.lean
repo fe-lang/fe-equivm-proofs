@@ -2,11 +2,14 @@ import FeProofs.Case44Bank.SonatinaRun
 import FeProofs.Case44Bank.ExportedStd
 
 /-!
-# Case44Bank: the machine IR ends as the exported contract does
+# Case44Bank: the bytecode refines the exported contract at P1
 
 The machine IR's runtime ends as the exported runtime entry does on each call
 (`runtime_endsAs`), on storage that has an account at the code owner, and its constructor as
-the exported deployment entry does (`init_endsAs`).
+the exported deployment entry does (`init_endsAs`), so the machine IR implements the exported
+contract and the checker's certificate of the sidecar carries over to it at profile `P1`
+(`feCase44BankRefinesExportedP1`, `feCase44BankDeployRefinesExportedP1`).  It is the first
+certificate of a contract whose runtime makes an internal call.
 
 The runtime calls `credit` twice.  Each side has one lemma about its `credit` from any world
 and arguments (`Exported.credit_exec`, `ir_credit`), which both call sites rewrite with; the
@@ -198,7 +201,7 @@ theorem ir_runtime_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × Worl
 
 /-- The machine IR's runtime ends as the exported runtime entry does, on calldata below `2 ^ 64`
     bytes and storage that has an account at the code owner. -/
-theorem runtime_endsAs (hown : ∃ acc, w.accounts.get? I.codeOwner = some acc)
+theorem runtime_endsAs (hown : OwnerExists w.accounts I)
     (hmem : w.memory.size + 512 < UInt256.size) (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry Exported.runtime).exec I w) ((sidecar.model .machine).runtime.exec I w) := by
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size :=
@@ -216,7 +219,7 @@ theorem runtime_endsAs (hown : ∃ acc, w.accounts.get? I.codeOwner = some acc)
   · obtain ⟨E, p, hr⟩ := ir_dispatch m ic I w hsz hfits ((selWord_eq_iff (by decide)).mp h1)
     rw [show (entry Exported.runtime).exec I w = (entry Exported.recv0_arm0_entry).exec I w by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h1], hr]
-    exact arm_credit m ic w hsz hfits hm hown hmem E p
+    exact arm_credit m ic w hsz hfits hm (ownerExists_iff_get?.mp hown) hmem E p
   rw [entry_exec (f := .revert .empty) (by
       simp [Exported.runtime, hn, hn4, selector_exec, h1]),
     ir_noMatch m ic I w hsz hfits (fun h => h1 ((selWord_eq_iff (by decide)).mpr h))]
@@ -273,5 +276,38 @@ theorem init_endsAs (args : ByteArray) (hcode : I.code = case44BankCreationBytec
   · rw [ir_init_value m ic I w hwv]
     simp [hwv]
     exact .exit _
+
+/-! ## The certificates -/
+
+/-- The machine IR implements the exported contract on calldata below `2 ^ 64` bytes, at an
+    account that exists. -/
+theorem feCase44BankImplements :
+    Implements Exported.contract (sidecar.model .machine) CalldataFits :=
+  fun I σ A feed hown hfits => ⟨feed, runtime_endsAs I (World.init σ A feed) hown
+    (by simp [World.init, UInt256.size]) hfits⟩
+
+/-- The machine IR's constructor implements the exported one on the empty argument string: the
+    constructor takes no arguments. -/
+theorem feCase44BankImplementsDeploy :
+    ImplementsDeploy Exported.contract (sidecar.model .machine) case44BankCreationBytecode
+      case44BankBytecode .empty (fun args => args = ByteArray.empty) := by
+  rintro I σ A feed args - hcode - -
+  exact ⟨feed, init_endsAs I _ args hcode⟩
+
+/-- The runtime bytecode refines the exported contract at profile `P1`, on calldata below
+    `2 ^ 64` bytes at an account that exists: the checker's certificate of the sidecar, whose
+    runtime bytes are the pinned ones, composed with `feCase44BankImplements`. -/
+theorem feCase44BankRefinesExportedP1 :
+    RefinesOn .P1 case44BankBytecode Exported.contract CalldataFits :=
+  RefinesOn.of_implements (sidecar_runtime ▸ sidecar_sound.1) feCase44BankImplements rfl
+
+/-- Deployment by the pinned creation bytecode with no arguments refines the exported deployment
+    entry at profile `P1`. -/
+theorem feCase44BankDeployRefinesExportedP1 :
+    RefinesDeploy .P1 case44BankCreationBytecode case44BankBytecode Exported.contract
+      (fun args => args = ByteArray.empty) :=
+  RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hown hperm =>
+    sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hown hperm)
+    feCase44BankImplementsDeploy
 
 end FeProofs.Case44Bank.Sonatina

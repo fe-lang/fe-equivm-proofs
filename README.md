@@ -264,6 +264,17 @@ the certified contracts, `scripts/audit_sonatina.sh <fe checkout>` every contrac
 fixtures. `Fe/Sonatina/README.md` describes the subset and the design for splitting a certificate
 at the IR.
 
+`FeProofs/Case44Bank/Sonatina*.lean` is the first certificate through the checker of a contract
+whose runtime makes an internal call: `feCase44BankRefinesExportedP1` and
+`feCase44BankDeployRefinesExportedP1`, of the pinned bytecode against the exported model at
+`P1`. The runtime calls `credit` twice. Each side has one lemma about its `credit` from any world
+and arguments, `Exported.credit_exec` and the machine IR's `ir_credit`, and each call site
+rewrites with it (`ir_step` leaves a callee's run for such a lemma, `Fe/Sonatina/Run.lean`). The
+certificate needed the relations restricted to frames whose account exists (`OwnerExists`): the
+compiler forwards the stored total to the sum it returns, where the exported model loads it
+back, and on an account map without the code owner's account a store is dropped, so the two
+returned different words there.
+
 ## Layout
 
 Each contract directory (`FeProofs/<Contract>/`) holds the Fe source, the pinned bytecode, the
