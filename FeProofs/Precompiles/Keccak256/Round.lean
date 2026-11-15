@@ -120,5 +120,8 @@ theorem round_eq (s : Vector UInt64 25) (rc : UInt64) : Keccak256.round s rc = r
 theorem permute_eq (s : Vector UInt64 25) : Keccak256.permute s = RC.foldl roundK s := by
   simp only [Keccak256.permute, roundConstants_eq, round_eq, pure_bind, bind_pure,
     Vector.forIn_pure_yield_eq_foldl, Id.run_pure, Vector.foldl_mk, List.foldl_toArray']
+  change Array.foldl (fun b a => roundK b a) s RC.toArray = _
+  rw [List.foldl_toArray']
+  rfl
 
 end FeProofs.Keccak
