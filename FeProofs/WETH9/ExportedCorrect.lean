@@ -70,22 +70,22 @@ variable (I : ExecutionEnv) (w : World)
 theorem approvalTopic_eq : Model.approvalTopic =
     UInt256.ofNat
       63486140976153616755203102783360879283472101686154884697241723088393386309925 := by
-  native_decide
+  decide +kernel
 
 theorem transferTopic_eq : Model.transferTopic =
     UInt256.ofNat
       100389287136786176327247604509743168900146139575972864366142685224231313322991 := by
-  native_decide
+  decide +kernel
 
 theorem depositTopic_eq : Model.depositTopic =
     UInt256.ofNat
       102222681472383059465863322013072701928378550215632170212813623808969952268444 := by
-  native_decide
+  decide +kernel
 
 theorem withdrawalTopic_eq : Model.withdrawalTopic =
     UInt256.ofNat
       57810043145978950376228313794938171962422655018555593468903716172405399886693 := by
-  native_decide
+  decide +kernel
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in
