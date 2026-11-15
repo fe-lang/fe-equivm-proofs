@@ -251,6 +251,10 @@ exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BL
 generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
 on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
 (EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it.
+`scripts/ModexpKnuth.lean` builds inputs that reach the rare branches of `Modulus::reduce` (the
+digit `β - 1`, the corrections inside `div_3by2` and `rem_2by1`, the add-back, shift 0, a
+normalised top limb of `2^63`, `count < n`), runs the exported `Modulus_reduce` on them against
+`X mod M`, and the contract against `Ξ_EXPMOD`.
 `FeProofs/Precompiles/Identity` proves the exported `Identity` against `Ξ_ID`
 (`feIdentityContractCorrect`, `precompile_eq`): it stops with the call data, empty call data
 included.
