@@ -50,8 +50,7 @@ files the two are the same text. FeConstant and FeScalarStore have no committed 
 symbol table of each section of the result (`<Contract>.sidecar.json`). The fixtures here are such
 files, from the `sidecar` branch, whose Sonatina pin is `aa5244d43`'s: FeConstant, FeScalarStore
 and the deposit contract compile to the pinned bytecode, and FeERC20 to its pinned bytecode at the
-commit `fe.pin` names (the bytes of FeERC20's Stele certificate, `FeProofs/ERC20/Stele/`, an older
-Fe compiled).
+commit `fe.pin` names.
 
 ## The subset and its semantics
 
