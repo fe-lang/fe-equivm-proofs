@@ -310,6 +310,7 @@ theorem way_sound {ee : ExecutionEnv} {env : Nat → UInt256} {e : Exit} {cond :
       simp only [ht, BEq.rfl, ite_true, Option.some.injEq] at h
       subst h
       simp [Way.Sound, Exit.next, Expr.eval, toNat_ofNat]
+      rfl
     next =>
       by_cases h1 : (cond == bc) = true
       · rw [ite_eq_left h1] at h
