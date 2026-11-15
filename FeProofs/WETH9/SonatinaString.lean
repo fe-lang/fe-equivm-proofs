@@ -77,7 +77,7 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     · have h64l : ¬ 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
       rw [entry_exec (f := .panic 0x41) (by
         simp only [Exported.stringReturn_exec I w _ hw, hd,
-          show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, if_false])]
+          show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64, h64l]
       exact .panic_revert 65
@@ -103,13 +103,13 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     simp only [ofNat_zero_eq] at hrv' hext
     by_cases h64' : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
     · have h64l' : 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
-      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', if_true]; rfl)]
+      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_true]; rfl)]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l', hext]
       exact .stop_stop rfl rfl rfl
     · have h64l' : ¬ 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', if_false])]
+        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l']
       exact .panic_revert 65
@@ -168,7 +168,7 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     · have h64l : ¬ 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
       rw [entry_exec (f := .panic 0x41) (by
         simp only [Exported.stringReturn_exec I w _ hw, hd,
-          show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, if_false])]
+          show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64, h64l]
       exact .panic_revert 65
@@ -193,13 +193,13 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     have h64l : 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
     by_cases h64' : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
     · have h64l' : 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
-      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', if_true]; rfl)]
+      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_true]; rfl)]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l', hext]
       exact .stop_stop rfl rfl rfl
     · have h64l' : ¬ 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', if_false])]
+        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l']
       exact .panic_revert 65

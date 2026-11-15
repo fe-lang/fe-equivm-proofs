@@ -161,9 +161,9 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
       ((Model.init v.toByteArray >>= fun tail => pure (out ++ tail)).exec I w) := by
   rw [M.exec_bind, initEntry_exec I w v hmem]
   by_cases hwv : I.weiValue = ⟨0⟩
-  · rw [if_pos hwv, init_ok out v hwv]
+  · rw [ite_eq_left hwv, init_ok out v hwv]
     exact .ok_ok rfl rfl rfl
-  · rw [if_neg hwv, init_value out hwv]
+  · rw [ite_eq_right hwv, init_value out hwv]
     exact .exit _
 
 /-! ## The certificate -/

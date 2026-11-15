@@ -82,7 +82,7 @@ theorem ir_init_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × World))
     EndsAs X (((sidecar.model .machine).init args).exec I w) := by
   rw [show (sidecar.model .machine).init args = sidecar.runSection "init" .machine from rfl,
     Check.runSection_eq (f := initFunc) rfl rfl rfl rfl rfl rfl rfl]
-  simp only [Check.pre, if_pos, Fe.M.exec_bind]
+  simp only [Check.pre, ite_eq_left, Fe.M.exec_bind]
   simp [Fe.EVM.mstore, Check.toNat_ofNat, UInt256.size]
   exact h _ _ rfl rfl rfl rfl
 
@@ -136,7 +136,7 @@ theorem init_endsAs (hw : w.memory = ByteArray.empty)
   have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
   have h13 : UInt256.ofNat 13 = UInt256.ofNat (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray).size := rfl
   have h4 : UInt256.ofNat 4 = UInt256.ofNat (⟨#[87, 69, 84, 72]⟩ : ByteArray).size := rfl
-  simp only [Exported.init_entry, Fe.M.exec_bind, exec_nonPayable, hwv, if_pos, Exported.init,
+  simp only [Exported.init_entry, Fe.M.exec_bind, exec_nonPayable, hwv, ite_eq_left, Exported.init,
     Exported.nameField, Exported.symbolField, Exported.decimalsField, h13, h4]
   rw [Exported.stringLiteral_exec I w (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray) (by decide) (by decide) (by rw [hw]; decide)]
   simp only []

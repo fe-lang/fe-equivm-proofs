@@ -191,7 +191,7 @@ theorem feDepositX_noMatch {σ σ₀ A I} {g : Sat256}
         = (if (feDepositSelBytes i == I.calldata.extract 0 4) then ⟨1⟩ else ⟨0⟩) →
       UInt256.eq (entrySel I) sel = UInt256.ofNat 0 := by
     intro i sel hi e
-    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    simp only [hnm i hi, Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm]
     exact e
   have e0 := miss 0 _ (by omega) (supportsInterfaceEvmSelector hsz)

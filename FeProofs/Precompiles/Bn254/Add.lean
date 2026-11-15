@@ -110,26 +110,26 @@ theorem g1_point_spec (input : MemBuffer) (off off32 x y : UInt256) (env : Env) 
   unfold BN254.Spec.decode
   by_cases hxp : x.toNat < BN254.p
   swap
-  · refine ⟨.None, by simp only [show BN254.p ≤ x.toNat by omega, decide_true, if_true,
+  · refine ⟨.None, by simp only [show BN254.p ≤ x.toNat by omega, decide_true, ite_true,
       Fe.M.exec_pure], ?_⟩
-    simp only [G1]; rw [if_neg (by omega)]
+    simp only [G1]; rw [ite_eq_right (by omega)]
   by_cases hyp : y.toNat < BN254.p
   swap
   · refine ⟨.None, by simp only [show ¬ BN254.p ≤ x.toNat by omega, show BN254.p ≤ y.toNat by omega,
-      decide_true, decide_false, Bool.false_eq_true, if_true, if_false, Fe.M.exec_pure], ?_⟩
-    simp only [G1]; rw [if_neg (by omega)]
+      decide_true, decide_false, Bool.false_eq_true, ite_true, ite_false, Fe.M.exec_pure], ?_⟩
+    simp only [G1]; rw [ite_eq_right (by omega)]
   have h3 : (UInt256.ofNat 3).toNat < BN254.p := by rw [toNat_lit (by decide)]; decide
   have hrx := MField.Rep.new (F := FBn) hxp
   have hry := MField.Rep.new (F := FBn) hyp
   have hr3 := MField.Rep.new (F := FBn) h3
   rw [toNat_lit (show 3 < 2 ^ 256 by decide), Nat.cast_ofNat] at hr3
   simp only [show ¬ BN254.p ≤ x.toNat by omega, show ¬ BN254.p ≤ y.toNat by omega, decide_false,
-    Bool.false_eq_true, if_false, if_pos (And.intro hxp hyp), fp_eq x hxp, fp_eq y hyp,
+    Bool.false_eq_true, ite_false, ite_eq_left (And.intro hxp hyp), fp_eq x hxp, fp_eq y hyp,
     fp_eq _ h3, pure_bind, point_affine_Bn254Base, toBnP_x, toBnP_y, Pt.affine,
     toNat_lit (show 3 < 2 ^ 256 by decide), on_curve_spec hrx hry hr3, word_eq_zero_iff,
     decide_eq_true_eq, point_infinity_Bn254Base]
   by_cases h0 : x.toNat = 0 ∧ y.toNat = 0
-  · simp only [h0, if_true, Fe.M.exec_pure]
+  · simp only [h0, ite_true, Fe.M.exec_pure]
     exact ⟨_, rfl, Pt.inf KBn, 1, 1, 0, rfl, Pt.inf_rep, nonsingular_zero,
       by rw [Pt.toAffine_inf (F := FBn) (B := 3)]; rfl⟩
   have hb6 : ∀ (c : Prop) [Decidable c] (m : FeM Option_Point_Mont_Bn254Base),
@@ -148,13 +148,13 @@ theorem g1_point_spec (input : MemBuffer) (off off32 x y : UInt256) (env : Env) 
     intro c _ m
     by_cases hc : c <;> by_cases hy0 : y.toNat = 0 <;>
       by_cases hoc : (y.toNat : Fq) ^ 2 = (x.toNat : Fq) ^ 3 + 3 <;> simp [hc, hy0, hoc]
-  rw [hb6, if_neg h0, if_neg h0]
+  rw [hb6, ite_eq_right h0, ite_eq_right h0]
   by_cases hoc : (y.toNat : Fq) ^ 2 = (x.toNat : Fq) ^ 3 + 3
   · have hns := (nonsingular_iff _ _).mpr hoc
     have hj := (nonsingular_some (W' := JBn) _ _).mpr hns
-    rw [if_pos hoc, dif_pos hns, Fe.M.exec_pure]
+    rw [ite_eq_left hoc, dite_eq_left hns, Fe.M.exec_pure]
     exact ⟨_, rfl, _, _, _, _, rfl, Pt.affine_rep hrx hry, hj, by rw [Point.toAffine_some hj]⟩
-  · rw [if_neg hoc, dif_neg (fun h => hoc ((nonsingular_iff _ _).mp h)), Fe.M.exec_pure]
+  · rw [ite_eq_right hoc, dite_eq_right (fun h => hoc ((nonsingular_iff _ _).mp h)), Fe.M.exec_pure]
     exact ⟨_, rfl, rfl⟩
 
 /-! ## The encoding and the sum -/
@@ -168,10 +168,10 @@ theorem encode_spec {P : P3} {x y z : Fq} (hP : FBn.RepP P x y z)
   simp only [encode, point_is_infinity_Bn254Base, pure_bind, MField.Rep.isZero hP.2.2]
   by_cases hz : z = 0
   · right
-    simp only [hz, decide_true, if_true, Fe.M.exec_pure]
+    simp only [hz, decide_true, ite_true, Fe.M.exec_pure]
     rw [Pt.toAffine_eq_zero_of_z (F := FBn) (B := 3) rfl]
     rfl
-  · simp only [hz, decide_false, Bool.false_eq_true, if_false]
+  · simp only [hz, decide_false, Bool.false_eq_true, ite_false]
     rw [Fe.M.exec_bind]
     rcases Point_to_affine_Bn254Base_spec hP env w with h | ⟨c, h, hc⟩
     · rw [h]; exact Or.inl rfl
@@ -185,13 +185,13 @@ theorem encode_spec {P : P3} {x y z : Fq} (hP : FBn.RepP P x y z)
 
 theorem checkedAdd_0_32 : checkedAdd (UInt256.ofNat 0) (UInt256.ofNat 32) = pure (UInt256.ofNat 32) := by
   unfold checkedAdd
-  rw [if_neg (by rw [toNat_lit (by decide), toNat_lit (by decide)]; decide)]
+  rw [ite_eq_right (by rw [toNat_lit (by decide), toNat_lit (by decide)]; decide)]
   rfl
 
 theorem checkedAdd_64_32 :
     checkedAdd (UInt256.ofNat 64) (UInt256.ofNat 32) = pure (UInt256.ofNat 96) := by
   unfold checkedAdd
-  rw [if_neg (by rw [toNat_lit (by decide), toNat_lit (by decide)]; decide)]
+  rw [ite_eq_right (by rw [toNat_lit (by decide), toNat_lit (by decide)]; decide)]
   rfl
 
 /-- ECADD on the input buffer.  Given the words `word_at` returns at offsets `0`, `32`, `64` and

@@ -55,7 +55,7 @@ theorem sub_one_u64 {k : ℕ} (hk : k + 1 < 2 ^ 64) :
     IntTy.sub (.u 64) (UInt256.ofNat (k + 1)) (UInt256.ofNat 1) = pure (UInt256.ofNat k) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show k + 1 < 2 ^ 256 by omega), toNat_lit (show 1 < 2 ^ 256 by decide)]
-  rw [if_pos (by constructor <;> omega)]
+  rw [ite_eq_left (by constructor <;> omega)]
   congr 2
   omega
 

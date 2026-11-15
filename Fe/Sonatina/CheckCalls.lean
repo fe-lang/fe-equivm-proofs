@@ -89,12 +89,12 @@ theorem segments_call {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event} {cs
             simp only [hce, hes, Option.bind_some] at h
             by_cases hk : (es.length == ce.params &&
                 s.dsts.length == (if ce.returns then ce.rets else 0)) = true
-            · rw [if_pos hk] at h
+            · rw [ite_eq_left hk] at h
               simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq, List.cons.injEq] at h
               obtain ⟨rfl, rfl, rfl⟩ := h
               simp only [Bool.and_eq_true, beq_iff_eq] at hk
               exact ⟨[], s, rest, args, ce, rfl, by simp, rfl, hg, hes, rfl, hce, hk.1, hk.2, hr⟩
-            · rw [if_neg hk] at h
+            · rw [ite_eq_right hk] at h
               cases h
       · next hnc =>
         have hnc' : ∀ g a, s.inst ≠ .call g a := fun g a h' => hnc g a h'
@@ -139,8 +139,8 @@ theorem segments_last {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event},
             simp only [hce, hes, Option.bind_some] at h
             by_cases hk : (es.length == ce.params &&
                 s.dsts.length == (if ce.returns then ce.rets else 0)) = true
-            · rw [if_pos hk] at h; simp at h
-            · rw [if_neg hk] at h; cases h
+            · rw [ite_eq_left hk] at h; simp at h
+            · rw [ite_eq_right hk] at h; cases h
       · next hnc =>
         cases he : c.eventOfStmt s with
         | none => simp [he] at h
@@ -215,11 +215,11 @@ theorem segments_messages {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event}
             simp only [hce, hes, Option.bind_some] at h
             by_cases hk : (es.length == ce.params &&
                 s.dsts.length == (if ce.returns then ce.rets else 0)) = true
-            · rw [if_pos hk] at h
+            · rw [ite_eq_left hk] at h
               simp only [Option.pure_def, Option.some.injEq, Prod.mk.injEq] at h
               obtain ⟨rfl, rfl⟩ := h
               exact ih ev (by simpa using hev) hm
-            · rw [if_neg hk] at h
+            · rw [ite_eq_right hk] at h
               cases h
       · cases he : c.eventOfStmt s with
         | none => simp [he] at h
@@ -329,8 +329,8 @@ theorem foldl_words : ∀ {dsts : List (Nat × Ty)} {ws : List UInt256} (env : E
     simp only [List.map_cons, List.zip_cons_cons, List.foldl_cons]
     refine ⟨fun id hid => ?_, .cons ?_ ih.2⟩
     · simp only [List.mem_cons, not_or] at hid
-      rw [ih.1 id hid.2, insert_get, if_neg (Ne.symm hid.1)]
-    · rw [ih.1 d.1 hnd.1, insert_get, if_pos rfl]
+      rw [ih.1 id hid.2, insert_get, ite_eq_right (Ne.symm hid.1)]
+    · rw [ih.1 d.1 hnd.1, insert_get, ite_eq_left rfl]
       simp only [Fe.Sonatina.word, as_word _ hd, Reasoning.Theory.u256_ofNat_toNat]
 
 /-- Values bound to words, which a valuation gives them: it gives them those words. -/
@@ -770,7 +770,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         · simp only [Option.some.injEq] at hk'
           subst hk'
           refine .inr ⟨ws₂, w₂, s₂, n + n₂, restE, restW, ex', fuel', k, hr₂,
-            by rw [hl₂, hld, if_pos hret'], hst.append hx₂, hpc₂, hkj,
+            by rw [hl₂, hld, ite_eq_left hret'], hst.append hx₂, hpc₂, hkj,
             by rw [hstk₂, List.append_assoc], hrestW, hrun', hval, hexr, henv₂.trans henv, hag₂⟩
       · obtain ⟨cs', ce', n, s', ws', t, hc', hce', hnr, hst, hpc, hargs', hstk, henv, hag⟩ := hnr
         simp only [List.cons.injEq] at hc'
@@ -1430,7 +1430,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     rw [hvs] at hterm
     obtain ⟨ws', hws', hev'⟩ := args_words hcons hρ (by simpa [Term.operands] using hterm) hmv
     rw [hwsv] at hws'; cases hws'
-    refine ⟨k, wsv, w', nv, sv, by rw [if_pos hexb, hk], ?_, ?_, hstv, ?_, hstkv,
+    refine ⟨k, wsv, w', nv, sv, by rw [ite_eq_left hexb, hk], ?_, ?_, hstv, ?_, hstkv,
       henvv.trans henv.symm, hagv⟩
     · simp only [hvs, hev']; rfl
     · rw [(mapM_some_iff.mp hwsv).length_eq.symm, (mapM_some_iff.mp hmv).length_eq.symm]
@@ -1565,7 +1565,7 @@ theorem callees_some {low : Lowering} {entry g : String} {ce : Callee}
   unfold callees at h
   by_cases hg : (g == entry) = true
   · simp [hg] at h
-  · simp only [hg, Bool.false_eq_true, if_false] at h
+  · simp only [hg, Bool.false_eq_true, ite_false] at h
     simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
     obtain ⟨_, -, hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
     cases hce
@@ -1701,7 +1701,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
         refine hmk ws (by simpa using hstk) ?_
         unfold Frame.slots
         rw [hbid, hexE, hR, hentry, hret0, hR]
-        simp only [Bool.false_eq_true, if_false, List.append_nil]
+        simp only [Bool.false_eq_true, ite_false, List.append_nil]
         rw [List.filter_eq_self.mpr fun x hx => by
           obtain ⟨d, -, rfl⟩ := List.mem_map.mp hx; rfl]
         exact hvals
@@ -1709,7 +1709,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
         refine hmk (ws ++ [k]) (by simpa using hstk) ?_
         unfold Frame.slots
         rw [hbid, hexE, hR, hentry, hret0, hR]
-        simp only [if_true]
+        simp only [ite_true]
         exact forall₂_append hvals (.cons rfl .nil)
     have hrk' : (frameOf low entry f').returns = true →
         ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true := fun h => hrk (hrr.trans h)

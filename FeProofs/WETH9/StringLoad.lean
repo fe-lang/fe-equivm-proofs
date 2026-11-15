@@ -337,7 +337,7 @@ theorem loadLoop {X : ByteArray} {L : ℕ} {base S : UInt256} (hX : X.size = 256
       have hmem : loopBytes σ ee base L i ++ (UInt256.land (solcSlotWord σ ee (base +
           UInt256.ofNat i)) (leadMask (UInt256.ofNat (L - 32 * i)))).toByteArray =
           loopBytes σ ee base L (i + 1) := by
-        simp only [loopBytes, wordsBytes, leadWord, if_pos hlt]
+        simp only [loopBytes, wordsBytes, leadWord, ite_eq_left hlt]
       rw [hmem] at rd
       exact ih (i + 1) _ _ _ (by omega) rd
     · -- a full word
@@ -351,7 +351,7 @@ theorem loadLoop {X : ByteArray} {L : ℕ} {base S : UInt256} (hX : X.size = 256
       have hmem : loopBytes σ ee base L i ++
           (solcSlotWord σ ee (base + UInt256.ofNat i)).toByteArray =
           loopBytes σ ee base L (i + 1) := by
-        simp only [loopBytes, wordsBytes, leadWord, if_neg hlt]
+        simp only [loopBytes, wordsBytes, leadWord, ite_eq_right hlt]
       rw [hmem] at rd
       exact ih (i + 1) _ _ _ (by omega) rd
 
@@ -390,7 +390,7 @@ theorem loadBody {slot ret : UInt256} {L : ℕ}
       (RD.appendEmpty rd)
     have hD : loopBytes σ ee (solidityBytesDataBaseSlot slot) L ((L + 31) / 32) =
         strBytes σ ee slot L ++ zpad (32 * ((L + 31) / 32) - L) := by
-      rw [loopBytes, leadWords_eq _ L (by omega), strBytes, if_neg (by omega)]
+      rw [loopBytes, leadWords_eq _ L (by omega), strBytes, ite_eq_right (by omega)]
       rfl
     rw [hD] at rd
     exact ⟨_, _, _, _, hX.write160 slot, rd⟩
@@ -409,7 +409,7 @@ theorem loadBody {slot ret : UInt256} {L : ℕ}
       rw [allocFmp_eq (by omega)] at rd
       have hD : strBytes σ ee slot 0 ++ zpad (32 * ((0 + 31) / 32) - 0) = ByteArray.empty := by
         apply byteArray_eq_empty_of_size_eq_zero
-        rw [strBytes, if_pos (by omega)]
+        rw [strBytes, ite_eq_left (by omega)]
         simp
       rw [hD]
       exact ⟨_, _, _, _, hX, RD.appendEmpty rd⟩
@@ -428,8 +428,8 @@ theorem loadBody {slot ret : UInt256} {L : ℕ}
           strBytes σ ee slot L ++ zpad (32 * ((L + 31) / 32) - L) := by
         have hw : leadWord (solcSlotWord σ ee slot) L =
             UInt256.land (solcSlotWord σ ee slot) (leadMask (UInt256.ofNat L)) :=
-          if_pos (by omega)
-        rw [← hw, leadWord_toByteArray, strBytes, if_pos (by omega), Nat.min_eq_left (by omega),
+          ite_eq_left (by omega)
+        rw [← hw, leadWord_toByteArray, strBytes, ite_eq_left (by omega), Nat.min_eq_left (by omega),
           show 32 * ((L + 31) / 32) - L = 32 - L by omega]
       rw [hD] at rd
       exact ⟨_, _, _, _, hX, rd⟩

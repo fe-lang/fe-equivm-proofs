@@ -25,7 +25,7 @@ theorem ushlN_toNat (a : UInt256) (s : ℕ) (hs : s < 256) :
   have hsv : (UInt256.ofNat s).toNat = s := ulit_toNat' s (by
     rw [show UInt256.size = 2 ^ 256 from rfl]; omega)
   unfold UInt256.shiftLeft
-  rw [if_neg (by show ¬ (UInt256.ofNat s).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by show ¬ (UInt256.ofNat s).toNat ≥ 256; omega)]
   show (Fin.shiftLeft a.val (UInt256.ofNat s).val).val = _
   unfold Fin.shiftLeft
   show (a.toNat <<< (UInt256.ofNat s).toNat) % UInt256.size = _
@@ -73,7 +73,7 @@ theorem evalShl_word (a : UInt256) (s : ℕ) (hs : s < 256) {x : Int}
     else if 256 ≤ (Int.ofNat s).toNat then EvalResult.ok (Value.int 0)
     else EvalResult.ok (Value.int (normalizeInt u256T
       (Int.ofNat a.toNat * Int.ofNat (EVM.twoPow (Int.ofNat s).toNat))))) = _
-  rw [if_neg h1, if_neg h2, ushlN_toNat a s hs, int_toNat_ofNat]
+  rw [ite_eq_right h1, ite_eq_right h2, ushlN_toNat a s hs, int_toNat_ofNat]
   simp only [normalizeInt, EVM.twoPow]
   push_cast
   rfl
@@ -92,7 +92,7 @@ theorem evalShr_word (a : UInt256) (s : ℕ) (hs : s < 256) {x : Int}
           (if u256T.isSigned && normalizeInt u256T (Int.ofNat a.toNat) < 0 then -1 else 0))
       else EvalResult.ok (Value.int (normalizeInt u256T (Int.ofNat a.toNat) /
         Int.ofNat (EVM.twoPow (Int.ofNat s).toNat)))) = _
-  rw [if_neg h1, if_neg h2, shiftRight_toNat_of_lt a s hs, int_toNat_ofNat, normalizeInt_uint256_word a]
+  rw [ite_eq_right h1, ite_eq_right h2, shiftRight_toNat_of_lt a s hs, int_toNat_ofNat, normalizeInt_uint256_word a]
   simp only [EVM.twoPow]
   rfl
 
@@ -338,7 +338,7 @@ theorem le64_encodePacked (m : UInt256) :
   have hword : encodeABIWord? (.elem (.int u64T)) (.int (Int.ofNat (le64Value m))) =
       some (EVM.word (le64Value m)) := by
     simp only [encodeABIWord?]
-    rw [if_neg (by decide), if_pos ⟨Int.natCast_nonneg _,
+    rw [ite_eq_right (by decide), ite_eq_left ⟨Int.natCast_nonneg _,
       Int.ofNat_lt.mpr (by simpa [EVM.twoPow] using le64Value_lt m)⟩]
     rfl
   simp only [encodePackedValue?, hword]
@@ -484,7 +484,7 @@ theorem le64_returnEncoding (m : UInt256) :
   have hlist : (⟨(le64Bytes m).toArray⟩ : ByteArray).toList = le64Bytes m := by
     rw [byteArray_toList_eq]
   simp only [encodeReturnValues?, encodeABIValues?, encodeABIValuesFrom?, abiTupleHeadSize?,
-    encodeABIValue?, isDynamicABIType, staticABIEncodedSize?, Option.bind, bind, if_true,
+    encodeABIValue?, isDynamicABIType, staticABIEncodedSize?, Option.bind, bind, ite_true,
     List.nil_append, List.append_nil, Nat.add_zero, List.length_nil, hsize, hlist]
   congr 1
   rw [mk_toArray_eq, list_toByteArray_append, list_toByteArray_append, natBytes_toByteArray',

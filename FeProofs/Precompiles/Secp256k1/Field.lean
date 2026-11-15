@@ -182,7 +182,7 @@ theorem p_odd : Secp256k1.p % 2 = 1 := by decide
 
 /-- Negating a nonzero element of `Fp` flips the parity of its value. -/
 theorem neg_val_parity {y : Fp} (hy : y ≠ 0) : (-y).val % 2 ≠ y.val % 2 := by
-  rw [ZMod.neg_val, if_neg hy]
+  rw [ZMod.neg_val, ite_eq_right hy]
   have := ZMod.val_lt y
   have := p_odd
   omega
@@ -212,13 +212,13 @@ theorem liftX_eq (x β : Fp) (hβ : β ^ 2 = x ^ 3 + 7) {v : ℕ} (hv : v < 2) :
   have hex : ∃ y' : Fp, curve.toAffine.Nonsingular x y' ∧ y'.val % 2 = v :=
     ⟨y, (nonsingular_iff _ _).mpr hy, hpar⟩
   refine ⟨(nonsingular_iff _ _).mpr hy, ?_⟩
-  rw [liftX, dif_pos hex]
+  rw [liftX, dite_eq_left hex]
   have hc := uniq _ ((nonsingular_iff _ _).mp hex.choose_spec.1) hex.choose_spec.2
   congr 2
 
 /-- With no square root of `x ^ 3 + 7` there is no point over `x`. -/
 theorem liftX_none (x : Fp) (h : ¬ IsSquare (x ^ 3 + 7)) (v : ℕ) : liftX x v = none := by
-  rw [liftX, dif_neg]
+  rw [liftX, dite_eq_right]
   rintro ⟨y, hy, -⟩
   exact h ⟨y, by rw [← (nonsingular_iff _ _).mp hy, sq]⟩
 

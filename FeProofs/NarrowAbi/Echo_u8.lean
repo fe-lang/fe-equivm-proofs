@@ -42,12 +42,12 @@ theorem feNarrowAbiEcho_u8Body {σ σ₀ A I} {g : UInt256}
   · rd_run rd using [(ugt_one (a := calldataWord I.calldata 4) (b := UInt256.ofNat 255)
       (show 255 < _ by omega)).trans_ne (by decide)]
     exact rd.reEquivDecodingFailed hcode hd
-      ((decodeCalldata_uint_result _ hlen hhi).trans (if_neg hcanon))
+      ((decodeCalldata_uint_result _ hlen hhi).trans (ite_eq_right hcanon))
   rd_run rd using [ugt_zero (a := calldataWord I.calldata 4) (b := UInt256.ofNat 255)
     (show _ ≤ 255 by omega)]
   u256_lits at rd
   rw [toByteArray_write32_read_back ByteArray.empty _ 0 (by decide)] at rd
-  exact rd.reEquivExecution hcode hd ((decodeCalldata_uint_result _ hlen hhi).trans (if_pos hcanon))
+  exact rd.reEquivExecution hcode hd ((decodeCalldata_uint_result _ hlen hhi).trans (ite_eq_left hcanon))
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv)
       (evalLocalVar (store_get_self _ _ _)))
     (returnEquiv_of_encode (uint8ReturnEncoding _ hcanon))

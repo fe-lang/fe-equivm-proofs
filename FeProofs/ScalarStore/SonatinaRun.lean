@@ -162,7 +162,7 @@ theorem ir_init_run {I : ExecutionEnv} {w : World} {args : ByteArray}
     ((sidecar.model .machine).init args).exec I w = Check.endRun r := by
   rw [show (sidecar.model .machine).init args = sidecar.runSection "init" .machine from rfl,
     Check.runSection_eq (f := initFunc) rfl rfl rfl rfl rfl rfl rfl]
-  simp only [Check.pre, if_pos, Fe.M.exec_bind]
+  simp only [Check.pre, ite_eq_left, Fe.M.exec_bind]
   simp [Fe.EVM.mstore, Check.toNat_ofNat, UInt256.size]
   rw [h] <;> rfl
 

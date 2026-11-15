@@ -63,7 +63,7 @@ theorem shl_lw32 (x : UInt32) {k : ℕ} (hk : k < 32) :
     IntTy.shl (.u 32) (lw32 x) (UInt256.ofNat k) = lw32 (x <<< UInt32.ofNat k) := by
   have hko : (UInt32.ofNat k).toNat = k := by rw [UInt32.toNat_ofNat']; omega
   simp only [IntTy.shl, IntTy.val, IntTy.wrap, lw32_toNat, toNat_lit (show k < 2 ^ 256 by omega),
-    show ¬ 256 ≤ k by omega, if_false]
+    show ¬ 256 ≤ k by omega, ite_false]
   unfold lw32
   congr 1
   rw [UInt32.toNat_shiftLeft, hko, Nat.mod_eq_of_lt hk, Nat.shiftLeft_eq]
@@ -81,7 +81,7 @@ theorem sub32 {k : ℕ} (hk : k ≤ 32) :
     IntTy.sub (.u 32) (UInt256.ofNat 32) (UInt256.ofNat k) = pure (UInt256.ofNat (32 - k)) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show 32 < 2 ^ 256 by decide), toNat_lit (show k < 2 ^ 256 by omega)]
-  rw [if_pos (by constructor <;> omega)]
+  rw [ite_eq_left (by constructor <;> omega)]
   congr 2
   omega
 

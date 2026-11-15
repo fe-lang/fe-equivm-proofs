@@ -224,7 +224,7 @@ theorem fePackedStoreX_noMatch {σ σ₀ A I} {g : Sat256}
       UInt256.eq (UInt256.shiftRight (uInt256OfByteArray (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32))
         (UInt256.ofNat 224)) sel = UInt256.ofNat 0 := by
     intro i sel hi e
-    simp only [hnm i hi, Bool.false_eq_true, if_false] at e
+    simp only [hnm i hi, Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm]
     exact e
   have e0 := miss 0 _ (by omega) (get1EvmSelector hsz)

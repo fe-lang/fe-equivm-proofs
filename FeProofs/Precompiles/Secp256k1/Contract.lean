@@ -100,7 +100,7 @@ theorem arm_spec (e v r s : UInt256) (env : Env) (w : World) :
   have t1 : (UInt256.ofNat 1).toNat = 1 := rfl
   have hspec : ¬ (0 < r.toNat ∧ r.toNat < Secp256k1.n ∧ 0 < s.toNat ∧ s.toNat < Secp256k1.n ∧
       v.toNat < 2) → Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat = none := fun hg => by
-    rw [Secp256k1.Spec.recover, if_neg hg]
+    rw [Secp256k1.Spec.recover, ite_eq_right hg]
   have h0 : ∀ x : UInt256, x = UInt256.ofNat 0 ↔ x.toNat = 0 := fun x =>
     ⟨fun h => by rw [h]; rfl, fun h => u256_inj (by rw [h]; rfl)⟩
   by_cases hv : 1 < v.toNat
@@ -223,7 +223,7 @@ theorem feEcrecoverContractCorrect (e v r s : UInt256) (I : ExecutionEnv) (w : W
   obtain ⟨hsz, -, h4, h36, h68, h100⟩ := calldata_facts e v r s
   rw [← hcd] at hsz h4 h36 h68 h100
   have hdec := decodeRecover_exec I w (by omega) (by omega)
-  rw [if_neg (by omega), h4, h36, h68, h100] at hdec
+  rw [ite_eq_right (by omega), h4, h36, h68, h100] at hdec
   rcases arm_spec e v r s I w with harm | harm
   · left
     simp [entry, runtime_recover e v r s I w hcd, recv0_arm0_entry, exec_nonPayable, hv, hdec,
@@ -233,7 +233,7 @@ theorem feEcrecoverContractCorrect (e v r s : UInt256) (I : ExecutionEnv) (w : W
       (tripleOf (Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat)) hmem
     refine ⟨memory, ?_⟩
     simp only [entry, M.exec_bind, runtime_recover e v r s I w hcd, recv0_arm0_entry,
-      exec_nonPayable, hv, if_true, hdec, harm, hret, encodeTriple]
+      exec_nonPayable, hv, ite_true, hdec, harm, hret, encodeTriple]
 
 /-- Other calls revert with no data: calldata shorter than a selector, a selector other than
     `recover`'s, or call value sent. -/
@@ -260,7 +260,7 @@ theorem runtime_value (e v r s : UInt256) (I : ExecutionEnv) (w : World)
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
   rw [runtime_recover e v r s I w hcd]
-  rw [recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 /-- **What `Main.lean` prints.**  The stand-in for ECDSARECOVER returns the key `x ‖ y` exactly
     when `Spec.recover` gives `(x, y)`, and none when it gives none, or the model does not

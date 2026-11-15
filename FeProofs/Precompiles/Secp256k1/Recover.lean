@@ -149,7 +149,7 @@ theorem tail_spec (e r s : UInt256) (hr : r.toNat < Secp256k1.n) (hs : s.toNat <
   rcases K with _ | ⟨x', y', h'⟩
   · exact Or.inr rfl
   · have hne : (Affine.Point.some x' y' h' : Secp256k1.Spec.Point) ≠ 0 := Affine.Point.some_ne_zero h'
-    simp only [hne, decide_false, Bool.false_eq_true, if_false]
+    simp only [hne, decide_false, Bool.false_eq_true, ite_false]
     rw [Fe.M.exec_bind]
     have hz : z' ≠ 0 := fun h0 => hne ((GoodP.zero_iff ⟨X, Y, hrep, hns, haff⟩).mp h0)
     rcases Point_to_affine_spec hrep env w with h | ⟨c1, c2, h, h1, h2⟩
@@ -186,7 +186,7 @@ theorem recover_spec (e v r s : UInt256) (hv : v.toNat ≤ 1) (hr0 : 0 < r.toNat
   rw [toNat_lit (by decide)] at h7
   simp only [recover, toNat_lit (show 1 < 2 ^ 256 by decide), hv, decide_true, ne_eq,
     word_ne_zero hr0, word_ne_zero hs0, not_false_eq_true,
-    N_eq, toNat_lit (show Secp256k1.n < 2 ^ 256 by decide), hr, hs, if_true, pure_bind, assert_true,
+    N_eq, toNat_lit (show Secp256k1.n < 2 ^ 256 by decide), hr, hs, ite_true, pure_bind, assert_true,
     ex, e7, square_Base, mul_Base, add_Base, P_eq,
     checkedAdd_small (show Secp256k1.p + 1 < 2 ^ 256 by decide),
     checkedDiv_lit (show Secp256k1.p + 1 < 2 ^ 256 by decide) (show 4 < 2 ^ 256 by decide) (by decide),
@@ -195,14 +195,14 @@ theorem recover_spec (e v r s : UInt256) (hv : v.toNat ≤ 1) (hr0 : 0 < r.toNat
   have hb := RepB.pow ha ((Secp256k1.p + 1) / 4) (by decide)
   rw [RepB.equals (RepB.mul hb hb) ha]
   unfold Secp256k1.Spec.recover
-  rw [if_pos (show 0 < r.toNat ∧ r.toNat < Secp256k1.n ∧ 0 < s.toNat ∧ s.toNat < Secp256k1.n ∧
+  rw [ite_eq_left (show 0 < r.toNat ∧ r.toNat < Secp256k1.n ∧ 0 < s.toNat ∧ s.toNat < Secp256k1.n ∧
     v.toNat < 2 from ⟨hr0, hr, hs0, hs, by omega⟩)]
   generalize hxdef : ((r.toNat : ℕ) : Fp) = x at hx ha hb ⊢
   generalize hαdef : x * x * x + ((7 : ℕ) : Fp) = α at ha hb ⊢
   generalize hβdef : α ^ ((Secp256k1.p + 1) / 4) = β at hb ⊢
   have hα : α = x ^ 3 + 7 := by rw [← hαdef]; push_cast; ring
   by_cases hsq : β * β = α
-  · simp only [hsq, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+  · simp only [hsq, decide_true, Bool.not_true, Bool.false_eq_true, ite_false]
     have hβ2 : β ^ 2 = x ^ 3 + 7 := by rw [← hα, sq, hsq]
     obtain ⟨hR, hl⟩ := liftX_eq x β hβ2 (v := v.toNat) (by omega)
     rw [hl]
@@ -211,15 +211,15 @@ theorem recover_spec (e v r s : UInt256) (hv : v.toNat ≤ 1) (hr0 : 0 < r.toNat
     have hns := (nonsingular_some (W' := W) _ _).mpr hR
     have haff := Point.toAffine_some hns
     by_cases hpar : β.val % 2 = v.toNat
-    · rw [if_pos hpar] at hy
+    · rw [ite_eq_left hpar] at hy
       subst hy
-      simp only [hpar, decide_true, if_true]
+      simp only [hpar, decide_true, ite_true]
       exact tail_spec e r s hr hs hx hb hns _ haff env w
-    · rw [if_neg hpar] at hy
+    · rw [ite_eq_right hpar] at hy
       subst hy
-      simp only [hpar, decide_false, Bool.false_eq_true, if_false, neg_Base, pure_bind]
+      simp only [hpar, decide_false, Bool.false_eq_true, ite_false, neg_Base, pure_bind]
       exact tail_spec e r s hr hs hx (RepB.neg hb) hns _ haff env w
-  · simp only [hsq, decide_false, Bool.not_false, if_true, Fe.M.exec_pure]
+  · simp only [hsq, decide_false, Bool.not_false, ite_true, Fe.M.exec_pure]
     have hns : ¬ IsSquare (x ^ 3 + 7) := by
       rw [← hα, ← sqrt_iff, hβdef, sq]; exact hsq
     rw [liftX_none x hns]

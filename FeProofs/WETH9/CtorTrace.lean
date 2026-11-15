@@ -98,7 +98,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
   · -- short old value: no data words
     have hf' : UInt256.land S (UInt256.ofNat 1) = UInt256.ofNat 0 := hf
     have hL : strHeadLen S = UInt256.land (UInt256.div S ⟨2⟩) ⟨127⟩ := by
-      rw [strHeadLen, if_pos hf]
+      rw [strHeadLen, ite_eq_left hf]
     have c372 : UInt256.isZero (UInt256.eq (UInt256.ofNat 1)
         (UInt256.land S (UInt256.ofNat 1))) ≠ UInt256.ofNat 0 := by
       rw [hf']; decide
@@ -115,7 +115,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
       · rw [strHeadBad, hf, ult_one (by exact hlt)]; decide
       rd_run h using [c372, c402, c133, c154, c168, hperm, hret]
       rw [u256_land_comm _ (leadMask len)] at h
-      have hw : strOldWords S = 0 := by rw [strOldWords, if_pos hf]
+      have hw : strOldWords S = 0 := by rw [strOldWords, ite_eq_left hf]
       rw [hw]
       exact ⟨_, _, _, _, Or.inl rfl, h⟩
     · have c402 : UInt256.isZero (UInt256.eq (UInt256.eq (UInt256.ofNat 1)
@@ -132,7 +132,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
     have hf' : UInt256.land S (UInt256.ofNat 1) = UInt256.ofNat 1 := hf
     have hne : UInt256.land S ⟨1⟩ ≠ ⟨0⟩ := by rw [hf]; decide
     have hL : strHeadLen S = UInt256.div S ⟨2⟩ := by
-      rw [strHeadLen, if_neg hne]
+      rw [strHeadLen, ite_eq_right hne]
     have c372 : UInt256.isZero (UInt256.eq (UInt256.ofNat 1)
         (UInt256.land S (UInt256.ofNat 1))) = UInt256.ofNat 0 := by
       rw [hf']; decide
@@ -157,7 +157,7 @@ theorem strStore {ee : ExecutionEnv} {g : Sat256} {s0 : State} {mem : ByteArray}
       · rw [strHeadBad, hf, ult_zero (by exact Nat.le_of_not_lt hlt)]; decide
       -- at least one old data word, so the loop is entered
       have hw : ((UInt256.div S ⟨2⟩).toNat + 31) / 32 = strOldWords S := by
-        rw [strOldWords, if_neg hne, hL]
+        rw [strOldWords, ite_eq_right hne, hL]
       have hpos : 0 < strOldWords S := by rw [← hw, ← hL]; omega
       have hwn := lt_trans (strOldWords_lt S) (show 2 ^ 251 < UInt256.size by decide)
       have c251 : UInt256.lt ⟨0⟩ (UInt256.shiftRight (UInt256.ofNat 31 +

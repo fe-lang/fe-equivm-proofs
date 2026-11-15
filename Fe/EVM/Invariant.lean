@@ -400,7 +400,7 @@ theorem total_sendEth {σ : AccountMap} {r s : AccountAddress} {v : UInt256}
     (hv : v ≤ balOf σ s) (hT : total σ < UInt256.size) :
     total (sendEth r s v true σ) = total σ := by
   unfold sendEth
-  simp only [if_true, Std.ExtTreeMap.get?_eq_getElem?]
+  simp only [ite_true, Std.ExtTreeMap.get?_eq_getElem?]
   by_cases hrs : r = s
   · subst hrs
     cases hr : σ[r]? with
@@ -409,7 +409,7 @@ theorem total_sendEth {σ : AccountMap} {r s : AccountAddress} {v : UInt256}
       have := UInt256.eq_zero_of_le_zero hv
       subst this
       have h0 : ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false := rfl
-      simp only [hr, h0, Bool.false_eq_true, if_false]
+      simp only [hr, h0, Bool.false_eq_true, ite_false]
     | some acc =>
       simp only [Std.ExtTreeMap.getElem?_insert_self]
       have h1 := total_insert_some (x := { acc with balance := acc.balance + v }) hr
@@ -424,7 +424,7 @@ theorem total_sendEth {σ : AccountMap} {r s : AccountAddress} {v : UInt256}
       subst this
       have h0 : ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false := rfl
       cases hr : σ[r]? with
-      | none => simp only [h0, Bool.false_eq_true, if_false, hs]
+      | none => simp only [h0, Bool.false_eq_true, ite_false, hs]
       | some acc =>
         simp only [getElem?_insert_ne' hrs, hs]
         exact total_insert_same hr (by
@@ -438,9 +438,9 @@ theorem total_sendEth {σ : AccountMap} {r s : AccountAddress} {v : UInt256}
       | none =>
         by_cases hv0 : v = UInt256.ofNat 0
         · subst hv0
-          simp only [bne_self_eq_false, Bool.false_eq_true, if_false, hs]
+          simp only [bne_self_eq_false, Bool.false_eq_true, ite_false, hs]
           exact total_insert_same hs (UInt256.sub_zero' _)
-        · simp only [hv0, bne_iff_ne, ne_eq, not_false_eq_true, if_true,
+        · simp only [hv0, bne_iff_ne, ne_eq, not_false_eq_true, ite_true,
             getElem?_insert_ne' hrs, hs]
           have h1 := total_insert_none (x := { (default : Account) with balance := v }) hr
           have h2 := total_insert_some (σ := σ.insert r { (default : Account) with balance := v })
@@ -705,18 +705,18 @@ theorem sets_dup {n : ℕ} (h : dup n state = .ok state') :
     SameSets state.substate state'.substate := by
   unfold dup at h
   by_cases hlen : (List.take n state.machineState.stack).length = n
-  · rw [if_pos hlen] at h
+  · rw [ite_eq_left hlen] at h
     injection h with h; rw [← h]; exact ⟨rfl, rfl⟩
-  · rw [if_neg hlen] at h
+  · rw [ite_eq_right hlen] at h
     contradiction
 
 theorem sets_swap {n : ℕ} (h : swap n state = .ok state') :
     SameSets state.substate state'.substate := by
   unfold swap at h
   by_cases hlen : (List.take (n + 1) state.machineState.stack).length = n + 1
-  · rw [if_pos hlen] at h
+  · rw [ite_eq_left hlen] at h
     injection h with h; rw [← h]; exact ⟨rfl, rfl⟩
-  · rw [if_neg hlen] at h
+  · rw [ite_eq_right hlen] at h
     contradiction
 
 theorem sets_sstore (s : State) (k v : UInt256) : SameSets s.substate (s.sstore k v).substate := by
@@ -795,9 +795,9 @@ theorem SubOk.selfdestruct {a o r : AccountAddress} {A : Substate} (h : SubOk a 
     SubOk a { A with selfDestructSet := A.selfDestructSet.insert o,
                      accessedAccounts := A.accessedAccounts.insert r } := by
   refine ⟨h.1, fun hmem => ?_⟩
-  rcases Batteries.RBSet.mem_toList_insert.mp hmem with ⟨hmem, -⟩ | rfl
+  rcases RBTree.RBSet.mem_toList_insert.mp hmem with ⟨hmem, -⟩ | rfl
   · exact h.2 hmem
-  · obtain ⟨y, hy, hcmp⟩ := Batteries.RBSet.mem_iff_mem_toList.mp ho
+  · obtain ⟨y, hy, hcmp⟩ := RBTree.RBSet.mem_iff_mem_toList.mp ho
     rw [Std.LawfulEqCmp.eq_of_compare hcmp] at h
     exact h.1 hy
 
@@ -1808,14 +1808,14 @@ theorem LambdaCall.frame_subOk {a : AccountAddress} {P : Account → Prop}
     unfold LambdaCall.blocked at hb
     unfold LambdaCall.frame
     simp only
-    rw [if_pos hb]
+    rw [ite_eq_left hb]
     exact hS
   · unfold LambdaCall.frame
     simp only
     split_ifs
     · exact hS
     · refine ⟨fun hmem => ?_, hS.2⟩
-      rcases Batteries.RBSet.mem_toList_insert.mp hmem with ⟨hmem, -⟩ | heq
+      rcases RBTree.RBSet.mem_toList_insert.mp hmem with ⟨hmem, -⟩ | heq
       · exact hS.1 hmem
       · exact ha heq.symm
 
@@ -1974,7 +1974,7 @@ theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
     intro R h
     rcases h with h | h
     · split <;> [rfl; exact h]
-    · rw [if_pos (by rw [h]; exact accountMap_empty_beq_empty)]
+    · rw [ite_eq_left (by rw [h]; exact accountMap_empty_beq_empty)]
   exact key _ <| match3_prop (P := fun R => R.2.2.1 = A ∨ R.1 = ∅) pc _ _ _ _ _ _ _ _ _ _ _
     (Or.inl h1) (Or.inl h2) (Or.inl h3) (Or.inl h4) (Or.inl h5) (Or.inl h6) (Or.inl h7)
     (Or.inl h8) (Or.inl h9) (Or.inl h10) (fun _ => Or.inr rfl)
@@ -2369,7 +2369,7 @@ theorem lambda_success {L : LambdaCall} (hz : L.run.2.2.2.2.1 = true) :
     refine ⟨by rw [L.frame_code, hb]; rfl, L.frame_storage hb, σSS, gSS, ASS, out, hXi, ?_⟩
     simp only at hz
     show (if _ then L.σ else _) = _
-    rw [if_neg (by intro hc; rw [hc] at hz; simp at hz)]
+    rw [ite_eq_right (by intro hc; rw [hc] at hz; simp at hz)]
     rfl
 
 /-- **Deployment.**  A creation that succeeds ends where `Holds` holds at the address it created, if
@@ -2410,7 +2410,7 @@ def txCall (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBl
   let a :=
     A0.accessedAccounts.insert S_T
       |>.insert H.beneficiary
-      |>.union <| Batteries.RBSet.ofList (accessList.map Prod.fst) compare
+      |>.union <| RBTree.RBSet.ofList (accessList.map Prod.fst) compare
   let g := .ofNat <| T.base.gasLimit.toNat - g₀
   let AStarₐ :=
     match T.base.recipient with
@@ -2419,7 +2419,7 @@ def txCall (σ : AccountMap) (H_f : ℕ) (H : BlockHeader) (blocks : ProcessedBl
   let AStar :=
     { A0 with
       accessedAccounts := AStarₐ
-      accessedStorageKeys := Batteries.RBSet.ofList AStar_K Substate.storageKeysCmp }
+      accessedStorageKeys := RBTree.RBSet.ofList AStar_K Substate.storageKeysCmp }
   match T.base.recipient with
   | none => .inr
       { σ := σ₀, σ₀ := σ₀, A := AStar, s := S_T, o := S_T, g := g, p := p, v := T.base.value,
@@ -2451,11 +2451,11 @@ theorem Holds.foldl_erase {l : List AccountAddress} (hl : a ∉ l) {σ : Account
     simp only [List.mem_cons, not_or] at hl
     exact ih hl.2 (h.erase_ne (Ne.symm hl.1))
 
-theorem mem_toList_filter {t : Batteries.RBSet AccountAddress compare} {p : AccountAddress → Bool}
+theorem mem_toList_filter {t : RBTree.RBSet AccountAddress compare} {p : AccountAddress → Bool}
     {x : AccountAddress} (hx : x ∈ (t.filter p).toList) : p x = true := by
-  unfold Batteries.RBSet.filter at hx
-  rw [Batteries.RBSet.foldl_eq_foldl_toList] at hx
-  suffices key : ∀ (l : List AccountAddress) (acc : Batteries.RBSet AccountAddress compare),
+  unfold RBTree.RBSet.filter at hx
+  rw [RBTree.RBSet.foldl_eq_foldl_toList] at hx
+  suffices key : ∀ (l : List AccountAddress) (acc : RBTree.RBSet AccountAddress compare),
       (∀ y ∈ acc.toList, p y = true) →
       ∀ y ∈ (l.foldl (fun acc a => bif p a then acc.insert a else acc) acc).toList, p y = true
     from key _ ∅ (fun y hy => by cases hy) x hx
@@ -2469,7 +2469,7 @@ theorem mem_toList_filter {t : Batteries.RBSet AccountAddress compare} {p : Acco
     · simpa [hv] using h
     · intro y hy
       simp only [hv, cond_true] at hy
-      rcases Batteries.RBSet.mem_toList_insert.mp hy with ⟨hy, -⟩ | rfl
+      rcases RBTree.RBSet.mem_toList_insert.mp hy with ⟨hy, -⟩ | rfl
       · exact h y hy
       · exact hv
 
@@ -2589,17 +2589,17 @@ theorem Holds.clearTransient
 theorem Holds.txTail (hadm : Admissible P Trusted)
     (htstore : ∀ acc, P acc → P {acc with tstorage := Std.ExtTreeMap.empty})
     {X : AccountMap} {A : Substate} (hX : Holds a P X) (hsd : a ∉ A.selfDestructSet.toList) :
-    Holds a P ((Batteries.RBSet.foldl Std.ExtTreeMap.erase
-      (Batteries.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
+    Holds a P ((RBTree.RBSet.foldl Std.ExtTreeMap.erase
+      (RBTree.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
       (A.touchedAccounts.filter fun x => State.dead X x)).map
         fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) := by
   refine Holds.clearTransient htstore ?_
-  rw [Batteries.RBSet.foldl_eq_foldl_toList]
+  rw [RBTree.RBSet.foldl_eq_foldl_toList]
   refine Holds.foldl_erase (fun hmem => ?_) ?_
   · have := mem_toList_filter hmem
     rw [hX.not_dead hadm] at this
     cases this
-  · rw [Batteries.RBNode.foldl_eq_foldl_toList]
+  · rw [RBTree.RBNode.foldl_eq_foldl_toList]
     exact Holds.foldl_erase hsd hX
 
 theorem total_erase_le (σ : AccountMap) (k : AccountAddress) : total (σ.erase k) ≤ total σ := by
@@ -2621,13 +2621,13 @@ theorem total_clearTransient (σ : AccountMap) :
 
 /-- What `Υ` does after the fees adds no balance. -/
 theorem total_txTail {X : AccountMap} {A : Substate} :
-    total ((Batteries.RBSet.foldl Std.ExtTreeMap.erase
-      (Batteries.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
+    total ((RBTree.RBSet.foldl Std.ExtTreeMap.erase
+      (RBTree.RBNode.foldl Std.ExtTreeMap.erase X A.selfDestructSet.1)
       (A.touchedAccounts.filter fun x => State.dead X x)).map
         fun _ acc => {acc with tstorage := Std.ExtTreeMap.empty}) ≤ total X := by
-  rw [total_clearTransient, Batteries.RBSet.foldl_eq_foldl_toList]
+  rw [total_clearTransient, RBTree.RBSet.foldl_eq_foldl_toList]
   refine (total_foldl_erase_le _ _).trans ?_
-  rw [Batteries.RBNode.foldl_eq_foldl_toList]
+  rw [RBTree.RBNode.foldl_eq_foldl_toList]
   exact total_foldl_erase_le _ _
 
 /-- The outermost call or creation of the transaction is admitted. -/

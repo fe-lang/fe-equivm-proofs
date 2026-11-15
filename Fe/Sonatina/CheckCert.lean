@@ -88,7 +88,7 @@ theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Sectio
     fun ic => by
       rw [runFunc.eq_1]
       simp [hf, he, hp, Fe.Sonatina.bind]
-  simp only [show (Level.machine == Level.machine) = true from rfl, if_true, hrun, pre]
+  simp only [show (Level.machine == Level.machine) = true from rfl, ite_true, hrun, pre]
   cases low.entryFreePtr <;> simp only [Fe.M.exec_bind, pure_bind, endRun, Fe.EVM.mstore,
     Fe.M.exec_modify]
   all_goals
@@ -198,7 +198,7 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
         rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
         by simp [hephi]⟩
       (fun h => by rw [hret] at h; cases h)
-    simp only [show (hint.name == entry) = true by simp [hname], preIf, if_true, ite_self] at hfin
+    simp only [show (hint.name == entry) = true by simp [hname], preIf, ite_true, ite_self] at hfin
     have hF := hfin.final
     refine ⟨(Xi_agrees (hF.agrees (by
       simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp

@@ -62,7 +62,7 @@ theorem Mont_inverse_Bn254Base_spec {a : L4} {x : Fq} (ha : RepBn a x) (env : En
     with h | ⟨c, h, hc, hinv⟩
   · rw [h]; exact Or.inl rfl
   · rw [h]
-    simp only [checkIndex, idx_lits, lt4, if_true, pure_bind, vget4, mk_toBn, Bn254Base_R3,
+    simp only [checkIndex, idx_lits, lt4, ite_true, pure_bind, vget4, mk_toBn, Bn254Base_R3,
       raw_Bn254Base_eq, mul_Bn254Base,
       toNat_lit (show 14921786541159648185948152738563080959093619838510245177710943249661917737183 <
         2 ^ 256 by decide), Fe.M.exec_pure]

@@ -126,7 +126,7 @@ theorem fromBytesBigEndian_padded (d : ByteArray) (off n : ℕ) :
 theorem readBytes_be (d : ByteArray) (off n : ℕ) (hoff : off < 2 ^ 64) (hn : n < 2 ^ 64) :
     fromByteArrayBigEndian (d.readBytes off n) = beAt d off n := by
   unfold ByteArray.readBytes
-  rw [if_pos (by simp only [Bool.and_eq_true, decide_eq_true_eq]; exact ⟨hoff, hn⟩)]
+  rw [ite_eq_left (by simp only [Bool.and_eq_true, decide_eq_true_eq]; exact ⟨hoff, hn⟩)]
   have hc : (d.copySlice off ByteArray.empty 0 n).toList = (d.toList.drop off).take n := by
     rw [ByteArray.copySlice_eq_append, byteArray_toList_eq, byteArray_toList_eq]
     simp [Array.toList_extract, List.extract_eq_take_drop]
@@ -560,7 +560,7 @@ theorem input_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
       show ¬ UInt256.size ≤ I.calldata.size by omega,
       show (UInt256.ofNat w.memory.size).toNat = w.memory.size from toNat_lit (by
         unfold UInt256.size at hmem; omega)]
-    rw [if_neg he]
+    rw [ite_eq_right he]
     simp
 
 end FeProofs.Precompiles

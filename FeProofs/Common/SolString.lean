@@ -144,19 +144,19 @@ theorem decodeHeader_cases (head : UInt256) :
         head.toNat % 256 / 2 := by
       rw [land_lit_toNat _ 7 _ rfl, hdiv,
         show (256 : ℕ) = 2 * 2 ^ 7 by norm_num, Nat.mod_mul_right_div_self]
-    simp only [hf, if_true]
+    simp only [hf, ite_true]
     by_cases hs : head.toNat % 256 / 2 < 32
     · refine Or.inr (Or.inl ⟨he, hs, ?_⟩)
-      rw [ult_one (by rw [hlen, h32]; exact hs), if_neg (by decide), hlen]
+      rw [ult_one (by rw [hlen, h32]; exact hs), ite_eq_right (by decide), hlen]
     · refine Or.inr (Or.inr ⟨Or.inr ⟨he, by omega⟩, ?_⟩)
-      rw [ult_zero (by rw [hlen, h32]; omega), if_pos (by decide)]
+      rw [ult_zero (by rw [hlen, h32]; omega), ite_eq_left (by decide)]
   · have hf : UInt256.land head ⟨1⟩ = ⟨1⟩ := u256_inj (by rw [hflag, ho]; rfl)
-    simp only [hf, show (⟨1⟩ : UInt256) ≠ ⟨0⟩ by decide, if_false]
+    simp only [hf, show (⟨1⟩ : UInt256) ≠ ⟨0⟩ by decide, ite_false]
     by_cases hs : head.toNat / 2 < 32
     · refine Or.inr (Or.inr ⟨Or.inl ⟨ho, hs⟩, ?_⟩)
-      rw [ult_one (by rw [hdiv, h32]; exact hs), if_pos (by decide)]
+      rw [ult_one (by rw [hdiv, h32]; exact hs), ite_eq_left (by decide)]
     · refine Or.inl ⟨ho, by omega, ?_⟩
-      rw [ult_zero (by rw [hdiv, h32]; omega), if_neg (by decide), hdiv]
+      rw [ult_zero (by rw [hdiv, h32]; omega), ite_eq_right (by decide), hdiv]
 
 /-! ## Leading bytes of a word -/
 
@@ -260,7 +260,7 @@ theorem leadWords_eq (f : ℕ → UInt256) (L : ℕ) (hL : 0 < L) :
     induction n with
     | zero => rfl
     | succ n ih =>
-      rw [wordsBytes, wordsBytes, ih (by omega), leadWord, if_neg (by omega)]
+      rw [wordsBytes, wordsBytes, ih (by omega), leadWord, ite_eq_right (by omega)]
   rw [hm, wordsBytes, wordsBytes, hfull m le_rfl, leadWord_toByteArray,
     Nat.min_eq_left (by omega),
     extract_append_span _ _ 0 L (Nat.zero_le _) (by rw [wordsBytes_size]; omega),
@@ -299,7 +299,7 @@ theorem write_past_end (src M : ByteArray) {a n : ℕ} (ha : src.size ≤ a) (hn
     src.write a M M.size n = M := by
   apply ByteArray.ext
   unfold ByteArray.write
-  rw [if_neg hn, if_pos ha]
+  rw [ite_eq_right hn, ite_eq_left ha]
   simp only [ByteArray.data_copySlice, Nat.sub_self, Nat.min_self, Nat.min_zero, Nat.zero_min,
     Nat.add_zero]
   rw [show M.size = M.data.size from rfl, Array.extract_size, Array.extract_size_left]
@@ -309,7 +309,7 @@ theorem memLoad_of_extract {M : ByteArray} {off : ℕ} {w : UInt256} (hoff : off
     (hsz : off + 32 ≤ M.size) (h : M.extract off (off + 32) = w.toByteArray) :
     memLoad (UInt256.ofNat off) M = w := by
   unfold memLoad
-  rw [lit_toNat hoff, if_neg (by omega), readWithPadding_eq_extract _ _ hsz, h,
+  rw [lit_toNat hoff, ite_eq_right (by omega), readWithPadding_eq_extract _ _ hsz, h,
     fromByteArrayBigEndian_toByteArray, u256_ofNat_toNat]
 
 /-! ## The ABI encoding of a returned `string` -/
@@ -321,7 +321,7 @@ theorem encodeString_eq (b : ByteArray) :
       some ((UInt256.ofNat 32).toByteArray ++ ((UInt256.ofNat b.size).toByteArray ++
         (b ++ zpad (ABI.paddedSize b.size - b.size)))) := by
   simp only [encodeReturnValues?, encodeABIValues?, encodeABIValuesFrom?, abiTupleHeadSize?,
-    encodeABIValue?, isDynamicABIType, staticABIEncodedSize?, Option.bind, bind, if_true,
+    encodeABIValue?, isDynamicABIType, staticABIEncodedSize?, Option.bind, bind, ite_true,
     List.nil_append, List.append_nil, Nat.add_zero, List.length_nil]
   rw [mk_toArray_eq, list_toByteArray_append, list_toByteArray_append, natBytes_toByteArray',
     natBytes_toByteArray', ABI.padRightToWord, list_toByteArray_append,
@@ -446,12 +446,12 @@ theorem strWrite_bad {cfg : Config} {layout : StorageLayout}
     cfg.storageBackend.write er .string (.bytes bytes) evm = .revert := by
   unfold strHeadBad strHeadLen at hbad
   rcases land_one_cases (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) with hf | hf
-  · rw [if_pos hf] at hbad
+  · rw [ite_eq_left hf] at hbad
     exact writeSolidityStringMalformedShort hbackend hlay rfl hf hbad
   · have hne : UInt256.land (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) ⟨1⟩ ≠
         ⟨0⟩ := by
       rw [hf]; decide
-    rw [if_neg hne] at hbad
+    rw [ite_eq_right hne] at hbad
     exact writeSolidityStringMalformedLong hbackend hlay rfl hne hbad
 
 theorem strWrite_ok {cfg : Config} {layout : StorageLayout}
@@ -463,8 +463,8 @@ theorem strWrite_ok {cfg : Config} {layout : StorageLayout}
   unfold strHeadBad strHeadLen at hok
   rcases land_one_cases (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) with hf | hf
   · have hw : strOldWords (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) = 0 := by
-      rw [strOldWords, if_pos hf]
-    rw [if_pos hf] at hok
+      rw [strOldWords, ite_eq_left hf]
+    rw [ite_eq_left hf] at hok
     rw [writeSolidityStringShortPacked hbackend hlay hsize rfl
       (checkBytesPacked_of_storageLoad_land_one_zero rfl hf) hf rfl hok, steleStrWrite, hw]
     rfl
@@ -474,8 +474,8 @@ theorem strWrite_ok {cfg : Config} {layout : StorageLayout}
     have hw : strOldWords (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) =
         ((UInt256.div (Stele.EVM.storageLoad evm evm.executionEnv.codeOwner slot) ⟨2⟩).toNat + 31) /
           32 := by
-      rw [strOldWords, if_neg hne, strHeadLen, if_neg hne]
-    rw [if_neg hne] at hok
+      rw [strOldWords, ite_eq_right hne, strHeadLen, ite_eq_right hne]
+    rw [ite_eq_right hne] at hok
     rw [writeSolidityStringShortFromLongPrepared hbackend hlay hsize rfl hne rfl hok,
       clearSolidityBytesDataWordsFrom_executionEnv, steleStrWrite, hw]
 

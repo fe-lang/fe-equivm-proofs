@@ -85,7 +85,7 @@ theorem mod_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
       have := congrArg Fin.val h'
       rw [ofNat_val hy] at this
       exact h this
-    rw [this, if_neg h]
+    rw [this, ite_eq_right h]
     apply eq_of_toNat
     show (Fin.ofNat _ x).val % (Fin.ofNat _ y).val = (Fin.ofNat _ _ : Fin _).val
     rw [fin_word hx, fin_word hy, fin_word (lt_of_le_of_lt (Nat.mod_le _ _) hx)]
@@ -123,8 +123,8 @@ theorem shl_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
   have h1 : ((UInt256.ofNat x).val ≥ 256) ↔ x ≥ 256 := by
     rw [ge_iff_le, Fin.le_def, ofNat_val hx]; rfl
   by_cases h : x ≥ 256
-  · rw [if_pos (h1.mpr h), if_pos h]; rfl
-  · rw [if_neg (mt h1.mp h), if_neg h]
+  · rw [ite_eq_left (h1.mpr h), ite_eq_left h]; rfl
+  · rw [ite_eq_right (mt h1.mp h), ite_eq_right h]
     apply eq_of_toNat
     show (Fin.shiftLeft (Fin.ofNat _ y) (Fin.ofNat _ x)).val = (Fin.ofNat _ _ : Fin _).val
     simp only [Fin.shiftLeft, Fin.val_ofNat, wrap_nat, Nat.mod_mod, Nat.mod_eq_of_lt hx,
@@ -136,8 +136,8 @@ theorem shr_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
   have h1 : ((UInt256.ofNat x).val ≥ 256) ↔ x ≥ 256 := by
     rw [ge_iff_le, Fin.le_def, ofNat_val hx]; rfl
   by_cases h : x ≥ 256
-  · rw [if_pos (h1.mpr h), if_pos h]; rfl
-  · rw [if_neg (mt h1.mp h), if_neg h]
+  · rw [ite_eq_left (h1.mpr h), ite_eq_left h]; rfl
+  · rw [ite_eq_right (mt h1.mp h), ite_eq_right h]
     apply eq_of_toNat
     show (Fin.shiftRight (Fin.ofNat _ y) (Fin.ofNat _ x)).val = (Fin.ofNat _ _ : Fin _).val
     simp only [Fin.shiftRight, Fin.val_ofNat, Nat.mod_eq_of_lt hx, Nat.mod_eq_of_lt hy]
@@ -230,10 +230,10 @@ theorem abs_word {x : Nat} (hx : x < UInt256.size) :
   · rw [neg_word (by rw [size_eq]; exact hx)]
     congr 1
     simp only [wrap, signed]
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
     omega
   · simp only [signed]
-    rw [if_pos (by omega)]
+    rw [ite_eq_left (by omega)]
     rfl
 
 /-- A word with its top bit set is negative as a signed integer. -/
@@ -241,13 +241,13 @@ theorem signed_neg {x : Nat} (hx : x < UInt256.size) (h : 2 ^ 255 ≤ x) :
     signed 256 x = -((2 ^ 256 - x : Nat) : Int) := by
   rw [size_eq] at hx
   simp only [signed]
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
   omega
 
 /-- A word without its top bit set is itself as a signed integer. -/
 theorem signed_pos {x : Nat} (h : ¬ 2 ^ 255 ≤ x) : signed 256 x = x := by
   simp only [signed]
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
 
 theorem natAbs_neg {x : Nat} (hx : x < UInt256.size) (h : 2 ^ 255 ≤ x) :
     (signed 256 x).natAbs = 2 ^ 256 - x := by
@@ -273,22 +273,22 @@ theorem sdiv_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
   have hy' := hy
   rw [hsz] at hx' hy'
   by_cases ha : 2 ^ 255 ≤ x <;> by_cases hb : 2 ^ 255 ≤ y <;> by_cases hy0 : y = 0 <;>
-    simp only [ha, hb, hy0, not_false_eq_true, if_pos, if_neg, show ¬ 2 ^ 255 ≤ 0 by decide]
+    simp only [ha, hb, hy0, not_false_eq_true, ite_eq_left, ite_eq_right, show ¬ 2 ^ 255 ≤ 0 by decide]
   · omega
   · rw [abs_word hx, abs_word hy, natAbs_neg hx ha, natAbs_neg hy hb, hdiv,
-      div_word (by omega) (by omega), if_neg (by omega), signed_neg hx ha, signed_neg hy hb,
+      div_word (by omega) (by omega), ite_eq_right (by omega), signed_neg hx ha, signed_neg hy hb,
       Int.neg_tdiv_neg, ← Int.ofNat_tdiv, wrap_nat_lt (hq _ _ (by omega))]
-  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) (by decide), if_pos rfl,
+  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) (by decide), ite_eq_left rfl,
       neg_word (by decide)]
     rfl
-  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) hy, if_neg hy0,
+  · rw [abs_word hx, natAbs_neg hx ha, hdiv, div_word (by omega) hy, ite_eq_right hy0,
       neg_word (hq _ _ (by omega)), signed_neg hx ha, signed_pos hb, Int.neg_tdiv,
       ← Int.ofNat_tdiv]
   · omega
-  · rw [abs_word hy, natAbs_neg hy hb, hdiv, div_word hx (by omega), if_neg (by omega),
+  · rw [abs_word hy, natAbs_neg hy hb, hdiv, div_word hx (by omega), ite_eq_right (by omega),
       neg_word (hq _ _ hx), signed_pos ha, signed_neg hy hb, Int.tdiv_neg, ← Int.ofNat_tdiv]
-  · rw [hdiv, div_word hx (by decide), if_pos rfl]
-  · rw [hdiv, div_word hx hy, if_neg hy0, signed_pos ha, signed_pos hb, ← Int.ofNat_tdiv,
+  · rw [hdiv, div_word hx (by decide), ite_eq_left rfl]
+  · rw [hdiv, div_word hx hy, ite_eq_right hy0, signed_pos ha, signed_pos hb, ← Int.ofNat_tdiv,
       wrap_nat_lt (hq _ _ hx)]
 
 theorem natAbs_lt {x : Nat} (hx : x < UInt256.size) : (signed 256 x).natAbs < UInt256.size := by
@@ -323,13 +323,13 @@ theorem smod_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
   simp only [BinOp.eval, toNat_ofNat_lt hy]
   by_cases hy0 : y = 0
   · subst hy0; rfl
-  rw [if_neg (by simpa using hy0), if_neg hy0, hmod, abs_word hx, abs_word hy,
+  rw [ite_eq_right (by simpa using hy0), ite_eq_right hy0, hmod, abs_word hx, abs_word hy,
     mod_word (natAbs_lt hx) (natAbs_lt hy)]
   have hB : (signed 256 y).natAbs ≠ 0 := by
     by_cases hb : 2 ^ 255 ≤ y
     · rw [natAbs_neg hy hb]; rw [size_eq] at hy; omega
     · rw [natAbs_pos hb]; exact hy0
-  rw [if_neg hB]
+  rw [ite_eq_right hB]
   have hlt : (signed 256 x).natAbs % (signed 256 y).natAbs < UInt256.size :=
     lt_of_le_of_lt (Nat.mod_le _ _) (natAbs_lt hx)
   rw [toNat_ofNat_lt hlt]
@@ -344,9 +344,9 @@ theorem smod_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
     split_ifs <;> simp only [Int.natAbs_mul, Int.natAbs_neg, Int.natAbs_one, Int.natAbs_zero,
       Int.natAbs_natCast, one_mul, zero_mul] <;> omega)]
   by_cases ha : 2 ^ 255 ≤ x
-  · rw [if_pos ha, natAbs_neg hx ha, signed_neg hx ha, Int.neg_tmod, ← Int.ofNat_tmod]
+  · rw [ite_eq_left ha, natAbs_neg hx ha, signed_neg hx ha, Int.neg_tmod, ← Int.ofNat_tmod]
     simp
-  · rw [if_neg ha, natAbs_pos ha, signed_pos ha, ← Int.ofNat_tmod]
+  · rw [ite_eq_right ha, natAbs_pos ha, signed_pos ha, ← Int.ofNat_tmod]
     by_cases hx0 : x = 0
     · subst hx0; simp [UInt256.eq0]
     · have : UInt256.eq0 (UInt256.ofNat x) = false := by
@@ -386,7 +386,7 @@ theorem sar_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
   simp only [BinOp.eval, hslt, hsr]
   by_cases hb : 2 ^ 255 ≤ y
   · have hc : 2 ^ 256 - 1 - y < UInt256.size := by rw [size_eq]; omega
-    rw [decide_eq_true hb, if_pos rfl, complement_word hy, shr_word hx hc]
+    rw [decide_eq_true hb, ite_eq_left rfl, complement_word hy, shr_word hx hc]
     rw [complement_word (by split_ifs; decide; exact lt_of_le_of_lt (Nat.shiftRight_le _ _) hc),
       signed_neg hy hb]
     congr 1
@@ -402,7 +402,7 @@ theorem sar_word {x y : Nat} (hx : x < UInt256.size) (hy : y < UInt256.size) :
       generalize (2 ^ 256 - 1 - y) / 2 ^ x = q at hq ⊢
       simp only [wrap]
       omega
-  · rw [decide_eq_false hb, if_neg (by simp), shr_word hx hy, signed_pos hb]
+  · rw [decide_eq_false hb, ite_eq_right (by simp), shr_word hx hy, signed_pos hb]
     congr 1
     split_ifs with h256 hneg
     · omega

@@ -79,7 +79,7 @@ theorem feNarrowAbiEcho_boolBody {σ σ₀ A I} {g : UInt256}
     rw [decodeCalldata_word rfl hlen hhi]
     have hz : (↑(calldataWord I.calldata 4).val : Nat) ≠ 0 := fun h => hw0 (u256_inj h)
     have ho : (↑(calldataWord I.calldata 4).val : Nat) ≠ 1 := fun h => hw1 (u256_inj h)
-    simp only [decodeABIWord?, if_neg hz, if_neg ho]
+    simp only [decodeABIWord?, ite_eq_right hz, ite_eq_right ho]
     rfl
   exact RDrev.reEquivDecodingFailed hcode rd hd hdec
 

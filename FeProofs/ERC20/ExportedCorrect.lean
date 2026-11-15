@@ -143,7 +143,7 @@ theorem emitTransfer_ok (e : Transfer) (hmem : w.memory.size + 32 < UInt256.size
             e.value.toByteArray⟩,
           memory := returned w.memory e.value }))
       else some (.error .static) := by
-  rw [emitTransfer_exec, if_pos hmem]
+  rw [emitTransfer_exec, ite_eq_left hmem]
 
 theorem emitApproval_ok (e : Approval) (hmem : w.memory.size + 32 < UInt256.size) :
     (emit_Evm_Approval e).exec I w =
@@ -153,7 +153,7 @@ theorem emitApproval_ok (e : Approval) (hmem : w.memory.size + 32 < UInt256.size
             e.value.toByteArray⟩,
           memory := returned w.memory e.value }))
       else some (.error .static) := by
-  rw [emitApproval_exec, if_pos hmem]
+  rw [emitApproval_exec, ite_eq_left hmem]
 
 /-- The caller's address word. -/
 abbrev sender : UInt256 := UInt256.ofNat I.source.val
@@ -587,7 +587,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   swap
   · simp [Model.init, exec_nonPayable, hwv]
     exact .exit _
-  rw [if_pos hwv, M.exec_bind, init_exec I _ v (by simp only [withArg_size]; omega)]
+  rw [ite_eq_left hwv, M.exec_bind, init_exec I _ v (by simp only [withArg_size]; omega)]
   by_cases hperm : I.perm = true
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, exec_emit,
       hperm]

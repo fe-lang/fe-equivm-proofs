@@ -476,7 +476,7 @@ theorem fallback_refines {g : UInt256}
         (I.calldata.readBytes (⟨0⟩ : UInt256).toNat 32)) (UInt256.ofNat 224)) sel =
           UInt256.ofNat 0 := by
     intro i sel hi e
-    simp only [hnm hsz i hi, Bool.false_eq_true, if_false] at e
+    simp only [hnm hsz i hi, Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm]
     exact e
   have n0 := miss 0 _ (by omega) (nameEvmSelector hsz)
@@ -599,8 +599,8 @@ theorem withdrawArm_refines {g : UInt256}
       keccakWord_mapSlotAt _ _ _ 160 192 rfl (by decide)] at rd
     rd_step rd
     exact withdrawCall_refines hcode hperm hwv hhead hnlt (by first
-      | (rw [if_pos (show word I.calldata 4 = ⟨0⟩ from hval.trans hz)]; try rfl)
-      | (rw [if_neg (show ¬ word I.calldata 4 = ⟨0⟩ from fun h => hz (hval.symm.trans h))]
+      | (rw [ite_eq_left (show word I.calldata 4 = ⟨0⟩ from hval.trans hz)]; try rfl)
+      | (rw [ite_eq_right (show ¬ word I.calldata 4 = ⟨0⟩ from fun h => hz (hval.symm.trans h))]
          try rfl))
       rd
 

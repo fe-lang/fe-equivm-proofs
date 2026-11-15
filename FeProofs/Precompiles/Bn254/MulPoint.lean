@@ -156,7 +156,7 @@ def sgn (s : Bool) (P : BN254.Spec.Point) : BN254.Spec.Point := if s then -P els
 /-- **The precomputed sum is finite**: `±P ± φ(P) ≠ 0` for `P ≠ 0`. -/
 theorem sum_ne_zero {P : BN254.Spec.Point} (hP : P ≠ 0) (s1 s2 : Bool) :
     sgn s1 P + sgn s2 (BN254.LAMBDA • P) ≠ 0 := by
-  cases s1 <;> cases s2 <;> simp only [sgn, if_true, Bool.false_eq_true, if_false]
+  cases s1 <;> cases s2 <;> simp only [sgn, ite_true, Bool.false_eq_true, ite_false]
   · exact add_lambda_ne_zero hP
   · intro h; exact lambda_ne_self hP (add_neg_eq_zero.mp h).symm
   · intro h; exact lambda_ne_self hP (neg_add_eq_zero.mp h).symm
@@ -173,10 +173,10 @@ theorem natAbs_sgn (z : ℤ) (P : BN254.Spec.Point) :
     (z.natAbs : ℕ) • sgn (decide (z < 0)) P = z • P := by
   rw [← natCast_zsmul]
   by_cases hz : z < 0
-  · simp only [sgn, hz, decide_true, if_true, zsmul_neg, ← neg_zsmul]
+  · simp only [sgn, hz, decide_true, ite_true, zsmul_neg, ← neg_zsmul]
     congr 1
     omega
-  · simp only [sgn, hz, decide_false, Bool.false_eq_true, if_false]
+  · simp only [sgn, hz, decide_false, Bool.false_eq_true, ite_false]
     congr 1
     omega
 

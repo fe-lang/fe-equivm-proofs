@@ -18,7 +18,7 @@ open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 
 theorem usize_eq (x : UInt256) : downcast_truncate_u256_usize x = pure x := by
   simp only [Lib.downcast_truncate_u256_usize, Lib.u256_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false]
+    Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false]
   congr 1
   apply word_eq_of_toNat
   change (UInt256.land _ _).toNat = _
@@ -35,7 +35,7 @@ theorem sub_two_u64 {m : ℕ} (hm : 2 * (m + 1) < 2 ^ 64) :
     IntTy.sub (.u 64) (UInt256.ofNat (2 * (m + 1))) (UInt256.ofNat 2) = pure (UInt256.ofNat (2 * m)) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show 2 * (m + 1) < 2 ^ 256 by omega), toNat_lit (show 2 < 2 ^ 256 by decide)]
-  rw [if_pos (by constructor <;> omega)]
+  rw [ite_eq_left (by constructor <;> omega)]
   congr 2
   omega
 
@@ -74,7 +74,7 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
       r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
     rw [combination_k2.b1.b9.b16.b22.eq_1]
     simp only [Nat.mul_zero, toNat_lit (show 0 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
     exact ⟨cur, zc, rfl, by simpa using hc⟩
   | m + 1, hm, cur, zc, hc, r0, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13, r14, r15, r16, r17, r18,
       r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
@@ -82,7 +82,7 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
     obtain ⟨P1, z1, e1, h1⟩ := hc.double
     obtain ⟨P2, z2, e2, h2⟩ := h1.double
     simp only [toNat_lit (show 0 < 2 ^ 256 by decide), toNat_lit (show 2 * (m + 1) < 2 ^ 256 by omega),
-      show 0 < 2 * (m + 1) by omega, decide_true, if_true, sub_two_u64 (show 2 * (m + 1) < 2 ^ 64 by omega),
+      show 0 < 2 * (m + 1) by omega, decide_true, ite_true, sub_two_u64 (show 2 * (m + 1) < 2 ^ 64 by omega),
       pure_bind, e1, e2, usize_eq, entry_eq U V (show 2 * m < 256 by omega)]
     have hU := window_split U.toNat m
     have hV := window_split V.toNat m
@@ -105,7 +105,7 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
     rw [hA] at ht haff
     by_cases he : 4 * a + b = 0
     · have hab : a = 0 ∧ b = 0 := by omega
-      simp only [he, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, if_false]
+      simp only [he, ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false]
 
       refine bit_loop U V t G Q htab m (by omega) P2 z2 ?_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
         _ _ _ _ _ _ _
@@ -117,16 +117,16 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
           rw [toNat_lit (show 4 * a + b < 2 ^ 256 by omega), toNat_lit (by decide)] at this
           exact he this
         · exact False.elim
-      simp only [ne_eq, hne, not_false_eq_true, decide_true, if_true, checkIndex,
+      simp only [ne_eq, hne, not_false_eq_true, decide_true, ite_true, checkIndex,
         toNat_lit (show 4 * a + b < 2 ^ 256 by omega), hk, pure_bind, tbl_get t hk, ht.is_infinity]
       by_cases hA0 : a • G + b • Q = 0
-      · simp only [hA0, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+      · simp only [hA0, decide_true, Bool.not_true, Bool.false_eq_true, ite_false]
         refine bit_loop U V t G Q htab m (by omega) P2 z2 ?_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
           _ _ _ _ _ _ _ _ _ _ _
         rw [hsum, hA0, _root_.add_zero]; exact h2
       · obtain ⟨a', b', x, y, ht', ha', hb', hv', haff'⟩ := haff hA0
         obtain ⟨P3, z3, e3, h3⟩ := h2.add_affine ha' hb' hv'
-        simp only [hA0, decide_false, Bool.not_false, if_true, ht', e3, pure_bind]
+        simp only [hA0, decide_false, Bool.not_false, ite_true, ht', e3, pure_bind]
         refine bit_loop U V t G Q htab m (by omega) P3 z3 ?_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
           _ _ _ _ _ _ _ _ _ _ _
         rw [hsum, ← haff']; exact h3
@@ -135,7 +135,7 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
 theorem checkedSub_one {k : ℕ} (hk : k + 2 < 2 ^ 256) :
     checkedSub (UInt256.ofNat (k + 2)) (UInt256.ofNat 1) = pure (UInt256.ofNat (k + 1)) := by
   unfold checkedSub
-  rw [toNat_lit hk, toNat_lit (by decide), if_neg (by omega)]
+  rw [toNat_lit hk, toNat_lit (by decide), ite_eq_right (by omega)]
   congr 1
   apply word_eq_of_toNat
   change (UInt256.sub _ _).toNat = _
@@ -215,7 +215,7 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
       r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
     rw [combination_k2.b1.b9.b16.eq_1]
     simp only [Nat.zero_add, toNat_lit (show 1 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
-      Bool.false_eq_true, if_false, infinity_eq, pure_bind]
+      Bool.false_eq_true, ite_false, infinity_eq, pure_bind]
     have htab : ∀ k < 16, TabOK (t k) ((k / 4) • G + (k % 4) • Q) := by
       intro k hk
       rcases Nat.eq_zero_or_pos k with rfl | h
@@ -233,13 +233,13 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
     have hj : k + 1 < 16 := by omega
     have hg := hlow (k + 1) (by omega) le_rfl
     simp only [toNat_lit (show 1 < 2 ^ 256 by decide), toNat_lit (show k + 1 + 1 < 2 ^ 256 by omega),
-      show 1 < k + 1 + 1 by omega, decide_true, if_true, checkedSub_one (show k + 2 < 2 ^ 256 by omega),
+      show 1 < k + 1 + 1 by omega, decide_true, ite_true, checkedSub_one (show k + 2 < 2 ^ 256 by omega),
       pure_bind, checkIndex, toNat_lit (show k + 1 < 2 ^ 256 by omega), hj, tbl_get t hj,
       hg.is_infinity]
     set A := fun i => (i / 4) • G + (i % 4) • Q with hAdef
     have hprs := pr_succ A zs (j := k + 1) (by omega)
     by_cases hA : A (k + 1) = 0
-    · simp only [show ((k + 1) / 4) • G + ((k + 1) % 4) • Q = 0 from hA, decide_true, if_true]
+    · simp only [show ((k + 1) / 4) • G + ((k + 1) % 4) • Q = 0 from hA, decide_true, ite_true]
       refine norm_loop U V G Q zs hz pf hpf k (by omega) t r4 h0 (fun j h1 h2 => hlow j h1 (by omega))
         (fun j h1 h2 => ?_) ?_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
       · rcases Nat.eq_or_lt_of_le h1 with rfl | h
@@ -248,19 +248,19 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
       · rw [show k + 1 + 1 = (k + 1) + 1 from rfl, hprs] at hr4
         simpa [hA] using hr4
     · simp only [show ¬ (((k + 1) / 4) • G + ((k + 1) % 4) • Q = 0) from hA, decide_false,
-        Bool.false_eq_true, if_false]
+        Bool.false_eq_true, ite_false]
       obtain ⟨c, hc, hcr⟩ := hpf (k + 1) (by omega) hj
       have hzk : zs (k + 1) ≠ 0 := hz (k + 1) hj hA
       have hpr0 : pr A zs (k + 1) ≠ 0 := pr_ne_zero fun i hi => hz i (by omega)
       have hzi : RepB (Mont.mul KB r4 c) (zs (k + 1))⁻¹ := by
         have := RepB.mul hr4 hcr
-        rw [hprs, if_pos hA] at this
+        rw [hprs, ite_eq_left hA] at this
         convert this using 1
         field_simp
       obtain ⟨a, b, cz, x, y, ht, hcz, haff, htab, ha, hb⟩ := norm_entry hg hA hzi
       have hr4' : RepB (Mont.mul KB r4 cz) (pr A zs (k + 1))⁻¹ := by
         have := RepB.mul hr4 hcz
-        rw [hprs, if_pos hA] at this
+        rw [hprs, ite_eq_left hA] at this
         convert this using 1
         field_simp
       rw [tbl_get pf hj, hc, ht]
@@ -322,7 +322,7 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
     obtain rfl : k = 16 := by omega
     rw [combination_k2.b1.b9.eq_1]
     simp only [has16 _ (show 16 < 2 ^ 256 by decide), pure_bind,
-      show (1 ≤ 16 ∧ 16 < 16) = False by decide, decide_false, Bool.false_eq_true, if_false]
+      show (1 ≤ 16 ∧ 16 < 16) = False by decide, decide_false, Bool.false_eq_true, ite_false]
     rw [Fe.M.exec_bind]
     rcases Mont_inverse_Base_spec hrun env w with h | ⟨c, h, hc⟩
     · rw [h]; exact Or.inl rfl
@@ -342,7 +342,7 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
     rw [combination_k2.b1.b9.eq_1]
     have hgk := hg k hk1 hk
     simp only [has16 _ (show k < 2 ^ 256 by omega), show 1 ≤ k ∧ k < 16 from ⟨hk1, hk⟩, decide_true,
-      if_true, Range_at_1_16, pure_bind, checkIndex, toNat_lit (show k < 2 ^ 256 by omega), hk,
+      ite_true, Range_at_1_16, pure_bind, checkIndex, toNat_lit (show k < 2 ^ 256 by omega), hk,
       tbl_get t hk, hgk.is_infinity, next16 _ (show k + 1 < 2 ^ 256 by omega), tbl_set pf hk]
     have hprs := pr_succ (fun i => (i / 4) • G + (i % 4) • Q) zs hk1
     have hpf' : ∀ j, 1 ≤ j → j < k + 1 → ∃ c, Function.update pf k (toB run) j = toB c ∧
@@ -353,13 +353,13 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
       · obtain rfl : j = k := by omega
         exact ⟨run, Function.update_self .., hrun⟩
     by_cases hA : (k / 4) • G + (k % 4) • Q = 0
-    · simp only [hA, decide_true, Bool.not_true, Bool.false_eq_true, if_false]
+    · simp only [hA, decide_true, Bool.not_true, Bool.false_eq_true, ite_false]
       exact prefix_loop U V G Q zs t hz h0 hg n (k + 1) (by omega) (by omega) _ run hpf'
         (by rw [hprs]; simpa [hA] using hrun) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
     · obtain ⟨x, y, ⟨a, b, c, ht, ha, hb, hc⟩, -, -⟩ := hgk
-      simp only [hA, decide_false, Bool.not_false, if_true, ht, mul_Base, pure_bind]
+      simp only [hA, decide_false, Bool.not_false, ite_true, ht, mul_Base, pure_bind]
       exact prefix_loop U V G Q zs t hz h0 hg n (k + 1) (by omega) (by omega) _ _ hpf'
-        (by rw [hprs, if_pos hA]; exact RepB.mul hrun hc) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
+        (by rw [hprs, ite_eq_left hA]; exact RepB.mul hrun hc) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
 
 end FeProofs.Ecrecover
 
@@ -400,7 +400,7 @@ theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3
     obtain rfl : j = 4 := by omega
     rw [combination_k2.b1.b5.eq_1]
     simp only [has4 _ (show 4 < 2 ^ 256 by decide), pure_bind, show (1 ≤ 4 ∧ 4 < 4) = False by decide,
-      decide_false, Bool.false_eq_true, if_false, Lib.array_next_usize_3,
+      decide_false, Bool.false_eq_true, ite_false, Lib.array_next_usize_3,
       next_eq (show p + 1 < 2 ^ 256 by omega)]
     refine ih t (fun k hk hd => ht k hk ?_) r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17 r18
       r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w
@@ -417,7 +417,7 @@ theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3
     obtain ⟨zj, hgj⟩ := ht j (by omega) (Or.inl (Or.inr (by omega)))
     obtain ⟨P', z', e, hP⟩ := hgi.add hgj
     simp only [has4 _ (show j < 2 ^ 256 by omega), show 1 ≤ j ∧ j < 4 from ⟨hj1, hj⟩,
-      if_true, Range_at_1_4, pure_bind, checkIndex, toNat_lit (show j < 2 ^ 256 by omega),
+      ite_true, Range_at_1_4, pure_bind, checkIndex, toNat_lit (show j < 2 ^ 256 by omega),
       toNat_lit (show 4 * (p + 1) < 2 ^ 256 by omega), show j < 16 by omega, hi16,
       tbl_get t hi16, tbl_get t (show j < 16 by omega), e,
       checkedAdd_small (show 4 * (p + 1) + j < 2 ^ 256 by omega),
@@ -455,7 +455,7 @@ theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
     obtain rfl : p = 3 := by omega
     rw [combination_k2.b1.eq_1]
     simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide), Nat.lt_irrefl,
-      decide_false, Bool.false_eq_true, if_false, pure_bind, one_Base, Range_start_1_16, tbl_replicate]
+      decide_false, Bool.false_eq_true, ite_false, pure_bind, one_Base, Range_start_1_16, tbl_replicate]
     have hall : ∀ k, ∃ z, k < 16 → GoodP (t k) ((k / 4) • G + (k % 4) • Q) z := by
       intro k
       by_cases hk : k < 16
@@ -472,7 +472,7 @@ theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
     have hp3 : p < 3 := by omega
     rw [combination_k2.b1.eq_1]
     simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide),
-      toNat_lit (show p < 2 ^ 256 by omega), hp3, decide_true, if_true, pure_bind,
+      toNat_lit (show p < 2 ^ 256 by omega), hp3, decide_true, ite_true, pure_bind,
       Lib.array_at_ref_usize_3, checkIndex, arr_at hp3, Range_start_1_4]
     exact tab_inner U V G Q hp3 (fun t' ht' => tab_outer U V G Q n (p + 1) (by omega) t' ht') 3 1 rfl
       le_rfl t (fun k hk hd => ht k hk (by unfold DO at hd ⊢; omega)) _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ env w
@@ -505,7 +505,7 @@ theorem combination_spec (U V : UInt256) {q : Point_Mont_Base} {Qpt : W.toAffine
     checkIndex, idx_lits, show (1 : ℕ) < 16 by decide, show (2 : ℕ) < 16 by decide,
     show (3 : ℕ) < 16 by decide, show (4 : ℕ) < 16 by decide, show (8 : ℕ) < 16 by decide,
     show (12 : ℕ) < 16 by decide, toNat_lit (show 3 < 2 ^ 256 by decide),
-    toNat_lit (show 8 < 2 ^ 256 by decide), toNat_lit (show 12 < 2 ^ 256 by decide), if_true,
+    toNat_lit (show 8 < 2 ^ 256 by decide), toNat_lit (show 12 < 2 ^ 256 by decide), ite_true,
     tbl_set _ (show 1 < 16 by decide), tbl_set _ (show 2 < 16 by decide),
     tbl_set _ (show 3 < 16 by decide), tbl_set _ (show 4 < 16 by decide),
     tbl_set _ (show 8 < 16 by decide), tbl_set _ (show 12 < 16 by decide),

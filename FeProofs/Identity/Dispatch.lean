@@ -82,7 +82,7 @@ theorem feIdentityX_noMatch {σ σ₀ A I} {g : Sat256}
   have rd1 := feIdentityBlocks.feIdentity_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feIdentityBlocks.feIdentity_block_8_fallthrough (by simp) (by
     have e := identityEvmSelector hsz
-    simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 0 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
   have rd3 := feIdentityBlocks.feIdentity_block_23 (by simp [feIdentityBlocks.feIdentity_block_8_fallthrough_stack]) (by jump_dest) rd2

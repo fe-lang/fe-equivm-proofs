@@ -49,7 +49,7 @@ local macro "wd_after" : tactic => `(tactic| (
   · exact .exit _
   by_cases ha : a = ⟨0⟩
   · have haN : a.toNat = 0 := by rw [ha]; rfl
-    simp only [withMemory, ha, if_true]
+    simp only [withMemory, ha, ite_true]
     repeat ir_step [haN]
     exact .panic_revert 1
   · have haN : ¬ a.toNat = 0 := fun h => ha (Check.eq_of_toNat h)

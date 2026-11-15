@@ -51,7 +51,7 @@ theorem credit_exec (p : Place) (a b : UInt256) (hmem : w.memory.size + 128 < UI
   simp only [checkedAdd, Fe.M.exec_ite, Fe.M.exec_panic, Fe.M.exec_read, Fe.M.exec_get]
   by_cases ho : UInt256.size ≤ (slotWord I w.accounts (mapSlot a p.slot)).toNat + b.toNat
   · simp [ho]
-  · simp only [ho, if_false, Fe.M.exec_pure,
+  · simp only [ho, ite_false, Fe.M.exec_pure,
       locateAddress_exec I { w with memory := keyed w.memory a p.slot } p p.slot a h2, exec_sstore]
     by_cases hperm : I.perm = true <;> simp [hperm]
 

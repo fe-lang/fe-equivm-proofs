@@ -53,7 +53,7 @@ theorem subW_u64 (hx : x < 2 ^ 256) (hy : y < 2 ^ 64) :
 theorem shl_u64 (hx : x < 2 ^ 256) {k : ℕ} (hk : k < 256) :
     IntTy.shl (.u 64) (UInt256.ofNat x) (UInt256.ofNat k) = UInt256.ofNat (x * 2 ^ k % 2 ^ 64) := by
   simp only [IntTy.shl, IntTy.val, IntTy.wrap, toNat_lit hx, toNat_lit (show k < 2 ^ 256 by omega),
-    show ¬ 256 ≤ k by omega, if_false]
+    show ¬ 256 ≤ k by omega, ite_false]
   congr 1
 
 theorem ushr_eq (hx : x < 2 ^ 256) {k : ℕ} (hk : k < 256) :
@@ -116,7 +116,7 @@ theorem downcast_truncate_u64_i64_eq (v : UInt256) :
     downcast_truncate_u64_i64 v = pure (I ((v.toNat : ℤ).bmod (2 ^ 64))) := by
   obtain ⟨w, hw, hm⟩ := sign_extend_mod v
   simp only [Lib.downcast_truncate_u64_i64, Lib.u64_to_word, Lib.i64_IS_SIGNED, Lib.i64_MASK,
-    Lib.U64_MASK, Lib.i64_SIGN_BIT, Lib.I64_SIGN_BIT, pure_bind, if_true]
+    Lib.U64_MASK, Lib.i64_SIGN_BIT, Lib.I64_SIGN_BIT, pure_bind, ite_true]
   rw [hw]
   simp only [pure_bind, Lib.i64_from_word, IntTy.cast, IntTy.val, wrap_i 64 (by decide)]
   rw [← Int.emod_bmod, ← Int.emod_bmod (v.toNat : ℤ)]
@@ -127,7 +127,7 @@ theorem downcast_truncate_i128_i64_eq (v : UInt256) :
     downcast_truncate_i128_i64 v = pure (I ((v.toNat : ℤ).bmod (2 ^ 64))) := by
   obtain ⟨w, hw, hm⟩ := sign_extend_mod v
   simp only [Lib.downcast_truncate_i128_i64, Lib.i128_to_word, Lib.i64_IS_SIGNED, Lib.i64_MASK,
-    Lib.U64_MASK, Lib.i64_SIGN_BIT, Lib.I64_SIGN_BIT, pure_bind, if_true]
+    Lib.U64_MASK, Lib.i64_SIGN_BIT, Lib.I64_SIGN_BIT, pure_bind, ite_true]
   rw [hw]
   simp only [pure_bind, Lib.i64_from_word, IntTy.cast, IntTy.val, wrap_i 64 (by decide)]
   rw [← Int.emod_bmod, ← Int.emod_bmod (v.toNat : ℤ)]
@@ -138,13 +138,13 @@ theorem downcast_truncate_i128_i64_eq (v : UInt256) :
 theorem downcast_truncate_i64_u64_eq (v : UInt256) :
     downcast_truncate_i64_u64 v = pure (UInt256.ofNat (v.toNat % 2 ^ 64)) := by
   simp only [Lib.downcast_truncate_i64_u64, Lib.i64_to_word, Lib.u64_IS_SIGNED, Lib.u64_MASK,
-    Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, Bool.false_eq_true, if_false,
+    Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, Bool.false_eq_true, ite_false,
     land_mask_toNat, Nat.mod_mod]
 
 theorem downcast_truncate_i128_u64_eq (v : UInt256) :
     downcast_truncate_i128_u64 v = pure (UInt256.ofNat (v.toNat % 2 ^ 64)) := by
   simp only [Lib.downcast_truncate_i128_u64, Lib.i128_to_word, Lib.u64_IS_SIGNED, Lib.u64_MASK,
-    Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, Bool.false_eq_true, if_false,
+    Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, Bool.false_eq_true, ite_false,
     land_mask_toNat, Nat.mod_mod]
 
 /-- The word of an integer, modulo `2 ^ 64`. -/
@@ -209,13 +209,13 @@ theorem subW_w (a b : Limb) : IntTy.subW (.u 64) a.w b.w = (a - b).w := by
 
 theorem shl_w (a k : Limb) : IntTy.shl (.u 64) a.w k.w = (a.shl k.val).w := by
   by_cases hk : 256 ≤ k.val
-  · simp only [IntTy.shl, Limb.toNat_w, hk, if_true]
+  · simp only [IntTy.shl, Limb.toNat_w, hk, ite_true]
     apply word_eq_of_toNat
     rw [Limb.toNat_w, toNat_lit (by decide)]
     simp only [Limb.shl]
     obtain ⟨j, hj⟩ : ∃ j, k.val = 64 + j := ⟨k.val - 64, by omega⟩
     rw [hj, pow_add, ← Nat.mul_assoc, Nat.mul_comm a.val, Nat.mul_assoc, Nat.mul_mod_right]
-  simp only [IntTy.shl, IntTy.val, IntTy.wrap, Limb.toNat_w, hk, if_false]
+  simp only [IntTy.shl, IntTy.val, IntTy.wrap, Limb.toNat_w, hk, ite_false]
   rw [show ((a.val : ℤ) * 2 ^ k.val) = ((a.val * 2 ^ k.val : ℕ) : ℤ) by push_cast; ring]
   apply word_eq_of_toNat
   rw [Limb.toNat_w, toNat_lit (by omega)]
@@ -229,7 +229,7 @@ theorem shr_w (a k : Limb) : a.w >>> k.w = (a.shr k.val).w := by
     simp [Limb.shr]
   · change (UInt256.shiftRight _ _).toNat = _
     unfold UInt256.shiftRight
-    rw [if_pos (by change k.w.toNat ≥ 256; rw [Limb.toNat_w]; omega), Limb.toNat_w]
+    rw [ite_eq_left (by change k.w.toNat ≥ 256; rw [Limb.toNat_w]; omega), Limb.toNat_w]
     simp only [Limb.shr]
     have : a.val < 2 ^ k.val :=
       lt_of_lt_of_le a.isLt (Nat.pow_le_pow_right (by decide) (by omega))

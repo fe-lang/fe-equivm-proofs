@@ -118,7 +118,7 @@ theorem feCodeScalarX_noMatch {σ σ₀ A I} {g : Sat256} {tail : ByteArray}
       ⟨1833756220⟩ = ⟨0⟩ := by
     have e := getEvmSelector hsz
     simp only [show (feCodeScalarSelBytes 0 == I.calldata.extract 0 4) = false by
-      simpa [selIs] using hnm, Bool.false_eq_true, if_false] at e
+      simpa [selIs] using hnm, Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e
   rd_run rd0 using [lt_four_eq_zero_of_ge hsz hsize, hne]

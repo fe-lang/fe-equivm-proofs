@@ -79,7 +79,7 @@ theorem mulW_i (b : ℕ) (hb : 0 < b) (hx1 : -2 ^ 255 ≤ x) (hx2 : x < 2 ^ 255)
 theorem shr_i (b : ℕ) (hb : 0 < b) (hx1 : -2 ^ 255 ≤ x) (hx2 : x < 2 ^ 255) {k : ℕ}
     (hk : k < 256) : IntTy.shr (.i b) (I x) (UInt256.ofNat k) = I ((x / 2 ^ k).bmod (2 ^ b)) := by
   simp only [IntTy.shr, ulit_toNat' _ (show k < 2 ^ 256 by omega), val_i_I b hx1 hx2,
-    wrap_i b hb, show ¬ 256 ≤ k by omega, if_false]
+    wrap_i b hb, show ¬ 256 ≤ k by omega, ite_false]
   rw [Int.fdiv_eq_ediv_of_nonneg _ (by positivity)]
 
 end
@@ -91,8 +91,8 @@ theorem sltBool_I_zero {x : ℤ} (hx1 : -2 ^ 255 ≤ x) (hx2 : x < 2 ^ 255) :
   unfold UInt256.sltBool
   rw [ulit_toNat' _ (by decide)]
   by_cases h : x < 0
-  · rw [if_pos (by omega), if_neg (by omega)]; simp [h]
-  · rw [if_neg (by omega), if_neg (by omega)]
+  · rw [ite_eq_left (by omega), ite_eq_right (by omega)]; simp [h]
+  · rw [ite_eq_right (by omega), ite_eq_right (by omega)]
     simp only [h, decide_false]
     change decide ((I x).toNat < 0) = false
     simp

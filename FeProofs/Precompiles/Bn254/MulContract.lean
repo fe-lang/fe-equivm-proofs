@@ -98,13 +98,13 @@ theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.e
 /-- Without call value the entry ends as the arm does. -/
 theorem entry_runtime_none (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩)
     (h : recv0_arm0.exec I w = none) : (entry runtime).exec I w = none := by
-  simp only [entry, M.exec_bind, runtime_eq, recv0_arm0_entry, exec_nonPayable, if_pos hv,
+  simp only [entry, M.exec_bind, runtime_eq, recv0_arm0_entry, exec_nonPayable, ite_eq_left hv,
     h]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
     (h : recv0_arm0.exec I w = some (.error f)) : (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
+  simp only [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_left hv, h]
 
 /-- **The contract `Bn254Mul` is ECMUL.**  On call data `d` shorter than `2 ^ 64` bytes, with
     room in memory for the input and the 64-byte output, and no call value, the exported runtime
@@ -136,7 +136,7 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
         (Ξ_BN_MUL σ g A I).1 = σ) ∨
       ((entry runtime).exec I w = some (.error (.revert ByteArray.empty)) ∧
         Ξ_BN_MUL σ g A I = (∅, ⟨0⟩, A, .empty)) := by
-  rw [Ξ_BN_MUL_eq, if_neg (by omega)]
+  rw [Ξ_BN_MUL_eq, ite_eq_right (by omega)]
   rcases feBn254MulContractCorrect I w hfits hmem hv with h | ⟨o, ho, memory, h⟩ | ⟨ho, h⟩
   · exact Or.inl h
   · exact Or.inr (Or.inl ⟨memory, by simp only [ho]; exact h, by simp only [ho]⟩)
@@ -146,6 +146,6 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 end FeProofs.Bn254Mul

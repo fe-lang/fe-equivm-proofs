@@ -113,7 +113,7 @@ theorem opWord_some {ρ : Nat → UInt256} {expand : Nat → Option Expr} {o : O
   | imm bits x =>
     simp only [operandWith] at h
     split_ifs at h with hb
-    exact ⟨.ofNat x, by rw [opWord, if_pos hb]⟩
+    exact ⟨.ofNat x, by rw [opWord, ite_eq_left hb]⟩
   | undef _ => cases h
 
 theorem opWords_some {ρ : Nat → UInt256} {expand : Nat → Option Expr} :
@@ -446,7 +446,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
       have hagree : ∀ id' ∈ D, env₁[id']? = env[id']? := fun id' h' => by
         have hne : ¬compare id id' = .eq := by
           rw [compare_eq_iff_eq]; rintro rfl; exact hid h'
-        simp only [env₁, Std.TreeMap.getElem?_insert, hne, if_false]
+        simp only [env₁, Std.TreeMap.getElem?_insert, hne, ite_false]
       have hD : D ++ s.dsts.map (·.1) = D ++ [id] := by simp [hds]
       rw [hD] at hd hpre'
       have hw₁' : WordsOf env₁ (Function.update ρ₁ id v) (D ++ [id]) := by
@@ -567,7 +567,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           have hagree : ∀ id' ∈ D, env₁[id']? = env[id']? := fun id' h' => by
             have hne : ¬compare id id' = .eq := by
               rw [compare_eq_iff_eq]; rintro rfl; exact hid h'
-            simp only [env₁, Std.TreeMap.getElem?_insert, hne, if_false]
+            simp only [env₁, Std.TreeMap.getElem?_insert, hne, ite_false]
           have hD : D ++ s.dsts.map (·.1) = D ++ [id] := by simp [hds]
           rw [hD] at hd hpre'
           have hsub : ∀ x ∈ D, x ∈ D ++ [id] := fun x hx => List.mem_append_left _ hx

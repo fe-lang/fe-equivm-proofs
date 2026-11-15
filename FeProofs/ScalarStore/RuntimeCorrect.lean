@@ -152,7 +152,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
   swap
   · simp [Model.init, exec_nonPayable, hwv]
     exact .exit _
-  rw [if_pos hwv, init_eq]
+  rw [ite_eq_left hwv, init_eq]
   by_cases hperm : I.perm = true
   · simp [Model.init, exec_nonPayable, hwv, hsz, hword, Model.initBody, exec_sstore, hperm]
     exact .ok_ok rfl rfl rfl

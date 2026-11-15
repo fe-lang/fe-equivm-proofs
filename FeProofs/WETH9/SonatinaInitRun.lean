@@ -161,13 +161,13 @@ theorem store_run (hf : m.func? "store" = some initStoreFunc)
       have hf1 : UInt256.land (slotWord I w.accounts slot) ⟨1⟩ = ⟨1⟩ := headFlag_odd ho
       show strOldWords (slotWord I w.accounts slot) = _
       unfold strOldWords strHeadLen
-      rw [hf1, if_neg (by decide), if_neg (by decide), udiv_toNat, ← hL]
+      rw [hf1, ite_eq_right (by decide), ite_eq_right (by decide), udiv_toNat, ← hL]
       rfl
     have hbs : UInt256.ofNat (fromByteArrayBigEndian (KEC slot.toByteArray)) =
         solidityBytesDataBaseSlot slot := keccakSlot_eq _
     have hbs' : fromByteArrayBigEndian (KEC slot.toByteArray) % 115792089237316195423570985008687907853269984665640564039457584007913129639936 =
         (solidityBytesDataBaseSlot slot).toNat := by rw [← hbs]; rfl
-    rw [if_neg hbad, storeMem, if_pos ho]
+    rw [ite_eq_right hbad, storeMem, ite_eq_left ho]
     simp [Fe.Sonatina.bind]
     ir_step_nat [initStoredLen_run ic I _ hs hr, hok]
     ir_step_nat [Nat.and_one_is_mod, ho]
@@ -205,9 +205,9 @@ theorem store_run (hf : m.func? "store" = some initStoreFunc)
       have hf0 : UInt256.land (slotWord I w.accounts slot) ⟨1⟩ = ⟨0⟩ := headFlag_even he
       show strOldWords (slotWord I w.accounts slot) = _
       unfold strOldWords
-      rw [if_pos hf0]
-    rw [if_neg hbad, storeMem,
-      if_neg (show ¬ (slotWord I w.accounts slot).toNat % 2 = 1 by omega)]
+      rw [ite_eq_left hf0]
+    rw [ite_eq_right hbad, storeMem,
+      ite_eq_right (show ¬ (slotWord I w.accounts slot).toNat % 2 = 1 by omega)]
     simp [Fe.Sonatina.bind]
     ir_step_nat [initStoredLen_run ic I _ hs hr, hok]
     ir_step_nat [Nat.and_one_is_mod, he]
@@ -224,7 +224,7 @@ theorem store_run (hf : m.func? "store" = some initStoreFunc)
     try simp only [strWriteMap, hold, clearDataWordsForwardFrom]
     rfl
   · have hbad : strHeadBad (slotWord I w.accounts slot) := (Exported.strHeadBad_iff _).mpr hrev
-    rw [if_pos hbad]
+    rw [ite_eq_left hbad]
     simp [Fe.Sonatina.bind]
     ir_step_nat [initStoredLen_run ic I _ hs hr, hrev]
 

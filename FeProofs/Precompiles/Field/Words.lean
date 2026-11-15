@@ -91,7 +91,7 @@ theorem shiftRight_toNat (x : UInt256) {k : ℕ} (hk : k < 256) :
   have hkword : (UInt256.ofNat k).toNat = k := toNat_lit (by omega)
   change (UInt256.shiftRight x (UInt256.ofNat k)).toNat = _
   unfold UInt256.shiftRight
-  rw [if_neg (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   change (x.toNat >>> (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkword, Nat.shiftRight_eq_div_pow]
   exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self x.toNat (2 ^ k)) x.val.isLt)
@@ -120,7 +120,7 @@ theorem downcast_truncate_u128_u64_eq (x : UInt256) :
       pure (UInt256.ofNat (x.toNat % 2 ^ 64)) := by
   simp only [Lib.downcast_truncate_u128_u64, Lib.u128_to_word, Lib.u64_IS_SIGNED, Lib.u64_MASK,
     Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, bind_pure_comp, Bool.false_eq_true,
-    if_false, map_pure]
+    ite_false, map_pure]
   rw [land_mask_toNat, Nat.mod_mod]
 
 theorem downcast_truncate_u256_u64_eq (x : UInt256) :
@@ -128,7 +128,7 @@ theorem downcast_truncate_u256_u64_eq (x : UInt256) :
       pure (UInt256.ofNat (x.toNat % 2 ^ 64)) := by
   simp only [Lib.downcast_truncate_u256_u64, Lib.u256_to_word, Lib.u64_IS_SIGNED, Lib.u64_MASK,
     Lib.U64_MASK, Lib.u64_from_word, truncate, pure_bind, bind_pure_comp, Bool.false_eq_true,
-    if_false, map_pure]
+    ite_false, map_pure]
   rw [land_mask_toNat, Nat.mod_mod]
 
 /-- A word wrapped to 128 bits, of a natural number. -/
@@ -144,7 +144,7 @@ theorem mul_wide_eq (a b : Limb) :
   simp only [mul_wide, IntTy.mul, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     Limb.toNat_w]
   rw [show ((a.val : ℤ) * b.val) = ((a.val * b.val : ℕ) : ℤ) by push_cast; ring,
-    if_pos (by constructor <;> omega)]
+    ite_eq_left (by constructor <;> omega)]
   simp only [pure_bind, downcast_truncate_u128_u64_eq, wrap128_toNat,
     shiftRight_toNat _ (show 64 < 256 by decide)]
   congr 2
@@ -161,11 +161,11 @@ theorem adc_eq (a b c : Limb) :
   have := a.isLt; have := b.isLt; have := c.isLt
   simp only [adc, IntTy.add, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap, Limb.toNat_w]
   rw [show ((a.val : ℤ) + b.val) = ((a.val + b.val : ℕ) : ℤ) by push_cast; ring,
-    if_pos (by constructor <;> omega)]
+    ite_eq_left (by constructor <;> omega)]
   simp only [pure_bind, wrap128_toNat]
   rw [show (((a.val + b.val) % 2 ^ 128 : ℕ) : ℤ) + c.val =
       (((a.val + b.val) % 2 ^ 128 + c.val : ℕ) : ℤ) by push_cast; ring,
-    if_pos (by constructor <;> omega)]
+    ite_eq_left (by constructor <;> omega)]
   simp only [pure_bind, downcast_truncate_u128_u64_eq, wrap128_toNat,
     shiftRight_toNat _ (show 64 < 256 by decide)]
   congr 2
@@ -222,7 +222,7 @@ theorem shiftLeft_toNat (x : UInt256) {k : ℕ} (hk : k < 256) (hx : x.toNat * 2
   have hkword : (UInt256.ofNat k).toNat = k := toNat_lit (by omega)
   change (UInt256.shiftLeft x (UInt256.ofNat k)).toNat = _
   unfold UInt256.shiftLeft
-  rw [if_neg (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   change (x.toNat <<< (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkword, Nat.shiftLeft_eq, Nat.mod_eq_of_lt (show _ < UInt256.size from hx), Nat.mul_comm]
 

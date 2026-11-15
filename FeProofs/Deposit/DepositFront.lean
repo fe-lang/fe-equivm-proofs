@@ -26,7 +26,7 @@ theorem uisZero_ne_zero_iff (a : UInt256) : UInt256.isZero a ≠ UInt256.ofNat 0
 
 theorem umod_gwei_toNat (a : UInt256) :
     (UInt256.mod a (UInt256.ofNat 1000000000)).toNat = a.toNat % 1000000000 := by
-  unfold UInt256.mod; rw [if_neg (by decide)]; rfl
+  unfold UInt256.mod; rw [ite_eq_right (by decide)]; rfl
 
 theorem lenEq_iff (I : ExecutionEnv) (i : Nat) (hi : 4 + 32 * i < UInt256.size)
     (hg : UInt256.gt (hWord I i) (UInt256.lnot (UInt256.ofNat 4)) = UInt256.ofNat 0) (n : Nat)

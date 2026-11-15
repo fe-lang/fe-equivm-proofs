@@ -41,7 +41,7 @@ theorem rotl_toNat (x : UInt64) {k : ℕ} (hk0 : 0 < k) (hk : k < 64) :
   have hko : k.toUInt64.toNat = k := by rw [Nat.toUInt64_eq, UInt64.toNat_ofNat']; omega
   have hsub : (64 - k).toUInt64.toNat = 64 - k := by
     rw [Nat.toUInt64_eq, UInt64.toNat_ofNat']; omega
-  simp only [rotl, show k ≠ 0 by omega, if_false]
+  simp only [rotl, show k ≠ 0 by omega, ite_false]
   change (x <<< k.toUInt64 ||| x >>> (64 - k).toUInt64).toNat = _
   rw [UInt64.toNat_or, UInt64.toNat_shiftLeft, UInt64.toNat_shiftRight, hko, hsub,
     Nat.mod_eq_of_lt hk, Nat.mod_eq_of_lt (show 64 - k < 64 by omega), Nat.shiftLeft_eq,
@@ -70,7 +70,7 @@ theorem set!_eq {α : Type} {n : ℕ} (xs : Vector α n) {i : ℕ} (x : α) (h :
     xs.set! i x = xs.set i x h := by
   apply Vector.toArray_inj.mp
   rw [Vector.toArray_set!, Vector.toArray_set, Array.set!_eq_setIfInBounds,
-    Array.setIfInBounds, dif_pos (by simpa using h)]
+    Array.setIfInBounds, dite_eq_left (by simpa using h)]
 
 theorem rotate_lit (x : UInt64) (k : ℕ) (hk0 : 0 < k) (hk : k < 64) :
     rotate (lw x) (UInt256.ofNat k) = pure (lw (rotl x k)) := rotate_lw x hk0 hk
@@ -117,7 +117,7 @@ theorem permute_loop (s : Vector UInt64 25) :
   | 0, _, r0, r2, v0, h0, _ => by
     rw [permute.b1.eq_1]
     simp only [Nat.sub_zero, toNat_lit (show 24 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
     rw [h0 rfl]
   | k + 1, hk, r0, r2, v0, h0, h1 => by
     have hm : 24 - (k + 1) < 24 := by omega
@@ -125,16 +125,16 @@ theorem permute_loop (s : Vector UInt64 25) :
     have IH := permute_loop s k (by omega)
     rw [permute.b1.eq_1]
     simp only [toNat_lit (show 24 - (k + 1) < 2 ^ 256 by omega),
-      toNat_lit (show 24 < 2 ^ 256 by decide), hm, decide_true, if_true,
+      toNat_lit (show 24 < 2 ^ 256 by decide), hm, decide_true, ite_true,
       checkedRem_lit _ (show 2 < 2 ^ 256 by decide) (show 0 < 2 by decide), pure_bind,
       ROUND_CONSTANTS_eq, checkIndex_lit hm (by decide), rc_get hm,
       checkedAdd_small (show 24 - (k + 1) + 1 < 2 ^ 256 by omega), hn]
     rcases Nat.mod_two_eq_zero_or_one (24 - (k + 1)) with he | ho
     · rw [h0 he, keccak_round_eq]
-      simp only [he, decide_true, if_true, pure_bind]
+      simp only [he, decide_true, ite_true, pure_bind]
       exact IH _ _ _ (fun h => by omega) (fun _ => by rw [← hn, st_succ s hm])
     · have h10 : ¬ UInt256.ofNat 1 = UInt256.ofNat 0 := by decide
-      simp only [ho, h1 ho, h10, decide_false, Bool.false_eq_true, if_false, keccak_round_eq,
+      simp only [ho, h1 ho, h10, decide_false, Bool.false_eq_true, ite_false, keccak_round_eq,
         pure_bind]
       exact IH _ _ _ (fun _ => by rw [← hn, st_succ s hm]) (fun h => by omega)
 

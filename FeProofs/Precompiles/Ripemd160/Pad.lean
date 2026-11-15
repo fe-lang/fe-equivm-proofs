@@ -52,13 +52,13 @@ theorem pad_get (d : ByteArray) {p : ℕ} (hp : p < 64 * blocksOf d.size) :
     by_cases h2 : p < d.size + 1
     · rw [ByteArray.getElem_append_left (by rw [hA]; exact h2), push_get]
       by_cases h3 : p < d.size
-      · rw [dif_pos h3, if_pos h3, getElem!_pos d p h3]
-      · rw [dif_neg h3, if_neg h3, if_pos (by omega)]
-    · rw [ByteArray.getElem_append_right (by rw [hA]; omega), if_neg (by omega), if_neg (by omega),
-        if_pos (by omega)]
+      · rw [dite_eq_left h3, ite_eq_left h3, getElem!_pos d p h3]
+      · rw [dite_eq_right h3, ite_eq_right h3, ite_eq_left (by omega)]
+    · rw [ByteArray.getElem_append_right (by rw [hA]; omega), ite_eq_right (by omega), ite_eq_right (by omega),
+        ite_eq_left (by omega)]
       simp [ByteArray.getElem_eq_getElem_data]
   · rw [ByteArray.getElem_append_right (by rw [ByteArray.size_append, hA, hZ]; omega),
-      if_neg (by omega), if_neg (by omega), if_neg (by omega)]
+      ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega)]
     simp only [ByteArray.getElem_eq_getElem_data, Array.getElem_ofFn, ByteArray.size_append, hA, hZ]
     congr 3
     omega

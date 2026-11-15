@@ -37,7 +37,7 @@ theorem returnValue_run (hf : m.func? "return_value__g7f54" = some returnValueFu
       else some (.error (.revert (panicData 65))) := by
   rw [runFunc_entry hf rfl]
   by_cases h64 : 32 + S < 2 ^ 64
-  · rw [if_pos h64]
+  · rw [ite_eq_left h64]
     simp [Fe.Sonatina.bind]
     repeat ir_step_nat
     have hX : (M.extract ptr (ptr + S)).size = S := by rw [ByteArray.size_extract]; omega
@@ -50,7 +50,7 @@ theorem returnValue_run (hf : m.func? "return_value__g7f54" = some returnValueFu
         (by rw [ByteArray.size_append, toByteArray_size, hX]; omega),
       show 0 + (32 + S) = ((UInt256.ofNat 32).toByteArray ++ M.extract ptr (ptr + S)).size by
         rw [ByteArray.size_append, toByteArray_size, hX]; omega, byteArray_extract_self]
-  · rw [if_neg h64]
+  · rw [ite_eq_right h64]
     simp [Fe.Sonatina.bind]
     repeat ir_step_nat
 

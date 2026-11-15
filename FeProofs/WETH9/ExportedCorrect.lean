@@ -368,7 +368,7 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
         32 + (L + 31) / 32 * 32 := by
       simp [loaded, strBytes_size]; omega
     simp only []
-    rw [if_pos h32]
+    rw [ite_eq_left h32]
     simp only []
     rw [returnDynString_exec I _ w.memory.size (32 + (L + 31) / 32 * 32) (UInt256.ofNat L) _ hB
       (by rw [extract_append_right_window _ _ _ _ (le_refl _), Nat.sub_self,
@@ -441,7 +441,7 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
           ((slotWord I w.accounts slot).toNat / 2 + 31) / 32 := by
         have hf1 : UInt256.land (slotWord I w.accounts slot) ⟨1⟩ = ⟨1⟩ := headFlag_odd ho
         unfold strOldWords strHeadLen
-        rw [hf1, if_neg (by decide), if_neg (by decide), udiv_toNat]
+        rw [hf1, ite_eq_right (by decide), ite_eq_right (by decide), udiv_toNat]
         rfl
       rw [clearLoop_exec I slot hperm (((slotWord I w.accounts slot).toNat / 2 + 31) / 32)
         (by omega) _ _ (((slotWord I w.accounts slot).toNat / 2 + 31) / 32) 0 _ (by omega),
@@ -476,7 +476,7 @@ theorem storeString_exec (slot : UInt256) (p : ℕ) (bytes : ByteArray) (hb0 : 0
         have hf0 : UInt256.land (Reasoning.Reach.solcSlotWord w.accounts I slot) ⟨1⟩ = ⟨0⟩ :=
           headFlag_even he
         unfold strOldWords
-        rw [if_pos hf0]
+        rw [ite_eq_left hf0]
       rw [clearLoop_exec I slot hperm 0 (by omega) _ _ 0 0 _ rfl, strWriteMap, hold]
       rfl
     · have hpf : I.perm = false := by simpa using hperm
@@ -540,7 +540,7 @@ theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty)
   have hfold' : (⟨#[87, 69, 84, 72]⟩ : ByteArray) = Model.symbolBytes := rfl
   have h13 : UInt256.ofNat 13 = UInt256.ofNat Model.nameBytes.size := rfl
   have h4 : UInt256.ofNat 4 = UInt256.ofNat Model.symbolBytes.size := rfl
-  simp only [init_entry, Model.contract, Model.init, Fe.M.exec_bind, exec_nonPayable, hwv, if_pos,
+  simp only [init_entry, Model.contract, Model.init, Fe.M.exec_bind, exec_nonPayable, hwv, ite_eq_left,
     init, hfold, hfold', namePlace, symbolPlace, decimalsPlace, h13, h4]
   rw [stringLiteral_exec I w Model.nameBytes (by decide) (by decide) (by rw [hw]; decide)]
   simp only []

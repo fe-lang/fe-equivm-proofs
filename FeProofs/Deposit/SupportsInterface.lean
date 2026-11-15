@@ -74,7 +74,7 @@ theorem siTail_lt {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size) :
 theorem siHigh_toNat {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size) :
     (UInt256.shiftRight (siWord I) (UInt256.ofNat 224)).toNat = fromBytesBigEndian (siBytes I) := by
   unfold UInt256.shiftRight
-  rw [if_neg (by decide : ¬ (UInt256.ofNat 224).val ≥ 256)]
+  rw [ite_eq_right (by decide : ¬ (UInt256.ofNat 224).val ≥ 256)]
   unfold UInt256.toNat
   rw [Fin.shiftRight_val, show (UInt256.ofNat 224).val.val = 224 by decide, Nat.shiftRight_eq_div_pow]
   have h := siWord_split hsz36
@@ -88,7 +88,7 @@ theorem siLow_toNat {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size) :
     (UInt256.shiftLeft (siWord I) (UInt256.ofNat 32)).toNat =
       fromBytesBigEndian ((siArgBytes I).drop 4) * 2 ^ 32 := by
   unfold UInt256.shiftLeft
-  rw [if_neg (by decide : ¬ (UInt256.ofNat 32).val ≥ 256)]
+  rw [ite_eq_right (by decide : ¬ (UInt256.ofNat 32).val ≥ 256)]
   unfold UInt256.toNat
   rw [Fin.shiftLeft_val, show (UInt256.ofNat 32).val.val = 32 by decide, Nat.shiftLeft_eq]
   change (siWord I).toNat * 2 ^ 32 % UInt256.size = _
@@ -112,7 +112,7 @@ theorem siTail_zero_of_pad {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size)
     List.take_of_length_le (by rw [htailLen])
   apply (fromBytesBigEndian_zero_iff_all_zero _).mpr
   unfold zeroPadding? readBytes? at hpad
-  rw [if_pos (by rw [htailTake, htailLen]), htailTake] at hpad
+  rw [ite_eq_left (by rw [htailTake, htailLen]), htailTake] at hpad
   by_cases hall : ((siArgBytes I).drop 4).all (· == 0) = true
   · exact hall
   · simp at hpad
@@ -128,7 +128,7 @@ theorem siTail_ne_zero_of_pad {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size
   intro hz
   have hall := (fromBytesBigEndian_zero_iff_all_zero _).mp hz
   unfold zeroPadding? readBytes? at hpad
-  rw [if_pos (by rw [htailTake, htailLen]), htailTake] at hpad
+  rw [ite_eq_left (by rw [htailTake, htailLen]), htailTake] at hpad
   simp at hpad
   rcases hpad with ⟨x, hxmem, hxne⟩
   have hallProp : ∀ x ∈ (siArgBytes I).drop 4, x = 0 := by simpa using hall

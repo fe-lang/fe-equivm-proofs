@@ -433,7 +433,7 @@ theorem cancel_15 {s : DS} (hs : s.Pre f0 g0) : ∃ c, 1 ≤ c ∧ (s.cancel 15)
         simp only [Nat.reducePow] at this ⊢; omega) hs.eta_ne
   have hmult : s.mult 15 = (0 - (s.f + Limb.shl ((s.f + 1) &&& 4) 1)) * s.g &&&
       s.mask ⟨2 ^ 4 - 1, by decide⟩ := by
-    simp only [DS.mult, show ((15 : Limb) = 63) = False by decide, if_false]; rfl
+    simp only [DS.mult, show ((15 : Limb) = 63) = False by decide, ite_false]; rfl
   set X := (0 - (s.f + Limb.shl ((s.f + 1) &&& 4) 1)) * s.g
   have hw : (s.mult 15).val = X.val % 2 ^ c := by
     rw [hmult, Limb.val_land, hm, land_low]

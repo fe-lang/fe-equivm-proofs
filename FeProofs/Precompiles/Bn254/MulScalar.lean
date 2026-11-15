@@ -120,12 +120,12 @@ theorem magnitude_eq {z : ℤ} (h1 : -(2 ^ 255 : ℤ) < z) (h2 : z < 2 ^ 255) :
     split_ifs with hz <;> rw [toNat_lit (by decide)] <;> omega
   simp only [magnitude, e, Lib.u256_wrapping_sub]
   by_cases hz : z < 0
-  · simp only [hz, if_true, decide_true, pure_bind]
+  · simp only [hz, ite_true, decide_true, pure_bind]
     rw [← toWord_ofNat (n := 0) (by decide), toWord_sub,
       show ((0 : ℕ) : ℤ) - z = (z.natAbs : ℤ) by omega, toWord_ofNat (by omega)]
-  · simp only [hz, if_false, decide_false, pure_bind]
+  · simp only [hz, ite_false, decide_false, pure_bind]
     have : ¬ (UInt256.ofNat 0 = UInt256.ofNat 1) := by decide
-    simp only [this, decide_false, Bool.false_eq_true, if_false]
+    simp only [this, decide_false, Bool.false_eq_true, ite_false]
     obtain ⟨n, rfl⟩ := Int.eq_ofNat_of_zero_le (not_lt.mp hz)
     rw [toWord_ofNat (by omega), Int.natAbs_natCast]
 

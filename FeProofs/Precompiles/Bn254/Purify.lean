@@ -129,7 +129,7 @@ theorem new_Bn254Base (v : UInt256) (hv : v.toNat < Bn254Base.value) :
     raw_Bn254Base_eq, mul_Bn254Base]
   rw [toNat_lit (by decide), toNat_lit (by decide)]
   unfold Bn254Base.value at hv
-  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, if_false,
+  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, ite_false,
     pure_bind]
   rfl
 

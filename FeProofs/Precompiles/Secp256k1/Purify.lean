@@ -198,7 +198,7 @@ theorem new_Base (v : UInt256) (hv : v.toNat < Base.value) :
   simp only [Mont_new_Base, Base_VALUE, P, Base_R2, pure_bind, raw_Base_eq, mul_Base]
   rw [toNat_lit (by decide), toNat_lit (by decide)]
   unfold Base.value at hv
-  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, if_false,
+  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, ite_false,
     pure_bind]
   rfl
 
@@ -214,7 +214,7 @@ theorem new_Order (v : UInt256) (hv : v.toNat < Order.value) :
   simp only [Mont_new_Order, Order_VALUE, N, Order_R2, pure_bind, raw_Order_eq, mul_Order]
   rw [toNat_lit (by decide), toNat_lit (by decide)]
   unfold Order.value at hv
-  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, if_false,
+  simp only [Lib.assert, decide_eq_true hv, Bool.not_true, Bool.false_eq_true, ite_false,
     pure_bind]
   rfl
 

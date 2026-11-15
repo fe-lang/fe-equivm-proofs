@@ -97,14 +97,14 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
   refine ⟨hb, pc, stack, events, calls, exit, rfl, rfl, hst, rfl, rfl, ?_⟩
   by_cases h1 : (isRoot && b.id == entryBlock.id) = true
   · by_cases h2 : stack.isEmpty = true
-    · simp only [h1, h2, if_true, pure_bind] at h
+    · simp only [h1, h2, ite_true, pure_bind] at h
       refine ⟨fun _ => List.isEmpty_iff.mp h2, ?_⟩
       split_ifs at h with h3 h4 h5
       · exact ⟨h3, h4, by simpa [prologue, h1] using h5⟩
       all_goals cases h
-    · simp only [h1, h2, if_true] at h
+    · simp only [h1, h2, ite_true] at h
       exact absurd h hthrow
-  · simp only [h1, Bool.false_eq_true, if_false, pure_bind] at h
+  · simp only [h1, Bool.false_eq_true, ite_false, pure_bind] at h
     refine ⟨fun h' => absurd h' h1, ?_⟩
     split_ifs at h with h3 h4 h5
     · exact ⟨h3, h4, by simpa [prologue, h1] using h5⟩
@@ -168,7 +168,7 @@ theorem checkSection_ok {code : CodeSection} {entry : String}
   by_cases h1 : code.bytecode.size < UInt256.size
   swap
   · simp [h1] at h; cases h
-  simp only [h1, if_true, pure_bind] at h
+  simp only [h1, ite_true, pure_bind] at h
   by_cases h2 : low.funcs.any (·.name == entry) = true
   swap
   · simp [h2] at h; cases h
@@ -238,8 +238,8 @@ theorem enter_run {env : Env} {ρ : Nat → UInt256} {D : List Nat} {p : Nat} {S
   refine ⟨(S.phis.map fun phi => ((phi.dst, phi.ty), g phi)).foldl
     (fun env ((id, ty), v) => env.insert id (v.as ty)) env, ?_, ?_, ?_⟩
   · unfold enter
-    rw [mapM_pure (g := g) fun phi hp => by simp only [hf phi hp, g, dif_pos hp, hval phi hp]]
-    simp only [pure_bind, Fe.Sonatina.bind, List.length_map, beq_self_eq_true, if_true, hzip]
+    rw [mapM_pure (g := g) fun phi hp => by simp only [hf phi hp, g, dite_eq_left hp, hval phi hp]]
+    simp only [pure_bind, Fe.Sonatina.bind, List.length_map, beq_self_eq_true, ite_true, hzip]
   · intro phi hp
     refine ⟨o phi hp, d phi hp, val phi hp, hf phi hp, hval phi hp, ?_⟩
     rw [foldl_insert_get _ _ (by simpa [Function.comp_def] using hnd)]
@@ -257,7 +257,7 @@ theorem enter_run {env : Env} {ρ : Nat → UInt256} {D : List Nat} {p : Nat} {S
           (by simpa using hjq)
         simp at this; omega
       simp [hfind, Function.comp_def]
-    simp [this, g, dif_pos hp]
+    simp [this, g, dite_eq_left hp]
   · intro id hid
     rw [foldl_insert_get _ _ (by simpa [Function.comp_def] using hnd)]
     have : (S.phis.map fun phi => ((phi.dst, phi.ty), g phi)).find? (·.1.1 == id) = none := by
@@ -557,7 +557,7 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
       by_cases hr : c.frame.returns = true
       swap
       · simp [Ctx.slotExpr, hr] at h
-      simp only [Ctx.slotExpr, hr, if_true, Option.bind_eq_bind, Option.bind_some] at h
+      simp only [Ctx.slotExpr, hr, ite_true, Option.bind_eq_bind, Option.bind_some] at h
       cases hs : slots.mapM c.slotExpr with
       | none => simp [hs] at h
       | some es' =>
@@ -772,7 +772,7 @@ theorem table_vals {env : Env} : ∀ {cases : List (Operand × Nat)} {cs : List 
               | _ => none) with
           | none => simp [hcs, hlt] at h
           | some cs' =>
-            simp only [hcs, hlt, if_true, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+            simp only [hcs, hlt, ite_true, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
               Option.some.injEq] at h
             subst h
             rw [List.mapM_cons, table_vals hcs]

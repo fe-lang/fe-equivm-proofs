@@ -114,7 +114,7 @@ theorem update_word_spec (s : Vector UInt64 25) {j : ℕ} (hj : j + 4 < 17) (x :
     rw [toNat_lit (by omega), toNat_lit (by decide)] at this
     omega
   simp (disch := omega) only [Keccak256_update_word, toNat_lit, Lib.assert, decide_true, Bool.not_true,
-    Bool.false_eq_true, if_false, pure_bind, hne, if_true, checkedAdd_small,
+    Bool.false_eq_true, ite_false, pure_bind, hne, ite_true, checkedAdd_small,
     show 8 * j + 32 ≤ 136 by omega, h32, checkedMul_small, Nat.zero_mul, shl_zero,
     shiftRight_toNat, downcast_truncate_u256_u64_eq, chunk0, chunk1, chunk2, chunk3,
     checkedDiv_lit, checkedRem_lit, hd8, hm8, FeProofs.Ripemd160.downcast_u64,

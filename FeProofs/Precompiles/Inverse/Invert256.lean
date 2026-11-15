@@ -164,7 +164,7 @@ theorem invert_256_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1
     w_shr _ _ (by decide : 60 < 2 ^ 64), w_shr _ _ (by decide : 58 < 2 ^ 64),
     w_shr _ _ (by decide : 56 < 2 ^ 64), shl_w' _ _ (by decide : 2 < 2 ^ 64),
     shl_w' _ _ (by decide : 4 < 2 ^ 64), shl_w' _ _ (by decide : 6 < 2 ^ 64), lor_w,
-    downcast_u64_i64_w, vget4, vget5, lt4, lt5, if_true, c0, c1, c2, c3, c4]
+    downcast_u64_i64_w, vget4, vget5, lt4, lt5, ite_true, c0, c1, c2, c3, c4]
   have hv := val5_cut a
   rw [Fe.M.exec_bind]
   rcases invert_5_spec hm hm1 (cut_canon a) (cut_lim a) (by rw [hv]; exact Int.natCast_nonneg _) (by rw [hv]; exact ha)
@@ -182,8 +182,8 @@ theorem invert_256_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1
     refine Or.inr ⟨join out, rfl, by rw [hj]; exact h1, ?_⟩
     rw [← hv]
     split
-    · rename_i hz; rw [if_pos hz] at hinv; exact_mod_cast hj.trans hinv
-    · rename_i hz; rw [if_neg hz] at hinv; rw [hj]; exact hinv
+    · rename_i hz; rw [ite_eq_left hz] at hinv; exact_mod_cast hj.trans hinv
+    · rename_i hz; rw [ite_eq_right hz] at hinv; rw [hj]; exact hinv
 
 /-! ## `Mont::inverse` -/
 
@@ -201,13 +201,13 @@ theorem inverse_rep {K : Modulus} (hK : K.Valid) [Fact K.p.Prime] {R3 : ℕ}
   refine ⟨hlt, (Mont.R_isUnit hK).mul_right_cancel ?_⟩
   rw [hm, hR3', hR3, ZMod.natCast_mod, Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat]
   by_cases hz : (Mont.val a : ℤ) = 0
-  · rw [if_pos hz] at hinv
+  · rw [ite_eq_left hz] at hinv
     have hx : x = 0 := by
       have := ha.2
       rw [show Mont.val a = 0 by exact_mod_cast hz, Nat.cast_zero] at this
       exact ((Mont.R_isUnit hK).mul_left_eq_zero.mp this.symm)
     rw [hinv, hx, inv_zero]; simp
-  · rw [if_neg hz] at hinv
+  · rw [ite_eq_right hz] at hinv
     have hc' : (Mont.val c : ZMod K.p) * Mont.val a = 1 := by
       have := (ZMod.intCast_eq_intCast_iff _ _ _).mpr hinv
       push_cast at this; exact this

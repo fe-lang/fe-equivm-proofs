@@ -38,12 +38,12 @@ theorem cd_toList_length (cd : ByteArray) : cd.toList.length = cd.size := by
 theorem dReadBytes_ok (cd : ByteArray) (o n : Nat) (h : 4 + o + n ≤ cd.size) :
     readBytes? (dArgs cd) o n = some (((dArgs cd).drop o).take n) := by
   unfold readBytes?
-  rw [if_pos (by rw [List.length_take, List.length_drop, List.length_drop, cd_toList_length]; omega)]
+  rw [ite_eq_left (by rw [List.length_take, List.length_drop, List.length_drop, cd_toList_length]; omega)]
 
 theorem dReadBytes_none (cd : ByteArray) (o n : Nat) (h : cd.size < 4 + o + n) (hn : 0 < n) :
     readBytes? (dArgs cd) o n = none := by
   unfold readBytes?
-  rw [if_neg (by rw [List.length_take, List.length_drop, List.length_drop, cd_toList_length]; omega)]
+  rw [ite_eq_right (by rw [List.length_take, List.length_drop, List.length_drop, cd_toList_length]; omega)]
 
 theorem dReadNat_ok (cd : ByteArray) (o : Nat) (h : 4 + o + 32 ≤ cd.size) :
     readNat? (dArgs cd) o = some (dWord cd o) := by
@@ -67,7 +67,7 @@ theorem dBytes_ok (cd : ByteArray) (o : Nat) (hok : dBytesOk cd o)
       some (.bytes (dPayload cd o), o + 32 + paddedSize (dWord cd o)) := by
   obtain ⟨hw, hp⟩ := hok
   have hmax : ¬ solcMaxU64 < dWord cd o := by unfold solcMaxU64; omega
-  simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, if_false,
+  simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, ite_false,
     dReadBytes_ok cd (o + 32) (dWord cd o) (by omega), bind, Option.bind]
 
 theorem dBytes_none (cd : ByteArray) (o : Nat) (hbad : ¬ dBytesOk cd o) :
@@ -76,9 +76,9 @@ theorem dBytes_none (cd : ByteArray) (o : Nat) (hbad : ¬ dBytesOk cd o) :
   by_cases hw : 4 + o + 32 ≤ cd.size
   · have hp : cd.size < 4 + (o + 32) + dWord cd o := by omega
     by_cases hmax : solcMaxU64 < dWord cd o
-    · simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, if_true,
+    · simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, ite_true,
         bind, Option.bind]
-    · simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, if_false,
+    · simp only [decodeABIValue?, dReadNat_ok cd o hw, solcMaxLen_modern, hmax, ite_false,
         dReadBytes_none cd (o + 32) (dWord cd o) hp (by omega), bind, Option.bind]
   · simp only [decodeABIValue?, dReadNat_none cd o (by omega), bind, Option.bind]
 
@@ -112,14 +112,14 @@ theorem depositDecodeArgs_ok {cd : ByteArray} (hok : dArgsOk cd) (hsmall : cd.si
   have hmax : ∀ o, 4 + o + 32 ≤ cd.size → ¬ solcMaxU64 < o := by
     intro o ho; unfold solcMaxU64; omega
   unfold decodeCalldata
-  rw [if_neg (by rw [hlen]; omega), if_neg (by rw [hlen]; omega)]
+  rw [ite_eq_right (by rw [hlen]; omega), ite_eq_right (by rw [hlen]; omega)]
   simp only [decodeCalldata.decodeArgs, depositTypes, abiTupleHeadSize?, staticABIEncodedSize?,
     isDynamicABIType, solcTotalSizeDynamicGuard, List.isEmpty, Bool.false_eq_true,
-    false_and, if_false, bind, Option.bind]
-  rw [if_neg (by rw [hargs]; omega)]
-  simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+    false_and, ite_false, bind, Option.bind]
+  rw [ite_eq_right (by rw [hargs]; omega)]
+  simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
     dReadNat_ok cd 0 (by omega), dReadNat_ok cd 32 (by omega), dReadNat_ok cd 64 (by omega),
-    solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hmax _ h2.1, if_false,
+    solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hmax _ h2.1, ite_false,
     dBytes_ok cd _ h0 hsmall, dBytes_ok cd _ h1 hsmall, dBytes_ok cd _ h2 hsmall,
     dRootDecode cd hn, staticABIEncodedSize?, bind, Option.bind, Bool.false_eq_true]
   simp [decodeCalldata.insertValues, dStore, hlen, show ¬ cd.size - 4 < 128 by omega]
@@ -132,46 +132,46 @@ theorem depositDecodeArgs_none {cd : ByteArray} (hbad : ¬ dArgsOk cd) (hsmall :
     intro o ho; unfold solcMaxU64; omega
   unfold decodeCalldata
   by_cases h4 : cd.size < 4
-  · rw [if_pos (by rw [hlen]; exact h4)]
-  rw [if_neg (by rw [hlen]; exact h4), if_neg (by rw [hlen]; omega)]
+  · rw [ite_eq_left (by rw [hlen]; exact h4)]
+  rw [ite_eq_right (by rw [hlen]; exact h4), ite_eq_right (by rw [hlen]; omega)]
   simp only [decodeCalldata.decodeArgs, depositTypes, abiTupleHeadSize?, staticABIEncodedSize?,
     isDynamicABIType, solcTotalSizeDynamicGuard, List.isEmpty, Bool.false_eq_true,
-    false_and, if_false, bind, Option.bind]
+    false_and, ite_false, bind, Option.bind]
   by_cases hn : 132 ≤ cd.size
-  · rw [if_neg (by rw [hargs]; omega)]
+  · rw [ite_eq_right (by rw [hargs]; omega)]
     unfold dArgsOk at hbad
     by_cases h0 : dBytesOk cd (dWord cd 0)
     · by_cases h1 : dBytesOk cd (dWord cd 32)
       · have h2 : ¬ dBytesOk cd (dWord cd 64) := fun h2 => hbad ⟨hn, h0, h1, h2⟩
         by_cases hcap : solcMaxU64 < dWord cd 64
-        · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+        · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
             dReadNat_ok cd 0 (by omega), dReadNat_ok cd 32 (by omega), dReadNat_ok cd 64 (by omega),
-            solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hcap, if_false,
+            solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hcap, ite_false,
             dBytes_ok cd _ h0 hsmall, dBytes_ok cd _ h1 hsmall, bind, Option.bind]
           all_goals simp
-        · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+        · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
             dReadNat_ok cd 0 (by omega), dReadNat_ok cd 32 (by omega), dReadNat_ok cd 64 (by omega),
-            solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hcap, if_false,
+            solcMaxLen_modern, hmax _ h0.1, hmax _ h1.1, hcap, ite_false,
             dBytes_ok cd _ h0 hsmall, dBytes_ok cd _ h1 hsmall, dBytes_none cd _ h2, bind,
             Option.bind]
           all_goals simp
       · by_cases hcap : solcMaxU64 < dWord cd 32
-        · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+        · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
             dReadNat_ok cd 0 (by omega), dReadNat_ok cd 32 (by omega),
-            solcMaxLen_modern, hmax _ h0.1, hcap, if_false, dBytes_ok cd _ h0 hsmall, bind,
+            solcMaxLen_modern, hmax _ h0.1, hcap, ite_false, dBytes_ok cd _ h0 hsmall, bind,
             Option.bind]
           all_goals simp
-        · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+        · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
             dReadNat_ok cd 0 (by omega), dReadNat_ok cd 32 (by omega),
-            solcMaxLen_modern, hmax _ h0.1, hcap, if_false, dBytes_ok cd _ h0 hsmall,
+            solcMaxLen_modern, hmax _ h0.1, hcap, ite_false, dBytes_ok cd _ h0 hsmall,
             dBytes_none cd _ h1, bind, Option.bind]
           all_goals simp
     · by_cases hcap : solcMaxU64 < dWord cd 0
-      · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
+      · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
           dReadNat_ok cd 0 (by omega), solcMaxLen_modern, hcap, bind, Option.bind]
         all_goals simp
-      · simp only [decodeABIValues?, isDynamicABIType, if_true, Nat.zero_add,
-          dReadNat_ok cd 0 (by omega), solcMaxLen_modern, hcap, if_false, dBytes_none cd _ h0,
+      · simp only [decodeABIValues?, isDynamicABIType, ite_true, Nat.zero_add,
+          dReadNat_ok cd 0 (by omega), solcMaxLen_modern, hcap, ite_false, dBytes_none cd _ h0,
           bind, Option.bind]
         all_goals simp
   · simp [hlen, show cd.size - 4 < 128 by omega]

@@ -47,7 +47,7 @@ theorem sub_one_u64 {m : ℕ} (hm : m + 1 < 2 ^ 64) :
     IntTy.sub (.u 64) (UInt256.ofNat (m + 1)) (UInt256.ofNat 1) = pure (UInt256.ofNat m) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show m + 1 < 2 ^ 256 by omega), toNat_lit (show 1 < 2 ^ 256 by decide)]
-  rw [if_pos (by constructor <;> omega)]
+  rw [ite_eq_left (by constructor <;> omega)]
   congr 2
   omega
 
@@ -80,7 +80,7 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
     refine ⟨cur, by simpa using hc, fun r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 => ?_⟩
     rw [multiply_g1_k1.b7.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
   | m + 1, hm, cur, hc => by
     obtain ⟨D, eD, hD⟩ := hc.double
     have t1 := bit_test (UInt256.ofNat n1) (show m < 256 by omega)
@@ -97,31 +97,31 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
       rw [multiply_g1_k1.b7.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
-        if_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
-        zero_ne_one, decide_false, Bool.false_eq_true, if_false, eR]
+        ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
+        zero_ne_one, decide_false, Bool.false_eq_true, ite_false, eR]
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hP2
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
       rw [multiply_g1_k1.b7.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
-        if_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
-        zero_ne_one, decide_false, Bool.false_eq_true, if_false, eE, eR]
+        ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
+        zero_ne_one, decide_false, Bool.false_eq_true, ite_false, eE, eR]
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hP1
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
       rw [multiply_g1_k1.b7.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
-        if_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
-        zero_ne_one, decide_false, Bool.false_eq_true, if_false, eE, eR]
+        ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
+        zero_ne_one, decide_false, Bool.false_eq_true, ite_false, eE, eR]
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hS
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
       rw [multiply_g1_k1.b7.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
-        if_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
+        ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
         eE, eR]
 
 end FeProofs.Bn254Mul

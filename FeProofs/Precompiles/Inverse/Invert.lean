@@ -292,7 +292,7 @@ theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ
     have te := top20 hs.ce hm.lt hs.er.1 (Or.inr hs.er.2)
     by_cases hz : g 0 = 0 ∧ g 1 = 0 ∧ g 2 = 0 ∧ g 3 = 0 ∧ g 4 = 0
     · -- `g = 0`: `f = ±1`, and `normalize` returns `± d`.
-      simp only [hz, checkIndex, idx_lits, lt5, if_true, pure_bind, vec5, vget5]
+      simp only [hz, checkIndex, idx_lits, lt5, ite_true, pure_bind, vec5, vget5]
       obtain ⟨out, hout, hco, h0, h1, hc⟩ := normalize_spec d m (f 4) hs.cd hm.canon
         (R64_of_lim hs.lf 4) hm.pos hm.lt hs.dr.1 hs.dr.2
       simp only [vec5] at hout
@@ -304,15 +304,15 @@ theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ
       have hsg := val5_neg_iff hs.cf
       rcases Int.isUnit_iff.mp hu with h | h
       · have : ¬ f 4 < 0 := fun h' => by have := hsg.mpr h'; omega
-        rw [if_neg this] at hc
+        rw [ite_eq_right this] at hc
         exact (hc.mul_right X).trans (h ▸ hs.dx)
       · have : f 4 < 0 := hsg.mp (by omega)
-        rw [if_pos this] at hc
+        rw [ite_eq_left this] at hc
         have := (hc.mul_right X).trans (show -val5 d * X ≡ -val5 f [ZMOD val5 m] by
           rw [neg_mul]; exact hs.dx.neg)
         rwa [h, neg_neg] at this
     · -- One pass, then the loop again.
-      simp only [hz, decide_false, Bool.not_false, if_true, checkIndex, idx_lits, lt5, pure_bind,
+      simp only [hz, decide_false, Bool.not_false, ite_true, checkIndex, idx_lits, lt5, pure_bind,
         vec5, vget5, downcast_i64_u64_I]
       obtain ⟨eta', U, V, Q, R, hds, he', ht⟩ :=
         divsteps_spec eta hs.eta (Limb.ofInt (f 0)) (Limb.ofInt (g 0)) (odd_limb0 hs.cf hs.fodd)
@@ -343,15 +343,15 @@ theorem invert_5_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1 :
       ∃ out, (invert_5 (vec5 x) (vec5 m) inv.w).exec env w = some (.ok (vec5 out, w)) ∧
         Canon out ∧ 0 ≤ val5 out ∧ val5 out < val5 m ∧
         (if val5 x = 0 then val5 out = 0 else val5 out * val5 x ≡ 1 [ZMOD val5 m]) := by
-  simp only [invert_5, checkIndex, idx_lits, lt5, if_true, pure_bind, wrap_neg_one]
+  simp only [invert_5, checkIndex, idx_lits, lt5, ite_true, pure_bind, wrap_neg_one]
   rw [replicate_zero, e_init]
   by_cases hz : val5 x = 0
   · -- `x = 0`: the loop exits at once with `d = 0`.
-    simp only [hz, if_true]
+    simp only [hz, ite_true]
     have hz' := (val5_eq_zero_iff hx).mp hz
     rw [invert_5.b1.eq_1, is_zero_5_eq x (R64_of_lim hxl)]
     simp only [hz', and_self, decide_true, Bool.not_true,
-      Bool.false_eq_true, if_false, checkIndex, idx_lits, lt5, if_true, pure_bind, vec5, vget5]
+      Bool.false_eq_true, ite_false, checkIndex, idx_lits, lt5, ite_true, pure_bind, vec5, vget5]
     have hd0 : Canon (fun _ => (0 : ℤ)) := fun _ _ => ⟨le_rfl, by norm_num⟩
     have hv0 : val5 (fun _ => (0 : ℤ)) = 0 := by simp [val5]
     obtain ⟨out, hout, hco, h0, h1, hc⟩ := normalize_spec (fun _ => 0) m (m 4) hd0 hm.canon
@@ -364,7 +364,7 @@ theorem invert_5_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1 :
     unfold Int.ModEq at hc'
     rw [Int.emod_eq_of_lt h0 h1, Int.zero_emod] at hc'
     exact hc'
-  · simp only [hz, if_false]
+  · simp only [hz, ite_false]
     have hd : val5 (fun _ => (0 : ℤ)) = 0 := by simp [val5]
     have he : val5 (fun i => if i = 0 then (1 : ℤ) else 0) = 1 := by simp [val5]
     have hinv : InvState (val5 m) (val5 x) (fun _ => 0) (fun i => if i = 0 then 1 else 0) m x (-1) := by

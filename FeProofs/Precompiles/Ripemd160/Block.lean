@@ -34,7 +34,7 @@ theorem has64 (r : Range_Known_0_Known_64) {k : ℕ} (hk : k < 2 ^ 256) :
 theorem downcast_u8 (x : UInt256) :
     downcast_truncate_u64_u8 x = pure (UInt256.ofNat (x.toNat % 256)) := by
   simp only [Lib.downcast_truncate_u64_u8, Lib.u64_to_word, Lib.u8_IS_SIGNED, Lib.u8_MASK,
-    Lib.U8_MASK, Lib.u8_from_word, truncate, pure_bind, Bool.false_eq_true, if_false]
+    Lib.U8_MASK, Lib.u8_from_word, truncate, pure_bind, Bool.false_eq_true, ite_false]
   congr 2
   change (UInt256.land x _).toNat % 2 ^ 8 = _
   rw [uland_toNat, toNat_lit (by decide), show (255 : ℕ) = 2 ^ 8 - 1 by rfl,
@@ -71,8 +71,8 @@ theorem bits_loop (b13 : Vector UInt256 64 → Range_Known_0_Known_64 → Range_
     funext k
     have := k.isLt
     by_cases hk : 56 ≤ k.val
-    · rw [if_pos ⟨hk, by omega⟩, if_pos hk]
-    · rw [if_neg (fun h => hk h.1), if_neg hk]
+    · rw [ite_eq_left ⟨hk, by omega⟩, ite_eq_left hk]
+    · rw [ite_eq_right (fun h => hk h.1), ite_eq_right hk]
   | n + 1, j, h => by
     rw [padded_block_MemBuffer.b1.b14.eq_1]
     have hN : N % 2 ^ 64 < 2 ^ 256 := lt_trans (Nat.mod_lt _ (by decide)) (by decide)
@@ -94,10 +94,10 @@ theorem bits_loop (b13 : Vector UInt256 64 → Range_Known_0_Known_64 → Range_
           (N >>> (8 * (k.val - 56))).toUInt8 else g k).toUInt32 := by
       funext k
       by_cases hk : k.val = 56 + j
-      · rw [if_pos hk, if_pos (by omega), lw32_byte, hk, Nat.add_sub_cancel_left]
+      · rw [ite_eq_left hk, ite_eq_left (by omega), lw32_byte, hk, Nat.add_sub_cancel_left]
         congr 1
         simp [Nat.shiftRight_eq_div_pow, UInt8.toNat_ofNat']
-      · rw [if_neg hk]
+      · rw [ite_eq_right hk]
         congr 3
         apply propext; omega
     rw [e]
@@ -125,7 +125,7 @@ theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     subst hk
     congr 3
     funext k'
-    rw [if_pos (by omega)]
+    rw [ite_eq_left (by omega)]
   | n + 1, k, hk => by
     have hs := h.small
     have hb := h.bound
@@ -149,8 +149,8 @@ theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
       congr 3
       funext k'
       by_cases e : k'.val = k
-      · rw [if_pos e, if_pos (by omega), e, msgByte, if_pos h1, lw32_byte, byte_get]
-      · rw [if_neg e]
+      · rw [ite_eq_left e, ite_eq_left (by omega), e, msgByte, ite_eq_left h1, lw32_byte, byte_get]
+      · rw [ite_eq_right e]
         congr 3
         apply propext; omega
     · simp only [decide_eq_false h1, Bool.false_eq_true, ↓reduceIte]
@@ -160,9 +160,9 @@ theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
         congr 3
         funext k'
         by_cases e : k'.val = k
-        · rw [if_pos e, if_pos (by omega), e, msgByte, if_neg h1, if_pos h2]
+        · rw [ite_eq_left e, ite_eq_left (by omega), e, msgByte, ite_eq_right h1, ite_eq_left h2]
           rfl
-        · rw [if_neg e]
+        · rw [ite_eq_right e]
           congr 3
           apply propext; omega
       · simp only [decide_eq_false h2, Bool.false_eq_true, ↓reduceIte]
@@ -170,10 +170,10 @@ theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
         congr 3
         funext k'
         by_cases e : k'.val = k
-        · rw [if_neg (by omega), if_pos (by omega), e, msgByte, if_neg h1, if_neg h2]
+        · rw [ite_eq_right (by omega), ite_eq_left (by omega), e, msgByte, ite_eq_right h1, ite_eq_right h2]
         · by_cases h3 : k'.val < k
-          · rw [if_pos h3, if_pos (by omega)]
-          · rw [if_neg h3, if_neg (by omega)]
+          · rw [ite_eq_left h3, ite_eq_left (by omega)]
+          · rw [ite_eq_right h3, ite_eq_right (by omega)]
 
 theorem blocksOf_pos (n : ℕ) : 0 < blocksOf n := by unfold blocksOf; omega
 
@@ -214,7 +214,7 @@ theorem padded_block_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : Wor
         Vector.ofFn fun k : Fin 64 => lw32 (if 56 ≤ k.val ∧ k.val < 56 + 0 then
           ((d.size * 8) >>> (8 * (k.val - 56))).toUInt8
           else msgByte d ((blocksOf d.size - 1) * 64 + k)).toUInt32 := by
-      congr 1; funext k; rw [if_neg (by omega)]
+      congr 1; funext k; rw [ite_eq_right (by omega)]
     have hb := bits_loop (fun r0 _ _ => pure r0) (fun _ _ _ => rfl) (d.size * 8)
       (fun p => msgByte d ((blocksOf d.size - 1) * 64 + p)) ⟨(), ()⟩ ⟨(), ()⟩ 8 0 rfl
     simp only at hb
@@ -231,10 +231,10 @@ theorem padded_block_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : Wor
       simp only [blockB, padByte, msgByte,
         show 64 * (blocksOf d.size - 1) + k.val = (blocksOf d.size - 1) * 64 + k.val by ring]
       by_cases h56 : 56 ≤ k.val
-      · rw [if_pos h56, if_neg (by omega), if_neg (by omega), if_neg (by omega),
+      · rw [ite_eq_left h56, ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
           show (blocksOf d.size - 1) * 64 + k.val - (64 * blocksOf d.size - 8) = k.val - 56 by omega,
           Nat.mul_comm 8 d.size]
-      · rw [if_neg h56]
+      · rw [ite_eq_right h56]
         split_ifs <;> first | rfl | omega
     rw [hblk]
   · simp only [decide_eq_false (show ¬ UInt256.ofNat i = UInt256.ofNat (blocksOf d.size - 1) from

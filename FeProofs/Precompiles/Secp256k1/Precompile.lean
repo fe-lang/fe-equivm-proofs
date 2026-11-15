@@ -167,7 +167,7 @@ theorem ecrecover_spec (input : MemBuffer) (e v r s : UInt256) (env : Env) (w : 
       Secp256k1.Spec.recover e.toNat k r.toNat s.toNat = none := by
     intro k h
     unfold Secp256k1.Spec.recover
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
   unfold ecrecover_MemBuffer
   simp only [Fe.M.exec_bind, h0, h32, h64, h96, FeProofs.Ecrecover.N_eq,
     toNat_lit (show Secp256k1.n < 2 ^ 256 by decide), pure_bind]
@@ -175,8 +175,8 @@ theorem ecrecover_spec (input : MemBuffer) (e v r s : UInt256) (env : Env) (w : 
   swap
   · have h1 : v ≠ UInt256.ofNat 27 := fun h => hv (Or.inl ((lit v (by decide)).mp h))
     have h2 : v ≠ UInt256.ofNat 28 := fun h => hv (Or.inr ((lit v (by decide)).mp h))
-    simp only [h1, h2, ne_eq, not_false_eq_true, decide_true, if_true, empty_out env w hroom0]
-    exact Or.inr ⟨_, _, rfl, by rw [hemp, byteArray_readWithPadding_zero, ecrecOut, if_neg hv]⟩
+    simp only [h1, h2, ne_eq, not_false_eq_true, decide_true, ite_true, empty_out env w hroom0]
+    exact Or.inr ⟨_, _, rfl, by rw [hemp, byteArray_readWithPadding_zero, ecrecOut, ite_eq_right hv]⟩
   have hempty : ecrecOut e.toNat v.toNat r.toNat s.toNat = .empty →
       (do
         let v47 ← SUCCESS
@@ -192,15 +192,15 @@ theorem ecrecover_spec (input : MemBuffer) (e v r s : UInt256) (env : Env) (w : 
     Or.inr ⟨_, _, empty_out env w hroom0, by rw [hemp, byteArray_readWithPadding_zero, he]⟩
   have hbad : (r.toNat = 0 ∨ Secp256k1.n ≤ r.toNat ∨ s.toNat = 0 ∨ Secp256k1.n ≤ s.toNat) →
       ecrecOut e.toNat v.toNat r.toNat s.toNat = .empty := fun h => by
-    rw [ecrecOut, if_pos hv, hnone _ h]
+    rw [ecrecOut, ite_eq_left hv, hnone _ h]
   have hv' : decide (v ≠ UInt256.ofNat 27) = true → decide (v ≠ UInt256.ofNat 28) = false := by
     intro h; simp only [decide_eq_true_eq, decide_eq_false_iff_not, not_not] at h ⊢
     rcases hv with h' | h'
     · exact absurd ((lit v (by decide)).mpr h') h
     · exact (lit v (by decide)).mpr h'
   rcases Bool.eq_false_or_eq_true (decide (v ≠ UInt256.ofNat 27)) with c1 | c1
-  on_goal 1 => simp only [c1, hv' c1, if_true, Bool.false_eq_true, if_false]
-  on_goal 2 => simp only [c1, Bool.false_eq_true, if_false]
+  on_goal 1 => simp only [c1, hv' c1, ite_true, Bool.false_eq_true, ite_false]
+  on_goal 2 => simp only [c1, Bool.false_eq_true, ite_false]
   all_goals
     simp only [decide_eq_true_eq]
     split_ifs with c3 c4 c5 c6
@@ -211,7 +211,7 @@ theorem ecrecover_spec (input : MemBuffer) (e v r s : UInt256) (env : Env) (w : 
     have h27 : 27 ≤ v.toNat := by omega
     have hsub : checkedSub v (UInt256.ofNat 27) = pure (UInt256.ofNat (v.toNat - 27)) := by
       unfold checkedSub
-      rw [toNat_lit (by decide), if_neg (by omega)]
+      rw [toNat_lit (by decide), ite_eq_right (by omega)]
       congr 1
       apply word_eq_of_toNat
       change (UInt256.sub _ _).toNat = _
@@ -230,7 +230,7 @@ theorem ecrecover_spec (input : MemBuffer) (e v r s : UInt256) (env : Env) (w : 
     have hO : ecrecOut e.toNat v.toNat r.toNat s.toNat =
         match Secp256k1.Spec.recover e.toNat (v.toNat - 27) r.toNat s.toNat with
         | some (x, y) => Weierstrass.toBytes32 (hashWord x.val y.val % 2 ^ 160)
-        | none => .empty := by rw [ecrecOut, if_pos hv]
+        | none => .empty := by rw [ecrecOut, ite_eq_left hv]
     rw [hO]
     rcases Secp256k1.Spec.recover e.toNat (v.toNat - 27) r.toNat s.toNat with _ | ⟨x, y⟩
     · exact Or.inr ⟨_, _, empty_out env w hroom0, by rw [hemp, byteArray_readWithPadding_zero]⟩

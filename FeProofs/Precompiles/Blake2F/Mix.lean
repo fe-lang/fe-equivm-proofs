@@ -53,7 +53,7 @@ theorem sub64 {k : ℕ} (hk : k ≤ 64) :
     IntTy.sub (.u 64) (UInt256.ofNat 64) (UInt256.ofNat k) = pure (UInt256.ofNat (64 - k)) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show 64 < 2 ^ 256 by decide), toNat_lit (show k < 2 ^ 256 by omega)]
-  rw [if_pos (by constructor <;> omega)]
+  rw [ite_eq_left (by constructor <;> omega)]
   congr 2
   omega
 

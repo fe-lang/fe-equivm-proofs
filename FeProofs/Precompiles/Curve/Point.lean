@@ -218,23 +218,23 @@ theorem add_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P Q : P3} {x1 y1 z1 x
   obtain ⟨hd, he, hf⟩ := hQ
   simp only [add, hc.isZero, hf.isZero]
   by_cases hz1 : z1 = 0
-  · simp only [hz1, decide_true, if_true]
+  · simp only [hz1, decide_true, ite_true]
     exact ⟨_, _, _, ⟨hd, he, hf⟩, hv2, by rw [toAffine_eq_zero_of_z rfl, zero_add]⟩
-  simp only [hz1, decide_false, Bool.false_eq_true, if_false]
+  simp only [hz1, decide_false, Bool.false_eq_true, ite_false]
   by_cases hz2 : z2 = 0
-  · simp only [hz2, decide_true, if_true]
+  · simp only [hz2, decide_true, ite_true]
     exact ⟨_, _, _, ⟨ha, hb, hc⟩, hv1, by rw [toAffine_eq_zero_of_z rfl, _root_.add_zero]⟩
-  simp only [hz2, decide_false, Bool.false_eq_true, if_false]
+  simp only [hz2, decide_false, Bool.false_eq_true, ite_false]
   have hH := MField.Rep.isZero (F := F) (x := ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) (by rep_tac)
   have hR := MField.Rep.isZero (F := F) (x := ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2))))) (by rep_tac)
   rw [hH]
   by_cases h0 : ((x2 * (z1 * z1)) - (x1 * (z2 * z2))) = 0
   · rw [hR]
-    simp only [h0, decide_true, if_true]
+    simp only [h0, decide_true, ite_true]
     have hx : ![x1, y1, z1] 0 * ![x2, y2, z2] 2 ^ 2 = ![x2, y2, z2] 0 * ![x1, y1, z1] 2 ^ 2 := by
       simp; linear_combination -h0
     by_cases h1 : ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) = 0
-    · simp only [h1, decide_true, if_true]
+    · simp only [h1, decide_true, ite_true]
       obtain ⟨x', y', z', hrep, hns, haff⟩ := double_spec hB ⟨ha, hb, hc⟩ hv1
       have hy : ![x1, y1, z1] 1 * ![x2, y2, z2] 2 ^ 3 = ![x2, y2, z2] 1 * ![x1, y1, z1] 2 ^ 3 := by
         simp
@@ -243,7 +243,7 @@ theorem add_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P Q : P3} {x1 y1 z1 x
         linear_combination -this
       have heq := Point.toAffine_of_equiv (W := Jac F.q B) (equiv_of_X_eq_of_Y_eq (by simpa using hz1) (by simpa using hz2) hx hy)
       exact ⟨x', y', z', hrep, hns, by rw [haff, heq]⟩
-    · simp only [h1, decide_false, Bool.false_eq_true, if_false]
+    · simp only [h1, decide_false, Bool.false_eq_true, ite_false]
       have hy : ![x1, y1, z1] 1 * ![x2, y2, z2] 2 ^ 3 ≠ ![x2, y2, z2] 1 * ![x1, y1, z1] 2 ^ 3 := by
         simp
         intro h; apply h1; linear_combination -2 * h
@@ -252,7 +252,7 @@ theorem add_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P Q : P3} {x1 y1 z1 x
         Point.toAffine_smul _ (isUnit_addU_of_Y_ne (by simpa using hz1) (by simpa using hz2) hy),
         Point.toAffine_of_Z_eq_zero (by simp)] at hsum
       exact ⟨_, _, _, inf_rep, nonsingular_zero, by rw [toAffine_inf, hsum]⟩
-  · simp only [h0, decide_false, Bool.false_eq_true, if_false]
+  · simp only [h0, decide_false, Bool.false_eq_true, ite_false]
     refine ⟨(((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) * ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)) + ((y2 * z1 * (z1 * z1)) - (y1 * z2 * (z2 * z2)))) - (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) - (((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((x1 * (z2 * z2)) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2))))))))) - (((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))) + ((y1 * z2 * (z2 * z2))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) * ((((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))) * (((x2 * (z1 * z1)) - (x1 * (z2 * z2))) + ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))))))), (((z1 + z2) * (z1 + z2) - (z1 * z1) - (z2 * z2)) * ((x2 * (z1 * z1)) - (x1 * (z2 * z2)))), ⟨by rep_tac, by rep_tac, by rep_tac⟩, ?_⟩
     have hx : ![x1, y1, z1] 0 * ![x2, y2, z2] 2 ^ 2 ≠ ![x2, y2, z2] 0 * ![x1, y1, z1] 2 ^ 2 := by
       simp; intro h; apply h0; linear_combination -h
@@ -274,20 +274,20 @@ theorem addAffine_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P : P3} {a2 b2 
   obtain ⟨ha, hb, hc⟩ := hP
   simp only [addAffine, hc.isZero]
   by_cases hz1 : z1 = 0
-  · simp only [hz1, decide_true, if_true]
+  · simp only [hz1, decide_true, ite_true]
     exact ⟨_, _, _, affine_rep ha2 hb2, hv2, by rw [toAffine_eq_zero_of_z rfl, zero_add]⟩
-  simp only [hz1, decide_false, Bool.false_eq_true, if_false]
+  simp only [hz1, decide_false, Bool.false_eq_true, ite_false]
   have hH := MField.Rep.isZero (F := F) (x := ((x2 * (z1 * z1)) - x1)) (by rep_tac)
   have hR := MField.Rep.isZero (F := F) (x := ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1))) (by rep_tac)
   rw [hH]
   have hz2 : (1 : ZMod F.q) ≠ 0 := one_ne_zero
   by_cases h0 : ((x2 * (z1 * z1)) - x1) = 0
   · rw [hR]
-    simp only [h0, decide_true, if_true]
+    simp only [h0, decide_true, ite_true]
     have hx : ![x1, y1, z1] 0 * ![x2, y2, 1] 2 ^ 2 = ![x2, y2, 1] 0 * ![x1, y1, z1] 2 ^ 2 := by
       simp; linear_combination -h0
     by_cases h1 : ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) = 0
-    · simp only [h1, decide_true, if_true]
+    · simp only [h1, decide_true, ite_true]
       obtain ⟨x', y', z', hrep, hns, haff⟩ := double_spec hB ⟨ha, hb, hc⟩ hv1
       have hy : ![x1, y1, z1] 1 * ![x2, y2, 1] 2 ^ 3 = ![x2, y2, 1] 1 * ![x1, y1, z1] 2 ^ 3 := by
         simp
@@ -297,7 +297,7 @@ theorem addAffine_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P : P3} {a2 b2 
       have heq := Point.toAffine_of_equiv (W := Jac F.q B)
         (equiv_of_X_eq_of_Y_eq (by simpa using hz1) (by simp) hx hy)
       exact ⟨x', y', z', hrep, hns, by rw [haff, heq]⟩
-    · simp only [h1, decide_false, Bool.false_eq_true, if_false]
+    · simp only [h1, decide_false, Bool.false_eq_true, ite_false]
       have hy : ![x1, y1, z1] 1 * ![x2, y2, 1] 2 ^ 3 ≠ ![x2, y2, 1] 1 * ![x1, y1, z1] 2 ^ 3 := by
         simp
         intro h; apply h1; linear_combination -2 * h
@@ -306,7 +306,7 @@ theorem addAffine_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P : P3} {a2 b2 
         Point.toAffine_smul _ (isUnit_addU_of_Y_ne (by simpa using hz1) (by simp) hy),
         Point.toAffine_of_Z_eq_zero (by simp)] at hsum
       exact ⟨_, _, _, inf_rep, nonsingular_zero, by rw [toAffine_inf, hsum]⟩
-  · simp only [h0, decide_false, Bool.false_eq_true, if_false]
+  · simp only [h0, decide_false, Bool.false_eq_true, ite_false]
     refine ⟨(((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - (((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) * ((y2 * z1 * (z1 * z1)) - y1 + ((y2 * z1 * (z1 * z1)) - y1)) - (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) - ((x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + (x1 * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)))))))) - (y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))) + y1 * (((x2 * (z1 * z1)) - x1) * ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + ((((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1)) + (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))))))), ((z1 + ((x2 * (z1 * z1)) - x1)) * (z1 + ((x2 * (z1 * z1)) - x1)) - (z1 * z1) - (((x2 * (z1 * z1)) - x1) * ((x2 * (z1 * z1)) - x1))), ⟨by rep_tac, by rep_tac, by rep_tac⟩, ?_⟩
     have hx : ![x1, y1, z1] 0 * ![x2, y2, 1] 2 ^ 2 ≠ ![x2, y2, 1] 0 * ![x1, y1, z1] 2 ^ 2 := by
       simp; intro h; apply h0; linear_combination -h

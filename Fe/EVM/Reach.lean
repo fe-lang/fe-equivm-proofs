@@ -182,8 +182,8 @@ theorem callValueMade_forwardedGas {code : ByteArray} {ee : ExecutionEnv} {g : S
         exact Nat.not_lt_of_ge hLeNat hGtNat)
     have hdeqF : (s.executionEnv.depth == 1024) = false := by
       rw [beq_eq_false_iff_ne]; intro hh; rw [hh] at hdepth'; exact absurd hdepth' (by decide)
-    simp only [List.length_cons, hovF, hstaticF, if_false, hdepthLt, hbalOpt, hgtF, hdeqF,
-      and_true, if_true, Bool.or_false] at st
+    simp only [List.length_cons, hovF, hstaticF, ite_false, hdepthLt, hbalOpt, hgtF, hdeqF,
+      and_true, ite_true, Bool.or_false] at st
     rw [collapse_two_stage, hcode] at st
     have hfuel : g.toNat + 1 - k = (g.toNat - k) + 1 := by omega
     have hXP := hX.trans (hfuel.symm ▸ X_peel (f := g.toNat - k) st)
@@ -335,7 +335,7 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
       rcases hperm with h | h
       · rw [hp] at h; cases h
       · exact hv h
-    simp only [call, M.exec_bind, M.exec_read, if_neg hns]
+    simp only [call, M.exec_bind, M.exec_read, ite_eq_right hns]
   have hopt : (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) =
       (σ.get? I.codeOwner |>.elim ⟨0⟩ (·.balance)) := by
     cases σ.get? I.codeOwner <;> rfl
@@ -349,7 +349,7 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
     have hmade' : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance))
         ∧ I.depth < 1024 := by simp only [hacc, hopt]; exact ⟨hmade.1, hmade.2⟩
     rw [hcall, message_made (w := { w with feed := s :: rest }) (s := s) (rest := rest) rfl
-      hmade' hΘ, if_pos hmade']
+      hmade' hΘ, ite_eq_left hmade']
     rfl
   · have hnot : ¬ (value ≤ ((w.accounts.get? I.codeOwner).option ⟨0⟩ (·.balance)) ∧
         I.depth < 1024) := by
@@ -379,7 +379,7 @@ theorem call_feed {code : ByteArray} {I : ExecutionEnv} {g : Sat256} {s0 : State
     refine ⟨s₀, false, ByteArray.empty, σ, w.logs ++ appended s₀.substate s₀.substate, _, k', C',
       ?_, rd⟩
     rw [hcall, message_notMade (w := { w with feed := s₀ :: rest }) (s := s₀) (rest := rest) rfl
-      hnot, if_neg hnot, ← hacc]
+      hnot, ite_eq_right hnot, ← hacc]
     rfl
 
 end Fe.EVM

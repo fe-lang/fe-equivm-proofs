@@ -72,7 +72,7 @@ theorem shiftLeft_toNat_of_lt (word : UInt256) (k : Nat) (hk : k < 256)
   have hkword : (UInt256.ofNat k).toNat = k := ulit_toNat' _ (by
     norm_num [UInt256.size]; omega)
   unfold UInt256.shiftLeft
-  rw [if_neg (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   change (word.toNat <<< (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkword, Nat.shiftLeft_eq, Nat.mod_eq_of_lt hbound]
 
@@ -81,7 +81,7 @@ theorem shiftRight_toNat_of_lt (word : UInt256) (k : Nat) (hk : k < 256) :
   have hkword : (UInt256.ofNat k).toNat = k := ulit_toNat' _ (by
     norm_num [UInt256.size]; omega)
   unfold UInt256.shiftRight
-  rw [if_neg (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by change ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   change (word.toNat >>> (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkword, Nat.shiftRight_eq_div_pow]
   exact Nat.mod_eq_of_lt

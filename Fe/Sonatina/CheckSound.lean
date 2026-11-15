@@ -145,10 +145,10 @@ theorem normalize_eval {ee : ExecutionEnv} {env : Nat → UInt256} (op : Operati
     by_cases h2 : op = .SGT
     · subst h2; simp [Expr.eval, ha, hb, (gt_eval _ _).2]
     by_cases h3 : commutative.contains op && a.cmp b == .lt
-    · rw [if_neg (by simpa using h1), if_neg (by simpa using h2), if_pos h3]
+    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_left h3]
       simp only [Bool.and_eq_true] at h3
       simp [Expr.eval, ha, hb, opEval_comm h3.1]
-    · rw [if_neg (by simpa using h1), if_neg (by simpa using h2), if_neg h3]
+    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_right h3]
       simp [Expr.eval, ha, hb]
 
 theorem isZero_isZero_isZero (a : UInt256) : (a.isZero.isZero).isZero = a.isZero := by
@@ -307,18 +307,18 @@ theorem way_sound {ee : ExecutionEnv} {env : Nat → UInt256} {e : Exit} {cond :
       simp only [Expr.eval, Option.some.injEq] at hc
       subst hc
       rw [toNat_ofNat] at ht
-      simp only [ht, BEq.rfl, if_true, Option.some.injEq] at h
+      simp only [ht, BEq.rfl, ite_true, Option.some.injEq] at h
       subst h
       simp [Way.Sound, Exit.next, Expr.eval, toNat_ofNat]
     next =>
       by_cases h1 : (cond == bc) = true
-      · rw [if_pos h1] at h
+      · rw [ite_eq_left h1] at h
         cases h
         simp only [beq_iff_eq] at h1; subst h1
         simp only [Way.Sound, Exit.next, hc, Option.map_some, ht]
-      rw [if_neg h1] at h
+      rw [ite_eq_right h1] at h
       by_cases h2 : (cond == .op1 .ISZERO bc) = true
-      · rw [if_pos h2] at h
+      · rw [ite_eq_left h2] at h
         cases h
         simp only [beq_iff_eq] at h2; subst h2
         cases hc' : bc.eval ee env with
@@ -329,20 +329,20 @@ theorem way_sound {ee : ExecutionEnv} {env : Nat → UInt256} {e : Exit} {cond :
         rw [isZero_toNat] at ht
         subst ht
         cases hz : c'.toNat == 0 <;> simp_all [Way.Sound, Exit.next]
-      · rw [if_neg h2] at h; cases h
+      · rw [ite_eq_right h2] at h; cases h
   next sc default cases ruled =>
     obtain ⟨hcases, hruled⟩ := hv
     split at h
     next k hk =>
       obtain ⟨v, hv, hcv⟩ := caseOf_sound hk hc
       cases taken
-      · simp only [Bool.false_eq_true, if_false, Option.some.injEq] at h
+      · simp only [Bool.false_eq_true, ite_false, Option.some.injEq] at h
         subst h
         refine ⟨rfl, hcases, fun v' hv' k' hk' => ?_⟩
         rcases List.mem_cons.mp hk' with rfl | hk'
         · rw [hv] at hv'; cases hv'; rw [ht] at hcv; simpa using hcv.symm
         · exact hruled v' hv' k' hk'
-      · simp only [if_true, Option.map_eq_some_iff, Option.filter_eq_some_iff] at h
+      · simp only [ite_true, Option.map_eq_some_iff, Option.filter_eq_some_iff] at h
         obtain ⟨d, ⟨hd, -⟩, rfl⟩ := h
         have hk' : k < UInt256.size := hcases (k, d) (mem_of_lookup hd)
         simp only [Way.Sound, Exit.next, hv, Option.map_some, Option.some.injEq]

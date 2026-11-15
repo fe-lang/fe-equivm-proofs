@@ -92,7 +92,7 @@ theorem truncate_size (n : Nat) (h : n < 2 ^ 64) :
 theorem sltBool_small {a b : UInt256} (ha : a.toNat < 2 ^ 255) (hb : b.toNat < 2 ^ 255) :
     a.sltBool b = decide (a.toNat < b.toNat) := by
   unfold UInt256.sltBool
-  rw [if_neg (by omega), if_neg (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_right (by omega)]
   rfl
 
 /-- Std's head check on calldata of `size` bytes, at least a selector and below `2 ^ 64`:
@@ -257,7 +257,7 @@ theorem selector_exec (I : ExecutionEnv) (w : World) :
 theorem selWord_hit {cd sel : ByteArray} {word : UInt256}
     (h : UInt256.eq word (selWord cd) = if (sel == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩)
     (hsel : (sel == cd.extract 0 4) = true) : selWord cd = word := by
-  rw [hsel, if_pos rfl] at h
+  rw [hsel, ite_eq_left rfl] at h
   by_contra hne
   rw [u256_eq_of_ne (fun e => hne e.symm)] at h
   exact absurd h (by decide)

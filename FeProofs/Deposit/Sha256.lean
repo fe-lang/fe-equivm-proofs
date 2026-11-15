@@ -79,7 +79,7 @@ theorem sha64_eval_ret {caller : Frame} {evm : EVM.State} {payload out : ByteArr
     (v := .bytes out) (store_get_self _ _ _)
   have hslice : sliceBytes? out 0 32 = .ok (.bytes (out.extract 0 32)) := by
     simp only [sliceBytes?]
-    rw [if_neg (by decide), if_neg (by simp; omega)]
+    rw [ite_eq_right (by decide), ite_eq_right (by simp; omega)]
     rfl
   rw [evalExpr?]
   simp only [EvalResult.bind, bind]

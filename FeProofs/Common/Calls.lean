@@ -76,7 +76,7 @@ theorem callOutput_load (mem out : ByteArray) (off : UInt256) (hb : out.size < U
     memLoad off (callOutputMem mem out off ⟨32⟩) = calldataWord out 0 := by
   have hsize := callOutput32_size mem out off hb hin
   unfold memLoad
-  rw [if_neg (by rw [hsize]; omega), callOutput32_read_word mem out off hb hs (by omega),
+  rw [ite_eq_right (by rw [hsize]; omega), callOutput32_read_word mem out off hb hs (by omega),
     fromByteArrayBigEndian_toByteArray, u256_ofNat_toNat]
 
 /-- `MLOAD` of the word a successful call wrote at `off`. -/

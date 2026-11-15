@@ -35,7 +35,7 @@ theorem solcDecodeLenCheckBad (words : ℕ) {sz : ℕ} (hhead : 4 ≤ sz) (hsz :
 theorem shiftRight160_toNat (w : UInt256) :
     (UInt256.shiftRight w ⟨160⟩).toNat = w.toNat / EVM.twoPow 160 := by
   unfold UInt256.shiftRight
-  rw [if_neg (by decide)]
+  rw [ite_eq_right (by decide)]
   change (w.val.val >>> 160) % UInt256.size = w.toNat / EVM.twoPow 160
   rw [Nat.shiftRight_eq_div_pow]
   change w.toNat / 2 ^ 160 % UInt256.size = w.toNat / EVM.twoPow 160
@@ -102,7 +102,7 @@ theorem decodeScalarWords_uint256s (cd : ByteArray) (n start : Nat)
   · intro i ty value hty hval
     have ⟨hi, _⟩ := List.getElem?_eq_some_iff.mp hty
     simp only [List.length_replicate] at hi
-    simp only [List.getElem?_replicate, if_pos hi, Option.some.injEq] at hty
+    simp only [List.getElem?_replicate, ite_eq_left hi, Option.some.injEq] at hty
     subst ty
     simp only [List.getElem?_map, List.getElem?_range hi, Option.map_some,
       Option.some.injEq] at hval
@@ -129,8 +129,8 @@ theorem decodeCalldata_scalars {cd : ByteArray} {names : List Ident}
   have hlen : cd.toList.length = cd.size := by
     rw [byteArray_toList_eq, Array.length_toList]; rfl
   rw [decodeCalldata_scalarWords_eq hscalar]
-  rw [if_neg (by rw [hlen]; omega : ¬ cd.toList.length < 4)]
-  rw [if_neg (by
+  rw [ite_eq_right (by rw [hlen]; omega : ¬ cd.toList.length < 4)]
+  rw [ite_eq_right (by
     rintro ⟨hnonempty, hlarge⟩
     have hn : tys ≠ [] := by
       intro hempty

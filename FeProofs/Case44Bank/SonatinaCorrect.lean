@@ -171,7 +171,7 @@ theorem ir_runtime_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × Worl
     EndsAs X ((sidecar.model .machine).runtime.exec I w) := by
   rw [show (sidecar.model .machine).runtime = sidecar.runSection "runtime" .machine from rfl,
     Check.runSection_eq (f := runtimeFunc) rfl rfl rfl rfl rfl rfl rfl]
-  simp only [Check.pre, if_pos, Fe.M.exec_bind]
+  simp only [Check.pre, ite_eq_left, Fe.M.exec_bind]
   simp
   exact h _ _ (by rfl)
 
@@ -224,7 +224,7 @@ theorem ir_init_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × World))
     EndsAs X (((sidecar.model .machine).init args).exec I w) := by
   rw [show (sidecar.model .machine).init args = sidecar.runSection "init" .machine from rfl,
     Check.runSection_eq (f := initFunc) rfl rfl rfl rfl rfl rfl rfl]
-  simp only [Check.pre, if_pos, Fe.M.exec_bind]
+  simp only [Check.pre, ite_eq_left, Fe.M.exec_bind]
   simp
   exact h _ _ rfl
 

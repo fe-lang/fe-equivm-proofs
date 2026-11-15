@@ -24,7 +24,7 @@ theorem memLoad_toByteArray (M : ByteArray) {p : ℕ} (hp : p + 32 ≤ M.size)
     (hb : p < UInt256.size) :
     (memLoad (UInt256.ofNat p) M).toByteArray = M.extract p (p + 32) := by
   unfold memLoad
-  rw [ulit_toNat' p hb, if_neg (by omega), readWithPadding_eq_extract M p hp,
+  rw [ulit_toNat' p hb, ite_eq_right (by omega), readWithPadding_eq_extract M p hp,
     toByteArray_ofNat_fromByteArrayBigEndian_of_size (by rw [ByteArray.size_extract]; omega)]
 
 /-- `(w >> 128) << 128` keeps the word's first 16 bytes and zeroes the rest. -/

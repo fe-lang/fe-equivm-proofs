@@ -33,7 +33,7 @@ theorem selWord_toNat (cd : ByteArray) :
   have h := Check.shr_word (x := 224) (y := (uInt256OfByteArray (cd.readBytes 0 32)).toNat)
     (by decide) (UInt256.val _).isLt
   rw [Reasoning.Theory.u256_ofNat_toNat] at h
-  rw [selWord, show (⟨224⟩ : UInt256) = UInt256.ofNat 224 from rfl, h, if_neg (by decide)]
+  rw [selWord, show (⟨224⟩ : UInt256) = UInt256.ofNat 224 from rfl, h, ite_eq_right (by decide)]
   exact Check.toNat_ofNat_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) (UInt256.val _).isLt)
 
 /-- The exported dispatcher's selector test, as the machine IR's `br_table` makes it. -/
@@ -129,7 +129,7 @@ theorem write_window (src base : ByteArray) (so d len : ℕ) (hlen : len ≠ 0)
     rw [ByteArray.size_extract]; omega
   apply ByteArray.ext
   unfold ByteArray.write
-  rw [if_neg hlen, if_neg hlen, if_neg (by omega), if_neg (by omega), hs]
+  rw [ite_eq_right hlen, ite_eq_right hlen, ite_eq_right (by omega), ite_eq_right (by omega), hs]
   have hz : (ByteArray.zeroes (min base.size (d + len) - (d + len))).data = #[] := by
     rw [show min base.size (d + len) - (d + len) = 0 by omega,
       Reasoning.Theory.zeroes_zero (n := 0) (by rfl)]; rfl
@@ -512,7 +512,7 @@ theorem and_mask32 (x : Nat) (hx : x < size256) :
 /-- `ir_step_nat`'s second half: remove the moduli of values below `2 ^ 256` and decide the
     conditions of `if`s, each by `omega` from the hypotheses. -/
 macro "ir_clean" : tactic => `(tactic| try simp (disch := omega) only [Nat.mod_eq_of_lt,
-  eval_sub_le, and_mask32, if_pos, if_neg])
+  eval_sub_le, and_mask32, ite_eq_left, ite_eq_right])
 
 /-- `ir_step` with the arithmetic as naturals (see above). -/
 syntax "ir_step_nat" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
@@ -597,7 +597,7 @@ theorem copy_past_end (src M : ByteArray) {s d n : Nat} (hs : src.size ≤ s) (h
     src.write s M d n = M := by
   by_cases hn : n = 0
   · simp [ByteArray.write, hn]
-  · simp only [ByteArray.write, if_neg hn, if_pos (show s ≥ src.size from hs)]
+  · simp only [ByteArray.write, ite_eq_right hn, ite_eq_left (show s ≥ src.size from hs)]
     apply ByteArray.ext
     simp [ByteArray.copySlice, show M.size - d = 0 by omega, show min d M.size = M.size by omega]
 

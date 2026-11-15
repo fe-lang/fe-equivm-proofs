@@ -25,7 +25,7 @@ abbrev uint256Elem : ElemType := .int (.uint ⟨256, by decide⟩)
 theorem keyWord_ofNat (i : Nat) :
     keyValueToWord (.int (Int.ofNat i)) = UInt256.ofNat i := by
   simp only [keyValueToWord, EVM.wordOfInt, EVM.word]
-  rw [if_neg (by simp)]
+  rw [ite_eq_right (by simp)]
   rfl
 
 /-- `deposit_count` is the word of slot 32. -/
@@ -136,13 +136,13 @@ theorem evalHalf {L : Store} {evm : EVM.State} {s : UInt256}
       .ok (.int (Int.ofNat (UInt256.shiftRight s (UInt256.ofNat 1)).toNat)) := by
   have hshr : (UInt256.shiftRight s (UInt256.ofNat 1)).toNat = s.toNat / 2 := by
     unfold UInt256.shiftRight
-    rw [if_neg (by decide)]
+    rw [ite_eq_right (by decide)]
     change (s.toNat >>> 1) % UInt256.size = s.toNat / 2
     rw [Nat.shiftRight_eq_div_pow, pow_one]
     exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) s.val.isLt)
   simp only [evalExpr?, hs, bind, EvalResult.bind, pure, EvalResult.ofOption, evalBinaryOp?]
   rw [hshr]
-  simp only [show ¬ ((2 : Int) = 0) from by decide, if_false]
+  simp only [show ¬ ((2 : Int) = 0) from by decide, ite_false]
   rfl
 
 theorem evalInc {L : Store} {evm : EVM.State} {i : Nat}

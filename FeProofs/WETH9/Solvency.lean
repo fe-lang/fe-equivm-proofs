@@ -219,12 +219,12 @@ theorem tokens_storeAcc (acc : Account) (slot val t : UInt256) :
     have hv : val = ⟨0⟩ := by simpa using hv
     rw [Std.ExtTreeMap.getD_erase]
     by_cases ht : t = slot
-    · rw [if_pos (hc.mpr ht), if_pos ht, hv]
-    · rw [if_neg (mt hc.mp ht), if_neg ht]
+    · rw [ite_eq_left (hc.mpr ht), ite_eq_left ht, hv]
+    · rw [ite_eq_right (mt hc.mp ht), ite_eq_right ht]
   · rw [Std.ExtTreeMap.getD_insert]
     by_cases ht : t = slot
-    · rw [if_pos (hc.mpr ht), if_pos ht]
-    · rw [if_neg (mt hc.mp ht), if_neg ht]
+    · rw [ite_eq_left (hc.mpr ht), ite_eq_left ht]
+    · rw [ite_eq_right (mt hc.mp ht), ite_eq_right ht]
 
 theorem getElem?_storeWord {a : AccountAddress} {σ : AccountMap} (slot val : UInt256) :
     (storeWord a σ slot val)[a]? = (σ[a]?).map fun acc => storeAcc acc slot val := by
@@ -251,7 +251,7 @@ theorem solvent_storeAcc_other {acc : Account} (h : Solvent acc) {slot : UInt256
     (hslot : ∀ k, slot ≠ balanceSlot k) (val : UInt256) : Solvent (storeAcc acc slot val) := by
   rw [solvent_iff] at h ⊢
   refine h.mono (fun k => ?_) (by simp)
-  rw [tokens_storeAcc, if_neg (hslot k).symm]
+  rw [tokens_storeAcc, ite_eq_right (hslot k).symm]
 
 theorem SolventAt.storeWord_other {a : AccountAddress} {σ : AccountMap} (h : SolventAt a σ)
     {slot : UInt256} (hslot : ∀ k, slot ≠ balanceSlot k) (val : UInt256) :
@@ -324,7 +324,7 @@ theorem solvent_move {acc : Account} (h : Solvent acc) (src dst v : UInt256)
       apply u256_inj
       have : (acc₂.storage.getD (balanceSlot dst) ⟨0⟩).toNat =
           tokens acc (balanceSlot src) - v.toNat := by
-        have := h₂ (balanceSlot dst); rw [if_pos hsd] at this; exact this
+        have := h₂ (balanceSlot dst); rw [ite_eq_left hsd] at this; exact this
       have hlt : (acc.storage.getD (balanceSlot src) ⟨0⟩).toNat < UInt256.size :=
         (acc.storage.getD (balanceSlot src) ⟨0⟩).val.isLt
       unfold tokens at hv this
@@ -333,12 +333,12 @@ theorem solvent_move {acc : Account} (h : Solvent acc) (src dst v : UInt256)
     refine h.mono (fun k => ?_) (by simp [acc₂])
     rw [tokens_storeAcc, hback, h₂]
     by_cases hk : balanceSlot k = balanceSlot src
-    · rw [if_pos (hk.trans hsd.symm), hk]; rfl
-    · rw [if_neg (fun he => hk (he.trans hsd)), if_neg hk]
+    · rw [ite_eq_left (hk.trans hsd.symm), hk]; rfl
+    · rw [ite_eq_right (fun he => hk (he.trans hsd)), ite_eq_right hk]
   · obtain ⟨hB, h₂s⟩ := h.debit src hv (g' := tokens acc₂)
-      (by rw [h₂, if_pos rfl]; omega) (fun t ht _ => by rw [h₂, if_neg ht])
+      (by rw [h₂, ite_eq_left rfl]; omega) (fun t ht _ => by rw [h₂, ite_eq_right ht])
     have hy : (acc₂.storage.getD (balanceSlot dst) ⟨0⟩).toNat = tokens acc (balanceSlot dst) := by
-      have := h₂ (balanceSlot dst); rw [if_neg hsd] at this; exact this
+      have := h₂ (balanceSlot dst); rw [ite_eq_right hsd] at this; exact this
     have hpair := h.pair (Ne.symm hsd)
     have hbal : acc.balance.toNat < UInt256.size := acc.balance.val.isLt
     have hadd : (acc₂.storage.getD (balanceSlot dst) ⟨0⟩ + v).toNat =
@@ -346,7 +346,7 @@ theorem solvent_move {acc : Account} (h : Solvent acc) (src dst v : UInt256)
       rw [UInt256.toNat_add_of_lt (by rw [hy]; omega)]; rfl
     have h₃ := h₂s.credit dst (g' := tokens (storeAcc acc₂ (balanceSlot dst)
         (acc₂.storage.getD (balanceSlot dst) ⟨0⟩ + v)))
-      (by rw [tokens_storeAcc, if_pos rfl, hadd]) (fun t ht _ => by rw [tokens_storeAcc, if_neg ht])
+      (by rw [tokens_storeAcc, ite_eq_left rfl, hadd]) (fun t ht _ => by rw [tokens_storeAcc, ite_eq_right ht])
     rw [Nat.sub_add_cancel hB] at h₃
     simpa [acc₂] using h₃
 
@@ -362,8 +362,8 @@ theorem solvent_debit {acc : Account} (h : Solvent acc) (src v : UInt256)
       tokens acc (balanceSlot src) - v.toNat := sub_toNat hv
   rw [solvent_iff] at h
   obtain ⟨hB, h₂⟩ := h.debit src hv (g' := tokens acc₂)
-    (by rw [tokens_storeAcc, if_pos rfl, hx]; omega)
-    (fun t ht _ => by rw [tokens_storeAcc, if_neg ht])
+    (by rw [tokens_storeAcc, ite_eq_left rfl, hx]; omega)
+    (fun t ht _ => by rw [tokens_storeAcc, ite_eq_right ht])
   have hb : acc₂.balance = acc.balance := storeAcc_balance _ _ _
   refine ⟨(solvent_iff _).mpr (h₂.mono (fun _ => rfl) (by rw [hb]; omega)), by rw [hb]; exact hB,
     (solvent_iff _).mpr (h₂.mono (fun _ => rfl) ?_)⟩
@@ -385,8 +385,8 @@ theorem solvent_credit {acc₀ acc : Account} {v : UInt256} (h : Solvent acc₀)
     rw [UInt256.toNat_add_of_lt (by rw [← htok] at hle; unfold tokens at hle; omega), ← htok]; rfl
   have := h.credit dst (g' := tokens (storeAcc acc (balanceSlot dst)
       (acc.storage.getD (balanceSlot dst) ⟨0⟩ + v)))
-    (by rw [tokens_storeAcc, if_pos rfl, hadd])
-    (fun t ht _ => by rw [tokens_storeAcc, if_neg ht, htok])
+    (by rw [tokens_storeAcc, ite_eq_left rfl, hadd])
+    (fun t ht _ => by rw [tokens_storeAcc, ite_eq_right ht, htok])
   rw [storeAcc_balance, hbal]
   exact this
 
@@ -405,7 +405,7 @@ theorem slotWord_storeWord_ne {I : Env} (σ : AccountMap) {slot t : UInt256} (h 
   | some acc =>
     have h' : (storeWord I.codeOwner σ slot v)[I.codeOwner]? = some (storeAcc acc slot v) := by
       rw [getElem?_storeWord, hacc]; rfl
-    exact u256_inj (by rw [slotWord_of h', slotWord_of hacc, tokens_storeAcc, if_neg h])
+    exact u256_inj (by rw [slotWord_of h', slotWord_of hacc, tokens_storeAcc, ite_eq_right h])
 
 /-- `solvent_move`, as `transferFrom` writes the account map. -/
 theorem SolventAt.move {I : Env} {σ : AccountMap} (h : SolventAt I.codeOwner σ)
@@ -604,8 +604,8 @@ theorem sendEth_payee {σ : AccountMap} {r s : AccountAddress} {v : UInt256} {ac
   unfold sendEth
   rcases hs : σ[s]? with _ | accs
   · simp [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert, hne'', h, hs]
-  · simp only [if_true, Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
-      if_neg hne', if_neg hne'', h, hs, Std.compare_self, if_true]
+  · simp only [ite_true, Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert,
+      ite_eq_right hne', ite_eq_right hne'', h, hs, Std.compare_self, ite_true]
 
 /-- **Up to the call.**  `withdraw` debits the caller's balance slot, which holds at least
     `wad`.  The account is solvent after the debit, still with `wad` of its ether gone, and so
@@ -669,8 +669,8 @@ theorem withdraw_run {wad : UInt256} (hrun : (withdraw wad).exec I w = some (.ok
   by_cases hp : I.perm = true
   swap
   · simp [withdraw, hlt, exec_sstore, hp] at hrun
-  simp only [withdraw, M.exec_bind, exec_caller, exec_sload, if_neg hlt, M.exec_pure,
-    exec_sstore, hp, if_true] at hrun
+  simp only [withdraw, M.exec_bind, exec_caller, exec_sload, ite_eq_right hlt, M.exec_pure,
+    exec_sstore, hp, ite_true] at hrun
   generalize hw₁ : ({ w with accounts := (storeWord I.codeOwner w.accounts
     (balanceSlot (UInt256.ofNat I.source.val))
     (slotWord I w.accounts (balanceSlot (UInt256.ofNat I.source.val)) - wad)) } : World) = w₁
@@ -838,18 +838,18 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
   simp only [exec_calldata, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at hcd
   obtain ⟨rfl, rfl⟩ := hcd
   by_cases h1 : I.calldata.size < 4
-  · rw [if_pos h1] at hrun
+  · rw [ite_eq_left h1] at hrun
     exact depositArm_solvent hrun h₀ hacc hst hbal
-  rw [if_neg h1] at hrun
+  rw [ite_eq_right h1] at hrun
   by_cases h2 : (nameSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h2] at hrun
+  · rw [ite_eq_left h2] at hrun
     -- name
     unfold nameArm at hrun
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     rw [stringReturn_world hrun]; exact hs hv
-  rw [if_neg h2] at hrun
+  rw [ite_eq_right h2] at hrun
   by_cases h3 : (approveSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h3] at hrun
+  · rw [ite_eq_left h3] at hrun
     -- approve
     unfold approveArm at hrun
     dsimp only at hrun
@@ -858,17 +858,17 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     exact approve_solvent hr (hadm.approve h3) (hs hv)
-  rw [if_neg h3] at hrun
+  rw [ite_eq_right h3] at hrun
   by_cases h4 : (totalSupplySelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h4] at hrun
+  · rw [ite_eq_left h4] at hrun
     -- totalSupply
     unfold totalSupplyArm at hrun
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     rw [totalSupply_world hr]; exact hs hv
-  rw [if_neg h4] at hrun
+  rw [ite_eq_right h4] at hrun
   by_cases h5 : (transferFromSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h5] at hrun
+  · rw [ite_eq_left h5] at hrun
     -- transferFrom
     unfold transferFromArm at hrun
     dsimp only at hrun
@@ -878,9 +878,9 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     exact transferFrom_solvent hr (hadm.transferFrom h5) (hs hv)
-  rw [if_neg h5] at hrun
+  rw [ite_eq_right h5] at hrun
   by_cases h6 : (withdrawSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h6] at hrun
+  · rw [ite_eq_left h6] at hrun
     -- withdraw
     unfold withdrawArm at hrun
     dsimp only at hrun
@@ -888,17 +888,17 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨⟨⟩, hr⟩ := pure_bind_ok (f := fun _ => ByteArray.empty) hrun
     exact withdraw_solvent hr hcall
-  rw [if_neg h6] at hrun
+  rw [ite_eq_right h6] at hrun
   by_cases h7 : (decimalsSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h7] at hrun
+  · rw [ite_eq_left h7] at hrun
     -- decimals
     unfold decimalsArm at hrun
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     rw [decimals_world hr]; exact hs hv
-  rw [if_neg h7] at hrun
+  rw [ite_eq_right h7] at hrun
   by_cases h8 : (balanceOfSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h8] at hrun
+  · rw [ite_eq_left h8] at hrun
     -- balanceOf
     unfold balanceOfArm at hrun
     dsimp only at hrun
@@ -907,16 +907,16 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     rw [balanceOf_world hr]; exact hs hv
-  rw [if_neg h8] at hrun
+  rw [ite_eq_right h8] at hrun
   by_cases h9 : (symbolSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h9] at hrun
+  · rw [ite_eq_left h9] at hrun
     -- symbol
     unfold symbolArm at hrun
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     rw [stringReturn_world hrun]; exact hs hv
-  rw [if_neg h9] at hrun
+  rw [ite_eq_right h9] at hrun
   by_cases h10 : (transferSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h10] at hrun
+  · rw [ite_eq_left h10] at hrun
     -- transfer
     unfold transferArm at hrun
     dsimp only at hrun
@@ -928,13 +928,13 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨rfl, rfl⟩ := hc
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     exact transferFrom_solvent hr (fun hne => absurd rfl hne) (hs hv)
-  rw [if_neg h10] at hrun
+  rw [ite_eq_right h10] at hrun
   by_cases h11 : (depositSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h11] at hrun
+  · rw [ite_eq_left h11] at hrun
     exact depositArm_solvent hrun h₀ hacc hst hbal
-  rw [if_neg h11] at hrun
+  rw [ite_eq_right h11] at hrun
   by_cases h12 : (allowanceSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h12] at hrun
+  · rw [ite_eq_left h12] at hrun
     -- allowance
     unfold allowanceArm at hrun
     dsimp only at hrun
@@ -944,7 +944,7 @@ theorem runtime_solvent {acc₀ acc : Account} {out : ByteArray}
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨r, hr⟩ := pure_bind_ok hrun
     rw [allowance_world hr]; exact hs hv
-  rw [if_neg h12] at hrun
+  rw [ite_eq_right h12] at hrun
   exact depositArm_solvent hrun h₀ hacc hst hbal
 
 end Arms
@@ -1136,47 +1136,47 @@ theorem runtime_calls {I : Env} {w w' : World} {out : ByteArray}
   simp only [exec_calldata, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at hcd
   obtain ⟨rfl, rfl⟩ := hcd
   by_cases h1 : I.calldata.size < 4
-  · rw [if_pos h1] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h1] at hrun
+  · rw [ite_eq_left h1] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h1] at hrun
   by_cases h2 : (nameSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h2] at hrun; exact Or.inl ((hk.1 I w).1 _ _ hrun)
-  rw [if_neg h2] at hrun
+  · rw [ite_eq_left h2] at hrun; exact Or.inl ((hk.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h2] at hrun
   by_cases h3 : (approveSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h3] at hrun; exact Or.inl ((hk.2.1 I w).1 _ _ hrun)
-  rw [if_neg h3] at hrun
+  · rw [ite_eq_left h3] at hrun; exact Or.inl ((hk.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h3] at hrun
   by_cases h4 : (totalSupplySelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h4] at hrun; exact Or.inl ((hk.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h4] at hrun
+  · rw [ite_eq_left h4] at hrun; exact Or.inl ((hk.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h4] at hrun
   by_cases h5 : (transferFromSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h5] at hrun; exact Or.inl ((hk.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h5] at hrun
+  · rw [ite_eq_left h5] at hrun; exact Or.inl ((hk.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h5] at hrun
   by_cases h6 : (withdrawSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h6] at hrun
+  · rw [ite_eq_left h6] at hrun
     unfold withdrawArm at hrun
     dsimp only at hrun
     obtain ⟨hv, hrun⟩ := nonPayable_bind_ok hrun
     obtain ⟨-, hrun⟩ := guard_bind_ok hrun
     obtain ⟨⟨⟩, hr⟩ := pure_bind_ok (f := fun _ => ByteArray.empty) hrun
     exact Or.inr ⟨h6, hv, withdraw_run hr⟩
-  rw [if_neg h6] at hrun
+  rw [ite_eq_right h6] at hrun
   by_cases h7 : (decimalsSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h7] at hrun; exact Or.inl ((hk.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h7] at hrun
+  · rw [ite_eq_left h7] at hrun; exact Or.inl ((hk.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h7] at hrun
   by_cases h8 : (balanceOfSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h8] at hrun; exact Or.inl ((hk.2.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h8] at hrun
+  · rw [ite_eq_left h8] at hrun; exact Or.inl ((hk.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h8] at hrun
   by_cases h9 : (symbolSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h9] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h9] at hrun
+  · rw [ite_eq_left h9] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h9] at hrun
   by_cases h10 : (transferSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h10] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h10] at hrun
+  · rw [ite_eq_left h10] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h10] at hrun
   by_cases h11 : (depositSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h11] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
-  rw [if_neg h11] at hrun
+  · rw [ite_eq_left h11] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
+  rw [ite_eq_right h11] at hrun
   by_cases h12 : (allowanceSelector == I.calldata.extract 0 4) = true
-  · rw [if_pos h12] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.2 I w).1 _ _ hrun)
-  rw [if_neg h12] at hrun
+  · rw [ite_eq_left h12] at hrun; exact Or.inl ((hk.2.2.2.2.2.2.2.2.2 I w).1 _ _ hrun)
+  rw [ite_eq_right h12] at hrun
   exact Or.inl ((hk.2.2.2.2.2.2.2.2.1 I w).1 _ _ hrun)
 
 /-- **What the record says, from a world that has recorded nothing**: every call recorded is the
@@ -1298,11 +1298,11 @@ theorem init_solvent (hrun : init.exec I w = some (.ok ((), w')))
   have hw₃ := (hw₂.strWrite (fun k => (hslots k).2.1) symbolBytes)
   rw [← storeString_ok h₃] at hw₃
   by_cases hp : I.perm = true
-  · rw [exec_sstore, if_pos hp] at r₄
+  · rw [exec_sstore, ite_eq_left hp] at r₄
     simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at r₄
     rw [← r₄.2]
     exact hw₃.storeWord (Or.inl fun k => (hslots k).2.2)
-  · rw [exec_sstore, if_neg hp] at r₄; cases r₄
+  · rw [exec_sstore, ite_eq_right hp] at r₄; cases r₄
 
 /-- From the empty storage a creation starts with, the constructor leaves a solvent account. -/
 theorem init_solvent_of_empty (hrun : init.exec I w = some (.ok ((), w')))

@@ -34,12 +34,12 @@ theorem decodeSet_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 
     Fe.M.exec_bind, Fe.M.exec_pure, pure_bind]
   rw [lenCallData_exec I w hfits]
   simp only [Set_HEAD_SIZE, abi_field_head_size_u256, u256_IS_DYNAMIC, u256_HEAD_SIZE,
-    checkedAdd, add0_32, Fe.M.exec_pure, pure_bind, if_false, Bool.false_eq_true,
+    checkedAdd, add0_32, Fe.M.exec_pure, pure_bind, ite_false, Bool.false_eq_true,
     toNat0, toNat32, show ¬ UInt256.size ≤ 0 + 32 by decide]
   rw [validateHead_exec I w hlo hfits (by decide) (by decide)]
   by_cases h : I.calldata.size < 4 + 32
   · simp [h]
-  · simp only [h, if_false, decode_from_prechecked_head_Set_Sol_CallData, Set_decode_from_CallData,
+  · simp only [h, ite_false, decode_from_prechecked_head_Set_Sol_CallData, Set_decode_from_CallData,
       Fe.M.exec_bind, Fe.M.exec_pure, lenCallData_exec I w hfits,
       decodeU256Field_exec I w _ _ (show 4 < UInt256.size by decide)]
 

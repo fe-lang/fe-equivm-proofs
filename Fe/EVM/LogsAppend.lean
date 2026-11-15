@@ -396,7 +396,7 @@ theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
     intro R h
     rcases h with h | h
     · split <;> [rfl; exact h]
-    · rw [if_pos (by rw [h]; exact accountMap_empty_beq_empty)]
+    · rw [ite_eq_left (by rw [h]; exact accountMap_empty_beq_empty)]
   exact key _ <| match3_prop (P := fun R => R.2.2.1 = A ∨ R.1 = ∅) pc _ _ _ _ _ _ _ _ _ _ _
     (Or.inl h1) (Or.inl h2) (Or.inl h3) (Or.inl h4) (Or.inl h5) (Or.inl h6) (Or.inl h7)
     (Or.inl h8) (Or.inl h9) (Or.inl h10) (fun _ => Or.inr rfl)
@@ -569,18 +569,18 @@ theorem logs_dup {n : ℕ} (h : dup n state = .ok state') :
     state'.substate.logSeries = state.substate.logSeries := by
   unfold dup at h
   by_cases hlen : (List.take n state.machineState.stack).length = n
-  · rw [if_pos hlen] at h
+  · rw [ite_eq_left hlen] at h
     injection h with h; rw [← h]; rfl
-  · rw [if_neg hlen] at h
+  · rw [ite_eq_right hlen] at h
     contradiction
 
 theorem logs_swap {n : ℕ} (h : swap n state = .ok state') :
     state'.substate.logSeries = state.substate.logSeries := by
   unfold swap at h
   by_cases hlen : (List.take (n + 1) state.machineState.stack).length = n + 1
-  · rw [if_pos hlen] at h
+  · rw [ite_eq_left hlen] at h
     injection h with h; rw [← h]; rfl
-  · rw [if_neg hlen] at h
+  · rw [ite_eq_right hlen] at h
     contradiction
 
 theorem logs_sstore (s : State) (k v : UInt256) : (s.sstore k v).substate.logSeries = s.substate.logSeries := by

@@ -31,7 +31,7 @@ open Precompiles.Exported.Shared Precompiles.Exported.Bn254Mul Mont
 theorem checkedSub_le {a : ℕ} {b : UInt256} (ha : a < 2 ^ 256) (h : b.toNat ≤ a) :
     checkedSub (UInt256.ofNat a) b = pure (UInt256.ofNat (a - b.toNat)) := by
   unfold checkedSub
-  rw [toNat_lit ha, if_neg (by omega)]
+  rw [toNat_lit ha, ite_eq_right (by omega)]
   congr 1
   apply word_eq_of_toNat
   change (UInt256.sub _ _).toNat = _
@@ -101,7 +101,7 @@ theorem multiply_g1_k1_spec {a b : L4} {x y : Fq} (ha : RepBn a x) (hb : RepBn b
     pure_bind, lor_eq hn1 hn2, checkedSub_le (show 256 < 2 ^ 256 by decide) hlz.1,
     downcast_truncate_u256_u64_eq, point_infinity_Bn254Base, hbit]
   cases s1 <;> cases s2 <;>
-    simp only [Bool.false_eq_true, if_true, if_false] at hA1 hA2 ⊢
+    simp only [Bool.false_eq_true, ite_true, ite_false] at hA1 hA2 ⊢
   all_goals
     obtain ⟨E, eE, hE⟩ := hA1.good.add_affine hA2
     rw [eE, pure_bind, Fe.M.exec_bind]
@@ -177,26 +177,26 @@ theorem g1_point_affine (input : MemBuffer) (off off32 x y : UInt256) (env : Env
   unfold BN254.Spec.decode
   by_cases hxp : x.toNat < BN254.p
   swap
-  · refine ⟨.None, by simp only [show BN254.p ≤ x.toNat by omega, decide_true, if_true,
+  · refine ⟨.None, by simp only [show BN254.p ≤ x.toNat by omega, decide_true, ite_true,
       Fe.M.exec_pure], ?_⟩
-    simp only [G1A]; rw [if_neg (by omega)]
+    simp only [G1A]; rw [ite_eq_right (by omega)]
   by_cases hyp : y.toNat < BN254.p
   swap
   · refine ⟨.None, by simp only [show ¬ BN254.p ≤ x.toNat by omega, show BN254.p ≤ y.toNat by omega,
-      decide_true, decide_false, Bool.false_eq_true, if_true, if_false, Fe.M.exec_pure], ?_⟩
-    simp only [G1A]; rw [if_neg (by omega)]
+      decide_true, decide_false, Bool.false_eq_true, ite_true, ite_false, Fe.M.exec_pure], ?_⟩
+    simp only [G1A]; rw [ite_eq_right (by omega)]
   have h3 : (UInt256.ofNat 3).toNat < BN254.p := by rw [toNat_lit (by decide)]; decide
   have hrx := MField.Rep.new (F := FBn) hxp
   have hry := MField.Rep.new (F := FBn) hyp
   have hr3 := MField.Rep.new (F := FBn) h3
   rw [toNat_lit (show 3 < 2 ^ 256 by decide), Nat.cast_ofNat] at hr3
   simp only [show ¬ BN254.p ≤ x.toNat by omega, show ¬ BN254.p ≤ y.toNat by omega, decide_false,
-    Bool.false_eq_true, if_false, if_pos (And.intro hxp hyp), fp_eq x hxp, fp_eq y hyp,
+    Bool.false_eq_true, ite_false, ite_eq_left (And.intro hxp hyp), fp_eq x hxp, fp_eq y hyp,
     fp_eq _ h3, pure_bind, point_affine_Bn254Base, toBnP_x, toBnP_y, Pt.affine,
     toNat_lit (show 3 < 2 ^ 256 by decide), on_curve_spec hrx hry hr3, word_eq_zero_iff,
     decide_eq_true_eq, point_infinity_Bn254Base]
   by_cases h0 : x.toNat = 0 ∧ y.toNat = 0
-  · simp only [h0, if_true, Fe.M.exec_pure]
+  · simp only [h0, ite_true, Fe.M.exec_pure]
     exact ⟨_, rfl, Or.inl ⟨rfl, rfl⟩⟩
   have hb6 : ∀ (c : Prop) [Decidable c] (m : FeM Option_Point_Mont_Bn254Base),
       (if c then (if y.toNat = 0 then m else
@@ -214,12 +214,12 @@ theorem g1_point_affine (input : MemBuffer) (off off32 x y : UInt256) (env : Env
     intro c _ m
     by_cases hc : c <;> by_cases hy0 : y.toNat = 0 <;>
       by_cases hoc : (y.toNat : Fq) ^ 2 = (x.toNat : Fq) ^ 3 + 3 <;> simp [hc, hy0, hoc]
-  rw [hb6, if_neg h0, if_neg h0]
+  rw [hb6, ite_eq_right h0, ite_eq_right h0]
   by_cases hoc : (y.toNat : Fq) ^ 2 = (x.toNat : Fq) ^ 3 + 3
   · have hns := (nonsingular_iff _ _).mpr hoc
-    rw [if_pos hoc, dif_pos hns, Fe.M.exec_pure]
+    rw [ite_eq_left hoc, dite_eq_left hns, Fe.M.exec_pure]
     exact ⟨_, rfl, Or.inr ⟨_, _, _, _, hns, rfl, hrx, hry, rfl⟩⟩
-  · rw [if_neg hoc, dif_neg (fun h => hoc ((nonsingular_iff _ _).mp h)), Fe.M.exec_pure]
+  · rw [ite_eq_right hoc, dite_eq_right (fun h => hoc ((nonsingular_iff _ _).mp h)), Fe.M.exec_pure]
     exact ⟨_, rfl, rfl⟩
 
 /-! ## ECMUL on the words of the input -/
@@ -276,20 +276,20 @@ theorem mul_MemBuffer_spec (input : MemBuffer) (x y k : UInt256) (env : Env) (w 
   · right
     simp only [hd, Option_Point_Mont_Bn254Base.Some_0, Fe.M.exec_bind, h64,
       point_is_infinity_Bn254Base, Pt.inf, MField.Rep.isZero (MField.Rep.zero (F := FBn)),
-      decide_true, if_true, pure_bind, Fe.M.exec_pure, nsmul_zero]
+      decide_true, ite_true, pure_bind, Fe.M.exec_pure, nsmul_zero]
     rfl
   · have hz : Mont.isZero (Pt.affine KBn a b).z = false := by
       rw [MField.Rep.isZero (Pt.affine_rep (F := FBn) ha hb).2.2]
       exact decide_eq_false one_ne_zero
     simp only [hd, Option_Point_Mont_Bn254Base.Some_0, Fe.M.exec_bind, h64,
-      point_is_infinity_Bn254Base, hz, Bool.false_eq_true, if_false, pure_bind]
+      point_is_infinity_Bn254Base, hz, Bool.false_eq_true, ite_false, pure_bind]
     by_cases hk : k.toNat = 0
     · right
-      simp only [(word_eq_zero_iff k).mpr hk, decide_true, if_true, Fe.M.exec_pure,
+      simp only [(word_eq_zero_iff k).mpr hk, decide_true, ite_true, Fe.M.exec_pure,
         toNat_lit (show 0 < 2 ^ 256 by decide), zero_nsmul]
       rfl
     simp only [show ¬ k = UInt256.ofNat 0 from fun h => hk ((word_eq_zero_iff k).mp h),
-      decide_false, Bool.false_eq_true, if_false,
+      decide_false, Bool.false_eq_true, ite_false,
       show toBnP (Pt.affine KBn a b) = ⟨toBn a, toBn b, toBn (Pt.affine KBn a b).z⟩ from rfl]
     rcases multiply_g1_spec ha hb h (toBn (Pt.affine KBn a b).z) k env w with hm | ⟨R, eR, hR⟩
     · exact Or.inl (exec_bind_none hm)

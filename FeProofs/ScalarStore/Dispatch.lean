@@ -113,12 +113,12 @@ theorem feScalarStoreX_noMatch {σ σ₀ A I} {g : Sat256}
   have rd1 := feScalarStoreBlocks.feScalarStore_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feScalarStoreBlocks.feScalarStore_block_8_fallthrough (by simp) (by
     have e := setEvmSelector hsz
-    simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 0 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
   have rd3 := feScalarStoreBlocks.feScalarStore_block_23_fallthrough (by simp) (by
     have e := getEvmSelector hsz
-    simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 1 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
   have rd4 := feScalarStoreBlocks.feScalarStore_block_33 (by simp) (by jump_dest) rd3

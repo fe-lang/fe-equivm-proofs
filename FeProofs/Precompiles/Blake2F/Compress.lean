@@ -79,7 +79,7 @@ theorem rounds_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     (rounds_MemBuffer b).exec I w = some (.ok (UInt256.ofNat (roundsOf d), w)) := by
   have hb := byteAt_lt d
   simp only [rounds_MemBuffer, Fe.M.exec_bind, len_exec, INPUT_LEN, Fe.M.exec_pure, holds_len h hd,
-    decide_true, Lib.assert, Bool.not_true, Bool.false_eq_true, if_false,
+    decide_true, Lib.assert, Bool.not_true, Bool.false_eq_true, ite_false,
     byte_exec h (show 0 < d.size by omega), byte_exec h (show 1 < d.size by omega),
     byte_exec h (show 2 < d.size by omega), byte_exec h (show 3 < d.size by omega),
     shl_u64 (show byteAt d 0 < 2 ^ 256 by have := hb 0; omega) (show 24 < 256 by decide),
@@ -157,7 +157,7 @@ theorem m_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Ho
     simp only [has16 _ (show 0 + 16 < 2 ^ 256 by decide), Lib.Range_start_0_8, pure_bind]
     simp only [show ¬ (0 ≤ 0 + 16 ∧ 0 + 16 < 16) by omega, decide_false, Bool.false_eq_true,
       ↓reduceIte]
-    rw [wOf_congr (fun k hk => if_pos hk)]
+    rw [wOf_congr (fun k hk => ite_eq_left hk)]
   | n + 1, i, hi => by
     rw [compress_MemBuffer.b5.b9.eq_1]
     simp only [has16 _ (show i < 2 ^ 256 by omega),
@@ -336,7 +336,7 @@ theorem array_set_get {α : Type} [Inhabited α] (a : Array α) {i j : ℕ} (hi 
     · subst e; simp
     · simp [e, Ne.symm e]
   · rw [getElem!_neg (a.set! i x) j (by simpa using hj), getElem!_neg a j hj,
-      if_neg (by omega)]
+      ite_eq_right (by omega)]
 
 theorem ofFn_get {α : Type} [Inhabited α] {n : ℕ} (f : Fin n → α) {i : ℕ} (hi : i < n) :
     (Array.ofFn f)[i]! = f ⟨i, hi⟩ := by
@@ -367,10 +367,10 @@ theorem vOf_eq (d : ByteArray) :
     simp only [v0, vPart, hOf]
     by_cases h8 : k < 8
     · rw [getElem!_pos _ _ (by simp [hArr, IV_size]; omega), Array.getElem_append_left
-        (by simp [hArr]; omega), if_pos h8]
+        (by simp [hArr]; omega), ite_eq_left h8]
       simp [hArr]
     · rw [getElem!_pos _ _ (by simp [hArr, IV_size]; omega), Array.getElem_append_right
-        (by simp [hArr]; omega), if_neg h8, if_pos ⟨by omega, by omega⟩,
+        (by simp [hArr]; omega), ite_eq_right h8, ite_eq_left ⟨by omega, by omega⟩,
         getElem!_pos _ _ (by rw [IV_size]; omega)]
       simp [hArr]
   have hs1 : v1.size = 16 := by simp [v1, hs0]

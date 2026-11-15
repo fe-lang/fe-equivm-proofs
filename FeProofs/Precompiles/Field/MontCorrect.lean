@@ -275,11 +275,11 @@ theorem reduce_spec (a : L4) (top : Limb) (hV : val a + 2 ^ 256 * top.val < 2 * 
   have hpl := K.p_lt
   clear e0 e1 e2 e3 key
   by_cases h : top.val < b3.val
-  · rw [hb4, if_pos (show top.val < 0 + b3.val by omega), if_pos rfl,
+  · rw [hb4, ite_eq_left (show top.val < 0 + b3.val by omega), ite_eq_left rfl,
       Nat.mod_eq_of_lt (show val a + 2 ^ 256 * top.val < K.p by omega)]
     omega
-  · rw [hb4, if_neg (show ¬ top.val < 0 + b3.val by omega),
-      if_neg (show ¬ (0 : Limb) = 1 by decide),
+  · rw [hb4, ite_eq_right (show ¬ top.val < 0 + b3.val by omega),
+      ite_eq_right (show ¬ (0 : Limb) = 1 by decide),
       Nat.mod_eq_sub_mod (show K.p ≤ val a + 2 ^ 256 * top.val by omega),
       Nat.mod_eq_of_lt (by omega)]
     omega
@@ -393,12 +393,12 @@ theorem sub_spec (a b : L4) (ha : val a < K.p) (hb : val b < K.p) :
   clear f0 f1 f2 f3 g0 g1 g2 g3 kd ks
   by_cases hw : w3 = 1
   · have h1 : w3.val = 1 := by rw [hw]; rfl
-    rw [if_pos hw, if_neg (by omega)]
+    rw [ite_eq_left hw, ite_eq_right (by omega)]
     omega
   · have h0 : w3.val = 0 := by
       have : w3.val ≠ 1 := fun h => hw (Fin.ext h)
       omega
-    rw [if_neg hw, if_pos (by omega)]
+    rw [ite_eq_right hw, ite_eq_left (by omega)]
     omega
 
 /-! ## The representation -/

@@ -33,7 +33,7 @@ theorem mask_leadWord (x : UInt256) (r : Nat) (hr : r < 32) :
   rw [Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.div_le_self _ _) (by norm_num))]
   have h1 : 1 ≤ 2 ^ (8 * (32 - r)) := Nat.one_le_two_pow
   have h2 : 2 ^ (8 * (32 - r)) ≤ 2 ^ 256 := Nat.pow_le_pow_right (by norm_num) (by omega)
-  rw [leadWord, if_pos hr, uland_toNat, leadMask_eq r hr, lit_toNat (by omega)]
+  rw [leadWord, ite_eq_left hr, uland_toNat, leadMask_eq r hr, lit_toNat (by omega)]
   have h := two_pow_sub_one_div 256 (r * 8) (by omega)
   rw [show 256 - r * 8 = 8 * (32 - r) by omega] at h
   norm_num at h ⊢
@@ -106,7 +106,7 @@ theorem loadIter_run (slot : UInt256) (L p i : Nat) (B : ByteArray) (hB : B.size
   · ir_step_nat
     ir_step_nat [hadd]
     ir_step_nat
-    rw [write_end _ _ hsize.symm, hnext _ (by rw [leadWord, if_neg (by omega)])]
+    rw [write_end _ _ hsize.symm, hnext _ (by rw [leadWord, ite_eq_right (by omega)])]
     exact hk _ (by simp) (by simp [Std.TreeMap.getElem?_insert, h6])
       (by simp [Std.TreeMap.getElem?_insert, h10]) (by simp [Std.TreeMap.getElem?_insert, h13])
       (by simp [Std.TreeMap.getElem?_insert, h22]) (by simp [Std.TreeMap.getElem?_insert, h40])
@@ -202,7 +202,7 @@ theorem load_run (hf : m.func? "load" = some loadFunc)
     by_cases h64 : 32 + (L + 31) / 32 * 32 < 2 ^ 64
     swap
     · refine ⟨_, hA2, fun L' h => by rw [hok] at h; cases h; exact hfp2, ?_⟩
-      simp only [loadOut, hok, if_neg h64]
+      simp only [loadOut, hok, ite_eq_right h64]
       simp [Fe.Sonatina.bind]
       repeat ir_step_nat [storedLen_run ic I _ hs hr, hok]
     have hbs : UInt256.ofNat (fromByteArrayBigEndian (KEC slot.toByteArray)) =
@@ -210,7 +210,7 @@ theorem load_run (hf : m.func? "load" = some loadFunc)
     have hbs' : fromByteArrayBigEndian (KEC slot.toByteArray) % size256 =
         (solidityBytesDataBaseSlot slot).toNat := by rw [← hbs]; rfl
     have hlong : loadWords I w.accounts slot L ((L + 31) / 32) = loaded w.accounts I slot L := by
-      rw [loadWords, leadWords_eq _ L (by omega), loaded, strBytes, if_neg (by omega)]
+      rw [loadWords, leadWords_eq _ L (by omega), loaded, strBytes, ite_eq_right (by omega)]
       rfl
     have hA's : (slot.toByteArray.write 0 ((UInt256.ofNat (p + (32 + (L + 31) / 32 * 32))).toByteArray.write
         0 A 64 32 ++ ByteArray.zeroes (p - ((UInt256.ofNat (p + (32 + (L + 31) / 32 * 32))).toByteArray.write
@@ -220,7 +220,7 @@ theorem load_run (hf : m.func? "load" = some loadFunc)
         rw [hok] at h; cases h
         rw [toByteArray_write_read_below_of_gap _ _ _ _ (by omega) (by decide)
           (lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ (by decide))), hfp2], ?_⟩
-    simp only [loadOut, hok, if_pos h64]
+    simp only [loadOut, hok, ite_eq_left h64]
     simp [Fe.Sonatina.bind]
     ir_step_nat [storedLen_run ic I _ hs hr, hok]
     ir_step_nat [Nat.and_one_is_mod, ho]
@@ -256,7 +256,7 @@ theorem load_run (hf : m.func? "load" = some loadFunc)
     have hgap : p - ((UInt256.ofNat (p + (32 + (L + 31) / 32 * 32))).toByteArray.write
         0 A 64 32).size < USize.size := lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ hp)
     refine ⟨_, hA2, fun L' h => by rw [hok] at h; cases h; exact hfp2, ?_⟩
-    simp only [loadOut, hok, if_pos h64]
+    simp only [loadOut, hok, ite_eq_left h64]
     simp [Fe.Sonatina.bind]
     ir_step_nat [storedLen_run ic I _ hs hr, hok]
     ir_step_nat [Nat.and_one_is_mod, he]
@@ -278,7 +278,7 @@ theorem load_run (hf : m.func? "load" = some loadFunc)
       ir_step_nat [mask_leadWord _ _ hlt]
       have hW : (L + 31) / 32 = 1 := by omega
       have hls : (leadWord (slotWord I w.accounts slot) L).toByteArray = loaded w.accounts I slot L := by
-        rw [leadWord_toByteArray, loaded, strBytes, if_pos (by omega), Nat.min_eq_left (by omega), hW]
+        rw [leadWord_toByteArray, loaded, strBytes, ite_eq_left (by omega), Nat.min_eq_left (by omega), hW]
         rfl
       rw [write_gap _ _ hA1 hgap, write_end _ _ (by
           simp only [ByteArray.size_append, ByteArray_zeroes_size, toByteArray_size]; omega),

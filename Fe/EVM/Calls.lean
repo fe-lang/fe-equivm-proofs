@@ -211,7 +211,7 @@ theorem createWith_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
   have hp : ¬ I.perm = false := by simp [hperm]
   subst hL
   simp only [createWith, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set,
-    M.exec_pure, if_neg hp, if_neg hlen, dif_pos hmade]
+    M.exec_pure, ite_eq_right hp, ite_eq_right hlen, dite_eq_left hmade]
   rw [← hΛ]
 
 /-- A creation that is not made, for want of funds, at depth 1024, with this contract's nonce at
@@ -227,7 +227,7 @@ theorem createWith_notMade {I : Env} {w : World} {s : Supply} {rest : List Suppl
       some (.ok (⟨0⟩, { w with returnData := ByteArray.empty, feed := rest })) := by
   have hp : ¬ I.perm = false := by simp [hperm]
   simp only [createWith, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set,
-    M.exec_pure, if_neg hp, if_neg hlen, dif_neg hnot]
+    M.exec_pure, ite_eq_right hp, ite_eq_right hlen, dite_eq_right hnot]
 
 /-! ## The code of other accounts -/
 
@@ -307,7 +307,7 @@ theorem forwardedGas_Ccallgas (t r : AccountAddress) (value gasArg : UInt256) (�
   by_cases hv : value = ⟨0⟩
   · subst hv
     rfl
-  · rw [if_neg hv]
+  · rw [ite_eq_right hv]
     split
     · exact absurd rfl hv
     · rfl
@@ -341,7 +341,7 @@ theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
           calls := w.calls ++ [Made.theta (messageCall I w s gasArg source recipient t value value'
             argsPtr argsLen perm)] })) := by
   simp only [message, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
-    if_pos hmade]
+    ite_eq_left hmade]
   rw [show (messageCall I { w with feed := rest } s gasArg source recipient t value value' argsPtr
     argsLen perm).run = (σ', g', A', z, o) from hΘ.symm]
   rfl
@@ -362,7 +362,7 @@ theorem message_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
           returnData := ByteArray.empty
           feed := rest })) := by
   simp only [message, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set, M.exec_pure,
-    if_neg hnot]
+    ite_eq_right hnot]
   rfl
 
 /-- A `call` that is made runs `Θ` on the inputs `messageCall` gives, from the world before the
@@ -389,7 +389,7 @@ theorem call_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
     rcases hperm with h | h
     · rw [hp] at h; cases h
     · exact hv h
-  simp only [call, M.exec_bind, M.exec_read, if_neg hns]
+  simp only [call, M.exec_bind, M.exec_read, ite_eq_right hns]
   exact message_made hfeed hmade hΘ
 
 /-- A `call` that is not made records nothing. -/
@@ -410,7 +410,7 @@ theorem call_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
     rcases hperm with h | h
     · rw [hp] at h; cases h
     · exact hv h
-  simp only [call, M.exec_bind, M.exec_read, if_neg hns]
+  simp only [call, M.exec_bind, M.exec_read, ite_eq_right hns]
   exact message_notMade hfeed hnot
 
 /-- What a `call` that returns did: it was not made, returned zero and changed neither the

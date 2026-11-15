@@ -217,7 +217,7 @@ theorem jump_moves {s : State} {a : UInt256} {t : List UInt256}
     (hs : s.machineState.stack = a :: t) (hj : (D_J s.executionEnv.code 0).contains a = true) :
     Moves s a t := by
   have h := step_jump s hdec
-  simp only [hs, hj, not_true_eq_false, if_false] at h
+  simp only [hs, hj, not_true_eq_false, ite_false] at h
   exact moves_of h
 
 /-- `JUMPI` moves to its destination, valid when the condition is not zero, or past itself. -/
@@ -229,7 +229,7 @@ theorem jumpi_moves {s : State} {a b : UInt256} {t : List UInt256}
   have h := step_jumpi s hdec
   have hn : ¬((b != ⟨0⟩) = true ∧ ¬(D_J s.executionEnv.code 0).contains a = true) :=
     fun ⟨h1, h2⟩ => h2 (hj h1)
-  simp only [hs, hn, if_false] at h
+  simp only [hs, hn, ite_false] at h
   exact moves_of h
 
 end Fe.Sonatina.Check

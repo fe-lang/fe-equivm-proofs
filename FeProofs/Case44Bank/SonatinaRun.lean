@@ -43,13 +43,13 @@ theorem ir_credit (hm : m.func? "credit" = some creditFunc) (a b : UInt256) :
   by_cases hover : UInt256.size ≤ (slotWord I w.accounts (mapSlot a ⟨0⟩)).toNat + b.toNat
   · have h' := hover
     simp only [UInt256.size] at h'
-    rw [if_pos hover]
+    rw [ite_eq_left hover]
     repeat ir_step
   · have h' := hover
     simp only [UInt256.size] at h'
-    rw [if_neg hover]
+    rw [ite_eq_right hover]
     by_cases hperm : I.perm = true
-    · simp only [hperm, if_true]
+    · simp only [hperm, ite_true]
       repeat ir_step
     · simp only [hperm]
       repeat ir_step

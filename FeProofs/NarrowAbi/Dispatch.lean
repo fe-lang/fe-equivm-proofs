@@ -183,22 +183,22 @@ theorem feNarrowAbiX_noMatch {σ σ₀ A I} {g : Sat256}
   have rd1 := feNarrowAbiBlocks.feNarrowAbi_block_0_fallthrough (by simp) (lt_four_eq_zero_of_ge hsz hsize) rd0
   have rd2 := feNarrowAbiBlocks.feNarrowAbi_block_8_fallthrough (by simp) (by
     have e := echo_i8EvmSelector hsz
-    simp only [hnm 0 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 0 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd1
   have rd3 := feNarrowAbiBlocks.feNarrowAbi_block_23_fallthrough (by simp) (by
     have e := echo_u8EvmSelector hsz
-    simp only [hnm 1 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 1 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd2
   have rd4 := feNarrowAbiBlocks.feNarrowAbi_block_33_fallthrough (by simp) (by
     have e := echo_boolEvmSelector hsz
-    simp only [hnm 2 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 2 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd3
   have rd5 := feNarrowAbiBlocks.feNarrowAbi_block_43_fallthrough (by simp) (by
     have e := echo_addressEvmSelector hsz
-    simp only [hnm 3 (by omega), Bool.false_eq_true, if_false] at e
+    simp only [hnm 3 (by omega), Bool.false_eq_true, ite_false] at e
     rw [uInt256_eq_comm] at e
     exact e) rd4
   have rd6 := feNarrowAbiBlocks.feNarrowAbi_block_53 (by simp) (by jump_dest) rd5

@@ -262,7 +262,7 @@ theorem mem_instrs {c : ByteArray} (hc : c.size < UInt256.size) :
         rw [extract'_toList, ← hrest, Nat.succ_eq_add_one, Nat.add_sub_cancel_left]
       by_cases hw : argOnNBytesOfInstr op = 0
       · simp [hw]
-      · simp only [hw, beq_iff_eq, if_false, Option.map_some, Option.orElse_some,
+      · simp only [hw, beq_iff_eq, ite_false, Option.map_some, Option.orElse_some,
           Option.getD_some, Option.some.injEq, Prod.mk.injEq, and_true, true_and]
         show (fromBytes' (c.extract' _ _).data.toList.reverse) % UInt256.size = _
         rw [hx]

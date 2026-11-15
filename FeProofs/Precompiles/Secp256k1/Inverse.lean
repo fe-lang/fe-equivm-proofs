@@ -89,7 +89,7 @@ theorem Mont_inverse_Base_spec {a : L4} {x : Fp} (ha : RepB a x) (env : Env) (w 
     with h | ⟨c, h, hc, hinv⟩
   · rw [h]; exact Or.inl rfl
   · rw [h]
-    simp only [checkIndex, idx_lits, lt4, if_true, pure_bind, vget4, mk_toB, Base_R3,
+    simp only [checkIndex, idx_lits, lt4, ite_true, pure_bind, vget4, mk_toB, Base_R3,
       raw_Base_eq, mul_Base, toNat_lit (show 79228216581683516649686562417 < 2 ^ 256 by decide),
       Fe.M.exec_pure]
     refine Or.inr ⟨_, rfl, ?_⟩
@@ -112,7 +112,7 @@ theorem Mont_inverse_Order_spec {a : L4} {s : Fn} (ha : RepO a s) (env : Env) (w
     with h | ⟨c, h, hc, hinv⟩
   · rw [h]; exact Or.inl rfl
   · rw [h]
-    simp only [checkIndex, idx_lits, lt4, if_true, pure_bind, vget4, mk_toO, Order_R3,
+    simp only [checkIndex, idx_lits, lt4, ite_true, pure_bind, vget4, mk_toO, Order_R3,
       raw_Order_eq, mul_Order,
       toNat_lit (show 38611792656279623856209604949727965891812033543773964974832218758873530450413 <
         2 ^ 256 by decide), Fe.M.exec_pure]

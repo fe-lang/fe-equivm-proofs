@@ -35,8 +35,8 @@ theorem decodeCalldata_word {cd : ByteArray} {name : Ident} {ty : ABIType}
   have hword : ABI.bytesToWord ((cd.toList.drop 4).take 32) = calldataWord cd 4 :=
     decode_word_at_eq cd 4 (by omega) (by norm_num)
   rw [decodeCalldata_scalarWords_eq hty]
-  rw [if_neg (by rw [htlen]; omega : ¬ cd.toList.length < 4)]
-  rw [if_neg (by rintro ⟨_, hc⟩; rw [List.length_drop, htlen] at hc; omega)]
+  rw [ite_eq_right (by rw [htlen]; omega : ¬ cd.toList.length < 4)]
+  rw [ite_eq_right (by rintro ⟨_, hc⟩; rw [List.length_drop, htlen] at hc; omega)]
   simp only [decodeScalarWords?, decodeScalarWord?, readWord?, readBytes?, List.drop_zero, htake,
     ↓reduceIte, hword, bind, Option.bind]
   cases decodeABIWord? ty (calldataWord cd 4) <;> simp [decodeCalldata.insertValues]
@@ -67,7 +67,7 @@ theorem decodeWordI8_ok {w : UInt256} (hcanon : i8Canonical w) :
   rcases hcanon with hpos | hneg
   · change (↑w.val : Nat) < EVM.twoPow 7 at hpos
     simp only [decodeABIWord?, i8Value]
-    rw [if_neg (by decide : ¬8 = 0), if_pos hpos, if_pos hpos]
+    rw [ite_eq_right (by decide : ¬8 = 0), ite_eq_left hpos, ite_eq_left hpos]
   · have hnpos : ¬w.toNat < EVM.twoPow 7 := by
       have hstart : EVM.twoPow 7 < EVM.wordModulus - EVM.twoPow 7 := by native_decide
       have hlt : w.toNat < EVM.wordModulus := w.val.isLt
@@ -75,7 +75,7 @@ theorem decodeWordI8_ok {w : UInt256} (hcanon : i8Canonical w) :
     change ¬(↑w.val : Nat) < EVM.twoPow 7 at hnpos
     change EVM.wordModulus - EVM.twoPow 7 ≤ (↑w.val : Nat) at hneg
     simp only [decodeABIWord?, i8Value]
-    rw [if_neg (by decide : ¬8 = 0), if_neg hnpos, if_pos hneg, if_neg hnpos]
+    rw [ite_eq_right (by decide : ¬8 = 0), ite_eq_right hnpos, ite_eq_left hneg, ite_eq_right hnpos]
 
 theorem decodeWordI8_none {w : UInt256}
     (hpos : EVM.twoPow 7 ≤ w.toNat)
@@ -86,7 +86,7 @@ theorem decodeWordI8_none {w : UInt256}
   simp only [decodeABIWord?]
   change (if (↑w.val : Nat) < EVM.twoPow 7 then _
     else if EVM.wordModulus - EVM.twoPow 7 ≤ (↑w.val : Nat) then _ else none) = none
-  rw [if_neg (by omega), if_neg (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_right (by omega)]
 
 theorem lowByte_toNat (w : UInt256) :
     (UInt256.land w ⟨255⟩).toNat = w.toNat % 256 := by
@@ -102,7 +102,7 @@ theorem lowByte_lt256 (w : UInt256) : (UInt256.land w ⟨255⟩).toNat < 256 := 
 theorem shiftLeft248_toNat {low : UInt256} (hlow : low.toNat < 256) :
     (UInt256.shiftLeft low ⟨248⟩).toNat = low.toNat * 2 ^ 248 := by
   unfold UInt256.shiftLeft
-  rw [if_neg (by decide)]
+  rw [ite_eq_right (by decide)]
   change (low.toNat <<< 248) % UInt256.size = low.toNat * 2 ^ 248
   rw [Nat.shiftLeft_eq, Nat.mod_eq_of_lt]
   calc
@@ -112,7 +112,7 @@ theorem shiftLeft248_toNat {low : UInt256} (hlow : low.toNat < 256) :
 theorem shiftRight248_toNat (w : UInt256) :
     (UInt256.shiftRight w ⟨248⟩).toNat = w.toNat / 2 ^ 248 := by
   unfold UInt256.shiftRight
-  rw [if_neg (by decide)]
+  rw [ite_eq_right (by decide)]
   simp only [UInt256.toNat, Fin.shiftRight_val]
   rw [Nat.shiftRight_eq_div_pow]
   rw [show (↑(⟨248⟩ : UInt256).val : Nat) = 248 by decide]
@@ -132,12 +132,12 @@ theorem sarShiftLeft248_of_lt128 {low : UInt256} (hlow : low.toNat < 128) :
         show (⟨0⟩ : UInt256).val ≤ (UInt256.shiftLeft low ⟨248⟩).val
         exact Nat.zero_le _)
     unfold UInt256.sltBool
-    rw [if_neg (by omega), if_neg (by decide)]
+    rw [ite_eq_right (by omega), ite_eq_right (by decide)]
     simp [hnot]
-  rw [if_neg (by simpa using hslt)]
+  rw [ite_eq_right (by simpa using hslt)]
   · change (UInt256.shiftRight (UInt256.shiftLeft low ⟨248⟩) ⟨248⟩).toNat = low.toNat
     unfold UInt256.shiftRight
-    rw [if_neg (by decide)]
+    rw [ite_eq_right (by decide)]
     simp only [UInt256.toNat]
     rw [Fin.shiftRight_val]
     change (UInt256.shiftLeft low ⟨248⟩).toNat >>> 248 = low.toNat
@@ -157,8 +157,8 @@ theorem sarShiftLeft248_of_ge128 {low : UInt256}
       _ ≤ low.toNat * 2 ^ 248 := Nat.mul_le_mul_right _ hsign
   have hslt : UInt256.sltBool (UInt256.shiftLeft low ⟨248⟩) ⟨0⟩ = true := by
     unfold UInt256.sltBool
-    rw [if_pos hb, if_neg (by decide)]
-  rw [if_pos (by simpa using hslt)]
+    rw [ite_eq_left hb, ite_eq_right (by decide)]
+  rw [ite_eq_left (by simpa using hslt)]
   · let shifted := UInt256.shiftLeft low ⟨248⟩
     have hshifted : shifted.toNat = low.toNat * 2 ^ 248 :=
       shiftLeft248_toNat hlow
@@ -275,7 +275,7 @@ theorem sarShiftLeft248_negative {w : UInt256} (hneg : EVM.wordModulus - 128 ≤
     apply u256_inj
     change (UInt256.shiftLeft w ⟨248⟩).toNat = (UInt256.shiftLeft (UInt256.land w ⟨255⟩) ⟨248⟩).toNat
     unfold UInt256.shiftLeft
-    rw [if_neg (by decide), if_neg (by decide)]
+    rw [ite_eq_right (by decide), ite_eq_right (by decide)]
     change (w.toNat <<< 248) % UInt256.size =
       ((UInt256.land w ⟨255⟩).toNat <<< 248) % UInt256.size
     rw [Nat.shiftLeft_eq, Nat.shiftLeft_eq, lowByte_toNat]
@@ -323,10 +323,10 @@ theorem int8ReturnEncoding {w : UInt256} (hcanon : i8Canonical w) :
         Int.natAbs_neg, Int.natAbs_natCast]
     have hword : EVM.wordOfInt
         (Int.ofNat w.toNat - Int.ofNat EVM.wordModulus) = w := by
-      rw [EVM.wordOfInt, if_pos hvalueNeg, habs]
+      rw [EVM.wordOfInt, ite_eq_left hvalueNeg, habs]
       have hdiffPos : 0 < EVM.wordModulus - w.toNat := by omega
       have hdiffLt : EVM.wordModulus - w.toNat < EVM.wordModulus := by omega
-      rw [Nat.mod_eq_of_lt hdiffLt, if_neg (by omega)]
+      rw [Nat.mod_eq_of_lt hdiffLt, ite_eq_right (by omega)]
       apply u256_inj
       change (EVM.wordModulus - (EVM.wordModulus - w.toNat)) % EVM.wordModulus = w.toNat
       rw [Nat.sub_sub_self (Nat.le_of_lt hlt), Nat.mod_eq_of_lt hlt]
@@ -347,9 +347,9 @@ theorem int8ReturnEncoding {w : UInt256} (hcanon : i8Canonical w) :
     change ¬(↑w.val : Nat) < EVM.twoPow 7 at hnpos
     change EVM.wordOfInt
       (Int.ofNat (↑w.val : Nat) - Int.ofNat EVM.wordModulus) = w at hword
-    simp only [encodeABIValue?, encodeABIWord?, i8Value, if_neg hnpos]
-    simp only [show (8 : ℕ) - 1 = 7 from rfl, show ¬ (8 = 0) from by decide, if_false]
-    rw [if_pos (by
+    simp only [encodeABIValue?, encodeABIWord?, i8Value, ite_eq_right hnpos]
+    simp only [show (8 : ℕ) - 1 = 7 from rfl, show ¬ (8 = 0) from by decide, ite_false]
+    rw [ite_eq_left (by
       change -(Int.ofNat (EVM.twoPow 7)) ≤ Int.ofNat w.toNat - Int.ofNat EVM.wordModulus ∧
         Int.ofNat w.toNat - Int.ofNat EVM.wordModulus < Int.ofNat (EVM.twoPow 7)
       exact hbound), hword]
