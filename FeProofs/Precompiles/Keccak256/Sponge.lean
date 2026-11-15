@@ -269,6 +269,21 @@ theorem new_eq : Keccak256_new = pure ⟨toL (Vector.replicate 25 0), UInt256.of
   simp only [Keccak256_new, toL, Vector.map_replicate]
   rfl
 
+theorem update_first (x : UInt256) :
+    Keccak256_update_word ⟨toL (Vector.replicate 25 0), UInt256.ofNat 0⟩ x (UInt256.ofNat 32) =
+      pure ((), ⟨toL (absorb32 (Vector.replicate 25 0) 0 x.toNat), UInt256.ofNat 32⟩) :=
+  update_word_spec (Vector.replicate 25 0) (j := 0) (by decide) x
+
+theorem update_second (s : Vector UInt64 25) (y : UInt256) :
+    Keccak256_update_word ⟨toL s, UInt256.ofNat 32⟩ y (UInt256.ofNat 32) =
+      pure ((), ⟨toL (absorb32 s 4 y.toNat), UInt256.ofNat 64⟩) :=
+  update_word_spec s (j := 4) (by decide) y
+
+theorem finish_two (x y : ℕ) :
+    Keccak256_finish_word ⟨toL (absorb32 (absorb32 (Vector.replicate 25 0) 0 x) 4 y),
+      UInt256.ofNat 64⟩ = pure (UInt256.ofNat (hashWord x y)) :=
+  finish_spec _ (j := 8) (by decide)
+
 /-- **fevm's Keccak-256 of two words**: after `new`, `update_word x 32` and `update_word y 32`,
 `finish_word` returns the big-endian word of EVMLean's `KEC (x ‖ y)`. -/
 theorem keccak_two_words (x y : UInt256) :
@@ -279,13 +294,7 @@ theorem keccak_two_words (x y : UInt256) :
       Keccak256_finish_word k) =
     pure (UInt256.ofNat (fromByteArrayBigEndian
       (KEC (Weierstrass.toBytes32 x.toNat ++ Weierstrass.toBytes32 y.toNat)))) := by
-  have u1 := update_word_spec (Vector.replicate 25 0) (j := 0) (by decide) x
-  have u2 := update_word_spec (absorb32 (Vector.replicate 25 0) 0 x.toNat) (j := 4) (by decide) y
-  have f := finish_spec (absorb32 (absorb32 (Vector.replicate 25 0) 0 x.toNat) 4 y.toNat) (j := 8)
-    (by decide)
-  simp only [Nat.mul_zero, Nat.zero_add, Nat.reduceMul, Nat.reduceAdd] at u1 u2 f
-  simp only [new_eq, pure_bind, u1, u2, f]
+  simp only [new_eq, pure_bind, update_first, update_second, finish_two]
   rw [← hashWord_eq]
-  rfl
 
 end FeProofs.Keccak
