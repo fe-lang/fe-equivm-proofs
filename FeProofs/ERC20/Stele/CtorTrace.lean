@@ -39,7 +39,7 @@ abbrev ctorArgMem (w : UInt256) : ByteArray :=
     (UInt256.ofNat 160).toNat (UInt256.sub (UInt256.ofNat 1019) (UInt256.ofNat 987)).toNat
 
 theorem ctorArgMem_load (w : UInt256) : memLoad (UInt256.ofNat 160) (ctorArgMem w) = w := by
-  simpa only [ctorArgMem, ctorTail, feERC20Creation_size] using
+  simpa only [ctorArgMem, ctorTail, feERC20Creation_size] using!
     ctorLoadWord feERC20CreationBytecode ctorPtrMem 160 w (by rw [ctorPtrMem_size]; decide) (by decide)
 
 /-- The `KECCAK256(0x60, 0x40)` input memory: the caller word at `0x60`, slot 0 at `0x80`. -/

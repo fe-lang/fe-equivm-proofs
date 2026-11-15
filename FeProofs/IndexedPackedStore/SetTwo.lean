@@ -41,7 +41,7 @@ theorem feIndexedPackedStoreSetTwoBody {σ σ₀ A I} {g : UInt256}
     rd_run rd using [hwv, solcDecodeLenCheckBad 4 hsz hsize hbad]
     exact RDrev.reEquivDecodingFailed hcode rd hd
       (hbad.elim
-        (fun h => decodeCalldata_scalar_none_short (by decide) (by simpa using h))
+        (fun h => decodeCalldata_scalar_none_short (by decide) (by simpa using! h))
         (fun h => decodeCalldata_scalar_none_huge (by decide) rfl h))
   obtain ⟨hlen, hhi⟩ := hok
   rd_run rd to 154 using [hwv,

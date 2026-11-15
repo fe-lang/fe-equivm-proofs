@@ -670,7 +670,7 @@ theorem nameArm_refines {g : UInt256}
   rd_run rd to 860 using [hwv]
   have h := stringReturn_refines hcode hsize (by jump_dest) (by simp) rd
     fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
-  simpa [ArmAgrees, Model.nameArm, exec_nonPayable, hwv] using h
+  simpa [ArmAgrees, Model.nameArm, exec_nonPayable, hwv] using! h
 
 theorem symbolArm_refines {g : UInt256}
     (hcode : I.code = feWETH9Bytecode) (hsize : I.calldata.size < UInt256.size)
@@ -687,7 +687,7 @@ theorem symbolArm_refines {g : UInt256}
   rd_run rd to 860 using [hwv]
   have h := stringReturn_refines hcode hsize (by jump_dest) (by simp) rd
     fun _ _ _ _ _ rd => by rd_step rd; exact ⟨_, _, _, rd⟩
-  simpa [ArmAgrees, Model.symbolArm, exec_nonPayable, hwv] using h
+  simpa [ArmAgrees, Model.symbolArm, exec_nonPayable, hwv] using! h
 
 /-! ## The runtime entry -/
 

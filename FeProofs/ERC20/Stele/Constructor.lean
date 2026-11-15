@@ -27,10 +27,10 @@ theorem feERC20ConstructorCorrect :
         (EVM.word i.toNat) hcode hwv hperm with hoog | ⟨s, hX, hacc⟩
     · exact typedConstructorRefinementFor.outOfGas (Xi_error_of_X (g := g) (by
         rw [← hcode] at hoog
-        simpa [initState, Sat256.ofUInt256] using hoog))
+        simpa [initState, Sat256.ofUInt256] using! hoog))
     · have hxi := Xi_success_of_X (g := g) (by
         rw [← hcode] at hX
-        simpa [initState, Sat256.ofUInt256] using hX)
+        simpa [initState, Sat256.ofUInt256] using! hX)
       rw [hacc] at hxi
       exact typedConstructorRefinementFor.execution hxi
         (hexec (feERC20CtorBody_ok _ i h0 hlt hwv hperm))
@@ -40,8 +40,8 @@ theorem feERC20ConstructorCorrect :
           rfl) rfl)
   · rcases (feERC20CtorRev (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A)
         hcode hwv).xiResult hcode with hoog | ⟨g', o, hrev⟩
-    · exact typedConstructorRefinementFor.outOfGas (by simpa using hoog)
-    · exact typedConstructorRefinementFor.execution (by simpa using hrev)
+    · exact typedConstructorRefinementFor.outOfGas (by simpa using! hoog)
+    · exact typedConstructorRefinementFor.execution (by simpa using! hrev)
         (hexec (bodyReverts_nonPayable hwv)) (ctorResultEquiv.revert rfl rfl)
 
 end FeProofs.ERC20.Stele

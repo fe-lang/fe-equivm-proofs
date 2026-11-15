@@ -39,7 +39,7 @@ abbrev ctorArgMem (w : UInt256) : ByteArray :=
     (UInt256.ofNat 96).toNat (UInt256.sub (UInt256.ofNat 165) (UInt256.ofNat 133)).toNat
 
 theorem ctorArgMem_load (w : UInt256) : memLoad (UInt256.ofNat 96) (ctorArgMem w) = w := by
-  simpa only [ctorArgMem, ctorTail, feScalarStoreCreation_size] using
+  simpa only [ctorArgMem, ctorTail, feScalarStoreCreation_size] using!
     ctorLoadWord feScalarStoreCreationBytecode ctorPtrMem 96 w (by rw [ctorPtrMem_size]) (by decide)
 
 theorem ctorRuntime_read (w : UInt256) :
@@ -111,18 +111,18 @@ theorem feScalarStoreConstructorCorrect :
         (EVM.word i.toNat) hcode hwv hperm with hoog | ⟨s, hX, hacc⟩
     · exact typedConstructorRefinementFor.outOfGas (Xi_error_of_X (g := g) (by
         rw [← hcode] at hoog
-        simpa [initState, Sat256.ofUInt256] using hoog))
+        simpa [initState, Sat256.ofUInt256] using! hoog))
     · have hxi := Xi_success_of_X (g := g) (by
         rw [← hcode] at hX
-        simpa [initState, Sat256.ofUInt256] using hX)
+        simpa [initState, Sat256.ofUInt256] using! hX)
       rw [hacc] at hxi
       exact typedConstructorRefinementFor.execution hxi
         (hexec (feScalarStoreCtorBody_ok _ i h0 hlt hwv hperm))
         (ctorResultEquiv.success rfl rfl (by rw [storageStore_accountMap]; rfl) rfl)
   · rcases (feScalarStoreCtorRev (g := Sat256.ofUInt256 g) (σ := σ) (σ₀ := σ₀) (A := A)
         hcode hwv).xiResult hcode with hoog | ⟨g', o, hrev⟩
-    · exact typedConstructorRefinementFor.outOfGas (by simpa using hoog)
-    · exact typedConstructorRefinementFor.execution (by simpa using hrev)
+    · exact typedConstructorRefinementFor.outOfGas (by simpa using! hoog)
+    · exact typedConstructorRefinementFor.execution (by simpa using! hrev)
         (hexec (bodyReverts_nonPayable hwv)) (ctorResultEquiv.revert rfl rfl)
 
 end FeProofs.ScalarStore
