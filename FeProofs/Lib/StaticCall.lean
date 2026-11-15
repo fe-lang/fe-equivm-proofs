@@ -119,4 +119,68 @@ theorem staticR_sha256 {I : ExecutionEnv} {σ : AccountMap} {g : UInt256} {s : S
     split_ifs at hz ⊢ <;> simp_all
   · simp [hd] at hz
 
+/-- Two account maps whose accounts, where there is one, hold the same storage. -/
+def SameStorage (σ σ' : AccountMap) : Prop :=
+  ∀ o, (σ'.get? o).map (·.storage) = (σ.get? o).map (·.storage)
+
+theorem SameStorage.refl (σ : AccountMap) : SameStorage σ σ := fun _ => rfl
+
+theorem SameStorage.trans {σ σ' σ'' : AccountMap} (h : SameStorage σ σ') (h' : SameStorage σ' σ'') :
+    SameStorage σ σ'' := fun o => (h' o).trans (h o)
+
+theorem sameStorage_insert {σ : AccountMap} {r : AccountAddress} {acc : Account}
+    (h : σ.get? r = some acc) (b : UInt256) : SameStorage σ (σ.insert r { acc with balance := b }) := by
+  intro o
+  simp only [Std.ExtTreeMap.get?_eq_getElem?, Std.ExtTreeMap.getElem?_insert] at h ⊢
+  split
+  · next he => rw [← Std.ExtTreeMap.getElem?_congr he, h]; rfl
+  · rfl
+
+theorem sameStorage_step {σ σ1 : AccountMap} (h : SameStorage σ σ1) (r : AccountAddress)
+    (b : Account → UInt256) :
+    SameStorage σ (match σ1[r]? with
+      | none => σ1
+      | some acc => σ1.insert r { acc with balance := b acc }) := by
+  split
+  · exact h
+  · next acc hr => exact h.trans (sameStorage_insert (by rw [Std.ExtTreeMap.get?_eq_getElem?]; exact hr) _)
+
+/-- The contract's slot words through accounts with the same storage. -/
+theorem SameStorage.slotWord {σ σ' : AccountMap} (h : SameStorage σ σ') (I : ExecutionEnv)
+    (k : UInt256) : slotWord I σ' k = slotWord I σ k := by
+  have ho := h I.codeOwner
+  unfold Fe.EVM.slotWord
+  rcases h1 : σ'.get? I.codeOwner with _ | a <;> rcases h2 : σ.get? I.codeOwner with _ | b <;>
+    simp only [h1, h2, Option.map, Option.some.injEq, reduceCtorEq] at ho <;>
+    simp [Option.option, ho]
+
+set_option maxHeartbeats 1000000 in
+/-- A call of the SHA-256 precompile, made or not, keeps every account's storage. -/
+theorem staticR_sha256_storage (I : ExecutionEnv) (σ : AccountMap) (g : UInt256) (s : Supply)
+    (d : ByteArray) : SameStorage σ (staticR I σ g s (UInt256.ofNat 2) d).1 := by
+  unfold staticR
+  by_cases hd : I.depth < 1024
+  · simp only [hd, if_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
+    unfold Θ
+    simp only [theta_match_two, Ξ_SHA256, show ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false by decide,
+      Bool.false_eq_true, if_false]
+    split_ifs
+    all_goals first
+      | exact SameStorage.refl _
+      | exact sameStorage_step (sameStorage_step (SameStorage.refl σ) 2 _) I.codeOwner _
+      | simp_all
+  · simp only [hd, if_false]; exact SameStorage.refl _
+
+set_option maxHeartbeats 1000000 in
+/-- A call of the SHA-256 precompile leaves the substate it was given: it appends no log. -/
+theorem staticR_sha256_substate (I : ExecutionEnv) (σ : AccountMap) (g : UInt256) (s : Supply)
+    (d : ByteArray) : (staticR I σ g s (UInt256.ofNat 2) d).2.2.1 = s.substate := by
+  unfold staticR
+  by_cases hd : I.depth < 1024
+  · simp only [hd, if_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
+    unfold Θ
+    simp only [theta_match_two, Ξ_SHA256]
+    split_ifs <;> rfl
+  · simp only [hd, if_false]
+
 end FeProofs.Lib

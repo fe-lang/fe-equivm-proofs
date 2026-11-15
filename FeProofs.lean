@@ -45,9 +45,14 @@ import FeProofs.Case44Bank.Bytecode
 import FeProofs.Case44Bank.Exported
 import FeProofs.Deposit.Exported
 import FeProofs.Deposit.ExportedStd
+import FeProofs.Deposit.ExportedEvent
+import FeProofs.Deposit.Tree
+import FeProofs.Deposit.ExportedTree
 import FeProofs.Lib.AbiBytes
 import FeProofs.Lib.BytesCodec
+import FeProofs.Lib.AbiEncode
 import FeProofs.Lib.StaticCall
+import FeProofs.Lib.Ssz
 import FeProofs.Case44Bank.SonatinaCorrect
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Precompiles.Bn254.MulContract
