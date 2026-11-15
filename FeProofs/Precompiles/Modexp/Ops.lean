@@ -96,6 +96,31 @@ namespace FeProofs.Modexp
 open FeProofs.Precompiles
 open Precompiles.Exported.Shared Precompiles.Exported.Modexp
 
+/-! ## Powers as numerals, for `omega` -/
+
+theorem pow63 : (2 : ℕ) ^ 63 = 9223372036854775808 := by norm_num
+theorem pow64 : (2 : ℕ) ^ 64 = 18446744073709551616 := by norm_num
+theorem pow127 : (2 : ℕ) ^ 127 = 170141183460469231731687303715884105728 := by norm_num
+theorem pow128 : (2 : ℕ) ^ 128 = 340282366920938463463374607431768211456 := by norm_num
+theorem pow192 : (2 : ℕ) ^ 192 =
+    6277101735386680763835789423207666416102355444464034512896 := by norm_num
+
+/-! ## Wrapping one limb at a time -/
+
+theorem subm_ge {p d : ℕ} (hp : p < 2 ^ 64) (h : d ≤ p) : (p + 2 ^ 64 - d) % 2 ^ 64 = p - d := by
+  rw [show p + 2 ^ 64 - d = (p - d) + 2 ^ 64 by omega, Nat.add_mod_right,
+    Nat.mod_eq_of_lt (by omega)]
+
+theorem subm_lt {p d : ℕ} (hd : d ≤ 2 ^ 64) (h : p < d) :
+    (p + 2 ^ 64 - d) % 2 ^ 64 = p + 2 ^ 64 - d := Nat.mod_eq_of_lt (by omega)
+
+theorem addm_lt {p d : ℕ} (h : p + d < 2 ^ 64) : (p + d) % 2 ^ 64 = p + d := Nat.mod_eq_of_lt h
+
+theorem addm_ge {p d : ℕ} (hp : p < 2 ^ 64) (hd : d < 2 ^ 64) (h : 2 ^ 64 ≤ p + d) :
+    (p + d) % 2 ^ 64 = p + d - 2 ^ 64 := by
+  rw [show p + d = (p + d - 2 ^ 64) + 2 ^ 64 by omega, Nat.add_mod_right,
+    Nat.mod_eq_of_lt (by omega)]; omega
+
 /-! ## Double limbs -/
 
 /-- A 128-bit value. -/
