@@ -243,10 +243,10 @@ theorem segments_messages {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event}
 theorem runBody_append {m : Module} {ic : Fe.Sonatina.Ctx} :
     ∀ (env : Env) (p q : List Stmt),
       runBody m ic env (p ++ q) = runBody m ic env p >>= fun env' => runBody m ic env' q
-  | env, [], q => by rw [runBody.eq_1]; simp
+  | env, [], q => by rw [runBody_nil_eq]; simp
   | env, s :: p, q => by
     have ih := fun env' => runBody_append (m := m) (ic := ic) env' p q
-    rw [List.cons_append, runBody.eq_2, runBody.eq_2]
+    rw [List.cons_append, runBody_cons_eq, runBody_cons_eq]
     simp only [ih]
     split <;> simp only [bind_assoc]
 
@@ -455,7 +455,7 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
     have hcall : runBody m ic env1 (s :: q) =
         runFunc m ic cs.callee (ws.map Fe.Sonatina.word) >>= fun vals =>
           Fe.Sonatina.bind env1 s.dsts vals >>= fun env' => runBody m ic env' q := by
-      rw [runBody.eq_2]
+      rw [runBody_cons_eq]
       simp only [hinst, hevargs, pure_bind]
     have hD1D' : ∀ id ∈ D1, id ∈ D' := fun id h =>
       definedAfter_mono hd id (List.mem_append_left _ h)
@@ -1198,7 +1198,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   have hE := segs_ends (m := low.machine) (ic := ic) (G := st.machineState.gasAvailable.toNat)
     hsize hretj hcanon hcallee calls _ _ st w _ B rfl hKp har hrun hpath hw
     (Segs.pre (htrace ρ _) (hall ρ hρ).2) (le_refl _)
-  rw [runBlocks.eq_1, hblk]
+  rw [runBlocks_eq, hblk]
   simp only [henter, pure_bind, Fe.M.exec_bind, hx]
   rcases hE with hE | ⟨w', hxw, hE⟩
   · left; left
@@ -1671,7 +1671,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
     have hrun : (runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w' =
         (preIf (hint'.name == entry) low eb' eb' >>= fun _ =>
           runBlocks low.machine ic f' env0 none eb'.id).exec I w' := by
-      rw [runFunc.eq_1]
+      rw [runFunc_eq]
       have : (hint'.name == entry) = false := by rw [hname]; simpa using hne
       simp [hf', he', hbind, preIf, this]
     obtain ⟨hebm, hblk⟩ := head_block he'

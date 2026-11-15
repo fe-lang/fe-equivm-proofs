@@ -81,12 +81,13 @@ theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Sectio
     (s.runSection name .machine).exec I w = endRun ((pre low eb eb >>= fun _ =>
       runBlocks low.machine ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩
         f {} none eb.id).exec I w) := by
-  unfold Sidecar.runSection
-  simp only [hobj, hsec, hcode, Sidecar.moduleAt, hlow, Option.map_some, Option.bind_some]
+  unfold Sidecar.runSection Sidecar.runSectionWith
+  simp only [hobj, hsec, hcode, Sidecar.moduleAt, hlow, Option.map_some, Option.bind_some,
+    runFuncG_none]
   have hrun : ∀ ic,
       runFunc low.machine ic sec.entry [] = runBlocks low.machine ic f {} none eb.id :=
     fun ic => by
-      rw [runFunc.eq_1]
+      rw [runFunc_eq]
       simp [hf, he, hp, Fe.Sonatina.bind]
   simp only [show (Level.machine == Level.machine) = true from rfl, if_true, hrun, pre]
   cases low.entryFreePtr <;> simp only [Fe.M.exec_bind, pure_bind, endRun, Fe.EVM.mstore,
@@ -225,7 +226,7 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
 theorem runSection_not_ok (s : Sidecar) (name : String) (level : Level) (I : ExecutionEnv)
     (w : World) (v : ByteArray) (w' : World) :
     (s.runSection name level).exec I w ≠ some (.ok (v, w')) := by
-  unfold Sidecar.runSection
+  unfold Sidecar.runSection Sidecar.runSectionWith
   intro hx
   repeat' (split at hx)
   all_goals simp only [stuck, Fe.M.exec_bind, Fe.M.exec_diverge, reduceCtorEq] at hx
