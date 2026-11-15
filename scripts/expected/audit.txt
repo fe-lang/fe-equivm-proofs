@@ -32,6 +32,7 @@ FeProofs.ERC20.feERC20RefinesModel: [Classical.choice, Quot.sound, propext] + 86
 FeProofs.ERC20.init_conserves: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ERC20.runtime_conserves: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Ecrecover.feEcrecoverContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
+FeProofs.EcrecoverPrecompile.feEcrecoverPrecompileContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Identity.feIdentityContractCorrect: [Classical.choice, Quot.sound, propext] + 161 native_decide
 FeProofs.IndexedPackedStore.feIndexedPackedStoreContractCorrect: [Classical.choice, Quot.sound, propext] + 592 native_decide
 FeProofs.NarrowAbi.feNarrowAbiContractCorrect: [Classical.choice, Quot.sound, propext] + 461 native_decide
