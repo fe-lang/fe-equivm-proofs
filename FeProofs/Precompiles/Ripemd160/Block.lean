@@ -217,7 +217,6 @@ theorem padded_block_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : Wor
       congr 1; funext k; rw [ite_eq_right (by omega)]
     have hb := bits_loop (fun r0 _ _ => pure r0) (fun _ _ _ => rfl) (d.size * 8)
       (fun p => msgByte d ((blocksOf d.size - 1) * 64 + p)) ⟨(), ()⟩ ⟨(), ()⟩ 8 0 rfl
-    simp only at hb
     rw [e1, hb, Fe.M.exec_pure]
     have hblk : toBlk (blockB d (blocksOf d.size - 1)) = Vector.ofFn fun k : Fin 64 =>
         lw32 (if 56 ≤ k.val then ((d.size * 8) >>> (8 * (k.val - 56))).toUInt8

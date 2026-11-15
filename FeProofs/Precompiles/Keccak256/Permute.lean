@@ -96,7 +96,8 @@ def RCW : Vector UInt256 24 := ⟨(RC.map lw).toArray, rfl⟩
 theorem ROUND_CONSTANTS_eq : ROUND_CONSTANTS = pure RCW := rfl
 
 theorem rc_get {m : ℕ} (hm : m < 24) : RCW[m]! = lw (RC[m]'(by simpa [RC] using hm)) := by
-  simp [RCW, getElem!_pos, hm]
+  simp only [RCW, getElem!_pos, hm]
+  exact List.getElem_map ..
 
 /-- The state after the first `m` rounds. -/
 def st (s : Vector UInt64 25) (m : ℕ) : Vector UInt64 25 := (RC.take m).foldl roundK s

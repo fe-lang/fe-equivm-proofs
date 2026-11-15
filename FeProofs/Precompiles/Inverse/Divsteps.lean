@@ -111,11 +111,13 @@ theorem b1_step (s : DS) (bits : UInt256) (he : s.eta.bmod (2 ^ 64) = s.eta) :
       else (s.shift.cancel 15).run (Limb.w 15) := by
   rw [DS.run, divsteps.b1.eq_1, ← he]
   simp only [lit_max, lit_64, lit_63, lit_15, lit_4, lit_2, lit_1, lit_0, shl_w, shr_w, lor_w, tz_w, land_w, addW_w, subW_w, mulW_w,
-    downcast_u64_i64_w, Limb.sgn, pure_bind, subW_i64, subW_i64_zero, addW_i64_one, sltBool_i64,
-    downcast_i64_u64_I, Limb.toNat_w, Limb.w_inj, decide_true, ite_true]
+    downcast_u64_i64_w, Limb.sgn_def, pure_bind, subW_i64, subW_i64_zero, addW_i64_one,
+    sltBool_i64, downcast_i64_u64_I, Limb.toNat_w, Limb.w_inj, decide_true, ite_true]
   have h15 : ((15 : Limb) = 63) = False := by decide
-  simp only [DS.shift, DS.swap, DS.cancel, DS.mult, DS.mask, DS.out, DS.run, DS.zeros, Limb.sgn,
-    he, decide_eq_true_eq, h15, ite_true, ite_false]
+  -- Unfold `mask` last: simp does not rewrite instances, so unfolding `shift` inside the
+  -- condition of `mask`'s `if` would leave its Decidable instance behind.
+  simp only [DS.shift, DS.swap, DS.out, DS.run, DS.zeros, Limb.sgn_def, he]
+  simp only [DS.cancel, DS.mult, DS.mask, decide_eq_true_eq, h15, ite_true, ite_false]
   split_ifs <;> rfl
 
 end FeProofs.Precompiles

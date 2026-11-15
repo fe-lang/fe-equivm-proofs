@@ -213,7 +213,7 @@ theorem div32_val (u2 u1 u0 d1 d0 : Limb) (hd : 2 ^ 63 ≤ d1.val)
   obtain ⟨j, hj0, hj2, hjlo, hjhi, hsel⟩ := div32_adjust U (q1 * D : ℕ) D q1 q0 r.val
     (nn _) (by exact_mod_cast hq0lt)
     (by exact_mod_cast hDlo) (by exact_mod_cast hDhi) (by rw [hrv]) (by push_cast; linarith)
-    (by push_cast; linarith) (by push_cast; convert b3 using 1; ring)
+    (by push_cast; linarith) (by push_cast; convert b3 using 1 <;> first | ring | norm_num)
   -- The quotient is `q1 + j`, below `β`.
   obtain ⟨jn, rfl⟩ := Int.eq_ofNat_of_zero_le hj0
   have hlo : (q1 + jn) * D ≤ U := by

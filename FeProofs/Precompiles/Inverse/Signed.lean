@@ -159,6 +159,10 @@ namespace Limb
 /-- The signed reading of a limb, as `i64`. -/
 def sgn (x : Limb) : ℤ := (x.val : ℤ).bmod (2 ^ 64)
 
+/-- `sgn` unfolded. Use it in place of `Limb.sgn` in `simp` and `rw`: on Lean 4.35, generating
+    `sgn`'s equation lemma exceeds the recursion depth. -/
+theorem sgn_def (x : Limb) : x.sgn = (x.val : ℤ).bmod (2 ^ 64) := rfl
+
 /-- The limb of an integer modulo `2 ^ 64`. -/
 def ofInt (x : ℤ) : Limb :=
   ⟨(x % 2 ^ 64).toNat, by
