@@ -61,6 +61,7 @@ import FeProofs.Precompiles.Modexp.R2Exec
 import FeProofs.Precompiles.Modexp.Exponent
 import FeProofs.Precompiles.Modexp.Newton
 import FeProofs.Precompiles.Modexp.SmallPowMem
+import FeProofs.Precompiles.Modexp.SmallPow1
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
