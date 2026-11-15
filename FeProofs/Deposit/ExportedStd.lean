@@ -1,3 +1,4 @@
+import FeProofs.Deposit.Exported
 import FeProofs.Lib.StaticCall
 import FeProofs.Lib.ExportedCorrect
 
@@ -15,13 +16,12 @@ namespace FeProofs.Deposit.Exported
 open Ethereum Ethereum.EVM Fe Fe.EVM Reasoning.Theory
 open scoped FeProofs.Lib
 
-/-! ## Word operations as the machine IR computes them -/
+/-! ## Word shifts as numbers -/
 
 theorem shl_toNat (x : UInt256) {k : Nat} (hk : k < 256) :
-    (x <<< UInt256.ofNat k).toNat = Fe.Sonatina.wrap 256 ((x.toNat <<< k : Nat) : Int) := by
+    (x <<< UInt256.ofNat k).toNat = (x.toNat <<< k) % UInt256.size := by
   have hkv : (UInt256.ofNat k).toNat = k := ulit_toNat' k (by
     rw [show UInt256.size = 2 ^ 256 from rfl]; omega)
-  rw [Fe.Sonatina.Check.wrap_nat]
   show (UInt256.shiftLeft x (UInt256.ofNat k)).toNat = _
   unfold UInt256.shiftLeft
   rw [if_neg (by show ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
@@ -40,7 +40,7 @@ theorem shr_toNat (x : UInt256) {k : Nat} (hk : k < 256) :
   exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) x.val.isLt)
 
 theorem word_eq_iff {a b : UInt256} : a = b ↔ a.toNat = b.toNat :=
-  ⟨fun h => h ▸ rfl, fun h => Fe.Sonatina.Check.eq_of_toNat h⟩
+  ⟨fun h => h ▸ rfl, fun h => u256_inj h⟩
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
 def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
