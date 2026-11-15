@@ -32,3 +32,6 @@ import Fe.Sonatina.CheckSection
 import Fe.Sonatina.CheckCert
 import Fe.Sonatina.Run
 import Fe.Sonatina.Diff
+import Fe.Sonatina.Spill
+import Fe.Sonatina.FrameSafe
+import Fe.Sonatina.SpillDiff

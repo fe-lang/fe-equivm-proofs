@@ -9,10 +9,13 @@ fail, not pass.
 | --- | --- |
 | `Syntax.lean` | IR modules, functions, blocks, instructions; `Sidecar` (IR, sections, lowering) |
 | `Parse.lean` | the reader of Sonatina's text form and of sidecar JSON; `sonatina_sidecar` |
-| `Interp.lean` | the interpreter in `FeM`; `Sidecar.model level : ContractModel` at each IR level |
+| `Interp.lean` | the interpreter in `FeM`, under a guard of protected words; `Sidecar.model level : ContractModel` at each IR level |
 | `Hints.lean` | cheap checks of the lowering record against the bytes |
 | `Refine.lean` | `Implements`, and the composition `RefinesOn.of_implements` |
 | `Diff.lean` | IR against bytecode, with `Fe/EVM/Diff.lean` and `Generate.lean` |
+| `Spill.lean` | spill plans, the machine IR with its memory spills (`Sidecar.spilledModel`), reload-liveness |
+| `FrameSafe.lean` | the spill plan of a sidecar (`Sidecar.spillPlan`, untrusted), `FrameSafe`, `frameSafe_of_noSpills` |
+| `SpillDiff.lean` | `FrameSafe` tested: the two models side by side (`scripts/frame_safe_diff.sh`) |
 | `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20, the deposit contract, WETH9, a factory and others |
 
 `scripts/SonatinaDiff.lean` runs the fixtures and the committed `.sona` files against the pinned
@@ -602,6 +605,49 @@ Checker changes the proof needed, none changing a verdict except the third:
   the run holds), and a block whose successor's code starts at its own offset is reached in no step only
   down a chain that ends (`zeroRank`);
 - decoded instructions lie in the code, jump targets are in the code, and the code fits a word.
+
+## Memory spills
+
+Sonatina keeps some values in memory as well as on the stack (`funcs[].spills[]`, `memory`
+locations): it stores such a value at its word after defining it and reloads it later. The machine
+IR does not say so, and `Sound s` is about the machine IR; the plan (not built yet) is a checker
+`checkSpills` with `checkSpills s → FrameSafe s → Sound s`, the existing theorems its instances
+for sidecars without spills. What is built is the part that speaks of the IR alone:
+
+- `SpillPlan`, data: per function, each spilled value, its word and its reload points (a block
+  and a position in the instrumented block). `Sidecar.spillPlan` finds the reload points by
+  walking the bytes as the checker does (an `MLOAD` of a word the path's own stores hold that is
+  not the IR's next event); it is untrusted, and a wrong plan only makes the instrumented model
+  differ from the machine IR.
+- `Func.instrument` adds the stores the bytes make, as `evm_mstore` statements: after the
+  definition of a spilled value, of spilled parameters at entry, and at the end of a block that
+  jumps to a block with spilled phis (the phi's operand from the block, unless it is the phi
+  itself; an `undef` operand is stored nowhere, so the model never takes `undef` for a word).
+- `Func.reloadLive`: a value is reload-live at a point if one of its reloads is reachable before
+  the value is defined or stored again. Protecting the words of IR-live values instead is too
+  strong: Sonatina shares a word between values one of which is IR-live but never reloaded
+  (Bn254Mul, both ECRECOVER runtimes). `Func.liveClosed` tests that sets satisfy the equations,
+  and `Func.live_mono` is what it gives along a path.
+- The runner checks a guard (`Interp.lean`): each statement must leave the words of the values
+  reload-live after it that it neither defines nor stores, and its callers' such words, as they
+  were; a function returns only if it left its callers' words. Otherwise the run panics with
+  `spillClobbered` (2^256, no Fe panic's). `protected_kept`: a guarded run that returns kept them.
+- `Sidecar.spilledModel s plan`, the machine IR with its spills, is the machine IR's model under
+  the empty plan (`spilledModel_nil`). `FrameSafe s`: it `Implements`-ends as the machine IR, on
+  calls (`CalldataFits`) and deployments. The machine IR never panics (`machine_not_panic`), so
+  `FrameSafe` excludes a clobber. `frameSafe_of_noSpills`.
+- A spill store over IR data that the IR reads later (Sonatina's fixed-slot miscompile at
+  0x00/0x20) is no panic: the instrumented run reads the spilled value where the machine run reads
+  the IR's data, and `FrameSafe` is false wherever that read shows.
+
+`scripts/frame_safe_diff.sh <sidecars>` tests `FrameSafe` where it is not proved: the two models
+on the inputs of the precompile generators (`scripts/<P>Diff.lean`, reused as they are) and on
+corpus drivers. The plans of the precompile runtimes with spills and of `erc4337.EntryPoint` and
+`msg_nested_array_arg.Caller` satisfy their liveness equations. Runs so far (2026-11-15), every
+one agreeing, with no clobber: Bn254Add 416 (all), Ripemd160 208 (all), Ecrecover 35 (its vectors
+and 20 generated), and, cut short by the interpreter's speed, EcrecoverPrecompile 20, Bn254Mul 4,
+Blake2F 4 (a run takes minutes there); the corpus drivers' Fe tests and generated calls (EntryPoint
+and Caller among their targets) show no disagreement of the two models.
 
 ## What is hard
 
