@@ -447,4 +447,193 @@ theorem call_noData0 (gasArg addr value argsPtr retPtr : UInt256) (I : Execution
         { w with memory := ByteArray.empty }) :=
   call_noData gasArg addr value argsPtr retPtr I w
 
+/-! ## Arithmetic as naturals
+
+`ir_step` leaves the machine IR's arithmetic as `wrap`s of casts to `ℤ`, in a shape that changes
+with the facts at hand, which a symbolic length or loop counter makes hard to state facts for.
+`ir_step_nat` runs a block with the operations' values as naturals modulo `2 ^ 256` instead
+(`eval_add` …; a `sub` stays `BinOp.eval` until `ir_clean` knows it does not wrap), then
+`ir_clean` removes each modulus and decides each condition that `omega` proves from the
+hypotheses: the bounds of the symbolic values are the only facts a block needs.  The
+environment's lookups go through `Std.TreeMap.getElem?_insert`, so the environment may start
+from any `E` whose keys a proof states. -/
+
+theorem eval_add (x y : Nat) : BinOp.eval .add 256 x y = (x + y) % size256 := by
+  simp only [BinOp.eval, wrap]; omega
+
+theorem eval_sub_le (x y : Nat) (h : y ≤ x) (hx : x < size256) :
+    BinOp.eval .sub 256 x y = x - y := by
+  simp only [BinOp.eval, wrap]; omega
+
+theorem eval_shl (x y : Nat) :
+    BinOp.eval .shl 256 x y = if x ≥ 256 then 0 else y * 2 ^ x % size256 := by
+  simp only [BinOp.eval, wrap, Nat.shiftLeft_eq]; split <;> omega
+
+theorem eval_shr (x y : Nat) : BinOp.eval .shr 256 x y = if x ≥ 256 then 0 else y / 2 ^ x := by
+  simp only [BinOp.eval, Nat.shiftRight_eq_div_pow]
+
+theorem eval_and (x y : Nat) : BinOp.eval .and 256 x y = x &&& y := rfl
+
+
+theorem eval_mul (x y : Nat) : BinOp.eval .mul 256 x y = x * y % size256 := by
+  simp only [BinOp.eval, wrap]; omega
+
+theorem eval_or (x y : Nat) : BinOp.eval .or 256 x y = x ||| y := rfl
+
+theorem eval_xor (x y : Nat) : BinOp.eval .xor 256 x y = x ^^^ y := rfl
+
+theorem eval_udiv (x y : Nat) : BinOp.eval .udiv 256 x y = if y = 0 then 0 else x / y := rfl
+
+theorem eval_umod (x y : Nat) : BinOp.eval .umod 256 x y = if y = 0 then 0 else x % y := rfl
+
+/-- A word rounded down to a multiple of 32, as the machine IR's `and _ -32` makes it. -/
+theorem and_mask32 (x : Nat) (hx : x < size256) :
+    x &&& 115792089237316195423570985008687907853269984665640564039457584007913129639904 =
+      x / 32 * 32 := by
+  have hm : (115792089237316195423570985008687907853269984665640564039457584007913129639904 : Nat)
+      = (2 ^ 251 - 1) <<< 5 := by norm_num [Nat.shiftLeft_eq]
+  have hr : x / 32 * 32 = (x >>> 5) <<< 5 := by
+    simp [Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow]
+  rw [hm, hr]
+  apply Nat.eq_of_testBit_eq
+  intro j
+  rw [Nat.testBit_and, Nat.testBit_shiftLeft, Nat.testBit_shiftLeft, Nat.testBit_two_pow_sub_one,
+    Nat.testBit_shiftRight]
+  by_cases h5 : 5 ≤ j
+  · rw [show 5 + (j - 5) = j by omega]
+    by_cases hj : j < 256
+    · simp [h5, show j - 5 < 251 by omega]
+    · have : x.testBit j = false :=
+        Nat.testBit_eq_false_of_lt (lt_of_lt_of_le hx (le_trans (by norm_num)
+          (Nat.pow_le_pow_right (n := 2) (by norm_num) (show 256 ≤ j by omega))))
+      simp [h5, this]
+  · simp [h5]
+
+/-- `ir_step_nat`'s second half: remove the moduli of values below `2 ^ 256` and decide the
+    conditions of `if`s, each by `omega` from the hypotheses. -/
+macro "ir_clean" : tactic => `(tactic| try simp (disch := omega) only [Nat.mod_eq_of_lt,
+  eval_sub_le, and_mask32, if_pos, if_neg])
+
+/-- `ir_step` with the arithmetic as naturals (see above). -/
+syntax "ir_step_nat" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
+
+macro_rules
+  | `(tactic| ir_step_nat) => `(tactic| ir_step_nat [])
+  | `(tactic| ir_step_nat [$ls,*]) => `(tactic| ((rw [runBlocks.eq_1]; simp [enter,
+      Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
+      evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, eval_add, eval_mul,
+      eval_shl, eval_shr, eval_and, eval_or, eval_xor, eval_udiv, eval_umod, Sonatina.bool,
+      Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
+      Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
+      Fe.EVM.codecopy, Fe.EVM.calldatacopy, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore,
+      Fe.EVM.mload, Fe.EVM.mcopy, Fe.EVM.keccak256, revertData, returnData,
+      Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, ofNat_mod, pair_slot,
+      error_read, panic_read, Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
+      show (⟨0⟩ : UInt256).toNat = 0 from rfl, Std.TreeMap.getElem_insert,
+      Std.TreeMap.getElem?_insert, -CharP.cast_eq_zero, *, $ls,*]) <;> ir_clean))
+
+/-- A word plus a number below `2 ^ 256`, as the machine IR's `add` gives it to `evm_sload`. -/
+theorem ofNat_toNat_add (a : UInt256) {i : Nat} (hi : i < size256) :
+    UInt256.ofNat (a.toNat + i) = a + UInt256.ofNat i :=
+  Check.eq_of_toNat (by
+    rw [uadd_toNat, Check.toNat_ofNat, Check.toNat_ofNat,
+      Nat.mod_eq_of_lt (show i < UInt256.size from hi)])
+
+/-! ## Memory a block writes past what it reads
+
+A run that copies a value into fresh memory writes at the free pointer, past the memory's end
+or at it, and reads the copy back; these lemmas keep memory as a known prefix followed by the
+words written. -/
+
+/-- A word written at or past the end of memory: zeros up to it, then the word. -/
+theorem write_gap (v : UInt256) (M : ByteArray) {d : Nat} (h : M.size ≤ d)
+    (hg : d - M.size < USize.size) :
+    v.toByteArray.write 0 M d 32 = M ++ ByteArray.zeroes (d - M.size) ++ v.toByteArray := by
+  rw [write_from_gap_eq _ _ 0 d 32 (by decide) (by rw [toByteArray_size]) h hg,
+    toByteArray_extract_all]
+
+/-- A word written at the end of memory is appended. -/
+theorem write_end (v : UInt256) (M : ByteArray) {d : Nat} (h : d = M.size) :
+    v.toByteArray.write 0 M d 32 = M ++ v.toByteArray := by
+  subst h
+  rw [write_gap v M le_rfl (by simp), Nat.sub_self, zeroes_zero rfl, ByteArray.append_empty]
+
+/-- A word written inside the first part of memory leaves the rest. -/
+theorem write_append_left (v : UInt256) (X T : ByteArray) {d : Nat} (h : d + 32 ≤ X.size) :
+    v.toByteArray.write 0 (X ++ T) d 32 = v.toByteArray.write 0 X d 32 ++ T := by
+  have hv := toByteArray_size v
+  rw [write32_eq _ _ d (by omega) (by rw [ByteArray.size_append]; omega),
+    write32_eq _ _ d (by omega) (by omega), extract_append_left _ _ 0 d (by omega),
+    extract_append_span _ _ _ _ (by omega) (by rw [ByteArray.size_append]; omega),
+    ByteArray.size_append, show X.size + T.size - X.size = T.size by omega,
+    byteArray_extract_self]
+  simp only [ByteArray.append_assoc]
+
+/-- The size of memory after a word is written below `2 ^ 32`. -/
+theorem write_size (v : UInt256) (M : ByteArray) {d : Nat} (hd : d < 2 ^ 32) :
+    (v.toByteArray.write 0 M d 32).size = max M.size (d + 32) := by
+  by_cases h : d ≤ M.size
+  · exact toByteArray_write32_size_of_le _ _ _ _ _ rfl h rfl
+  · exact toByteArray_write32_size_of_ge _ _ _ _ _ rfl (by omega)
+      (lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ hd)) (by omega)
+
+/-- A read inside the first part of memory. -/
+theorem read_prefix (X T : ByteArray) {a n : Nat} (hn : 0 < n) (h : a + n ≤ X.size) :
+    (X ++ T).readWithPadding a n = X.readWithPadding a n := by
+  rw [readWithPadding_eq_extract_unbounded _ _ _ hn (by rw [ByteArray.size_append]; omega),
+    readWithPadding_eq_extract_unbounded _ _ _ hn h, extract_append_left _ _ _ _ h]
+
+/-- The word at the start of memory past a prefix of `p` bytes. -/
+theorem read_after (B D : ByteArray) (v : UInt256) {p : Nat} (h : p = B.size) :
+    (B ++ (v.toByteArray ++ D)).readWithPadding p 32 = v.toByteArray := by
+  rw [readWithPadding_tail B _ 0 32 (by omega) (by decide)
+      (by rw [ByteArray.size_append, toByteArray_size]; omega),
+    extract_append_left _ _ 0 32 (by rw [toByteArray_size]), toByteArray_extract_all]
+
+/-- A copy from past the end of its source to the end of memory, as a `calldatacopy` at
+    `calldatasize` into fresh memory: the model's `write` copies nothing then, the bytes past
+    the end of memory reading as zeros anyway. -/
+theorem copy_past_end (src M : ByteArray) {s d n : Nat} (hs : src.size ≤ s) (hd : M.size ≤ d) :
+    src.write s M d n = M := by
+  by_cases hn : n = 0
+  · simp [ByteArray.write, hn]
+  · simp only [ByteArray.write, if_neg hn, if_pos (show s ≥ src.size from hs)]
+    apply ByteArray.ext
+    simp [ByteArray.copySlice, show M.size - d = 0 by omega, show min d M.size = M.size by omega]
+
+/-- A copy of memory's own bytes to its end, as `mcopy` to fresh memory. -/
+theorem copy_to_end (X : ByteArray) {ptr d n : Nat} (hn : n ≠ 0) (h : ptr + n ≤ X.size)
+    (hd : d = X.size) : X.write ptr X d n = X ++ X.extract ptr (ptr + n) := by
+  subst hd
+  rw [write_from_gap_eq _ _ _ _ _ hn h le_rfl (by simp), Nat.sub_self, zeroes_zero rfl,
+    ByteArray.append_empty]
+
+/-! ## Loops
+
+A loop of the machine IR is a header block entered again from its latch.  `runBlocks_loop` runs
+one by induction on the iterations left, from an invariant `J i` of the environment and world at
+the header after `i` iterations: `hstep` says that the run from the header with `J i` ends as
+every run from the header with `J (i + 1)` ends, for whatever result `K` that is (by
+`ir_step_nat` through the body to the latch, then the hypothesis on `K`); `hdone` gives the run
+from `J n` through the exit.  The first entry, from the block before the loop, binds the
+header's phis to their initial values; a proof runs it once by hand and then this lemma. -/
+
+theorem runBlocks_loop {m : Module} {c : Ctx} {f : Func} {I : ExecutionEnv} {prev : Option Nat}
+    {hd n : Nat} (J : Nat → Env → World → Prop)
+    {R : Option (Except (Exit World) (List Val × World))}
+    (hstep : ∀ i E w, i < n → J i E w → ∀ K : Option (Except (Exit World) (List Val × World)),
+      (∀ E' w', J (i + 1) E' w' → (runBlocks m c f E' prev hd).exec I w' = K) →
+      (runBlocks m c f E prev hd).exec I w = K)
+    (hdone : ∀ E w, J n E w → (runBlocks m c f E prev hd).exec I w = R) :
+    ∀ i E w, i ≤ n → J i E w → (runBlocks m c f E prev hd).exec I w = R := by
+  intro i
+  induction h : n - i generalizing i with
+  | zero =>
+    intro E w hi hJ
+    obtain rfl : i = n := by omega
+    exact hdone E w hJ
+  | succ k ih =>
+    intro E w hi hJ
+    exact hstep i E w (by omega) hJ R fun E' w' hJ' => ih (i + 1) (by omega) E' w' (by omega) hJ'
+
 end Fe.Sonatina
