@@ -214,8 +214,8 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
     r.isSome = readOps.contains opc := by
   unfold evRun at h
   split at h
-  -- A message call's word.
-  case h_9 | h_10 | h_11 =>
+  -- A message call's word or a creation's.
+  case h_9 | h_10 | h_11 | h_12 | h_13 =>
     simp only [Fe.M.exec_map] at h
     split at h <;> simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq,
       reduceCtorEq] at h

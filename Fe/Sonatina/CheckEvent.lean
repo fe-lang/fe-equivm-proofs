@@ -18,7 +18,8 @@ interpreter's EVM instructions run.  `EvMoves`: one `Xstep` runs out of gas or s
 under a static call where the world's operation does (`Fails`: a write under a static call, a
 copy past the return data), or does what it does and moves on with the word it reads on top, the
 states still agreeing.  `event_evMoves` gives it for every opcode of `readOps` and `writeOps`
-from EVMLean's `step_*` lemmas, `CALL` the model's `call` on the feed's entry (`call_evMoves`).
+from EVMLean's `step_*` lemmas, `CALL` the model's `call` on the feed's entry (`call_evMoves`),
+`CREATE` and `CREATE2` its `create` and `create2` (`create_evMoves`, `create2_evMoves`).
 The logs agree too, so the proof reaches profile `P1`.
 -/
 
@@ -383,6 +384,8 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .CALL, [g, a, v, ap, al, rp, rl] => some <$> call g a v ap al rp rl
   | .STATICCALL, [g, a, ap, al, rp, rl] => some <$> staticcall g a ap al rp rl
   | .DELEGATECALL, [g, a, ap, al, rp, rl] => some <$> delegatecall g a ap al rp rl
+  | .CREATE, [v, p, l] => some <$> create v p l
+  | .CREATE2, [v, p, l, z] => some <$> create2 v p l z
   | .TLOAD, [k] => some <$> tload k
   | .SSTORE, [k, v] => do sstore k v; return none
   | .TSTORE, [k, v] => do tstore k v; return none
@@ -967,6 +970,311 @@ theorem delegatecall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List U
       simp only [List.append_assoc, List.singleton_append]
       rfl
 
+open Ethereum.EVM.Invariant in
+/-- `CREATE` is the model's `create`: out of gas or stack, the static failure, or the creation
+    made or not, on the feed's entry.  A creation made is `Lambda` on the inputs `createMade`
+    reads, the new contract's address on top if it succeeded, the logs the init code appended by
+    `lambda_logs_extract`. -/
+theorem create_evMoves {s : State} {v p l : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.CREATE, none))
+    (hs : s.machineState.stack = v :: p :: l :: t) :
+    EvMoves s .CREATE [v, p, l] t := by
+  rcases s with ⟨σ, σ₀, tg, tr, A, I, ⟨pc, stk, el, ga, aw, mem, rd, hr⟩⟩
+  simp only at hs
+  subst hs
+  intro M w hw
+  have h := step_create _ hdec
+  simp only at h
+  set S : State := ⟨σ, σ₀, tg, tr, A, I, ⟨pc, v :: p :: l :: t, el, ga, aw, mem, rd, hr⟩⟩ with hSd
+  have hI : S.executionEnv = I := rfl
+  have hq : supplyOf S = [⟨.ofNat (L (chargedState S .CREATE).machineState.gasAvailable.toNat),
+      A, σ₀⟩] := by
+    unfold supplyOf; rw [hdec]
+  have hmd : ∀ r, Xstep (D_J S.executionEnv.code 0) S = .ok r →
+      madeOf S = createMade v p l none (chargedState S .CREATE) := by
+    intro r hx
+    obtain ⟨c, hz⟩ := Z_of_Xstep hx
+    obtain ⟨-, rfl⟩ := Z_ok hz
+    unfold madeOf
+    rw [hdec] at hz ⊢
+    simp only [Option.getD_some] at hz ⊢
+    rw [hz]
+    rfl
+  by_cases h1 : ga.toNat < memoryExpansionCost S .CREATE
+  · rw [if_pos h1] at h; exact .inl h
+  rw [if_neg h1] at h
+  by_cases h2 : (ga.subNat (memoryExpansionCost S .CREATE)).toNat < GasConstants.Gcreate + R l.toNat
+  · rw [if_pos h2] at h; exact .inl h
+  rw [if_neg h2] at h
+  by_cases h3 : (v :: p :: l :: t).length - 3 + 1 > 1024
+  · rw [if_pos h3] at h; exact .inr (.inl h)
+  rw [if_neg h3] at h
+  by_cases h4 : ¬ I.perm = true
+  · rw [if_pos h4] at h
+    exact .inr (.inr (.inl ⟨.static, _, by simp [evRun, Fe.EVM.create, Fe.EVM.createWith, hI, h4],
+      h, rfl⟩))
+  rw [if_neg h4] at h
+  by_cases h5 : l > ⟨49152⟩
+  · rw [if_pos h5] at h; exact .inl h
+  rw [if_neg h5] at h
+  simp only [not_not] at h4
+  by_cases hn : ((σ.get? I.codeOwner).getD default).nonce.toNat ≥ 2 ^ 64 - 1
+  · rw [if_pos hn] at h
+    simp only at h
+    split at h
+    · exact .inl h
+    obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+    rw [hq, List.singleton_append] at hf
+    rw [hmd _ h] at hm'
+    have hc0 : createMade v p l none (chargedState S .CREATE) = [] := by
+      simp only [createMade]
+      exact if_neg (not_not.mpr hn)
+    rw [hc0, List.nil_append] at hm'
+    have hex := createWith_notMade (I := I) (salt := none) (value := v) (ptr := p) (len := l) hf h4
+      h5 (by rw [← hw.accounts]; exact fun hc => absurd hn (Nat.not_le.mpr hc.1))
+    refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
+      by simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex],
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+  rw [if_neg hn] at h
+  by_cases hd : v ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth.val < 1024
+      ∧ (mem.readWithPadding p.toNat l.toNat).size ≤ 49152
+  swap
+  · rw [dif_neg hd] at h
+    simp only at h
+    split at h
+    · exact .inl h
+    obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+    rw [hq, List.singleton_append] at hf
+    rw [hmd _ h] at hm'
+    have hc0 : createMade v p l none (chargedState S .CREATE) = [] := by
+      simp only [createMade]
+      exact (if_pos hn).trans (dif_neg hd)
+    rw [hc0, List.nil_append] at hm'
+    have hex := createWith_notMade (I := I) (salt := none) (value := v) (ptr := p) (len := l) hf h4
+      h5 (by rw [← hw.accounts, ← hw.memory]; exact fun hc => hd hc.2)
+    refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
+      by simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex],
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+  rw [dif_pos hd] at h
+  set Lc : LambdaCall :=
+    { σ := σ.insert I.codeOwner { ((σ.get? I.codeOwner).getD default) with
+        nonce := ((σ.get? I.codeOwner).getD default).nonce + ⟨1⟩ }
+      σ₀ := σ₀, A := A, s := I.codeOwner, o := I.sender
+      g := .ofNat (L (chargedState S .CREATE).machineState.gasAvailable.toNat)
+      p := .ofNat I.gasPrice, v := v, i := mem.readWithPadding p.toNat l.toNat
+      e := ⟨I.depth.val + 1, Nat.succ_lt_succ hd.2.1⟩, ζ := none, H := I.header
+      bvh := I.blobVersionedHashes, blocks := I.blocks, w := I.perm } with hLc
+  rcases hT : Lc.run with ⟨a, σ', g', A', z, o⟩
+  have hT' := hT
+  unfold LambdaCall.run at hT'
+  erw [hT'] at h
+  simp only at h
+  split at h
+  · exact .inl h
+  obtain ⟨m, hF, hM⟩ := hw.fut
+  obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+  rw [hq, List.singleton_append] at hf
+  rw [hmd _ h] at hm'
+  have hc1 : createMade v p l none (chargedState S .CREATE) = [.lambda Lc] := by
+    simp only [createMade]
+    exact (if_pos hn).trans (dif_pos hd)
+  rw [hc1, List.singleton_append] at hm'
+  have hex := createWith_made (I := I) (salt := none) (value := v) (ptr := p) (len := l) (L := Lc)
+    hf h4 h5 (by rw [← hw.accounts, ← hw.memory]; exact ⟨Nat.lt_of_not_le hn, hd⟩)
+    (by
+      rw [hLc]
+      congr 1
+      all_goals first | rfl | rw [← hw.accounts] | rw [← hw.memory]) hT.symm
+  have hb : ¬ (v > (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance))) := fun hlt =>
+    Nat.lt_irrefl _ (Nat.lt_of_le_of_lt hd.1 hlt)
+  have hdep : ¬ I.depth.val = 1024 := Nat.ne_of_lt hd.2.1
+  have hsz : ¬ (mem.readWithPadding p.toNat l.toNat).size > 49152 := Nat.not_lt.mpr hd.2.2
+  have hl := Ethereum.EVM.Substates.lambda_logs_extract Lc.σ Lc.σ₀ Lc.A Lc.s Lc.o Lc.g Lc.p Lc.v
+    Lc.i Lc.e Lc.ζ Lc.H Lc.bvh Lc.blocks Lc.w
+  rw [show Lambda Lc.σ Lc.σ₀ Lc.A Lc.s Lc.o Lc.g Lc.p Lc.v Lc.i Lc.e Lc.ζ Lc.H Lc.bvh Lc.blocks Lc.w
+    = Lc.run from rfl, hT] at hl
+  have hex' : (evRun .CREATE [v, p, l]).exec S.executionEnv w =
+      some (.ok (some (if z then .ofNat a else ⟨0⟩), { w with
+        accounts := σ'
+        logs := w.logs ++ appended A A'
+        returnData := if z then ByteArray.empty else o
+        feed := f'
+        calls := w.calls ++ [.lambda Lc] })) := by
+    simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex]
+  refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, ?_, rfl,
+    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩⟩⟩))
+  · show (if _ then _ else _) :: t = _
+    split
+    next hc =>
+      cases z
+      · rfl
+      · exfalso
+        rcases hc with hc | hc | hc | hc
+        · exact absurd hc (by decide)
+        · exact hdep hc
+        · exact hb hc
+        · exact hsz hc
+    next hc =>
+      cases z
+      · exact absurd (Or.inl rfl) hc
+      · rfl
+  · show A'.logSeries = w.logs ++ appended A A'
+    rw [← hw.logs]
+    exact hl
+
+open Ethereum.EVM.Invariant in
+/-- `CREATE2` is the model's `create2`, as `create_evMoves` with the salt. -/
+theorem create2_evMoves {s : State} {v p l sa : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.CREATE2, none))
+    (hs : s.machineState.stack = v :: p :: l :: sa :: t) :
+    EvMoves s .CREATE2 [v, p, l, sa] t := by
+  rcases s with ⟨σ, σ₀, tg, tr, A, I, ⟨pc, stk, el, ga, aw, mem, rd, hr⟩⟩
+  simp only at hs
+  subst hs
+  intro M w hw
+  have h := step_create2 _ hdec
+  simp only at h
+  set S : State := ⟨σ, σ₀, tg, tr, A, I, ⟨pc, v :: p :: l :: sa :: t, el, ga, aw, mem, rd, hr⟩⟩ with hSd
+  have hI : S.executionEnv = I := rfl
+  have hq : supplyOf S = [⟨.ofNat (L (chargedState S .CREATE2).machineState.gasAvailable.toNat),
+      A, σ₀⟩] := by
+    unfold supplyOf; rw [hdec]
+  have hmd : ∀ r, Xstep (D_J S.executionEnv.code 0) S = .ok r →
+      madeOf S = createMade v p l (some sa.toByteArray) (chargedState S .CREATE2) := by
+    intro r hx
+    obtain ⟨c, hz⟩ := Z_of_Xstep hx
+    obtain ⟨-, rfl⟩ := Z_ok hz
+    unfold madeOf
+    rw [hdec] at hz ⊢
+    simp only [Option.getD_some] at hz ⊢
+    rw [hz]
+    rfl
+  by_cases h1 : ga.toNat < memoryExpansionCost S .CREATE2
+  · rw [if_pos h1] at h; exact .inl h
+  rw [if_neg h1] at h
+  by_cases h2 : (ga.subNat (memoryExpansionCost S .CREATE2)).toNat < GasConstants.Gcreate + GasConstants.Gkeccak256word * ((l.toNat + 31) / 32) + R l.toNat
+  · rw [if_pos h2] at h; exact .inl h
+  rw [if_neg h2] at h
+  by_cases h3 : (v :: p :: l :: sa :: t).length - 4 + 1 > 1024
+  · rw [if_pos h3] at h; exact .inr (.inl h)
+  rw [if_neg h3] at h
+  by_cases h4 : ¬ I.perm = true
+  · rw [if_pos h4] at h
+    exact .inr (.inr (.inl ⟨.static, _, by simp [evRun, Fe.EVM.create2, Fe.EVM.createWith, hI, h4],
+      h, rfl⟩))
+  rw [if_neg h4] at h
+  by_cases h5 : l > ⟨49152⟩
+  · rw [if_pos h5] at h; exact .inl h
+  rw [if_neg h5] at h
+  simp only [not_not] at h4
+  by_cases hn : ((σ.get? I.codeOwner).getD default).nonce.toNat ≥ 2 ^ 64 - 1
+  · rw [if_pos hn] at h
+    simp only at h
+    split at h
+    · exact .inl h
+    obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+    rw [hq, List.singleton_append] at hf
+    rw [hmd _ h] at hm'
+    have hc0 : createMade v p l (some sa.toByteArray) (chargedState S .CREATE2) = [] := by
+      simp only [createMade]
+      exact if_neg (not_not.mpr hn)
+    rw [hc0, List.nil_append] at hm'
+    have hex := createWith_notMade (I := I) (salt := some sa.toByteArray) (value := v) (ptr := p) (len := l) hf h4
+      h5 (by rw [← hw.accounts]; exact fun hc => absurd hn (Nat.not_le.mpr hc.1))
+    refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
+      by simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex],
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+  rw [if_neg hn] at h
+  by_cases hd : v ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth.val < 1024
+      ∧ (mem.readWithPadding p.toNat l.toNat).size ≤ 49152
+  swap
+  · rw [dif_neg hd] at h
+    simp only at h
+    split at h
+    · exact .inl h
+    obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+    rw [hq, List.singleton_append] at hf
+    rw [hmd _ h] at hm'
+    have hc0 : createMade v p l (some sa.toByteArray) (chargedState S .CREATE2) = [] := by
+      simp only [createMade]
+      exact (if_pos hn).trans (dif_neg hd)
+    rw [hc0, List.nil_append] at hm'
+    have hex := createWith_notMade (I := I) (salt := some sa.toByteArray) (value := v) (ptr := p) (len := l) hf h4
+      h5 (by rw [← hw.accounts, ← hw.memory]; exact fun hc => hd hc.2)
+    refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
+      by simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex],
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+  rw [dif_pos hd] at h
+  set Lc : LambdaCall :=
+    { σ := σ.insert I.codeOwner { ((σ.get? I.codeOwner).getD default) with
+        nonce := ((σ.get? I.codeOwner).getD default).nonce + ⟨1⟩ }
+      σ₀ := σ₀, A := A, s := I.codeOwner, o := I.sender
+      g := .ofNat (L (chargedState S .CREATE2).machineState.gasAvailable.toNat)
+      p := .ofNat I.gasPrice, v := v, i := mem.readWithPadding p.toNat l.toNat
+      e := ⟨I.depth.val + 1, Nat.succ_lt_succ hd.2.1⟩, ζ := some sa.toByteArray, H := I.header
+      bvh := I.blobVersionedHashes, blocks := I.blocks, w := I.perm } with hLc
+  rcases hT : Lc.run with ⟨a, σ', g', A', z, o⟩
+  have hT' := hT
+  unfold LambdaCall.run at hT'
+  erw [hT'] at h
+  simp only at h
+  split at h
+  · exact .inl h
+  obtain ⟨m, hF, hM⟩ := hw.fut
+  obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+  rw [hq, List.singleton_append] at hf
+  rw [hmd _ h] at hm'
+  have hc1 : createMade v p l (some sa.toByteArray) (chargedState S .CREATE2) = [.lambda Lc] := by
+    simp only [createMade]
+    exact (if_pos hn).trans (dif_pos hd)
+  rw [hc1, List.singleton_append] at hm'
+  have hex := createWith_made (I := I) (salt := some sa.toByteArray) (value := v) (ptr := p) (len := l) (L := Lc)
+    hf h4 h5 (by rw [← hw.accounts, ← hw.memory]; exact ⟨Nat.lt_of_not_le hn, hd⟩)
+    (by
+      rw [hLc]
+      congr 1
+      all_goals first | rfl | rw [← hw.accounts] | rw [← hw.memory]) hT.symm
+  have hb : ¬ (v > (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance))) := fun hlt =>
+    Nat.lt_irrefl _ (Nat.lt_of_le_of_lt hd.1 hlt)
+  have hdep : ¬ I.depth.val = 1024 := Nat.ne_of_lt hd.2.1
+  have hsz : ¬ (mem.readWithPadding p.toNat l.toNat).size > 49152 := Nat.not_lt.mpr hd.2.2
+  have hl := Ethereum.EVM.Substates.lambda_logs_extract Lc.σ Lc.σ₀ Lc.A Lc.s Lc.o Lc.g Lc.p Lc.v
+    Lc.i Lc.e Lc.ζ Lc.H Lc.bvh Lc.blocks Lc.w
+  rw [show Lambda Lc.σ Lc.σ₀ Lc.A Lc.s Lc.o Lc.g Lc.p Lc.v Lc.i Lc.e Lc.ζ Lc.H Lc.bvh Lc.blocks Lc.w
+    = Lc.run from rfl, hT] at hl
+  have hex' : (evRun .CREATE2 [v, p, l, sa]).exec S.executionEnv w =
+      some (.ok (some (if z then .ofNat a else ⟨0⟩), { w with
+        accounts := σ'
+        logs := w.logs ++ appended A A'
+        returnData := if z then ByteArray.empty else o
+        feed := f'
+        calls := w.calls ++ [.lambda Lc] })) := by
+    simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex]
+  refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, ?_, rfl,
+    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩⟩⟩))
+  · show (if _ then _ else _) :: t = _
+    split
+    next hc =>
+      cases z
+      · rfl
+      · exfalso
+        rcases hc with hc | hc | hc | hc
+        · exact absurd hc (by decide)
+        · exact hdep hc
+        · exact hb hc
+        · exact hsz hc
+    next hc =>
+      cases z
+      · exact absurd (Or.inl rfl) hc
+      · rfl
+  · show A'.logSeries = w.logs ++ appended A A'
+    rw [← hw.logs]
+    exact hl
+
 theorem tload_evMoves {s : State} {k : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.TLOAD, none))
     (hs : s.machineState.stack = k :: t) : EvMoves s .TLOAD [k] t := by
@@ -1008,7 +1316,8 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     EvMoves s op args t := by
   simp only [readOps, writeOps, List.contains_cons, List.contains_nil, Bool.or_false,
     Bool.or_eq_true, beq_iff_eq] at hp
-  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl | rfl
+  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
+    | rfl | rfl
     | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨g, _ | ⟨i, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩⟩
@@ -1026,6 +1335,8 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
   · exact call_evMoves hdec hs
   · exact staticcall_evMoves hdec hs
   · exact delegatecall_evMoves hdec hs
+  · exact create_evMoves hdec hs
+  · exact create2_evMoves hdec hs
   · exact tload_evMoves hdec hs
   · exact sstore_evMoves hdec hs
   · exact mstore_evMoves hdec hs

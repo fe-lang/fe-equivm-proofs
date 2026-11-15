@@ -378,6 +378,16 @@ theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List 
     rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨f, _ | _⟩⟩⟩⟩⟩⟩ <;>
       simp [δ] at hk
     exact runAs_one _ ee w
+  case create =>
+    simp only [evmEventOpcode, Option.some.injEq] at h
+    subst h
+    rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | _⟩⟩⟩ <;> simp [δ] at hk
+    exact runAs_one _ ee w
+  case create2 =>
+    simp only [evmEventOpcode, Option.some.injEq] at h
+    subst h
+    rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | _⟩⟩⟩⟩ <;> simp [δ] at hk
+    exact runAs_one _ ee w
   all_goals simp only [evmEventOpcode, reduceCtorEq, Option.some.injEq] at h
   all_goals
     subst h
