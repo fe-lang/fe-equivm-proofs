@@ -56,6 +56,8 @@ import FeProofs.Precompiles.Modexp.SmallMul
 import FeProofs.Precompiles.Modexp.Window
 import FeProofs.Precompiles.Modexp.Clz
 import FeProofs.Precompiles.Modexp.SmallRep
+import FeProofs.Precompiles.Modexp.R2
+import FeProofs.Precompiles.Modexp.R2Exec
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
