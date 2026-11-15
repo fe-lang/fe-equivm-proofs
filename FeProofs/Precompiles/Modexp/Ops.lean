@@ -121,6 +121,46 @@ theorem addm_ge {p d : ℕ} (hp : p < 2 ^ 64) (hd : d < 2 ^ 64) (h : 2 ^ 64 ≤ 
   rw [show p + d = (p + d - 2 ^ 64) + 2 ^ 64 by omega, Nat.add_mod_right,
     Nat.mod_eq_of_lt (by omega)]; omega
 
+/-! ## Doubling a limb -/
+
+/-- `2 x` wrapped. -/
+def dblL (x : Limb) : Limb := ⟨2 * x.val % 2 ^ 64, Nat.mod_lt _ (by decide)⟩
+
+/-- The top bit of a limb. -/
+def hib (x : Limb) : Limb :=
+  ⟨x.val / 2 ^ 63, by have := x.isLt; rw [Nat.div_lt_iff_lt_mul (by decide)]; omega⟩
+
+/-- `x << 1 | lo >> 63`. -/
+def shl1 (x lo : Limb) : Limb :=
+  ⟨2 * x.val % 2 ^ 64 + lo.val / 2 ^ 63, by
+    have := x.isLt; have := lo.isLt
+    have : lo.val / 2 ^ 63 ≤ 1 := by rw [Nat.div_le_iff_le_mul_add_pred (by decide)]; omega
+    omega⟩
+
+theorem hib_le (x : Limb) : (hib x).val ≤ 1 := by
+  have := x.isLt; simp only [hib]; rw [Nat.div_le_iff_le_mul_add_pred (by decide)]; omega
+
+theorem shl64_one (x : Limb) : IntTy.shl (.u 64) x.w (1 : Limb).w = (dblL x).w := by
+  simp only [IntTy.shl, val_u, Limb.toNat_w, show ((1 : Limb) : ℕ) = 1 from rfl,
+    show (256 ≤ 1) = False by decide, if_false]
+  rw [show ((x.val : ℤ) * 2 ^ 1) = ((2 * x.val : ℕ) : ℤ) by push_cast; ring, wrap_u_nat]
+  rfl
+
+theorem shr63 (x : Limb) : x.w >>> UInt256.ofNat 63 = (hib x).w := by
+  apply word_eq_of_toNat
+  rw [shiftRight_toNat _ (by decide)]
+  simp [hib]
+
+theorem lor_shl1 (x lo : Limb) : (dblL x).w ||| (hib lo).w = (shl1 x lo).w := by
+  apply word_eq_of_toNat
+  change (UInt256.lor _ _).toNat = _
+  rw [u256_lor_toNat_exact]
+  simp only [Limb.toNat_w, dblL, hib, shl1]
+  have h1 : lo.val / 2 ^ 63 < 2 ^ 1 := by
+    have := lo.isLt; rw [Nat.div_lt_iff_lt_mul (by decide)]; omega
+  have h2 : 2 * x.val % 2 ^ 64 = 2 ^ 1 * (x.val % 2 ^ 63) := by omega
+  rw [h2, ← Nat.two_pow_add_eq_or_of_lt h1]
+
 /-! ## Double limbs -/
 
 /-- A 128-bit value. -/
@@ -188,6 +228,18 @@ theorem shr64_eq (x : Dbl) : x.w >>> UInt256.ofNat 64 = (hiD x).w := by
 
 theorem down128_eq (x : Dbl) : downcast_truncate_u128_u64 x.w = pure (loD x).w := by
   rw [downcast_truncate_u128_u64_eq, Dbl.toNat_w]; rfl
+
+/-- A limb as a double limb. -/
+def L2D (a : Limb) : Dbl := ⟨a.val, Limb.lt_dbl a⟩
+
+theorem addW128_LL (a b : Limb) : IntTy.addW (.u 128) a.w b.w = (addD (L2D a) (L2D b)).w :=
+  addW128_eq (L2D a) (L2D b)
+
+theorem addW128_DL (x : Dbl) (b : Limb) : IntTy.addW (.u 128) x.w b.w = (addD x (L2D b)).w :=
+  addW128_eq x (L2D b)
+
+theorem subW128_DL (x : Dbl) (b : Limb) : IntTy.subW (.u 128) x.w b.w = (subD x (L2D b)).w :=
+  subW128_eq x (L2D b)
 
 theorem down128_limb_eq (x : Limb) : downcast_truncate_u128_u64 x.w = pure x.w := by
   rw [downcast_truncate_u128_u64_eq, Limb.toNat_w, Nat.mod_eq_of_lt x.isLt]; rfl
