@@ -20,14 +20,14 @@ theorem land_ones (x : UInt256) : x &&& ~~~(UInt256.ofNat 0) = x := by
 
 theorem downcast_u64_usize (x : UInt256) : Lib.downcast_truncate_u64_usize x = pure x := by
   simp only [Lib.downcast_truncate_u64_usize, Lib.u64_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
+    Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_ones]
 
 theorem downcast_usize_usize (x : UInt256) : Lib.downcast_truncate_usize_usize x = pure x := by
   simp only [Lib.downcast_truncate_usize_usize, Lib.usize_to_word, Lib.usize_IS_SIGNED,
-    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
+    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_ones]
 
 theorem downcast_u256_usize (x : UInt256) : Lib.downcast_truncate_u256_usize x = pure x := by
   simp only [Lib.downcast_truncate_u256_usize, Lib.u256_to_word, Lib.usize_IS_SIGNED,
-    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
+    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_ones]
 
 end FeProofs.Precompiles

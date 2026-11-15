@@ -87,13 +87,13 @@ theorem byteAt_write_from (src mem : ByteArray) (so a n j : ℕ) (hn : so + n �
     byteAt_extract _ _ _ _ le_rfl]
   simp only [Nat.sub_zero, Nat.zero_add, Nat.add_sub_cancel_left]
   by_cases h1 : j < a
-  · rw [if_pos (by omega), if_pos h1, if_pos h1, if_neg (by omega)]
+  · rw [ite_eq_left (by omega), ite_eq_left h1, ite_eq_left h1, ite_eq_right (by omega)]
   · by_cases h2 : j < a + n
-    · rw [if_pos (by omega), if_neg h1, if_pos (by omega), if_pos ⟨(by omega), h2⟩]
-    · rw [if_neg (by omega), if_neg (show ¬ (a ≤ j ∧ j < a + n) by omega)]
+    · rw [ite_eq_left (by omega), ite_eq_right h1, ite_eq_left (by omega), ite_eq_left ⟨(by omega), h2⟩]
+    · rw [ite_eq_right (by omega), ite_eq_right (show ¬ (a ≤ j ∧ j < a + n) by omega)]
       by_cases h3 : j < mem.size
-      · rw [if_pos (by omega)]; congr 1; omega
-      · rw [if_neg (by omega), byteAt_of_ge (by omega)]
+      · rw [ite_eq_left (by omega)]; congr 1; omega
+      · rw [ite_eq_right (by omega), byteAt_of_ge (by omega)]
 
 theorem write_size_from (src mem : ByteArray) (so a n : ℕ) (hn : so + n ≤ src.size)
     (h : a + n ≤ mem.size) : (src.write so mem a n).size = mem.size := by
@@ -351,7 +351,7 @@ theorem limbsAt_limbBytes : ∀ (A : ByteArray) (ls : List Limb), LimbsAt (A ++ 
     · rw [List.getElem_cons_zero, ← beAt_enc8 x]
       apply beAt_congr
       intro k hk
-      rw [limbBytes, byteAt_append, if_neg (by omega), byteAt_append, if_pos (by simp; omega),
+      rw [limbBytes, byteAt_append, ite_eq_right (by omega), byteAt_append, ite_eq_left (by simp; omega),
         show A.size + 8 * 0 + k - A.size = 0 + k by omega]
     · rw [List.getElem_cons_succ, ← ih.2 i (by simpa using hi), show A.size + 8 * (i + 1) =
         A.size + 8 + 8 * i by ring]
@@ -369,10 +369,10 @@ theorem store8_zeros (A : ByteArray) (x : Limb) (k q : ℕ) (hq : q = A.size) :
   rw [byteAt_store8 x hs, byteAt_append, byteAt_append, byteAt_append, ByteArray.size_append,
     enc8_size, byteAt_zeros, byteAt_zeros]
   by_cases hj : j < A.size
-  · rw [if_neg (by omega), if_pos hj, if_pos (by omega), if_pos hj]
+  · rw [ite_eq_right (by omega), ite_eq_left hj, ite_eq_left (by omega), ite_eq_left hj]
   · by_cases hk : j < A.size + 8
-    · rw [if_pos ⟨(by omega), hk⟩, if_pos hk, if_neg hj]
-    · rw [if_neg (by omega), if_neg hj, if_neg hk]
+    · rw [ite_eq_left ⟨(by omega), hk⟩, ite_eq_left hk, ite_eq_right hj]
+    · rw [ite_eq_right (by omega), ite_eq_right hj, ite_eq_right hk]
 
 theorem zeros_zero : zeros 0 = ByteArray.empty := rfl
 

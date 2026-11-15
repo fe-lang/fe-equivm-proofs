@@ -55,7 +55,7 @@ theorem checkedSub_word {a : UInt256} {b : ℕ} (h : b ≤ a.toNat) :
     checkedSub a (UInt256.ofNat b) = pure (UInt256.ofNat (a.toNat - b)) := by
   have ha : a.toNat < 2 ^ 256 := a.val.isLt
   unfold checkedSub
-  rw [toNat_lit (show b < 2 ^ 256 by omega), if_neg (by omega)]
+  rw [toNat_lit (show b < 2 ^ 256 by omega), ite_eq_right (by omega)]
   congr 1
   apply word_eq_of_toNat
   rw [usub_toNat (by rw [toNat_lit (show b < 2 ^ 256 by omega)]; exact h),
@@ -133,7 +133,7 @@ theorem LimbsAt.write_other {mem : ByteArray} {p : ℕ} {ks : List Limb} (h : Li
     {src : ByteArray} {so d n : ℕ} (hs : so + n ≤ src.size) (hd : d + n ≤ mem.size)
     (hdisj : d + n ≤ p ∨ p + 8 * ks.length ≤ d) : LimbsAt (src.write so mem d n) p ks :=
   h.congr (by rw [write_size_from _ _ _ _ _ hs hd]; exact h.1) (fun j _ _ => by
-    rw [byteAt_write_from _ _ _ _ _ _ hs hd, if_neg (by omega)])
+    rw [byteAt_write_from _ _ _ _ _ _ hs hd, ite_eq_right (by omega)])
 
 /-- **A write of whole limbs** puts them at `d`. -/
 theorem LimbsAt.write_same {src : ByteArray} {so : ℕ} {ls : List Limb} (h : LimbsAt src so ls)
@@ -143,7 +143,7 @@ theorem LimbsAt.write_same {src : ByteArray} {so : ℕ} {ls : List Limb} (h : Li
   rw [← h.2 k hk]
   apply beAt_congr
   intro j hj
-  rw [byteAt_write_from _ _ _ _ _ _ h.1 hd, if_pos (by omega)]
+  rw [byteAt_write_from _ _ _ _ _ _ h.1 hd, ite_eq_left (by omega)]
   congr 1; omega
 
 theorem ArrayAt.write_other {a : MemArray_u64} {ls : List Limb} {mem : ByteArray}

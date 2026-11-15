@@ -237,7 +237,7 @@ theorem topLimb_pos {L : ℕ} (hL : 1 ≤ L ∧ L ≤ 4) (m : L4) (hm : nat4 m <
     (h1 : 0 < nat4 m) (ht : 2 ^ (64 * (L - 1)) ≤ nat4 m) : 0 < (topLimb L m).val := by
   have := m.l0.isLt; have := m.l1.isLt; have := m.l2.isLt; have := m.l3.isLt
   obtain ⟨hl1, hl4⟩ := hL
-  interval_cases L <;> simp only [topLimb, nat4, if_true, if_false, Nat.reduceEqDiff] at hm h1 ht ⊢ <;> omega
+  interval_cases L <;> simp only [topLimb, nat4, ite_true, ite_false, Nat.reduceEqDiff] at hm h1 ht ⊢ <;> omega
 
 /-- The stores of `small_power<L>`'s exit: limb `k < L` of `x` at `q + 8 k`. -/
 def storeL (L : ℕ) (mem : ByteArray) (q : ℕ) (x : L4) : ByteArray :=

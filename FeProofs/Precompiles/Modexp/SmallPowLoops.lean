@@ -37,7 +37,7 @@ theorem newton_loopℓ (x : Exponent) (base value : Lib.MemArray_u64) (a : Limb)
   | n + 1, i, y, h => by
     rw [small_power_ℓ.b1.eq_1]
     simp only [has05_eq r8 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 5) = True from
-      eq_true (by omega), decide_true, if_true, Lib.Range_at_0_5, Lib.Range_next_0_5,
+      eq_true (by omega), decide_true, ite_true, Lib.Range_at_0_5, Lib.Range_next_0_5,
       next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, mulW64_eq, two_w, subW64_eq]
     rw [Function.iterate_succ_apply]
     exact newton_loopℓ x base value a r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17
@@ -58,12 +58,12 @@ theorem square_loopℓ (x : Exponent) (wd : UInt256) (wn : Window) (m : L4) (inv
     rw [small_power_ℓ.b1.b12.b18.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) hj (show k < 2 ^ 256 by omega),
       show (i ≤ k ∧ k < j) = False from eq_false (by omega), decide_false, Bool.false_eq_true,
-      if_false, pure_bind]
+      ite_false, pure_bind]
     rfl
   | n + 1, k, p, r16, r17, h, hik => by
     rw [small_power_ℓ.b1.b12.b18.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) hj (show k < 2 ^ 256 by omega),
-      show (i ≤ k ∧ k < j) = True from eq_true (by omega), decide_true, if_true,
+      show (i ≤ k ∧ k < j) = True from eq_true (by omega), decide_true, ite_true,
       Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
       next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind, smulℓ_eq]
     rw [Function.iterate_succ_apply]
@@ -88,12 +88,12 @@ theorem table_loopℓ (K : UInt256 → Small_ℓ → Vector Wide 64 → Wide →
     rw [small_power_ℓ.b1.b8.eq_1]
     simp only [has1_eq E (by omega) (show k < 2 ^ 256 by omega),
       show (1 ≤ k ∧ k < E) = False from eq_false (by omega), decide_false, Bool.false_eq_true,
-      if_false, pure_bind]
+      ite_false, pure_bind]
     rw [show k = E by omega]
   | n + 1, k, r14, h, hk => by
     rw [small_power_ℓ.b1.b8.eq_1]
     simp only [has1_eq E (by omega) (show k < 2 ^ 256 by omega),
-      show (1 ≤ k ∧ k < E) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_1,
+      show (1 ≤ k ∧ k < E) = True from eq_true (by omega), decide_true, ite_true, Lib.Range_at_1,
       Lib.Range_next_1, next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind,
       sub_lit (show k < 2 ^ 256 by omega) hk, checkIndex_ok (show k - 1 < 64 by omega) (by norm_num),
       checkIndex_ok (show k < 64 by omega) (by norm_num), toNat_lit (show k - 1 < 2 ^ 256 by omega),
@@ -115,7 +115,7 @@ theorem b17_oddℓ (x : Exponent) (wd : UInt256) (m : L4) (inv : Limb) (t : ℕ 
         (UInt256.ofNat j) true r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 (toW p) (toW (t k)) r20
         r21 := by
   rw [small_power_ℓ.b1.b12.b17.eq_1]
-  simp only [if_true, checkIndex_ok (show k < 64 by omega) (by norm_num),
+  simp only [ite_true, checkIndex_ok (show k < 64 by omega) (by norm_num),
     toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind, smulℓ_eq]
 
 /-- The first window: its entry. -/
@@ -127,7 +127,7 @@ theorem b17_firstℓ (x : Exponent) (wd : UInt256) (sm : Small_ℓ) (t : ℕ →
       small_power_ℓ.b1.b12 x wd r0 sm (tabV t c) r3 (toW (t k)) (UInt256.ofNat j) true r7 r8 r9 r10
         r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 := by
   rw [small_power_ℓ.b1.b12.b17.eq_1]
-  simp only [if_true, Bool.false_eq_true, if_false, checkIndex_ok (show k < 64 by omega)
+  simp only [ite_true, Bool.false_eq_true, ite_false, checkIndex_ok (show k < 64 by omega)
     (by norm_num), toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind]
 
 /-- A zero bit: on to the next. -/
@@ -138,7 +138,7 @@ theorem b17_evenℓ (x : Exponent) (wd : UInt256) (j : ℕ) (e : UInt256) r0 r1 
       small_power_ℓ.b1.b12 x wd r0 r1 r2 r3 r4 (UInt256.ofNat j) r6 r7 r8 r9 r10 r11 r12 r13 r14
         r15 r16 r17 r18 r19 r20 r21 := by
   rw [small_power_ℓ.b1.b12.b17.eq_1]
-  simp only [Bool.false_eq_true, if_false]
+  simp only [Bool.false_eq_true, ite_false]
 
 /-- **The walk of `small_power<L>`**, from bit `i` to the end of the exponent: the power ends
     standing for `b ^ e`. -/
@@ -172,7 +172,7 @@ theorem walkℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e t
     rw [small_power_ℓ.b1.b12.eq_1]
     simp only [hx.total_eq, toNat_lit (show i < 2 ^ 256 by omega),
       toNat_lit (show total < 2 ^ 256 by omega), show (i < total) = True from eq_true hlt,
-      decide_true, if_true, Fe.M.exec_bind, window_exec hx I hlt (show 1 ≤ width ∧ width ≤ 64 by omega)]
+      decide_true, ite_true, Fe.M.exec_bind, window_exec hx I hlt (show 1 ≤ width ∧ width ≤ 64 by omega)]
     by_cases hb : bitOf e total i = 0
     · have hwin : win e total i width = ⟨UInt256.ofNat (i + 1), UInt256.ofNat 0, false⟩ := by
         simp [win, hb]
@@ -180,12 +180,12 @@ theorem walkℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e t
       rw [hb, Nat.add_zero] at hpre
       rw [hwin]
       cases st
-      · simp only [Bool.false_eq_true, if_false]
+      · simp only [Bool.false_eq_true, ite_false]
         rw [b17_evenℓ]
         exact walkℓ hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13 r14
           r20 r21 n' (i + 1) false p _ _ _ _ _ (by omega) (by omega)
           (by simp only [WInv] at hst ⊢; rw [hpre, hst])
-      · simp only [if_true, Lib.Range_Unknown_Unknown_start, pure_bind]
+      · simp only [ite_true, Lib.Range_Unknown_Unknown_start, pure_bind]
         obtain ⟨r16', r17', hsq⟩ := square_loopℓ x (UInt256.ofNat width) _ m inv i (i + 1)
           (by omega) r0 _ r3 _ _ r7 r8 r9 r10 r11 r12 r13 r14 r18 r19 r20 r21 1 i p r16 r17
           (by omega) le_rfl
@@ -209,14 +209,14 @@ theorem walkℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e t
         ((digitOf e total i (winEnd e total i width) - 1) / 2)
       rw [hkd] at htb
       cases st
-      · simp only [Bool.false_eq_true, if_false]
+      · simp only [Bool.false_eq_true, ite_false]
         rw [b17_firstℓ _ _ _ _ _ _ _ hk hc]
         refine walkℓ hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13
           r14 r20 r21 n' _ true _ _ _ _ _ _ (by omega) hj2 ?_
         simp only [WInv] at hst ⊢
         rw [hstep, hst, Nat.zero_mul, Nat.zero_add]
         exact htb
-      · simp only [if_true, Lib.Range_Unknown_Unknown_start, pure_bind]
+      · simp only [ite_true, Lib.Range_Unknown_Unknown_start, pure_bind]
         obtain ⟨r16', r17', hsq⟩ := square_loopℓ x (UInt256.ofNat width) _ m inv i
           (winEnd e total i width) (by omega) r0 _ r3 _ _ r7 r8 r9 r10 r11 r12 r13 r14 r18 r19
           r20 r21 (winEnd e total i width - i) i p r16 r17 (by omega) le_rfl

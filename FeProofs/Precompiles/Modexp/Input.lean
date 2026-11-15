@@ -64,7 +64,7 @@ theorem input_byte_exec {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Hol
 theorem shl8_lit {r : ℕ} (hr : r < 2 ^ 56) :
     IntTy.shl (.u 64) (UInt256.ofNat r) (UInt256.ofNat 8) = UInt256.ofNat (r * 256) := by
   simp only [IntTy.shl, IntTy.val, IntTy.wrap, toNat_lit (show r < 2 ^ 256 by omega),
-    toNat_lit (show 8 < 2 ^ 256 by norm_num), show ¬ 256 ≤ 8 by omega, if_false]
+    toNat_lit (show 8 < 2 ^ 256 by norm_num), show ¬ 256 ≤ 8 by omega, ite_false]
   congr 1
   rw [show ((r : ℤ) * 2 ^ 8 % 2 ^ 64) = ((r * 256 : ℕ) : ℤ) by
     rw [Int.emod_eq_of_lt (by positivity) (by push_cast; omega)]; push_cast; ring, Int.toNat_natCast]
@@ -109,7 +109,7 @@ theorem byte_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b d
     have hstep := partLimb_step (beAt d off len) i k (by omega)
     rw [input_limb_MemBuffer.b5.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show k + 1 < 2 ^ 256 by omega),
-      show 0 < k + 1 by omega, decide_true, if_true,
+      show 0 < k + 1 by omega, decide_true, ite_true,
       ofNat_sub_ofNat (show k + 1 < UInt256.size by unfold UInt256.size; omega) (show 1 ≤ k + 1 by omega),
       Nat.add_sub_cancel, ofNat_mul_ofNat (show i < UInt256.size by unfold UInt256.size; omega)
         (show 8 < UInt256.size by unfold UInt256.size; omega)
@@ -117,8 +117,8 @@ theorem byte_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b d
       ofNat_add_ofNat (show i * 8 + k < UInt256.size by unfold UInt256.size; omega), shl8_lit hp56,
       toNat_lit (show i * 8 + k < 2 ^ 256 by omega), toNat_lit (show len < 2 ^ 256 by omega)]
     by_cases hpos : i * 8 + k < len
-    · rw [if_pos (show 8 * i + k < len by omega)] at hdig
-      simp only [hpos, decide_true, if_true,
+    · rw [ite_eq_left (show 8 * i + k < len by omega)] at hdig
+      simp only [hpos, decide_true, ite_true,
         ofNat_add_ofNat (show off + len < UInt256.size by unfold UInt256.size; omega),
         ofNat_sub_ofNat (show off + len < UInt256.size by unfold UInt256.size; omega)
           (show 1 ≤ off + len by omega),
@@ -128,8 +128,8 @@ theorem byte_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b d
         lor_byte hp56 (byteAt_lt _ _)]
       rw [show off + len - 1 - (i * 8 + k) = off + len - 1 - (8 * i + k) by ring_nf, ← hdig, hstep]
       exact byte_loop h hoff hi I k (by omega)
-    · rw [if_neg (show ¬ 8 * i + k < len by omega)] at hdig
-      simp only [hpos, decide_false, Bool.false_eq_true, if_false]
+    · rw [ite_eq_right (show ¬ 8 * i + k < len by omega)] at hdig
+      simp only [hpos, decide_false, Bool.false_eq_true, ite_false]
       rw [show partLimb (beAt d off len) i (k + 1) * 256 = partLimb (beAt d off len) i k by
         rw [← hstep, hdig]; simp]
       exact byte_loop h hoff hi I k (by omega)
@@ -183,19 +183,19 @@ theorem input_limb_exec {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Hol
     ofNat_add_ofNat (show i * 8 + 8 < UInt256.size by omega),
     toNat_lit (show i * 8 + 8 < 2 ^ 256 by omega), toNat_lit (show len < 2 ^ 256 by omega)]
   by_cases hf : i * 8 + 8 ≤ len
-  · simp only [hf, decide_true, if_true, Fe.M.exec_bind, len_exec, h.len,
+  · simp only [hf, decide_true, ite_true, Fe.M.exec_bind, len_exec, h.len,
       toNat_lit (show off + len - i * 8 < 2 ^ 256 by omega)]
     by_cases hd : off + len - i * 8 ≤ d.size
-    · simp only [hd, decide_true, if_true,
+    · simp only [hd, decide_true, ite_true,
         ofNat_sub_ofNat (show off + len - i * 8 < UInt256.size by omega) (show 8 ≤ off + len - i * 8 by omega)]
       rw [Fe.M.exec_bind, show off + len - i * 8 - 8 = off + len - 8 * i - 8 by omega,
         lane_exec h (j := off + len - 8 * i - 8) (by omega)]
       simp only [Fe.M.exec_pure]
       rw [swap_swap_beAt, lane_limb d (show 8 * i + 8 ≤ len by omega)]
       rfl
-    · simp only [hd, decide_false, Bool.false_eq_true, if_false]
+    · simp only [hd, decide_false, Bool.false_eq_true, ite_false]
       exact hloop
-  · simp only [hf, decide_false, Bool.false_eq_true, if_false]
+  · simp only [hf, decide_false, Bool.false_eq_true, ite_false]
     exact hloop
 
 /-! ## The limbs of a number -/
@@ -265,7 +265,7 @@ theorem limbs_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b 
       hH hoff (i := k) (by omega) I
     rw [input_limbs_MemBuffer.b6.eq_1]
     simp only [has0_eq' R (by omega) (show k < 2 ^ 256 by omega), show (0 ≤ k ∧ k < R) = True from
-      eq_true (by omega), decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0,
+      eq_true (by omega), decide_true, ite_true, Lib.Range_at_0, Lib.Range_next_0,
       next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind, hl,
       idx_fresh (show k < count by omega) hroom,
       store_exec (show w.memory.size + 8 * k < UInt256.size by omega), limbsMem_store _ _ _ _
@@ -295,15 +295,15 @@ theorem input_limbs_exec {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Ho
         List.take_append_of_le_length (by simp; omega),
         List.take_of_length_le (by simp), limbBytes_append, limbBytes_replicate_zero,
         ByteArray.append_assoc]
-  simp only [input_limbs_MemBuffer, Fe.M.exec_bind, hal, if_true, Lib.Option_MemArray_u64.Some_0,
+  simp only [input_limbs_MemBuffer, Fe.M.exec_bind, hal, ite_true, Lib.Option_MemArray_u64.Some_0,
     checkedAdd_small (show len + 7 < 2 ^ 256 by omega),
     checkedDiv_lit (show len + 7 < 2 ^ 256 by omega) (show 8 < 2 ^ 256 by norm_num) (by norm_num),
     pure_bind, toNat_lit (show (len + 7) / 8 < 2 ^ 256 by omega),
     toNat_lit (show count < 2 ^ 256 by omega), Lib.Range_start_0]
   by_cases hp : (len + 7) / 8 < count
-  · simp only [hp, decide_true, if_true]
+  · simp only [hp, decide_true, ite_true]
     rw [limbs_loop h hoff le_rfl hp.le hroom I _ 0 (Nat.zero_add _), hend _ hp.le (Or.inr rfl)]
-  · simp only [hp, decide_false, Bool.false_eq_true, if_false]
+  · simp only [hp, decide_false, Bool.false_eq_true, ite_false]
     rw [limbs_loop h hoff (by omega) le_rfl hroom I _ 0 (Nat.zero_add _), hend _ le_rfl (Or.inl rfl)]
 
 end FeProofs.Modexp

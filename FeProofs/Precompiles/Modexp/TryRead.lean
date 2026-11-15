@@ -22,7 +22,7 @@ def topOf (e total : ℕ) : ℕ := if e = 0 then total else total - 1 - e.log2
 
 theorem lz_limb (x : Limb) (hx : 0 < x.val) :
     IntTy.leadingZeros (.u 256) x.w = UInt256.ofNat (255 - x.val.log2) := by
-  rw [leadingZeros_eq_clz, UInt256.clz, Limb.toNat_w, if_neg (by omega)]
+  rw [leadingZeros_eq_clz, UInt256.clz, Limb.toNat_w, ite_eq_right (by omega)]
 
 theorem limb_eq_zero_w (x : Limb) : (x.w = UInt256.ofNat 0) = (x = 0) := by
   rw [zero_w]; exact propext Limb.w_inj
@@ -44,13 +44,13 @@ theorem scan_loop {w : World} {a : Lib.MemArray_u64} {ls : List Limb} (h : Array
     have hs := h.small
     rw [Exponent_try_read_MemBuffer.b3.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show c + 1 < 2 ^ 256 by omega),
-      show 0 < c + 1 by omega, decide_true, if_true,
+      show 0 < c + 1 by omega, decide_true, ite_true,
       checkedSub_lit (show c + 1 < 2 ^ 256 by omega) (show 1 ≤ c + 1 by omega), Nat.add_sub_cancel,
       pure_bind, Fe.M.exec_bind, index_ref_eq (a := a) (i := c) (by rw [h.len]; omega) (by omega),
       load_exec h.limbs hcl hs I, limb_eq_zero_w]
     by_cases h0 : ls[c] = 0
     · rw [show decide (ls[c] = 0) = true from decide_eq_true h0]
-      simp only [if_true]
+      simp only [ite_true]
       exact scan_loop h htot hv I c (by omega) (fun j hj hcj => by
         rcases Nat.lt_or_eq_of_le hcj with hlt | rfl
         · exact hz j hj hlt
@@ -60,7 +60,7 @@ theorem scan_loop {w : World} {a : Lib.MemArray_u64} {ls : List Limb} (h : Array
       have hl64 := log2_lt64 ls[c]
       have hlt : (val ls).log2 < total := (Nat.log2_lt hV).mpr hv
       rw [show decide (ls[c] = 0) = false from decide_eq_false h0]
-      simp only [Bool.false_eq_true, if_false, Fe.M.exec_bind, load_exec h.limbs hcl hs I,
+      simp only [Bool.false_eq_true, ite_false, Fe.M.exec_bind, load_exec h.limbs hcl hs I,
         show (UInt256.ofNat (c + 1) = UInt256.ofNat 0) = False from
           eq_false (ofNat_ne_ofNat_zero (by omega) (by omega)), decide_false]
       rw [lz_limb _ hpos]
@@ -73,7 +73,7 @@ theorem scan_loop {w : World} {a : Lib.MemArray_u64} {ls : List Limb} (h : Array
         checkedAdd_small (show c * 64 + ls[c].val.log2 < 2 ^ 256 by omega),
         checkedSub_lit (show total - 1 < 2 ^ 256 by omega)
           (show c * 64 + ls[c].val.log2 ≤ total - 1 by omega), Fe.M.exec_pure]
-      rw [topOf, if_neg hV, hlog, show 64 * c = c * 64 by ring]
+      rw [topOf, ite_eq_right hV, hlog, show 64 * c = c * 64 by ring]
 
 /-- **`Exponent::try_read(input, start, len)`**: the exponent of `len` bytes at `start`, its
     limbs in a fresh array at the end of memory. -/
@@ -110,7 +110,7 @@ theorem try_read_exec {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds
       (show 8 < 2 ^ 256 by norm_num) (show len * 8 < 2 ^ 256 by omega),
     checkedAdd_small (show len + 7 < 2 ^ 256 by omega),
     checkedDiv_lit (show len + 7 < 2 ^ 256 by omega) (show 8 < 2 ^ 256 by norm_num) (by norm_num),
-    pure_bind, Fe.M.exec_bind, ← hn, ← hN, hl, if_true,
+    pure_bind, Fe.M.exec_bind, ← hn, ← hN, hl, ite_true,
     Lib.Option_MemArray_u64.Some_0, Lib.MemArray_len_u64, show len * 8 = 8 * len by ring]
   exact hsc
 
