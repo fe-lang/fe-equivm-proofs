@@ -169,24 +169,6 @@ where
     | 0, L => L
     | n + 1, L => let L' := step L; if L' == L then L else go step n L'
 
-/-- The value a statement of instrumented block `b` stores at its word, if it is a spill
-    store: of a spilled value, or of a spilled phi of the block `b` jumps to. -/
-def storedValue (f : Func) (words : List (Nat × Nat)) (b : Block) (s : Stmt) :
-    Option (Nat × Nat) :=
-  match s.inst with
-  | .evm .mstore [.imm _ w, o] =>
-    (match o with
-      | .var v => if words.contains (v, w) then some v else phiAt w o
-      | _ => phiAt w o).map (w, ·)
-  | _ => none
-where
-  phiAt (w : Nat) (o : Operand) : Option Nat :=
-    match b.term with
-    | .jump d => (f.block? d).bind fun sb => (sb.phis.find? fun phi =>
-        words.contains (phi.dst, w) &&
-          (phi.incoming.find? (·.2 == b.id)).any (·.1 == o)).map (·.dst)
-    | _ => none
-
 /-- The reloads the bytes make in function `hint` of the section, found by walking each block
     of its instrumented machine IR: each value and point. -/
 def walkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : FuncHint)

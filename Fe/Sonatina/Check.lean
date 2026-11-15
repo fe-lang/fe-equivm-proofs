@@ -1,5 +1,6 @@
 import Fe.Sonatina.Hints
 import Fe.Sonatina.Decode
+import Fe.Sonatina.Plan
 
 /-!
 # Checking bytes against the machine IR
@@ -678,13 +679,6 @@ def _root_.Fe.Sonatina.Term.operands : Term → List Operand
   | .brTable s _ cases => s :: cases.map (·.1)
   | .evmReturn a l | .evmRevert a l => [a, l]
   | .ret vals => vals
-  | _ => []
-
-/-- The successors of a terminator. -/
-def _root_.Fe.Sonatina.Term.succs : Term → List Nat
-  | .jump d => [d]
-  | .br _ nz z => [nz, z]
-  | .brTable _ d cases => d.toList ++ cases.map (·.2)
   | _ => []
 
 /-- Every operand reads a value of `defs`. -/

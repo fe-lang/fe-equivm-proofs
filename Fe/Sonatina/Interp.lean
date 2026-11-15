@@ -398,6 +398,27 @@ theorem monotone_guarded {α γ : Type} [Lean.Order.PartialOrder γ] (ws : List 
     refine Lean.Order.monotone_of_monotone_apply _ fun _ => ?_
     exact Lean.Order.monotone_bind _ _ _ hx (Lean.Order.monotone_const _)
 
+/-- A guarded computation that returns has left the words it guards as they were. -/
+theorem guarded_kept {α : Type} {ws : List Nat} {x : FeM α} {I : ExecutionEnv} {w w' : World}
+    {a : α} (h : (guarded ws x).exec I w = some (.ok (a, w'))) :
+    ∀ p ∈ ws, w'.memory.readWithPadding p 32 = w.memory.readWithPadding p 32 := by
+  cases ws with
+  | nil => intro p hp; cases hp
+  | cons q qs =>
+    unfold guarded at h
+    simp only [Fe.M.exec_bind, Fe.M.exec_get] at h
+    split at h
+    · cases h
+    · cases h
+    · rename_i a' w₁ _
+      split at h
+      · next heq =>
+        simp only [Fe.M.exec_pure, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.2]
+        intro p hp
+        exact List.map_inj_left.mp heq p hp
+      · simp at h
+
 mutual
 
 /-- Run statements, calling functions of `m`, under the guard `g`: each statement leaves the
