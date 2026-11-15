@@ -142,13 +142,6 @@ theorem region_write (d M src : ByteArray) {k m : ℕ} (hm : 0 < m) (hk : k + m 
 
 /-! ## The copy -/
 
-/-- A buffer that holds bytes in memory holds them in memory with more after it. -/
-theorem _root_.FeProofs.Precompiles.Holds.append {b : MemBuffer} {d M : ByteArray}
-  (h : Holds b d M) (T : ByteArray)
-    (hs : (M ++ T).size < UInt256.size) : Holds b d (M ++ T) :=
-  ⟨h.len, by rw [ByteArray.size_append]; have := h.bound; omega,
-    by rw [extract_append_left _ _ _ _ h.bound]; exact h.bytes, hs⟩
-
 /-- **`MemBuffer::try_new`** on memory that is not empty: the allocation is not at address 0, so
     it succeeds, with a zeroed buffer at the end of memory. -/
 theorem tryNew_exec (I : Env) (v : World) (n : ℕ) (hpos : 0 < v.memory.size)
@@ -215,7 +208,7 @@ theorem bytes_exec (t : ℕ) : ∀ (k : ℕ) (v : World), k + t = d.size →
     have hkn : (UInt256.ofNat k).toNat = k := toNat_lit (by omega)
     have hs : (M ++ region d k).size = M.size + d.size := by
       rw [ByteArray.size_append, region_size d (by omega)]
-    have hh : Holds b d v.memory := hv ▸ hb.append _ (by rw [hs]; exact hroom)
+    have hh : Holds b d v.memory := hv ▸ hb.append _ (by rw [← ByteArray.size_append, hs]; exact hroom)
     have hbyte := byte_exec (I := I) hh (j := k) (by omega)
     have hk' : M.size + k < UInt256.size := by omega
     have hpk : (UInt256.ofNat M.size + UInt256.ofNat k).toNat = M.size + k := by
@@ -267,7 +260,7 @@ theorem lanes_exec (t : ℕ) :
       exact bytes_exec I d M b hb hroom hfits (d.size - k) k v (by omega) hv
     have hs : (M ++ region d k).size = M.size + d.size := by
       rw [ByteArray.size_append, region_size d (by omega)]
-    have hh : Holds b d v.memory := hv ▸ hb.append _ (by rw [hs]; exact hroom)
+    have hh : Holds b d v.memory := hv ▸ hb.append _ (by rw [← ByteArray.size_append, hs]; exact hroom)
     have hlane := lane_exec (I := I) hh (j := k) h8
     have hwr := write_le_exec (b := out M d.size) (I := I) (w := v) (off := k)
       (x := (IntTy.swapBytes (.u 64) (UInt256.ofNat (beAt d k 8))).toNat) rfl

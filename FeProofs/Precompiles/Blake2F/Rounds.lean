@@ -1,5 +1,6 @@
 import FeProofs.Precompiles.Blake2F.Mix
 import FeProofs.Precompiles.Field.Checked
+import FeProofs.Precompiles.Casts
 
 /-!
 # Blake2F: the round loops
@@ -74,7 +75,7 @@ theorem sub64' {a b : ℕ} (ha : a < 2 ^ 64) (hb : b ≤ a) :
     IntTy.sub (.u 64) (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a - b)) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show a < 2 ^ 256 by omega), toNat_lit (show b < 2 ^ 256 by omega)]
-  rw [ite_eq_left (by constructor <;> omega)]
+  rw [if_pos (by constructor <;> omega)]
   congr 2
   omega
 
@@ -82,7 +83,7 @@ theorem add64 {a b : ℕ} (h : a + b < 2 ^ 64) :
     IntTy.add (.u 64) (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a + b)) := by
   simp only [IntTy.add, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show a < 2 ^ 256 by omega), toNat_lit (show b < 2 ^ 256 by omega)]
-  rw [ite_eq_left (by constructor <;> omega)]
+  rw [if_pos (by constructor <;> omega)]
   congr 2
   omega
 
@@ -91,20 +92,9 @@ theorem mul64 {a b : ℕ} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) (h : a * b < 2 ^ 6
   simp only [IntTy.mul, IntTy.checked, IntTy.Fits, IntTy.val, IntTy.wrap,
     toNat_lit (show a < 2 ^ 256 by omega), toNat_lit (show b < 2 ^ 256 by omega)]
   have h' : ((a : ℤ) * b) = ((a * b : ℕ) : ℤ) := by push_cast; ring
-  rw [h', ite_eq_left (by constructor <;> omega)]
+  rw [h', if_pos (by constructor <;> omega)]
   congr 2
   omega
-
-theorem land_max (x : UInt256) : x &&& ~~~(UInt256.ofNat 0) = x := by
-  apply word_eq_of_toNat
-  change (UInt256.land _ _).toNat = _
-  rw [uland_toNat]
-  have : (~~~(UInt256.ofNat 0)).toNat = 2 ^ 256 - 1 := rfl
-  rw [this, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (show x.toNat < 2 ^ 256 from x.val.isLt)]
-
-theorem downcast_usize (x : UInt256) : downcast_truncate_u64_usize x = pure x := by
-  simp only [Lib.downcast_truncate_u64_usize, Lib.u64_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_max]
 
 /-! ## The loop of single rounds -/
 
@@ -122,7 +112,7 @@ theorem rest_step {T r : ℕ} (hT : T < 2 ^ 64) (hr : r < T) (m v : Words) r0 r4
       pure (UInt256.ofNat (r % 10 * 16)) := mul64 (by omega) (by decide) (by omega)
   rw [compress_MemBuffer.b5.b9.b13.b20.b23.eq_1, roundFast_get]
   simp only [toNat_lit (show r < 2 ^ 256 by omega), toNat_lit (show T < 2 ^ 256 by omega),
-    decide_eq_true hr, ite_true, hrem, hmul, downcast_usize, SIGMA_eq, pure_bind]
+    decide_eq_true hr, if_true, hrem, hmul, downcast_u64_usize, SIGMA_eq, pure_bind]
   generalize r % 10 = j at hj ⊢
   have t0 : (UInt256.ofNat (j * 16)).toNat = j * 16 := toNat_lit (by omega)
   have c0 : checkIndex (UInt256.ofNat (j * 16)) 160 = pure () := checkIndex_lt (by omega) (by decide)
@@ -369,13 +359,13 @@ theorem tens_spec {T : ℕ} (hT : T < 2 ^ 64) (m v0 : Words) r0 r4 r5 r6 r8 :
     simp only [pure_bind, toNat_lit (show T - r < 2 ^ 256 by omega),
       toNat_lit (show 10 < 2 ^ 256 by decide)]
     by_cases h10 : 10 ≤ T - r
-    · simp only [h10, decide_true, ite_true, ten_rounds_eq m _ hr, pure_bind,
+    · simp only [h10, decide_true, if_true, ten_rounds_eq m _ hr, pure_bind,
         add64 (show r + 10 < 2 ^ 64 by omega)]
       have hs := roundsFast_add m 10 r 0 v0
       rw [Nat.zero_add] at hs
       rw [← hs]
       exact ih (n - 10) (by omega) (r + 10) (toV m) (by omega) (by omega)
-    · simp only [h10, decide_false, Bool.false_eq_true, ite_false]
+    · simp only [h10, decide_false, Bool.false_eq_true, if_false]
       exact ⟨r7, rest_spec hT m v0 r0 r4 r5 r6 r7 r8 n r h⟩
 
 /-! ## The output -/
@@ -413,7 +403,7 @@ theorem final_spec (v : Words) (H : Fin 8 → UInt64) r1 r3 r4 r5 r6 r7 r8 :
       checkIndex_lt (show i + 8 < 16 by omega) (by decide), toNat_lit (show i < 2 ^ 256 by omega),
       toNat_lit (show i + 8 < 2 ^ 256 by omega), toV_get v (show i < 16 by omega),
       toV_get v (show i + 8 < 16 by omega), getElem!_ofFn _ (show i < 8 by omega), lt_irrefl,
-      ite_false, xor_lw, set!_ofFn, next_eq (show i + 1 < 2 ^ 256 by omega)]
+      if_false, xor_lw, set!_ofFn, next_eq (show i + 1 < 2 ^ 256 by omega)]
     have e : (fun j : Fin 8 => if j.val = i then lw (H ⟨i, by omega⟩ ^^^ (v.get i ^^^ v.get (i + 8)))
         else lw (if j.val < i then outW H v j else H j)) =
         fun j => lw (if j.val < i + 1 then outW H v j else H j) := by

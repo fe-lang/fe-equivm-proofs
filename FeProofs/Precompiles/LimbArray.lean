@@ -1,4 +1,5 @@
 import FeProofs.Precompiles.Limbs
+import FeProofs.Precompiles.Casts
 import FeProofs.Precompiles.Field.Checked
 
 /-!
@@ -126,24 +127,6 @@ theorem ArrayAt.append {a : MemArray_u64} {ls : List Limb} {mem : ByteArray} (h 
     (X : ByteArray) (hs : mem.size + X.size < UInt256.size) : ArrayAt a ls (mem ++ X) :=
   ⟨h.len, h.limbs.append X, by rw [ByteArray.size_append]; exact hs⟩
 
-/-! ## Casts -/
-
-theorem land_ones (x : UInt256) : x &&& ~~~(UInt256.ofNat 0) = x := by
-  apply word_eq_of_toNat
-  change (UInt256.land _ _).toNat = _
-  rw [uland_toNat]
-  have : (~~~(UInt256.ofNat 0)).toNat = 2 ^ 256 - 1 := rfl
-  rw [this, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (show x.toNat < 2 ^ 256 from x.val.isLt)]
-
-/-- `u64` to `usize` changes nothing (as `Blake2F.downcast_usize`). -/
-theorem downcast_u64_usize (x : UInt256) : Lib.downcast_truncate_u64_usize x = pure x := by
-  simp only [Lib.downcast_truncate_u64_usize, Lib.u64_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_ones]
-
-theorem downcast_usize_usize (x : UInt256) : Lib.downcast_truncate_usize_usize x = pure x := by
-  simp only [Lib.downcast_truncate_usize_usize, Lib.usize_to_word, Lib.usize_IS_SIGNED,
-    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, ite_false, land_ones]
-
 /-! ## Allocation -/
 
 theorem max_allocation : Lib.MAX_ALLOCATION = pure (UInt256.ofNat (2 ^ 64 - 1)) := rfl
@@ -169,9 +152,9 @@ theorem try_alloc_bytes_exec {k : ℕ} (I : Env) (w : World) (h0 : 0 < w.memory.
     have := congrArg UInt256.toNat e; rw [hm, toNat_lit (by norm_num)] at this; omega
   have hmax : (UInt256.ofNat (2 ^ 64 - 1)).toNat = 2 ^ 64 - 1 := toNat_lit (by norm_num)
   simp only [Lib.try_alloc_bytes, max_allocation, pure_bind, hk', hmax,
-    show ¬ (2 ^ 64 - 1 < k) by omega, decide_false, Bool.false_eq_true, ite_false]
-  simp only [Fe.M.exec_bind, alloc, Fe.M.exec_get, hk', ite_eq_left hroom, Fe.M.exec_set,
-    Fe.M.exec_pure, hne, decide_false, Bool.false_eq_true, ite_false]
+    show ¬ (2 ^ 64 - 1 < k) by omega, decide_false, Bool.false_eq_true, if_false]
+  simp only [Fe.M.exec_bind, alloc, Fe.M.exec_get, hk', if_pos hroom, Fe.M.exec_set,
+    Fe.M.exec_pure, hne, decide_false, Bool.false_eq_true, if_false]
   rfl
 
 /-- **`MemArray::try_new_zeroed(n)`** in nonempty memory with room for `8 n` more bytes: an
@@ -196,12 +179,12 @@ theorem try_new_zeroed_exec {n : ℕ} (I : Env) (w : World) (h0 : 0 < w.memory.s
   have hal := try_alloc_bytes_exec (k := 8 * n) I w h0 hroom (by omega)
   simp only [Lib.MemArray_try_new_zeroed_u64, Lib.MemArray_try_new_uninit_u64,
     Lib.try_alloc_elems_u64, max_allocation, Lib.MemArray_byte_len_u64, Lib.cast_u8_u64,
-    Lib.zero_bytes, Lib.cast_u64_u8, pure_bind, bind_assoc, hne, decide_true, ite_true,
+    Lib.zero_bytes, Lib.cast_u64_u8, pure_bind, bind_assoc, hne, decide_true, if_true,
     checkedDiv_lit (show 2 ^ 64 - 1 < 2 ^ 256 by norm_num) (show 8 < 2 ^ 256 by norm_num)
       (by norm_num), hmax, hn', show ¬ ((2 ^ 64 - 1) / 8 < n) by omega, decide_false,
-    Bool.false_eq_true, ite_false, hm8]
+    Bool.false_eq_true, if_false, hm8]
   simp only [Fe.M.exec_bind, hal, Fe.M.exec_pure, Lib.Option_u8.Some_0, Lib.Option_u64.Some_0,
-    Lib.Option_MemArray_u64.Some_0, ite_true, zeroMem, Fe.M.exec_modify, hm]
+    Lib.Option_MemArray_u64.Some_0, if_true, zeroMem, Fe.M.exec_modify, hm]
   simp only [hm8, Fe.M.exec_pure, h8,
     show (⟨Array.replicate (8 * n) 0⟩ : ByteArray) = zeros (8 * n) from rfl, zeros_write_zeros]
 
