@@ -39,6 +39,7 @@ import FeProofs.Precompiles.Exported.Identity
 import FeProofs.Precompiles.Exported.Modexp
 import FeProofs.Case44Bank.Bytecode
 import FeProofs.Case44Bank.Exported
+import FeProofs.Case44Bank.Sonatina
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Precompiles.Bn254.MulContract
 import FeProofs.Fixtures.Decode
