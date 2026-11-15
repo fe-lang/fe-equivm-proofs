@@ -43,6 +43,11 @@ import FeProofs.Precompiles.Exported.Identity
 import FeProofs.Precompiles.Exported.Modexp
 import FeProofs.Case44Bank.Bytecode
 import FeProofs.Case44Bank.Exported
+import FeProofs.Deposit.Exported
+import FeProofs.Deposit.ExportedStd
+import FeProofs.Lib.AbiBytes
+import FeProofs.Lib.BytesCodec
+import FeProofs.Lib.StaticCall
 import FeProofs.Case44Bank.SonatinaCorrect
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Precompiles.Bn254.MulContract
