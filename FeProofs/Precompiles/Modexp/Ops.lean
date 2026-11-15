@@ -72,14 +72,14 @@ theorem mac_eq (a b c d : Limb) :
   simp only [Nat.pred_eq_sub_one] at hab
   simp only [mac, IntTy.mul, IntTy.add, IntTy.checked, IntTy.Fits, val_u, Limb.toNat_w]
   rw [show ((a.val : ℤ) * b.val) = ((a.val * b.val : ℕ) : ℤ) by push_cast; ring,
-    if_pos (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
+    ite_eq_left (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
     toNat_ofNat_lt (by omega), Nat.mod_eq_of_lt (by omega),
     show ((a.val * b.val : ℕ) : ℤ) + c.val = ((a.val * b.val + c.val : ℕ) : ℤ) by push_cast; ring,
-    if_pos (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
+    ite_eq_left (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
     toNat_ofNat_lt (by omega), Nat.mod_eq_of_lt (by omega),
     show ((a.val * b.val + c.val : ℕ) : ℤ) + d.val = ((a.val * b.val + c.val + d.val : ℕ) : ℤ) by
       push_cast; ring,
-    if_pos (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
+    ite_eq_left (by constructor <;> omega), wrap_u_nat _ _, pure_bind,
     Nat.mod_eq_of_lt (show a.val * b.val + c.val + d.val < 2 ^ 128 by omega),
     downcast_truncate_u128_u64_eq, pure_bind, toNat_ofNat_lt (by omega),
     downcast_truncate_u128_u64_eq, pure_bind, shiftRight_toNat _ (show 64 < 256 by decide),
@@ -142,7 +142,7 @@ theorem hib_le (x : Limb) : (hib x).val ≤ 1 := by
 
 theorem shl64_one (x : Limb) : IntTy.shl (.u 64) x.w (1 : Limb).w = (dblL x).w := by
   simp only [IntTy.shl, val_u, Limb.toNat_w, show ((1 : Limb) : ℕ) = 1 from rfl,
-    show (256 ≤ 1) = False by decide, if_false]
+    show (256 ≤ 1) = False by decide, ite_false]
   rw [show ((x.val : ℤ) * 2 ^ 1) = ((2 * x.val : ℕ) : ℤ) by push_cast; ring, wrap_u_nat]
   rfl
 
@@ -205,7 +205,7 @@ theorem shl128_join (h l : Limb) :
   change (UInt256.lor _ _).toNat = _
   rw [u256_lor_toNat_exact]
   simp only [IntTy.shl, val_u, Limb.toNat_w, show (UInt256.ofNat 64).toNat = 64 from rfl,
-    show (256 ≤ 64) = False by decide, if_false]
+    show (256 ≤ 64) = False by decide, ite_false]
   rw [show ((h.val : ℤ) * 2 ^ 64) = ((h.val * 2 ^ 64 : ℕ) : ℤ) by push_cast; ring, wrap_u_nat,
     Nat.mod_eq_of_lt (by omega), toNat_lit (by omega), Dbl.toNat_w, joinD]
   simp only

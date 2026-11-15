@@ -30,7 +30,7 @@ theorem takeWhile_range'_length (p : ℕ → Bool) :
     · obtain ⟨k', rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
       have hs := hlt 0 (by omega)
       simp only [Nat.add_zero] at hs
-      rw [List.takeWhile_cons, if_pos hs, List.length_cons]
+      rw [List.takeWhile_cons, ite_eq_left hs, List.length_cons]
       congr 1
       exact takeWhile_range'_length p n (s + 1) k' (by omega)
         (fun i hi => by rw [show s + 1 + i = s + (i + 1) by omega]; exact hlt _ (by omega))

@@ -70,7 +70,7 @@ macro "spurify" : tactic => `(tactic| (
     Small_double_3_k2, Small_double_4, Small_double_4_k1, Small_double_4_k2, shl64_one, shr63,
     lor_shl1, sdouble,
     decide_eq_true_eq, smul, row2, row3, row4, ssub, Z4, ne12, ne13, ne14, nn12, nn13, nn14, ne21, ne23, ne24, nn21, nn23, nn24, ne31, ne32, ne34, nn31, nn32, nn34, ne41, ne42, ne43, nn41, nn42, nn43,
-    nw21, nw12, nw31, nw13, nw41, nw14, if_true, if_false, decide_true, decide_false, Bool.false_eq_true,
+    nw21, nw12, nw31, nw13, nw41, nw14, ite_true, ite_false, decide_true, decide_false, Bool.false_eq_true,
     ↓reduceIte]))
 
 theorem smul2_eq (m a b : L4) (inv : Limb) :

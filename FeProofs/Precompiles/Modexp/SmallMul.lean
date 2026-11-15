@@ -119,13 +119,13 @@ theorem ssub2_spec (m t : L4) (top : Limb) (hm : nat4 m < 2 ^ 128) (ht : nat4 t 
   have eT : nat4 t = t.l0.val + 2 ^ 64 * t.l1.val := by unfold nat4; rw [ht2, ht3]; simp
   have eM : nat4 m = m.l0.val + 2 ^ 64 * m.l1.val := by unfold nat4; rw [hm2, hm3]; simp
   rw [eT, eM]
-  simp only [ssub, if_true]
+  simp only [ssub, ite_true]
   generalize sbbHi top 0 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0)) = bf at *
   generalize sbbLo t.l0 m.l0 0 = d0 at *
   generalize sbbLo t.l1 m.l1 (sbbHi t.l0 m.l0 0) = d1 at *
   generalize sbbLo top 0 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0)) = lo at *
   by_cases h : bf = 1
-  · rw [if_pos h, eT]
+  · rw [ite_eq_left h, eT]
     rw [h, limb1, Nat.mul_one] at hE
     exact ssub_borrow (R := 2 ^ 128) (v := t.l0.val + 2 ^ 64 * t.l1.val) (top := top.val) hE
       (lt128 hd0 hd1) hlo hm' rfl hT'
@@ -133,7 +133,7 @@ theorem ssub2_spec (m t : L4) (top : Limb) (hm : nat4 m < 2 ^ 128) (ht : nat4 t 
       rcases bf_cases hf with h' | h'
       · exact h'
       · exact absurd (Fin.ext h') h
-    rw [if_neg h, show nat4 ⟨d0, d1, 0, 0⟩ = d0.val + 2 ^ 64 * d1.val by unfold nat4; simp]
+    rw [ite_eq_right h, show nat4 ⟨d0, d1, 0, 0⟩ = d0.val + 2 ^ 64 * d1.val by unfold nat4; simp]
     rw [h0, Nat.mul_zero, Nat.add_zero] at hE
     exact ssub_noborrow (R := 2 ^ 128) hE hm' hT' rfl
 
@@ -179,14 +179,14 @@ theorem ssub3_spec (m t : L4) (top : Limb) (hm : nat4 m < 2 ^ 192) (ht : nat4 t 
     unfold nat4; rw [hm3]; simp
   rw [eT] at hT; rw [eM] at hT hm
   rw [eT, eM]
-  simp only [ssub, show (3 = 2) = False by decide, if_false, if_true]
+  simp only [ssub, show (3 = 2) = False by decide, ite_false, ite_true]
   generalize sbbHi top 0 (sbbHi t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0))) = bf at *
   generalize sbbLo t.l0 m.l0 0 = d0 at *
   generalize sbbLo t.l1 m.l1 (sbbHi t.l0 m.l0 0) = d1 at *
   generalize sbbLo t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0)) = d2 at *
   generalize sbbLo top 0 (sbbHi t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0))) = lo at *
   by_cases h : bf = 1
-  · rw [if_pos h, eT]
+  · rw [ite_eq_left h, eT]
     rw [h, limb1, Nat.mul_one] at hE
     exact ssub_borrow (R := 2 ^ 192) (v := t.l0.val + 2 ^ 64 * t.l1.val + 2 ^ 128 * t.l2.val)
       (top := top.val) hE (lt192 hd0 hd1 hd2) hlo hm rfl hT
@@ -194,7 +194,7 @@ theorem ssub3_spec (m t : L4) (top : Limb) (hm : nat4 m < 2 ^ 192) (ht : nat4 t 
       rcases bf_cases hf with h' | h'
       · exact h'
       · exact absurd (Fin.ext h') h
-    rw [if_neg h, show nat4 ⟨d0, d1, d2, 0⟩ = d0.val + 2 ^ 64 * d1.val + 2 ^ 128 * d2.val by
+    rw [ite_eq_right h, show nat4 ⟨d0, d1, d2, 0⟩ = d0.val + 2 ^ 64 * d1.val + 2 ^ 128 * d2.val by
       unfold nat4; simp]
     rw [h0, Nat.mul_zero, Nat.add_zero] at hE
     exact ssub_noborrow (R := 2 ^ 192) hE hm hT rfl
@@ -223,7 +223,7 @@ theorem ssub4_spec (m t : L4) (top : Limb) (hT : nat4 t + 2 ^ 256 * top.val < 2 
   have hlo := (sbbLo top 0
     (sbbHi t.l3 m.l3 (sbbHi t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0))))).isLt
   unfold nat4 at hT hm ⊢
-  simp only [ssub, show (4 = 2) = False by decide, show (4 = 3) = False by decide, if_false]
+  simp only [ssub, show (4 = 2) = False by decide, show (4 = 3) = False by decide, ite_false]
   generalize sbbHi top 0
     (sbbHi t.l3 m.l3 (sbbHi t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0)))) = bf at *
   generalize sbbLo t.l0 m.l0 0 = d0 at *
@@ -233,14 +233,14 @@ theorem ssub4_spec (m t : L4) (top : Limb) (hT : nat4 t + 2 ^ 256 * top.val < 2 
   generalize sbbLo top 0
     (sbbHi t.l3 m.l3 (sbbHi t.l2 m.l2 (sbbHi t.l1 m.l1 (sbbHi t.l0 m.l0 0)))) = lo at *
   by_cases h : bf = 1
-  · rw [if_pos h]
+  · rw [ite_eq_left h]
     rw [h, limb1, Nat.mul_one] at hE
     exact ssub_borrow (R := 2 ^ 256) (top := top.val) hE (lt256 hd0 hd1 hd2 hd3) hlo hm rfl hT
   · have h0 : bf.val = 0 := by
       rcases bf_cases hf with h' | h'
       · exact h'
       · exact absurd (Fin.ext h') h
-    rw [if_neg h]
+    rw [ite_eq_right h]
     rw [h0, Nat.mul_zero, Nat.add_zero] at hE
     exact ssub_noborrow (R := 2 ^ 256) hE hm hT rfl
 
@@ -275,7 +275,7 @@ theorem smul2_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 
     (ha : nat4 a < 2 ^ 128) (hb : nat4 b < 2 ^ 128) (hab : nat4 a * nat4 b < 2 ^ 128 * nat4 m) :
     nat4 (smul 2 m inv a b) < nat4 m ∧
       nat4 (smul 2 m inv a b) * 2 ^ 128 % nat4 m = nat4 a * nat4 b % nat4 m := by
-  simp only [smul, show (2 = 1) = False by decide, if_false, if_true]
+  simp only [smul, show (2 = 1) = False by decide, ite_false, ite_true]
   obtain ⟨z12, z13, e1⟩ := row2_spec m a Z4 inv b.l0 0 hinv
   generalize row2 m inv a b.l0 Z4 0 = x1 at z12 z13 e1
   obtain ⟨z22, z23, e2⟩ := row2_spec m a x1.1 inv b.l1 x1.2 hinv
@@ -310,8 +310,8 @@ theorem smul3_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 
     (ha : nat4 a < 2 ^ 192) (hb : nat4 b < 2 ^ 192) (hab : nat4 a * nat4 b < 2 ^ 192 * nat4 m) :
     nat4 (smul 3 m inv a b) < nat4 m ∧
       nat4 (smul 3 m inv a b) * 2 ^ 192 % nat4 m = nat4 a * nat4 b % nat4 m := by
-  simp only [smul, show (3 = 1) = False by decide, show (3 = 2) = False by decide, if_false,
-    if_true]
+  simp only [smul, show (3 = 1) = False by decide, show (3 = 2) = False by decide, ite_false,
+    ite_true]
   obtain ⟨z13, e1⟩ := row3_spec m a Z4 inv b.l0 0 hinv
   generalize row3 m inv a b.l0 Z4 0 = x1 at z13 e1
   obtain ⟨z23, e2⟩ := row3_spec m a x1.1 inv b.l1 x1.2 hinv
@@ -347,7 +347,7 @@ theorem smul4_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv)
     nat4 (smul 4 m inv a b) < nat4 m ∧
       nat4 (smul 4 m inv a b) * 2 ^ 256 % nat4 m = nat4 a * nat4 b % nat4 m := by
   simp only [smul, show (4 = 1) = False by decide, show (4 = 2) = False by decide,
-    show (4 = 3) = False by decide, if_false]
+    show (4 = 3) = False by decide, ite_false]
   have e1 := row4_spec m a Z4 inv b.l0 0 hinv
   generalize row4 m inv a b.l0 Z4 0 = x1 at e1
   have e2 := row4_spec m a x1.1 inv b.l1 x1.2 hinv
@@ -385,7 +385,7 @@ theorem smul1_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 
     nat4 (smul 1 m inv a b) < nat4 m ∧
       nat4 (smul 1 m inv a b) * 2 ^ 64 % nat4 m = nat4 a * nat4 b % nat4 m := by
   rw [nat4_one ha, nat4_one hb, nat4_one hm] at *
-  simp only [smul, if_true, smul1]
+  simp only [smul, ite_true, smul1]
   have hc := macLo_cancel m.l0 inv (loD (mulD a.l0 b.l0)) hinv
   generalize hq : mulLo (loD (mulD a.l0 b.l0)) inv = q at hc
   have hP := mul_limbs_lt q m.l0
@@ -495,14 +495,14 @@ theorem sdouble_spec (m x : L4) (hx : nat4 x < nat4 m) :
       2 * (m.l0.val + 2 ^ 64 * m.l1.val + 2 ^ 128 * m.l2.val + 2 ^ 192 * m.l3.val) := by
     rw [hS]; exact Nat.mul_lt_mul_of_pos_left hx (by norm_num)
   by_cases h : bf = 1
-  · rw [if_pos h]
+  · rw [ite_eq_left h]
     rw [h, limb1, Nat.mul_one] at hE
     exact ssub_borrow (R := 2 ^ 256) (top := tb.val) hE (lt256 hd0 hd1 hd2 hd3) hlo hm rfl hT
   · have h0 : bf.val = 0 := by
       rcases bf_cases hf with h' | h'
       · exact h'
       · exact absurd (Fin.ext h') h
-    rw [if_neg h]
+    rw [ite_eq_right h]
     rw [h0, Nat.mul_zero, Nat.add_zero] at hE
     exact ssub_noborrow (R := 2 ^ 256) hE hm hT rfl
 

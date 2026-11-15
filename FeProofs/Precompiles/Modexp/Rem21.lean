@@ -62,7 +62,7 @@ theorem reciprocal_2by1_eq (d : Limb) (hd : 2 ^ 63 ≤ d.val) :
     rw [Nat.div_lt_iff_lt_mul (by omega)]; omega
   have hne : d.w ≠ ⟨0⟩ := by
     intro h; have := congrArg UInt256.toNat h; simp at this; omega
-  simp only [reciprocal_2by1, checkedDiv, hne, if_false, pure_bind, LIMB_BASE, IntTy.sub,
+  simp only [reciprocal_2by1, checkedDiv, hne, ite_false, pure_bind, LIMB_BASE, IntTy.sub,
     IntTy.checked, IntTy.Fits, val_u]
   have hdiv : (UInt256.ofNat 340282366920938463463374607431768211455 / d.w).toNat =
       (2 ^ 128 - 1) / d.val := by
@@ -72,7 +72,7 @@ theorem reciprocal_2by1_eq (d : Limb) (hd : 2 ^ 63 ≤ d.val) :
   rw [hdiv, toNat_lit (show 18446744073709551616 < 2 ^ 256 by decide),
     show (((2 ^ 128 - 1) / d.val : ℕ) : ℤ) - (18446744073709551616 : ℕ) =
       (((2 ^ 128 - 1) / d.val - 2 ^ 64 : ℕ) : ℤ) by rw [Nat.cast_sub hq]; rfl,
-    if_pos (by constructor <;> omega), wrap_u_nat, pure_bind, downcast_truncate_u128_u64_eq,
+    ite_eq_left (by constructor <;> omega), wrap_u_nat, pure_bind, downcast_truncate_u128_u64_eq,
     toNat_lit (by omega), Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
   rfl
 

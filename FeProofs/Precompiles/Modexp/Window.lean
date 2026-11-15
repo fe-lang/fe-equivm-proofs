@@ -60,7 +60,7 @@ theorem shl_one_lit {k : ℕ} (hk : k < 255) :
 theorem checkedSub_lit {a b : ℕ} (ha : a < 2 ^ 256) (h : b ≤ a) :
     checkedSub (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a - b)) := by
   unfold checkedSub
-  rw [toNat_lit ha, toNat_lit (by omega), if_neg (by omega)]
+  rw [toNat_lit ha, toNat_lit (by omega), ite_eq_right (by omega)]
   congr 1
   apply word_eq_of_toNat
   rw [usub_toNat (by rw [toNat_lit ha, toNat_lit (by omega)]; exact h), toNat_lit ha,
@@ -77,7 +77,7 @@ theorem ww_b1_step (bits best cost w : ℕ) (hb : bits < 2 ^ 64) (hcost : cost <
   have hdiv : bits / (w + 1) < 2 ^ 64 := lt_of_le_of_lt (Nat.div_le_self _ _) hb
   rw [window_width.b1.eq_1]
   simp only [toNat_lit (show w < 2 ^ 256 by omega), toNat_lit (show 7 < 2 ^ 256 by norm_num),
-    show w ≤ 7 from hw.2, decide_true, if_true,
+    show w ≤ 7 from hw.2, decide_true, ite_true,
     checkedSub_lit (show w < 2 ^ 256 by omega) (show 1 ≤ w by omega),
     pure_bind, shl_one_lit (show w - 1 < 255 by omega),
     checkedAdd_small (show w + 1 < 2 ^ 256 by omega),
