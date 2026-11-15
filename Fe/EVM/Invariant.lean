@@ -478,7 +478,7 @@ theorem Holds.insert_self {σ : AccountMap} {x : Account} (hx : P x) :
 
 theorem Holds.get {σ : AccountMap} (h : Holds a P σ) :
     ∃ acc, σ.get? a = some acc ∧ P acc := by
-  simpa [Std.ExtTreeMap.get?_eq_getElem?] using h
+  simpa [Std.ExtTreeMap.get?_eq_getElem?] using! h
 
 theorem Holds.of_eq {σ τ : AccountMap} (h : Holds a P σ) (he : τ = σ) : Holds a P τ :=
   he ▸ h
@@ -946,7 +946,7 @@ theorem readWithPadding_size_lt (mem : ByteArray) (o l : UInt256) :
   Nat.lt_of_le_of_lt (ByteArray.readWithPadding_size_le mem o.toNat l.toNat) l.val.isLt
 
 theorem succ_depth_val {e : Fin 1025} (h : e < 1024) : (e + 1).val = e.val + 1 := by
-  have hv : e.val < 1024 := by simpa using h
+  have hv : e.val < 1024 := by simpa using! h
   rw [Fin.val_add_eq_of_add_lt] <;> simp; omega
 
 /-- A `CALL`-family instruction keeps `Holds` when the message call it makes is good. -/

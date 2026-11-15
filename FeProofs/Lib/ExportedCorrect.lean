@@ -26,9 +26,9 @@ theorem shr160_eq_zero_iff (w : UInt256) :
   unfold NotAddress
   constructor
   · intro h hd
-    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using hd) h
+    exact shiftRight160_ne_zero (by simpa [EVM.addressModulus] using! hd) h
   · intro h
-    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using Nat.lt_of_not_le h)
+    exact shiftRight160_eq_zero (by simpa [EVM.addressModulus] using! Nat.lt_of_not_le h)
 
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 4000000 in

@@ -32,9 +32,9 @@ theorem agrees_of_ret {o : ByteArray} {σ' : AccountMap} {w' : World}
   subst hcode hm
   rcases h with hoog | ⟨s, hX, hacc⟩
   · exact Or.inl (Xi_error_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · have hxi := Xi_success_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hX)
     exact Or.inr ⟨_, _, by rw [hxi, hw, hacc], fun h => by cases h⟩
 
 /-- The bytecode returns `o` with account map `σ'`, and the model stops with the same. -/
@@ -46,9 +46,9 @@ theorem agrees_of_stop {o : ByteArray} {σ' : AccountMap} {w' : World}
   subst hcode hm
   rcases h with hoog | ⟨s, hX, hacc⟩
   · exact Or.inl (Xi_error_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · have hxi := Xi_success_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hX)
     exact Or.inr ⟨_, _, by rw [hxi, hw, hacc], fun h => by cases h⟩
 
 /-- The bytecode reverts, and the model fails with a revert or a panic. -/
@@ -60,9 +60,9 @@ theorem agrees_of_rev {f : Exit World}
   subst hcode hm
   rcases h with hoog | ⟨g', o, hX⟩
   · exact Or.inl (Xi_error_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · have hxi := Xi_revert_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hX)
     refine Or.inr ?_
     cases f with
     | revert data => exact ⟨g', o, hxi, fun h => by cases h⟩
@@ -81,18 +81,18 @@ theorem agrees_of_static
   subst hcode hm
   rcases h with hoog | hst
   · exact Or.inl (Xi_error_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · exact Or.inr (Xi_error_of_X (g := g.toUInt256)
-      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hst))
+      (by simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hst))
 
 /-! ## Decoding -/
 
 /-- A calldata word at or above `2 ^ 160` is not an address. -/
 theorem notAddress_of {w : UInt256} (h : ¬ w.toNat < EVM.addressModulus) : NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
+  simpa [NotAddress, EVM.addressModulus] using! h
 
 theorem not_notAddress_of {w : UInt256} (h : w.toNat < EVM.addressModulus) : ¬ NotAddress w := by
-  simpa [NotAddress, EVM.addressModulus] using h
+  simpa [NotAddress, EVM.addressModulus] using! h
 
 /-- Calldata too short for `n` words, or so long that the signed length check rejects it. -/
 theorem badHead_of {cd : ByteArray} {n : ℕ} (h : cd.size < 4 + 32 * n ∨ 2 ^ 255 + 4 ≤ cd.size) :

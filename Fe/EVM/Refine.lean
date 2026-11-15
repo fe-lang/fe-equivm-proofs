@@ -202,7 +202,7 @@ theorem RefinesDeploy.of_unit {p : Profile} {creation runtime : ByteArray} {m : 
             ((init args >>= fun _ => pure runtime).exec I (World.init σ A feed))) :
     RefinesDeploy p creation runtime m validArgs := by
   intro σ σ₀ g A I args hargs hcode hown hperm
-  simpa [hm, ByteArray.append_empty] using
+  simpa [hm, ByteArray.append_empty] using!
     (h σ σ₀ g A I args hargs hcode hown hperm).imp Or.inl id
 
 /-- `RefinesDeploy.of_unit` for a constructor that never consults the context, stated without

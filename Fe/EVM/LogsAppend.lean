@@ -54,7 +54,7 @@ def Deeper (R : Substate → Substate → Prop) (d : Fin 1025) : Prop :=
   ∀ e : Fin 1025, d < e → AtDepth R e
 
 theorem succ_depth_lt {e : Fin 1025} (h : e < 1024) : e < e + 1 := by
-  have hv : e.val < 1024 := by simpa using h
+  have hv : e.val < 1024 := by simpa using! h
   rw [Fin.lt_def, Fin.val_add_eq_of_add_lt] <;> simp; omega
 
 /-- A message call keeps `R` when every message call one level deeper does. -/

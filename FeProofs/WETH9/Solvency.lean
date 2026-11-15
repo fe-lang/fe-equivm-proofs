@@ -216,7 +216,7 @@ theorem tokens_storeAcc (acc : Account) (slot val t : UInt256) :
     rw [Std.LawfulEqCmp.compare_eq_iff_eq]; exact eq_comm
   split
   · rename_i hv
-    have hv : val = ⟨0⟩ := by simpa using hv
+    have hv : val = ⟨0⟩ := by simpa using! hv
     rw [Std.ExtTreeMap.getD_erase]
     by_cases ht : t = slot
     · rw [ite_eq_left (hc.mpr ht), ite_eq_left ht, hv]
@@ -760,7 +760,7 @@ theorem withdrawCall_holds {code : ByteArray}
   refine ⟨⟨_, hσ₁, by rw [storeAcc_code]; exact hcode, h₁ _ hσ₁⟩, ?_⟩
   obtain ⟨acc', h', -, hc', -⟩ := sendEth_payer (r := T.r) (v := T.v) hσ₁
   refine ⟨acc', h', by rw [hc', storeAcc_code]; exact hcode, h₂ acc' ?_⟩
-  simpa [T] using h'
+  simpa [T] using! h'
 
 end WithdrawCall
 

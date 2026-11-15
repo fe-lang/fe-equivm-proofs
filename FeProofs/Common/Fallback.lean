@@ -78,10 +78,10 @@ theorem RDret.reEquivExecutionGenSel {o : ByteArray} {callargs : Store} {cs : Fr
   rcases h with hoog | ⟨s, hX, hsacc⟩
   · exact reEquiv_outOfGas (Xi_error_of_X (g := g.toUInt256) (by
       rw [← hcode] at hoog
-      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · have hxi := Xi_success_of_X (g := g.toUInt256) (by
       rw [← hcode] at hX
-      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hX)
     have hbody' : ExecTransitionBody cfg contract
         (initState σ σ₀ (Sat256.ofUInt256 g.toUInt256) A I)
         callargs t.body (.returned cs evm'' retVal) immutables := by
@@ -134,10 +134,10 @@ theorem RDret.reEquivFallback {o : ByteArray} {callargs : Store} {cs : Frame}
   rcases h with hoog | ⟨s, hX, hsacc⟩
   · exact reEquiv_outOfGas (Xi_error_of_X (g := g.toUInt256) (by
       rw [← hcode] at hoog
-      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hoog))
+      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hoog))
   · have hxi := Xi_success_of_X (g := g.toUInt256) (by
       rw [← hcode] at hX
-      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using hX)
+      simpa [initState, Sat256.ofUInt256, Sat256.toUInt256] using! hX)
     have hbody' : ExecTransitionBody cfg contract
         (initState σ σ₀ (Sat256.ofUInt256 g.toUInt256) A I)
         callargs t.body (.returned cs evm'' retVal) immutables := by
