@@ -284,4 +284,32 @@ theorem walk1 {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e tot
         rw [hstep, pow_add b, pow_mul b]
         exact hR _ _ inv _ _ hinv hm hcop hs htb
 
+theorem one4_w : (Wide.mk (UInt256.ofNat 1) (UInt256.ofNat 0) (UInt256.ofNat 0)
+    (UInt256.ofNat 0)) = toW one4 := rfl
+
+/-- **The end of the walk**: out of Montgomery form, into a fresh array of one limb. -/
+theorem walk_exit1 {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e total top w.memory)
+    (I : Env) (m : L4) (inv : Limb) (p : L4) (wd : UInt256) (h0 : 0 < w.memory.size)
+    (hroom : w.memory.size + 8 < UInt256.size) r0 r2 r3 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17
+    r18 r19 r20 r21 :
+    (small_power_1.b1.b12 x wd r0 ⟨toW m, inv.w⟩ r2 r3 (toW p) (UInt256.ofNat total) true r7 r8 r9
+        r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21).exec I w =
+      some (.ok (.Some ⟨UInt256.ofNat w.memory.size, UInt256.ofNat 1⟩,
+        { w with memory := store8 (w.memory ++ zeros 8) w.memory.size (smul 1 m inv p one4).l0 })) := by
+  have ht := hx.total_lt
+  have hS : UInt256.size = 2 ^ 256 := rfl
+  have hal := try_new_zeroed_exec (n := 1) I w h0 (by omega) (by norm_num)
+  have hm1 : (UInt256.ofNat w.memory.size).toNat = w.memory.size := toNat_lit (by omega)
+  rw [small_power_1.b1.b12.eq_1]
+  simp only [hx.total_eq, Nat.lt_irrefl, decide_false, Bool.false_eq_true, if_false, one4_w,
+    smul1_eq, pure_bind, Fe.M.exec_bind, hal]
+  simp only [if_true, Lib.Option_MemArray_u64.Some_0]
+  simp only [index_mut_eq (a := ⟨UInt256.ofNat w.memory.size, UInt256.ofNat 1⟩) (i := 0)
+      (by rw [toNat_lit (by norm_num)]; norm_num) (by rw [hm1]; omega), pure_bind, hm1,
+    Nat.mul_zero, Nat.add_zero, Fe.M.exec_bind, Fe.M.exec_pure, toW, store_exec (show
+      w.memory.size < UInt256.size by omega), toNat_lit (show 1 < 2 ^ 256 by norm_num),
+    show ((UInt256.ofNat 2).toNat < 1) = False from eq_false (by rw [toNat_lit (by norm_num)]; omega),
+    show ((UInt256.ofNat 3).toNat < 1) = False from eq_false (by rw [toNat_lit (by norm_num)]; omega),
+    decide_false, Bool.false_eq_true, if_false]
+
 end FeProofs.Modexp
