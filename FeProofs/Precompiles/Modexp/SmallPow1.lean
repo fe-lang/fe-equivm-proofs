@@ -135,4 +135,153 @@ theorem table_loop1 (K : UInt256 → Small_1 → Vector Wide 64 → Wide → Wid
     exact table_loop1 K m inv t0 E hE r0 r4 r5 r6 r7 r8 r9 r10 r11 r12 r15 r16 r17 r18 r19 r20
       r21 n (k + 1) _ (by omega) (by omega)
 
+/-! ## The walk -/
+
+/-- After the squarings, a window ending in a set bit, already started: multiply by its entry. -/
+theorem b17_odd1 (x : Exponent) (wd : UInt256) (m : L4) (inv : Limb) (t : ℕ → L4) (c j k : ℕ)
+    (hk : k < c) (hc : c ≤ 64) (p : L4) r0 r3 r5 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19
+    r20 r21 :
+    small_power_1.b1.b12.b17 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 ⟨toW m, inv.w⟩
+        (tabV t c) r3 (toW p) r5 true r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
+      small_power_1.b1.b12 x wd r0 ⟨toW m, inv.w⟩ (tabV t c) r3 (toW (smul 1 m inv p (t k)))
+        (UInt256.ofNat j) true r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 (toW p) (toW (t k)) r20
+        r21 := by
+  rw [small_power_1.b1.b12.b17.eq_1]
+  simp only [if_true, checkIndex_ok (show k < 64 by omega) (by norm_num),
+    toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind, smul1_eq]
+
+/-- The first window: its entry. -/
+theorem b17_first1 (x : Exponent) (wd : UInt256) (sm : Small_1) (t : ℕ → L4) (c j k : ℕ)
+    (hk : k < c) (hc : c ≤ 64) (r4 : Wide) r0 r3 r5 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+    r19 r20 r21 :
+    small_power_1.b1.b12.b17 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 sm (tabV t c) r3 r4
+        r5 false r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
+      small_power_1.b1.b12 x wd r0 sm (tabV t c) r3 (toW (t k)) (UInt256.ofNat j) true r7 r8 r9 r10
+        r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 := by
+  rw [small_power_1.b1.b12.b17.eq_1]
+  simp only [if_true, Bool.false_eq_true, if_false, checkIndex_ok (show k < 64 by omega)
+    (by norm_num), toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind]
+
+/-- A zero bit: on to the next. -/
+theorem b17_even1 (x : Exponent) (wd : UInt256) (j : ℕ) (e : UInt256) r0 r1 r2 r3 r4 r5 r6 r7 r8
+    r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 :
+    small_power_1.b1.b12.b17 x wd ⟨UInt256.ofNat j, e, false⟩ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10
+        r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
+      small_power_1.b1.b12 x wd r0 r1 r2 r3 r4 (UInt256.ofNat j) r6 r7 r8 r9 r10 r11 r12 r13 r14
+        r15 r16 r17 r18 r19 r20 r21 := by
+  rw [small_power_1.b1.b12.b17.eq_1]
+  simp only [Bool.false_eq_true, if_false]
+
+/-- The walk's invariant at bit `i`: once started, the power stands for `b` to the prefix up to
+    `i`; before, that prefix is zero. -/
+def WInv (L : ℕ) (m : L4) (e total b i : ℕ) : Bool → L4 → Prop
+  | true, p => MRep (2 ^ (64 * L)) m p (b ^ prefixOf e total i)
+  | false, _ => prefixOf e total i = 0
+
+theorem entry_lt {e total i width : ℕ} (hi : i < total) (hw : 1 ≤ width)
+    (hb : bitOf e total i = 1) :
+    (digitOf e total i (winEnd e total i width) - 1) / 2 < 2 ^ (width - 1) := by
+  obtain ⟨h1, h2, h3, h4⟩ := winEnd_bounds e total i width hi hw hb
+  have hd := digit_lt e total i (winEnd e total i width)
+  have hp : 2 ^ (winEnd e total i width - i) ≤ 2 ^ width := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have h2w : 2 ^ width = 2 * 2 ^ (width - 1) := by
+    rw [← pow_succ', Nat.sub_add_cancel hw]
+  omega
+
+theorem entry_digit {e total i width : ℕ} (hi : i < total) (hw : 1 ≤ width)
+    (hb : bitOf e total i = 1) :
+    2 * ((digitOf e total i (winEnd e total i width) - 1) / 2) + 1 =
+      digitOf e total i (winEnd e total i width) := by
+  obtain ⟨h1, h2, h3, h4⟩ := winEnd_bounds e total i width hi hw hb
+  have := digit_odd e total i _ h1 h2 h4
+  omega
+
+/-- **The walk of `small_power<1>`**, from bit `i` to the end of the exponent: the power ends
+    standing for `b ^ e`. -/
+theorem walk1 {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e total top w.memory)
+    (I : Env) (m : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 m < 2 ^ (64 * 1))
+    (hcop : Nat.Coprime (2 ^ (64 * 1)) (nat4 m)) (t0 : L4) (b : ℕ)
+    (h0 : MRep (2 ^ (64 * 1)) m t0 b) (width : ℕ) (hw : 1 ≤ width ∧ width ≤ 7) (he : e ≠ 0)
+    r0 r3 r7 r8 r9 r10 r11 r12 r13 r14 r20 r21 :
+    ∀ n i (st : Bool) (p : L4) r15 r16 r17 r18 r19, total - i ≤ n → i ≤ total →
+      WInv 1 m e total b i st p →
+      ∃ (p' : L4) (r15' : Lib.Range_Unknown_Unknown) (r16' r17' r18' r19' : Wide), MRep (2 ^ (64 * 1)) m p' (b ^ e) ∧
+        (small_power_1.b1.b12 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
+            (tabV (tbl 1 m inv t0) (2 ^ (width - 1))) r3 (toW p) (UInt256.ofNat i) st r7 r8 r9 r10
+            r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21).exec I w =
+          (small_power_1.b1.b12 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
+            (tabV (tbl 1 m inv t0) (2 ^ (width - 1))) r3 (toW p') (UInt256.ofNat total) true r7 r8
+            r9 r10 r11 r12 r13 r14 r15' r16' r17' r18' r19' r20 r21).exec I w
+  | n, i, st, p, r15, r16, r17, r18, r19, hn, hit, hst => by
+    rcases Nat.lt_or_eq_of_le hit with hlt | heq
+    swap
+    · subst heq
+      cases st
+      · exact absurd (by simpa [WInv, prefixOf_total] using hst) he
+      · exact ⟨p, r15, r16, r17, r18, r19, by simpa [WInv, prefixOf_total] using hst, rfl⟩
+    obtain ⟨n', rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by omega⟩
+    have ht := hx.total_lt
+    have hc : 2 ^ (width - 1) ≤ 64 := by
+      have : width - 1 ≤ 6 := by omega
+      exact le_trans (Nat.pow_le_pow_right (by norm_num) this) (by norm_num)
+    have hR := mrep_mul 1 (by omega) m
+    rw [small_power_1.b1.b12.eq_1]
+    simp only [hx.total_eq, toNat_lit (show i < 2 ^ 256 by omega),
+      toNat_lit (show total < 2 ^ 256 by omega), show (i < total) = True from eq_true hlt,
+      decide_true, if_true, Fe.M.exec_bind, window_exec hx I hlt (show 1 ≤ width ∧ width ≤ 64 by omega)]
+    by_cases hb : bitOf e total i = 0
+    · have hwin : win e total i width = ⟨UInt256.ofNat (i + 1), UInt256.ofNat 0, false⟩ := by
+        simp [win, hb]
+      have hpre := bit_step e total i hlt
+      rw [hb, Nat.add_zero] at hpre
+      rw [hwin]
+      cases st
+      · simp only [Bool.false_eq_true, if_false]
+        rw [b17_even1]
+        exact walk1 hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13 r14
+          r20 r21 n' (i + 1) false p _ _ _ _ _ (by omega) (by omega)
+          (by simp only [WInv] at hst ⊢; rw [hpre, hst])
+      · simp only [if_true, Lib.Range_Unknown_Unknown_start, pure_bind]
+        obtain ⟨r16', r17', hsq⟩ := square_loop1 x (UInt256.ofNat width) _ m inv i (i + 1)
+          (by omega) r0 _ r3 _ _ r7 r8 r9 r10 r11 r12 r13 r14 r18 r19 r20 r21 1 i p r16 r17
+          (by omega) le_rfl
+        rw [hsq, b17_even1]
+        refine walk1 hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13 r14
+          r20 r21 n' (i + 1) true _ _ _ _ _ _ (by omega) (by omega) ?_
+        simp only [WInv] at hst ⊢
+        have := ssq_iter 1 (by omega) m inv hinv hm hcop 1 p _ hst
+        rw [hpre, show b ^ (2 * prefixOf e total i + 0) = (b ^ prefixOf e total i) ^ 2 ^ 1 by ring]
+        exact this
+    · have hb1 : bitOf e total i = 1 := by have := bitOf_lt e total i; omega
+      obtain ⟨hj1, hj2, hj3, hj4⟩ := winEnd_bounds e total i width hlt hw.1 hb1
+      have hk := entry_lt hlt hw.1 hb1
+      have hkd := entry_digit hlt hw.1 hb1
+      have hwin : win e total i width = ⟨UInt256.ofNat (winEnd e total i width),
+          UInt256.ofNat ((digitOf e total i (winEnd e total i width) - 1) / 2), true⟩ := by
+        simp [win, hb]
+      have hstep := window_step e total i (winEnd e total i width) hj1.le hj2
+      rw [hwin]
+      have htb := tbl_rep 1 (by omega) m inv hinv hm hcop t0 b h0
+        ((digitOf e total i (winEnd e total i width) - 1) / 2)
+      rw [hkd] at htb
+      cases st
+      · simp only [Bool.false_eq_true, if_false]
+        rw [b17_first1 _ _ _ _ _ _ _ hk hc]
+        refine walk1 hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13
+          r14 r20 r21 n' _ true _ _ _ _ _ _ (by omega) hj2 ?_
+        simp only [WInv] at hst ⊢
+        rw [hstep, hst, Nat.zero_mul, Nat.zero_add]
+        exact htb
+      · simp only [if_true, Lib.Range_Unknown_Unknown_start, pure_bind]
+        obtain ⟨r16', r17', hsq⟩ := square_loop1 x (UInt256.ofNat width) _ m inv i
+          (winEnd e total i width) (by omega) r0 _ r3 _ _ r7 r8 r9 r10 r11 r12 r13 r14 r18 r19
+          r20 r21 (winEnd e total i width - i) i p r16 r17 (by omega) le_rfl
+        rw [hsq, b17_odd1 _ _ _ _ _ _ _ _ hk hc]
+        refine walk1 hx I m inv hinv hm hcop t0 b h0 width hw he r0 r3 r7 r8 r9 r10 r11 r12 r13
+          r14 r20 r21 n' _ true _ _ _ _ _ _ (by omega) hj2 ?_
+        simp only [WInv] at hst ⊢
+        have hs := ssq_iter 1 (by omega) m inv hinv hm hcop (winEnd e total i width - i) p _ hst
+        rw [hstep, pow_add b, pow_mul b]
+        exact hR _ _ inv _ _ hinv hm hcop hs htb
+
 end FeProofs.Modexp
