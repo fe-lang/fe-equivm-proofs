@@ -135,6 +135,37 @@ theorem val_replicate_zero (n : ℕ) : val (List.replicate n 0) = 0 := by
   | zero => rfl
   | succ n ih => rw [List.replicate_succ, val, ih]; rfl
 
+/-- Limb `k` of the number. -/
+theorem val_limb : ∀ (ls : List Limb) (k : ℕ) (hk : k < ls.length),
+    val ls / 2 ^ (64 * k) % 2 ^ 64 = ls[k].val
+  | x :: xs, 0, _ => by
+    simp only [val, Nat.mul_zero, pow_zero, Nat.div_one, List.getElem_cons_zero]
+    rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt x.isLt]
+  | x :: xs, k + 1, hk => by
+    have hx := x.isLt
+    rw [val, show 64 * (k + 1) = 64 + 64 * k by ring, pow_add, ← Nat.div_div_eq_div_mul,
+      show (x.val + 2 ^ 64 * val xs) / 2 ^ 64 = val xs by
+        rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt hx, Nat.zero_add],
+      List.getElem_cons_succ]
+    exact val_limb xs k (by simp at hk; omega)
+
+/-- A bit of a number below `2 ^ 64` past its first `q` limbs. -/
+theorem bit_low (n r : ℕ) (hr : r < 64) : n / 2 ^ r % 2 = n % 2 ^ 64 / 2 ^ r % 2 := by
+  conv_lhs => rw [← Nat.div_add_mod n (2 ^ 64)]
+  rw [show 2 ^ 64 * (n / 2 ^ 64) = 2 ^ r * (2 ^ (64 - r) * (n / 2 ^ 64)) by
+      rw [← Nat.mul_assoc, ← pow_add, Nat.add_sub_cancel' hr.le], Nat.add_comm,
+    Nat.add_mul_div_left _ _ (by positivity), Nat.add_mod,
+    show 2 ^ (64 - r) * (n / 2 ^ 64) % 2 = 0 by
+      rw [show 64 - r = (64 - r - 1) + 1 by omega, pow_succ]
+      rw [Nat.mul_assoc, Nat.mul_comm 2, ← Nat.mul_assoc]; exact Nat.mul_mod_left _ _,
+    Nat.add_zero, Nat.mod_mod]
+
+/-- **Bit `p` of the number** is bit `p mod 64` of limb `p / 64`. -/
+theorem val_bit (ls : List Limb) (p : ℕ) (hp : p < 64 * ls.length) :
+    val ls / 2 ^ p % 2 = ls[p / 64].val / 2 ^ (p % 64) % 2 := by
+  rw [← val_limb ls (p / 64) (by omega), ← bit_low _ _ (Nat.mod_lt _ (by norm_num)),
+    Nat.div_div_eq_div_mul, ← pow_add, Nat.div_add_mod]
+
 /-- The eight bytes `mstoreInt (.u 64)` writes of a limb. -/
 def enc8 (x : Limb) : ByteArray := x.w.toByteArray.extract 24 32
 
