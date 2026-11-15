@@ -52,7 +52,7 @@ relation does not compare event logs or revert payloads.
 `FeERC20.fe` is EquiVM's `ERC20` example token written in Fe, and its specification is EquiVM's
 example specification statement for statement. `feERC20ContractCorrect` (`FeProofs/ERC20/Stele/`) is
 of the bytecode Fe `22b156fff` compiled, kept beside its proofs in that directory, not of the
-pinned compiler's (`FeProofs/ERC20/P1/`). It covers the constructor and
+pinned compiler's (`FeProofs/ERC20/runtime.hex`). It covers the constructor and
 all six entry points, including the reverts for a short balance or allowance and Fe's overflow
 panics. The bytecode and the specification both read each balance after the writes that precede
 it, so the proof does not assume that distinct mapping keys hash to distinct slots.
@@ -106,7 +106,7 @@ Each has a `…Deploy…` twin for the constructor. All are at `P0`, but FeERC20
 FeScalarStore and FeERC20 have certificates of the exported model at `P1`, through the Sonatina
 checker (`Fe/Sonatina/README.md`): `feScalarStoreRefinesExportedP1` and `feERC20RefinesExportedP1`,
 each with its `…Deploy…` twin. FeERC20's are of the bytecode the pinned Fe commit compiles
-(`FeProofs/ERC20/P1/`, `P1/FeERC20.build.json`), and its certificates of the hand-written model
+(`FeProofs/ERC20/runtime.hex`, `FeERC20.build.json`), and its certificates of the hand-written model
 are derived from them (`ModelCorrect.lean`): each exported entry ends as the model's does, so the
 runtime one holds on calldata shorter than 2^64 bytes (`CalldataFits`), not on all calldata
 (`Refines`) as the others' do. WETH9 has them too,
@@ -116,8 +116,8 @@ bounds read from storage (the copy of a long string in `%load`, the zeroing of a
 words in the constructor's `%store`), run by induction on the iterations left
 (`runBlocks_loop`, `Fe/Sonatina/Run.lean`). The certificates of exported
 models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
-`P1.call_conserves` and `P1.deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
-properties of the ERC20 bytecode of `FeProofs/ERC20/P1/` proved through the exported certificates: every successful call
+`call_conserves` and `deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
+properties of the ERC20 bytecode proved through the exported certificates: every successful call
 keeps the balances of a list of holders equal to the supply, and a successful deployment makes
 them so, in a frame whose account exists, under conditions on the holders (`Covers`, `CollisionFree`). They hold of any bytecode
 with `P0` certificates of the exported model (`call_keeps`, `deploy_keeps`), here through
@@ -150,11 +150,10 @@ call is admitted, and the invariant tolerates clearing transient storage. The ac
 erased as self-destructed: the same walk proves that no call or creation lists it among the
 accounts the transaction created, which `SELFDESTRUCT` requires.
 
-For the ERC20 token of `FeProofs/ERC20/P1/` (`FeProofs/ERC20/Invariant.lean`):
-`P1.deploy_conserves_token`, a successful
+For the ERC20 token (`FeProofs/ERC20/Invariant.lean`): `deploy_conserves_token`, a successful
 deployment by a holder that has an account makes the holders' balances add up to the supply at the new address (its
-storage starts empty, as `Lambda` guarantees); `P1.every_call_conserves` and
-`P1.every_transaction_conserves`, every message call, creation and transaction keeps that, where
+storage starts empty, as `Lambda` guarantees); `every_call_conserves` and
+`every_transaction_conserves`, every message call, creation and transaction keeps that, where
 every successful frame at the token has calldata shorter than 2^64 bytes and is covered by the
 holders.
 `feConstantKeepsStorage` is an instance without a condition. An invariant may bound the
@@ -389,14 +388,16 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
 
-FeERC20's `P1` bytecode is built with the Fe commit `fe.pin` names:
+FeERC20's bytecode is built with the Fe commit `fe.pin` names, which `FeERC20.build.json` records
+(`scripts/check_bytecode.sh` checks it):
 
 ```sh
 fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
 
-`out/FeERC20.bin` and `out/FeERC20.runtime.bin` must match `FeProofs/ERC20/P1/creation.hex` and
-`FeProofs/ERC20/P1/runtime.hex`.
+`out/FeERC20.bin` and `out/FeERC20.runtime.bin` must match `FeProofs/ERC20/creation.hex` and
+`FeProofs/ERC20/runtime.hex`. The bytecode of FeERC20's Stele certificate (`FeProofs/ERC20/Stele/`)
+is built the same way with Fe `22b156fff`.
 
 `FeProofs/Case44Bank` is the contract `Case44Bank` of Fe's `acceptance.fe` alone in a file, whose
 runtime calls an internal function twice, with its bytecode and exported model and no proof yet.

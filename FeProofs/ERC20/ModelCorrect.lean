@@ -28,7 +28,7 @@ theorem agrees_endsAs {p : Profile} {evm : EvmResult}
   | diverge => exact ha
 
 /-- The runtime bytecode refines the hand-written model, on calldata below `2 ^ 64` bytes. -/
-theorem feERC20RefinesModel : RefinesOn .P0 feERC20P1Bytecode Model.contract CalldataFits :=
+theorem feERC20RefinesModel : RefinesOn .P0 feERC20Bytecode Model.contract CalldataFits :=
   fun σ σ₀ g A I tail hcode htail hown hfits =>
     (Sonatina.feERC20RefinesExportedP1.toP0 σ σ₀ g A I tail hcode htail hown hfits).imp id
       fun ⟨feed, h⟩ => ⟨feed, agrees_endsAs (Exported.runtime_endsAs I (World.init σ A feed)
@@ -37,7 +37,7 @@ theorem feERC20RefinesModel : RefinesOn .P0 feERC20P1Bytecode Model.contract Cal
 /-- Deployment with one ABI-encoded `uint256` argument, the initial supply, refines the
     hand-written constructor. -/
 theorem feERC20DeployRefinesModel :
-    RefinesDeploy .P0 feERC20P1CreationBytecode feERC20P1Bytecode Model.contract
+    RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
   rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hown hperm
   refine (Sonatina.feERC20DeployRefinesExportedP1.toP0 σ σ₀ g A I _ ⟨v, rfl⟩ hcode hown

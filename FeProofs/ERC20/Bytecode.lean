@@ -3,10 +3,8 @@ import Ethereum.Semantics
 /-!
 # FeERC20 bytecode, as the pinned Fe commit compiles it
 
-`runtime.hex` and `creation.hex` of this directory, the output of the Fe commit `fe.pin` names
-(`FeERC20.build.json`), which the sidecar emitter records too.  The P0 certificates are of an
-older compiler's bytecode (`../runtime.hex`, `../FeERC20.build.json`); the P1 certificates
-(`../SonatinaCorrect.lean`) are of these bytes.
+`runtime.hex` and `creation.hex`, the output of the Fe commit `fe.pin` names
+(`FeERC20.build.json`), which the sidecar emitter records too (`Sonatina.lean`).
 Runtime: 862 bytes; creation: 986 bytes.
 -/
 
@@ -14,7 +12,7 @@ namespace FeProofs.ERC20
 
 set_option maxRecDepth 50000000
 
-def feERC20P1Bytecode : ByteArray :=
+def feERC20Bytecode : ByteArray :=
   ⟨#[
     0x36, 0x60, 0x04, 0x90, 0x10, 0x60, 0x41, 0x57, 0x5f, 0x35, 0x60, 0xe0, 0x1c, 0x63, 0x70,
     0xa0, 0x82, 0x31, 0x81, 0x10, 0x61, 0x01, 0x90, 0x57, 0x63, 0x70, 0xa0, 0x82, 0x31, 0x81,
@@ -76,7 +74,7 @@ def feERC20P1Bytecode : ByteArray :=
     0xa0, 0x52, 0x60, 0x64, 0x60, 0x40, 0xfd
   ]⟩
 
-def feERC20P1CreationBytecode : ByteArray :=
+def feERC20CreationBytecode : ByteArray :=
   ⟨#[
     0x60, 0xa0, 0x60, 0x40, 0x52, 0x34, 0x15, 0x60, 0x0e, 0x57, 0x5b, 0x5f, 0x5f, 0xfd, 0x5b,
     0x61, 0x03, 0xda, 0x38, 0x81, 0x81, 0x10, 0x60, 0x0a, 0x57, 0x81, 0x90, 0x03, 0x80, 0x91,

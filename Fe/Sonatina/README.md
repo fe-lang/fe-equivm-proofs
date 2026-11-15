@@ -38,7 +38,7 @@ parser (`crates/parser/src/sonatina.pest`) reads it back. Sonatina has no struct
 serialization (no serde).
 
 The committed `.sona` files (`FeProofs/{ERC20,Deposit,WETH9}`) are the output of
-`fe build --emit ir` at the listed Fe commits: rebuilding with Fe `22b156fff` (ERC20) and
+`fe build --emit ir` at the listed Fe commits: rebuilding with Fe `51f4eee504` (ERC20) and
 `aa5244d43` (Deposit, WETH9) reproduces both them and the pinned `creation.hex`/`runtime.hex`
 byte for byte. That IR is not, strictly, the IR the bytecode came from: `--emit ir` compiles the
 whole runtime package as one module (`emit_runtime_package_sonatina_ir_optimized`), the bytecode
@@ -49,8 +49,9 @@ files the two are the same text. FeConstant and FeScalarStore have no committed 
 `EvmCompile` that produces the bytecode, right before `compile()`, and writes it with the bytes and
 symbol table of each section of the result (`<Contract>.sidecar.json`). The fixtures here are such
 files, from the `sidecar` branch, whose Sonatina pin is `aa5244d43`'s: FeConstant, FeScalarStore
-and the deposit contract compile to the pinned bytecode. FeERC20 compiles to the bytecode of
-`FeProofs/ERC20/P1/`, not to `FeProofs/ERC20`'s, which an older Fe compiled.
+and the deposit contract compile to the pinned bytecode, and FeERC20 to its pinned bytecode at the
+commit `fe.pin` names (the bytes of FeERC20's Stele certificate, `FeProofs/ERC20/Stele/`, an older
+Fe compiled).
 
 ## The subset and its semantics
 
@@ -554,7 +555,7 @@ machine IR through the hand-written model, and `RefinesOn.of_implements` and
 (`feScalarStoreRefinesExportedP1`, `feScalarStoreDeployRefinesExportedP1`), with no
 `native_decide`.
 
-FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the bytecode of `FeProofs/ERC20/P1/`
+FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the pinned bytecode of `FeProofs/ERC20`
 (`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`). `ir_dispatch` takes the runtime
 from its entry to the block of the selector's arm, one lemma per arm runs that block to its end
 against the arm of the exported contract from any environment, and `runtime_endsAs` composes them.

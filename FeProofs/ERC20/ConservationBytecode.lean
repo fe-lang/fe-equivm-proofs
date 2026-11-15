@@ -14,9 +14,9 @@ one does (`runtime_endsAs`, `init_endsAs`), and the bytecode refines the exporte
 (`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`).
 
 The bytecode statements hold of any runtime and creation bytecode with `P0` certificates against
-the exported contract (`call_keeps`, `deploy_keeps`).  `P1.call_conserves` and
-`P1.deploy_conserves` are their instances at the bytecode of `P1/`, through its `P1`
-certificates (`feERC20RefinesExportedP1.toP0`).
+the exported contract (`call_keeps`, `deploy_keeps`).  `call_conserves` and
+`deploy_conserves` are their instances at the pinned bytecode, through its `P1` certificates
+(`feERC20RefinesExportedP1.toP0`).
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
@@ -59,7 +59,7 @@ theorem Exported.init_conserves {I : ExecutionEnv} {S : List UInt256} {w w' : Wo
     (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
     (hzero : ∀ a ∈ S, balance I.codeOwner w.accounts a = ⟨0⟩)
     (hrun : Succeeds ((Exported.contract.init (ctorTail v) >>= fun tail =>
-      pure (feERC20P1Bytecode ++ tail)).exec I w) out w') :
+      pure (feERC20Bytecode ++ tail)).exec I w) out w') :
     Conserved I.codeOwner w'.accounts S :=
   Exported.init_keeps hmem hS hdeployer hzero hrun
 
@@ -69,7 +69,7 @@ variable {runtime creation : ByteArray}
 
 /-- On a runtime certified at `P0` against the exported contract, every call at an account that
     exists that succeeds keeps the sum of the balances of the holders `S` equal to the supply, as
-    `P1.call_conserves` states. -/
+    `call_conserves` states. -/
 theorem call_keeps (hR : RefinesOn .P0 runtime Exported.contract CalldataFits)
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {o : ByteArray} {S : List UInt256}
@@ -84,7 +84,7 @@ theorem call_keeps (hR : RefinesOn .P0 runtime Exported.contract CalldataFits)
 
 /-- A deployment of a creation bytecode certified at `P0` against the exported contract, with
     one argument word, at an account that exists, that succeeds makes the sum of the balances of
-    the holders `S` equal to the supply, as `P1.deploy_conserves` states. -/
+    the holders `S` equal to the supply, as `deploy_conserves` states. -/
 theorem deploy_keeps (hD : RefinesDeploy .P0 creation runtime Exported.contract
       (fun args => ∃ v : UInt256, args = ctorTail v))
     {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
@@ -101,26 +101,26 @@ theorem deploy_keeps (hD : RefinesDeploy .P0 creation runtime Exported.contract
 
 end Certified
 
-/-- On the bytecode of `P1/`, every call at an account that exists (`OwnerExists`) that
+/-- On the deployed bytecode, every call at an account that exists (`OwnerExists`) that
     succeeds keeps the sum of the balances of the holders `S` equal to the supply, when the
     holders' balance slots do not collide, the holders cover the call (`Covers`: it moves tokens
     between holders only and writes no allowance slot that is a balance slot or the supply slot),
     and its calldata is shorter than `2 ^ 64` bytes. -/
-theorem P1.call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
+theorem call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {o : ByteArray} {S : List UInt256}
-    (hcode : I.code = feERC20P1Bytecode) (hown : OwnerExists σ I) (hfits : CalldataFits I)
+    (hcode : I.code = feERC20Bytecode) (hown : OwnerExists σ I) (hfits : CalldataFits I)
     (hS : CollisionFree S) (hcall : Covers S I) (hcons : Conserved I.codeOwner σ S)
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
     Conserved I.codeOwner σ' S :=
   call_keeps Sonatina.feERC20RefinesExportedP1.toP0 hcode hown hfits hS hcall hcons hrun
 
-/-- A deployment of the creation bytecode of `P1/` with one argument word `v`, at an account
-    that exists, that succeeds makes the sum of the balances of the holders `S` equal to the
-    supply, when the holders' balance slots do not collide, the deployer is one of them, and each
-    starts with none. -/
-theorem P1.deploy_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
+/-- A deployment of the creation bytecode with one argument word `v`, at an account that exists,
+    that succeeds makes the sum of the balances of the holders `S` equal to the supply, when the
+    holders' balance slots do not collide, the deployer is one of them, and each starts with
+    none. -/
+theorem deploy_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {o : ByteArray} {S : List UInt256} {v : UInt256}
-    (hcode : I.code = feERC20P1CreationBytecode ++ v.toByteArray) (hown : OwnerExists σ I)
+    (hcode : I.code = feERC20CreationBytecode ++ v.toByteArray) (hown : OwnerExists σ I)
     (hperm : I.perm = true)
     (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
     (hzero : ∀ a ∈ S, balance I.codeOwner σ a = ⟨0⟩)

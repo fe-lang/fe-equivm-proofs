@@ -12,9 +12,8 @@ arm entry does (`SonatinaArms.lean`, `SonatinaTransfer.lean`, `SonatinaTransferF
 The constructor goes the same way (`init_endsAs`).  The checker's certificate of the sidecar
 then carries over to the exported contract at profile `P1`.
 
-These certificates are of `P1/runtime.hex` and `P1/creation.hex`, the bytecode the pinned Fe
-commit compiles (`P1/FeERC20.build.json`); the P0 certificates (`RuntimeCorrect.lean`) are of an
-older compiler's (`FeERC20.build.json`).  `Exported.contract` is the model of both.
+These certificates are of `runtime.hex` and `creation.hex`, the bytecode the pinned Fe commit
+compiles (`FeERC20.build.json`).
 -/
 
 namespace FeProofs.ERC20.Sonatina
@@ -174,11 +173,11 @@ theorem ir_init_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × World))
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 16000000 in
 /-- The machine IR's constructor ends as the exported deployment entry does, on one argument
-    word after `P1/creation.hex`. -/
+    word after `creation.hex`. -/
 theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 256 < UInt256.size)
-    (hcode : I.code = feERC20P1CreationBytecode ++ ctorTail v) (hperm : I.perm = true) :
+    (hcode : I.code = feERC20CreationBytecode ++ ctorTail v) (hperm : I.perm = true) :
     EndsAs ((Exported.init_entry (ctorTail v) >>= fun tail =>
-        pure (feERC20P1Bytecode ++ tail)).exec I w)
+        pure (feERC20Bytecode ++ tail)).exec I w)
       (((sidecar.model .machine).init (ctorTail v) >>= fun tail =>
         pure (ByteArray.empty ++ tail)).exec I w) := by
   obtain ⟨hrt, hcs⟩ := creation_runtime
@@ -190,7 +189,7 @@ theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 256 < UInt256.size)
     rw [← hts, Reasoning.Theory.byteArray_extract_self, Exported.ctorTail_eq]
   have hcopy : ∀ M, I.code.write 986 M 160 32 = v.toByteArray.write 0 M 160 32 := fun M => by
     rw [write_window _ _ _ _ _ (by decide) (by omega), harg]
-  have hret : ∀ M, (I.code.write 124 M 0 862).readWithPadding 0 862 = feERC20P1Bytecode := by
+  have hret : ∀ M, (I.code.write 124 M 0 862).readWithPadding 0 862 = feERC20Bytecode := by
     intro M
     rw [Reasoning.Theory.write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide),
       hcode, Reasoning.Theory.extract_append_left _ _ _ _ (by omega), hrt]
@@ -233,22 +232,22 @@ theorem feERC20Implements :
 
 /-- The machine IR's constructor implements the exported one on one argument word. -/
 theorem feERC20ImplementsDeploy :
-    ImplementsDeploy Exported.contract (sidecar.model .machine) feERC20P1CreationBytecode
-      feERC20P1Bytecode .empty (fun args => ∃ v : UInt256, args = ctorTail v) := by
+    ImplementsDeploy Exported.contract (sidecar.model .machine) feERC20CreationBytecode
+      feERC20Bytecode .empty (fun args => ∃ v : UInt256, args = ctorTail v) := by
   rintro I σ A feed args ⟨v, rfl⟩ hcode _ hperm
   exact ⟨feed, init_endsAs I _ v (by simp [World.init, UInt256.size]) hcode hperm⟩
 
-/-- `P1/runtime.hex` refines the exported contract at profile `P1`, on calldata below `2 ^ 64`
+/-- `runtime.hex` refines the exported contract at profile `P1`, on calldata below `2 ^ 64`
     bytes: the checker's certificate of the sidecar, whose runtime bytes are these, composed
     with `feERC20Implements`. -/
 theorem feERC20RefinesExportedP1 :
-    RefinesOn .P1 feERC20P1Bytecode Exported.contract CalldataFits :=
+    RefinesOn .P1 feERC20Bytecode Exported.contract CalldataFits :=
   RefinesOn.of_implements (sidecar_runtime ▸ sidecar_sound.1) feERC20Implements rfl
 
-/-- Deployment by `P1/creation.hex` with one ABI-encoded `uint256` argument refines the exported
+/-- Deployment by `creation.hex` with one ABI-encoded `uint256` argument refines the exported
     deployment entry at profile `P1`. -/
 theorem feERC20DeployRefinesExportedP1 :
-    RefinesDeploy .P1 feERC20P1CreationBytecode feERC20P1Bytecode Exported.contract
+    RefinesDeploy .P1 feERC20CreationBytecode feERC20Bytecode Exported.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) :=
   RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hown hperm =>
     sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hown hperm)
