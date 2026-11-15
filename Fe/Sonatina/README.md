@@ -13,7 +13,7 @@ fail, not pass.
 | `Hints.lean` | cheap checks of the lowering record against the bytes |
 | `Refine.lean` | `Implements`, and the composition `RefinesOn.of_implements` |
 | `Diff.lean` | IR against bytecode, with `Fe/EVM/Diff.lean` and `Generate.lean` |
-| `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20 and the deposit contract |
+| `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20, the deposit contract, WETH9 and others |
 
 `scripts/SonatinaDiff.lean` runs the fixtures and the committed `.sona` files against the pinned
 bytecode; `scripts/audit_sonatina.sh <fe checkout>` runs every contract of Fe's test fixtures and of
@@ -361,7 +361,9 @@ bytes compute the IR's `is_zero` of a boolean; and `INVALID` halts with no opera
 constant branches, these raised the count from 282. `scripts/SonatinaCheck.lean` runs the
 fixtures, mutations of their hints (a dropped, added or swapped entry slot, offsets moved by a
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
-section's IR reads none) and a corpus directory.
+section's IR reads none), mutations of WETH9's message call (a wrong gas operand, the value and
+the address swapped, the return or the arguments' window off by a word: all rejected) and a
+corpus directory.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
 (`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,
