@@ -360,12 +360,16 @@ def enter (env : Env) (prev : Option Nat) (b : Block) : FeM Env := do
   bind env (b.phis.map fun phi => (phi.dst, phi.ty)) vals
 
 /-- What a run under a spill plan must leave as it is (`Spill.lean`): for each function and
-    block, the words of memory each statement of the block may not change.  The machine IR's
-    run protects nothing (`Guard.none`). -/
-abbrev Guard := String → Nat → List (List Nat)
+    block, the words of memory each statement of the block may not change (`Guard.at`).  It is
+    a table, built once per run.  The machine IR's run protects nothing (`Guard.none`). -/
+abbrev Guard := List (String × List (Nat × List (List Nat)))
 
 /-- The guard of the machine IR's run: nothing is protected. -/
-def Guard.none : Guard := fun _ _ => []
+def Guard.none : Guard := []
+
+/-- The words each statement of block `b` of function `name` may not change. -/
+def Guard.at (g : Guard) (name : String) (b : Nat) : List (List Nat) :=
+  ((g.lookup name).bind (·.lookup b)).getD []
 
 /-- The panic code of a run that changes a word it protects: no Fe panic's, as it is no word. -/
 def spillClobbered : Nat := 2 ^ 256
@@ -416,7 +420,7 @@ def runBlocksG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (f : Func) (e
     (prev : Option Nat) (id : Nat) : FeM (List Val) := do
   let some b := f.block? id | stuck
   let env ← enter env prev b
-  let env ← runBodyG g m c inh (g f.name id) env b.body
+  let env ← runBodyG g m c inh (g.at f.name id) env b.body
   match b.term with
   | .jump dest => runBlocksG g m c inh f env (some id) dest
   | .br cond nz z => do
