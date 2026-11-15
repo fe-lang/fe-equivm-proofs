@@ -485,7 +485,8 @@ elab "sonatina_sidecar " name:ident path:str : command => do
 /-- `sonatina_func name "path" "section" "entry"`: define `name : Func` as the machine IR's
     function `entry` of section `section` of the sidecar at `path`, for proofs that run it, and
     for each block `b` of it a `simp` lemma `name.block_b : name.block? b = some …`, so that a run
-    finds its blocks without unfolding the whole function. -/
+    finds its blocks without unfolding the whole function, and a `simp` lemma
+    `name.params_eq : name.params = […]`, so that a call binds its arguments. -/
 elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
   let text ← IO.FS.readFile path.getString
   match Parse.parseSidecar text with
@@ -519,5 +520,18 @@ elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
       liftTermElabM do
         Lean.Meta.addSimpTheorem Lean.Meta.simpExtension thm (post := true) (inv := false)
           .global (eval_prio default)
+    let paramsTy := toTypeExpr (List (Nat × Ty))
+    let params := toExpr f.params
+    let thm := declName ++ `params_eq
+    liftCoreM do
+      addDecl (.thmDecl {
+        name := thm
+        levelParams := []
+        type := mkApp3 (mkConst ``Eq [1]) paramsTy
+          (mkApp (mkConst ``Func.params) (mkConst declName)) params
+        value := mkApp2 (mkConst ``Eq.refl [1]) paramsTy params })
+    liftTermElabM do
+      Lean.Meta.addSimpTheorem Lean.Meta.simpExtension thm (post := true) (inv := false)
+        .global (eval_prio default)
 
 end Fe.Sonatina

@@ -22,8 +22,6 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
-theorem creditFunc_params : creditFunc.params = [(0, .int 256), (1, .int 256)] := rfl
-
 /-- The machine IR's `credit` on the key `a` and the amount `b`, in any module whose `credit`
     it is: `Panic(0x11)` if the entry's word plus `b` overflows, otherwise it stores the sum at
     the entry, which fails under a static call, and returns nothing.  It hashes the key and the
@@ -41,7 +39,7 @@ theorem ir_credit (hm : m.func? "credit" = some creditFunc) (a b : UInt256) :
               0 32) 32 32 }))
       else some (.error .static) := by
   rw [runFunc_entry hm rfl]
-  simp [Fe.Sonatina.bind, Val.as, Ty.bits, toNat_mod, creditFunc_params]
+  simp [Fe.Sonatina.bind, Val.as, Ty.bits, toNat_mod]
   by_cases hover : UInt256.size ≤ (slotWord I w.accounts (mapSlot a ⟨0⟩)).toNat + b.toNat
   · have h' := hover
     simp only [UInt256.size] at h'
