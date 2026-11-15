@@ -1,5 +1,6 @@
 import FeProofs.Precompiles.Blake2F.Mix
 import FeProofs.Precompiles.Field.Checked
+import FeProofs.Precompiles.Casts
 
 /-!
 # Blake2F: the round loops
@@ -95,17 +96,6 @@ theorem mul64 {a b : ℕ} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) (h : a * b < 2 ^ 6
   congr 2
   omega
 
-theorem land_max (x : UInt256) : x &&& ~~~(UInt256.ofNat 0) = x := by
-  apply word_eq_of_toNat
-  change (UInt256.land _ _).toNat = _
-  rw [uland_toNat]
-  have : (~~~(UInt256.ofNat 0)).toNat = 2 ^ 256 - 1 := rfl
-  rw [this, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (show x.toNat < 2 ^ 256 from x.val.isLt)]
-
-theorem downcast_usize (x : UInt256) : downcast_truncate_u64_usize x = pure x := by
-  simp only [Lib.downcast_truncate_u64_usize, Lib.u64_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_max]
-
 /-! ## The loop of single rounds -/
 
 set_option maxRecDepth 10000 in
@@ -122,7 +112,7 @@ theorem rest_step {T r : ℕ} (hT : T < 2 ^ 64) (hr : r < T) (m v : Words) r0 r4
       pure (UInt256.ofNat (r % 10 * 16)) := mul64 (by omega) (by decide) (by omega)
   rw [compress_MemBuffer.b5.b9.b13.b20.b23.eq_1, roundFast_get]
   simp only [toNat_lit (show r < 2 ^ 256 by omega), toNat_lit (show T < 2 ^ 256 by omega),
-    decide_eq_true hr, if_true, hrem, hmul, downcast_usize, SIGMA_eq, pure_bind]
+    decide_eq_true hr, if_true, hrem, hmul, downcast_u64_usize, SIGMA_eq, pure_bind]
   generalize r % 10 = j at hj ⊢
   have t0 : (UInt256.ofNat (j * 16)).toNat = j * 16 := toNat_lit (by omega)
   have c0 : checkIndex (UInt256.ofNat (j * 16)) 160 = pure () := checkIndex_lt (by omega) (by decide)

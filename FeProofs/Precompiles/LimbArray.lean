@@ -1,4 +1,5 @@
 import FeProofs.Precompiles.Limbs
+import FeProofs.Precompiles.Casts
 import FeProofs.Precompiles.Field.Checked
 
 /-!
@@ -125,28 +126,6 @@ theorem ArrayAt.store_other {a : MemArray_u64} {ls : List Limb} {mem : ByteArray
 theorem ArrayAt.append {a : MemArray_u64} {ls : List Limb} {mem : ByteArray} (h : ArrayAt a ls mem)
     (X : ByteArray) (hs : mem.size + X.size < UInt256.size) : ArrayAt a ls (mem ++ X) :=
   ⟨h.len, h.limbs.append X, by rw [ByteArray.size_append]; exact hs⟩
-
-/-! ## Casts -/
-
-theorem land_ones (x : UInt256) : x &&& ~~~(UInt256.ofNat 0) = x := by
-  apply word_eq_of_toNat
-  change (UInt256.land _ _).toNat = _
-  rw [uland_toNat]
-  have : (~~~(UInt256.ofNat 0)).toNat = 2 ^ 256 - 1 := rfl
-  rw [this, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt (show x.toNat < 2 ^ 256 from x.val.isLt)]
-
-/-- `u64` to `usize` changes nothing (as `Blake2F.downcast_usize`). -/
-theorem downcast_u64_usize (x : UInt256) : Lib.downcast_truncate_u64_usize x = pure x := by
-  simp only [Lib.downcast_truncate_u64_usize, Lib.u64_to_word, Lib.usize_IS_SIGNED, Lib.usize_MASK,
-    Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
-
-theorem downcast_usize_usize (x : UInt256) : Lib.downcast_truncate_usize_usize x = pure x := by
-  simp only [Lib.downcast_truncate_usize_usize, Lib.usize_to_word, Lib.usize_IS_SIGNED,
-    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
-
-theorem downcast_u256_usize (x : UInt256) : Lib.downcast_truncate_u256_usize x = pure x := by
-  simp only [Lib.downcast_truncate_u256_usize, Lib.u256_to_word, Lib.usize_IS_SIGNED,
-    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
 
 /-! ## Allocation -/
 
