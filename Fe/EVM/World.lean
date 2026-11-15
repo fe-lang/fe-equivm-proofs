@@ -231,6 +231,28 @@ def storeWord (owner : AccountAddress) (σ : AccountMap) (slot val : UInt256) : 
       (if val == default then { acc with storage := acc.storage.erase slot }
        else { acc with storage := acc.storage.insert slot val })
 
+/-- A store keeps the account it stores into. -/
+theorem storeWord_owner {o : AccountAddress} {σ : AccountMap} {k v : UInt256}
+    (h : ∃ acc, σ.get? o = some acc) : ∃ acc, (storeWord o σ k v).get? o = some acc := by
+  obtain ⟨acc, ha⟩ := h
+  simp only [storeWord, ha, Option.option, Std.ExtTreeMap.get?_eq_getElem?,
+    Std.ExtTreeMap.getElem?_insert_self]
+  exact ⟨_, rfl⟩
+
+/-- A load after a store to the same slot reads the stored word, when the account map has an
+    account at the code owner.  Without the account the store is dropped and the load reads 0. -/
+theorem slotWord_storeWord {I : Env} {σ : AccountMap} {k v : UInt256}
+    (h : ∃ acc, σ.get? I.codeOwner = some acc) :
+    slotWord I (storeWord I.codeOwner σ k v) k = v := by
+  obtain ⟨acc, ha⟩ := h
+  simp only [slotWord, storeWord, ha, Option.option, Std.ExtTreeMap.get?_eq_getElem?,
+    Std.ExtTreeMap.getElem?_insert_self]
+  split
+  · next hv =>
+    rw [Std.ExtTreeMap.getD_erase_self]
+    exact (beq_iff_eq.mp hv).symm
+  · rw [Std.ExtTreeMap.getD_insert_self]
+
 /-- Store `val` at `slot` of the current contract's storage.  Under a static call it fails. -/
 def sstore (slot val : UInt256) : FeM Unit := do
   let env ← read
