@@ -282,9 +282,10 @@ def Ends (K : Bool) (M : List Made) (code : ByteArray) (I : ExecutionEnv) (ρ : 
        c.frame.callee cs.callee = some ce ∧ ce.returns = true ∧
        Steps K (D_J I.code 0) s (.ok (s', none)) n ∧ s'.machineState.pc.toNat = ce.offset ∧
        cs.args.mapM (·.eval I ρ) = some ws ∧ restE.mapM (·.eval I ρ) = some restW ∧
-       s'.machineState.stack = ws ++ UInt256.ofNat k :: restW ++ B ∧ validJump code k = true ∧
-       run code c hints place b fuel' ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ =
-         true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s'.executionEnv = I ∧ Agree M s' w) ∨
+       s'.machineState.stack = ws ++ UInt256.ofNat k :: restW ++ B ∧
+       validJump code (jumpdests code) k = true ∧
+       run code (codeTree code) (jumpdests code) c hints place b fuel'
+         ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ = true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s'.executionEnv = I ∧ Agree M s' w) ∨
      (∃ cs ce n s' ws t, cls = [cs] ∧ c.frame.callee cs.callee = some ce ∧ ce.returns = false ∧
        Steps K (D_J I.code 0) s (.ok (s', none)) n ∧ s'.machineState.pc.toNat = ce.offset ∧
        cs.args.mapM (·.eval I ρ) = some ws ∧ s'.machineState.stack = ws ++ t ∧
@@ -328,7 +329,8 @@ theorem Ends.cons {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {
 /-- What the checker decodes at `pc` the bytes decode at the EVM's pc, whatever follows the
     code. -/
 theorem opAt_decode {code tail : ByteArray} {pc next : Nat} {op : Operation} {arg : Option Nat}
-    {s : State} (hsize : code.size < UInt256.size) (h : opAt code pc = some (op, arg, next))
+    {s : State} (hsize : code.size < UInt256.size)
+    (h : opAt code (codeTree code) pc = some (op, arg, next))
     (hcode : s.executionEnv.code = code ++ tail)
     (hpc : s.machineState.pc.toNat = pc) :
     ∃ a, decode s.executionEnv.code s.machineState.pc = some (op, a) ∧
@@ -655,8 +657,8 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true)
     (hval : c.canon.Valid I ρ) :
     ∀ fuel p s w r B, (∀ ev ∈ p.events, messageOps.contains ev.op = true → K = true) →
-      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s →
-      Agree M s w → Trace I ρ p.events w r → Ends K M code I ρ c hints place b B e0 p.exit p.calls s r
+      run code (codeTree code) (jumpdests code) c hints place b fuel p = true →
+      PathRel code tail I ρ B e0 p s → Agree M s w → Trace I ρ p.events w r → Ends K M code I ρ c hints place b B e0 p.exit p.calls s r
   | 0, p, s, w, r, B, _, h, _, _, _ => by simp [run] at h
   | fuel + 1, p, s, w, r, B, hK, h, hp, hw, htr => by
     unfold run at h
@@ -697,7 +699,8 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     -- A step to `next` with the stack `es`, the events unchanged.
     have cont : ∀ (pc' : UInt256) (stk : List UInt256) (es : List Expr), Calm s → op ≠ .GAS →
         Moves s pc' stk → pc'.toNat = next → StackRel I ρ es B stk →
-        run code c hints place b fuel { p with pc := next, stack := es } = true →
+        run code (codeTree code) (jumpdests code) c hints place b fuel
+          { p with pc := next, stack := es } = true →
         Ends K M code I ρ c hints place b B e0 p.exit p.calls s r :=
       fun pc' stk es hc hg hm hn hst hrun =>
       Ends.moves hp.env hc hm fun g hx => ⟨_, run_ends hsize hretj hval fuel
@@ -887,7 +890,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           hw
       · cases h
     rw [if_neg h5] at h
-    have hjump : ∀ {t : Nat}, validJump code t = true →
+    have hjump : ∀ {t : Nat}, validJump code (jumpdests code) t = true →
         (D_J s.executionEnv.code 0).contains (UInt256.ofNat t) = true ∧
           (UInt256.ofNat t).toNat = t := fun hj => by
       simp only [validJump, Bool.and_eq_true, decide_eq_true_eq] at hj

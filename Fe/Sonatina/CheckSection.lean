@@ -65,7 +65,8 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
       defined f hint.blocks b (hb.entryStack.filterMap fun | .value id => some id | _ => none) =
         true ∧
       (b.term.only.all fun s => place s != some pc || rank s < rank b.id) = true ∧
-      run code.bytecode (Ctx.ofBlock f b code.symbols fr) hint.blocks place b.id
+      run code.bytecode (codeTree code.bytecode) (jumpdests code.bytecode)
+        (Ctx.ofBlock f b code.symbols fr) hint.blocks place b.id
         (2 * low.codeSize + 2)
         ⟨pc, stack, prologue low (isRoot && b.id == entryBlock.id) events, exit, calls⟩ =
           true := by

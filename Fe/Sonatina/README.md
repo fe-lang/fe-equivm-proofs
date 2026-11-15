@@ -89,6 +89,8 @@ fixed-address access of dynamic length unless it is the payload of the `evm_retu
 `evm_revert` that follows. The IR's documentation does not say so; the first corpus run, with
 allocation from address zero, disagreed on four contracts that store a pointer at address 0 while
 the allocation there is live.
+`clz` is the EVM's `CLZ`, an Osaka opcode: in a block of an earlier fork the run traps there, as
+the bytes halt with an invalid instruction.
 
 `Sidecar.model` is the contract model of the IR: `runtime` runs the `runtime` section's entry,
 `init` the `init` section's, which reads its arguments from the running code and returns the
@@ -392,16 +394,32 @@ symbols against the wrong module, Fe `sonatina-hints` `50b0be4131`), with the in
 `FeProofs/Ecrecover` and nine more sidecars: fevm's precompile contracts (ECRECOVER twice, BN254
 addition and multiplication, BLAKE2 F, RIPEMD-160, modular exponentiation, identity) and
 `Case44Bank`. Its 248 sidecars of `corpus-v3` are the same, byte for byte, so no verdict changed.
-Of its 258 sidecars, all read, it accepts 499 of 516 sections and rejects 17: 13 for memory spills
+Of its 258 sidecars, all read, it accepts 500 of 516 sections and rejects 16: 13 for memory spills
 (the runtimes of seven precompile contracts and of the ingot's ECRECOVER among them), 2 for a
-`br_table` without a default, 1 for `clz` and 1 for a dynamic frame. The precompiles' init
+`br_table` without a default and 1 for a dynamic frame (before `CLZ`, below, 499 and 17, with
+`leading_zeros.BitsProbe` rejected for `clz`). The precompiles' init
 sections and the identity contract's runtime are accepted. Of the 109 functions of their nine
 runtimes, 26 have memory spills; of the others, 8 use `clz`, and 8 hold straight-line blocks of
 hundreds of pure instructions (four-limb multiplication) whose expressions, expanded without
 sharing, have millions of nodes and depths above 64. The checker did not finish them until it
-numbered values (below); it now accepts all eight, in 19 to 60 s each as `lake env lean`
-interprets it, nearly all of it decoding: `opAt` builds the code's tree at each step outside the
-kernel, about 10 ms for 9 KB of code.
+numbered values (below); it now accepts all eight, in 0.2 to 0.4 s each as `lake env lean`
+interprets it. The 8 that use `clz` (Modexp's four `r2`, the four `invert_256` of the ECRECOVER
+contracts) are accepted since `CLZ`, in 0.6 to 1.5 s each. Until `run` took the code's search
+tree and jump destinations, built once for a block (`opAt`, `validJump`), each step rebuilt the
+tree, about 10 ms for 9 KB of code: the 392-instruction multiplication block took 14 s, now
+0.13 s, and the corpus-v4 run of `scripts/SonatinaCheck.lean` 135 s, now 56 s. The kernel's
+check of FeERC20 and WETH9 is unchanged (2.6 s and 6.2 to 6.6 s either way), presumably since
+the kernel evaluated the tree once before too.
+
+**`CLZ`.** The machine IR's `clz` is an event, its result a value as a read's is (`readOps`):
+from Osaka on it is the count of leading zeros, before it a trap, as the bytes' `CLZ` is an
+invalid instruction there (`clzRun`, `clz_evMoves` from EVMLean's `step_clz`). The fork is the
+frame's block header's, over which the theorems quantify as over the rest of the environment,
+so their statements do not change; a contract whose model counts leading zeros in every block
+refines its machine IR only in Osaka blocks, which its `Implements` proof has to admit.
+`scripts/SonatinaCheck.lean` checks `leading_zeros.BitsProbe` (`Fixtures/BitsProbe`), and
+rejects it with `NOT` or `ISZERO` for `CLZ` in the bytes or `not` or `is_zero` for `clz` in the
+IR.
 
 **Value numbering.** The checker expanded each pure value of a block into a tree of its
 definitions, at most 64 deep, without sharing: a value read twice was two copies. It now numbers

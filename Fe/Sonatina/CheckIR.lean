@@ -565,4 +565,18 @@ theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List 
     all_goals split_ifs <;> simp
 
 
+open Fe Fe.EVM in
+/-- `clz` of a word runs as the event `CLZ`: the count of leading zeros from Osaka on, a trap
+    before it. -/
+theorem clz_run {ee : ExecutionEnv} {ic : Fe.Sonatina.Ctx} {env : Env} {a : Operand}
+    {x : UInt256} (h : evalOperand env a = pure (.int 256 x.toNat)) (w : World) :
+    RunAs ((runInst ic env (.clz a)).exec ee w) ((evRun .CLZ [x]).exec ee w) := by
+  have hi : evalInt env a = pure (256, x.toNat) := by simp [evalInt, h]
+  by_cases hf : ee.header.fork = .Osaka
+  · have hv : (UInt256.clz x).toNat = if x.toNat = 0 then 256 else 256 - 1 - x.toNat.log2 := by
+      simp only [UInt256.clz]
+      split_ifs <;> rw [toNat_ofNat_lt (by unfold UInt256.size; omega)]
+    simp [runInst, hi, evRun, clzRun, hf, RunAs, Fe.Sonatina.word, hv]
+  · simp [runInst, hi, evRun, clzRun, hf, RunAs, trap]
+
 end Fe.Sonatina.Check
