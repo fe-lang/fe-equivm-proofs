@@ -32,30 +32,6 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
   Option.bind_eq_bind Filter.map_def List.map_eq_map Option.map_eq_map Part.map_eq_map
   Set.fmap_eq_image le_of_subsingleton
 
-/-! ## Storage with an account at the code owner -/
-
-/-- A store keeps the account it stores into. -/
-theorem storeWord_owner {o : AccountAddress} {σ : AccountMap} {k v : UInt256}
-    (h : ∃ acc, σ.get? o = some acc) : ∃ acc, (storeWord o σ k v).get? o = some acc := by
-  obtain ⟨acc, ha⟩ := h
-  simp only [storeWord, ha, Option.option, Std.ExtTreeMap.get?_eq_getElem?,
-    Std.ExtTreeMap.getElem?_insert_self]
-  exact ⟨_, rfl⟩
-
-/-- A load after a store to the same slot reads the stored word, when the account map has an
-    account at the code owner. -/
-theorem slotWord_storeWord {I : ExecutionEnv} {σ : AccountMap} {k v : UInt256}
-    (h : ∃ acc, σ.get? I.codeOwner = some acc) :
-    slotWord I (storeWord I.codeOwner σ k v) k = v := by
-  obtain ⟨acc, ha⟩ := h
-  simp only [slotWord, storeWord, ha, Option.option, Std.ExtTreeMap.get?_eq_getElem?,
-    Std.ExtTreeMap.getElem?_insert_self]
-  split
-  · next hv =>
-    rw [Std.ExtTreeMap.getD_erase_self]
-    exact (beq_iff_eq.mp hv).symm
-  · rw [Std.ExtTreeMap.getD_insert_self]
-
 /-! ## The arm -/
 
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
