@@ -649,6 +649,13 @@ and 20 generated), and, cut short by the interpreter's speed, EcrecoverPrecompil
 Blake2F 4 (a run takes minutes there); the corpus drivers' Fe tests and generated calls (EntryPoint
 and Caller among their targets) show no disagreement of the two models.
 
+Reading a failure: a `CLOBBER` line means a statement changed a word whose value the bytes reload
+later, on code that is correct by every other test; the plan (a reload point missing or at the
+wrong place) or the protection rule is wrong, or the bytes reuse a word too early. A `DIFFER` line
+(or a harness `DISAGREE` whose model reverts with the bytes of `SPILL DIFFER`) means the spill
+stores change what the machine IR shows: if the bytes match the instrumented model, they differ
+from the machine IR, a Sonatina miscompile, as the fixed-slot spill over IR data at 0x00/0x20 is.
+
 ## What is hard
 
 - Memory, beyond the first class: spill and scratch words must not alias memory the machine IR
