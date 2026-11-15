@@ -110,7 +110,7 @@ theorem multiply_g1_k1_spec {a b : L4} {x y : Fq} (ha : RepBn a x) (hb : RepBn b
     · right
       obtain ⟨R, hR, eR⟩ := ladder n1 n2 hn1 hn2 hA1 hA2 hA3 _ (by omega) _ hinf
       rw [e3]
-      exact ⟨R, by simp only [eR, Fe.M.exec_pure], hR⟩
+      exact ⟨R, by dsimp only; rw [eR, Fe.M.exec_pure], hR⟩
 
 /-- Integer multiples congruent modulo `r` are equal. -/
 theorem zsmul_congr (P : BN254.Spec.Point) {u v : ℤ} (h : u ≡ v [ZMOD BN254.r]) :
