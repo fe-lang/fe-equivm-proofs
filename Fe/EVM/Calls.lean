@@ -182,6 +182,53 @@ def create (value ptr len : UInt256) : FeM UInt256 := createWith none value ptr 
 def create2 (value ptr len salt : UInt256) : FeM UInt256 :=
   createWith (some salt.toByteArray) value ptr len
 
+/-- A creation that is made is `Lambda` on the model's accounts with this contract's nonce
+    bumped, from the feed's next entry, and is recorded. -/
+theorem createWith_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
+    {salt : Option ByteArray} {value ptr len g' : UInt256} {L : LambdaCall} {a : AccountAddress}
+    {σ' : AccountMap} {A' : Substate} {z : Bool} {o : ByteArray} (hfeed : w.feed = s :: rest)
+    (hperm : I.perm = true) (hlen : ¬ len > ⟨49152⟩)
+    (hmade : (w.accounts.get? I.codeOwner |>.getD default).nonce.toNat < 2 ^ 64 - 1
+      ∧ value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
+      ∧ (w.memory.readWithPadding ptr.toNat len.toNat).size ≤ 49152)
+    (hL : L =
+      { σ := w.accounts.insert I.codeOwner
+          { (w.accounts.get? I.codeOwner |>.getD default) with
+            nonce := (w.accounts.get? I.codeOwner |>.getD default).nonce + ⟨1⟩ }
+        σ₀ := s.orig, A := s.substate, s := I.codeOwner, o := I.sender, g := s.gas
+        p := .ofNat I.gasPrice, v := value, i := w.memory.readWithPadding ptr.toNat len.toNat
+        e := ⟨I.depth.val + 1, Nat.succ_lt_succ hmade.2.2.1⟩, ζ := salt, H := I.header
+        bvh := I.blobVersionedHashes, blocks := I.blocks, w := I.perm })
+    (hΛ : (a, σ', g', A', z, o) = L.run) :
+    (createWith salt value ptr len).exec I w =
+      some (.ok (if z then .ofNat a else ⟨0⟩,
+        { w with
+          accounts := σ'
+          logs := w.logs ++ appended s.substate A'
+          returnData := if z then ByteArray.empty else o
+          feed := rest
+          calls := w.calls ++ [Made.lambda L] })) := by
+  have hp : ¬ I.perm = false := by simp [hperm]
+  subst hL
+  simp only [createWith, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set,
+    M.exec_pure, if_neg hp, if_neg hlen, dif_pos hmade]
+  rw [← hΛ]
+
+/-- A creation that is not made, for want of funds, at depth 1024, with this contract's nonce at
+    its limit or with init code too long, returns zero and changes nothing but the return data,
+    which it empties, and the feed: no account, no log and no record. -/
+theorem createWith_notMade {I : Env} {w : World} {s : Supply} {rest : List Supply}
+    {salt : Option ByteArray} {value ptr len : UInt256} (hfeed : w.feed = s :: rest)
+    (hperm : I.perm = true) (hlen : ¬ len > ⟨49152⟩)
+    (hnot : ¬ ((w.accounts.get? I.codeOwner |>.getD default).nonce.toNat < 2 ^ 64 - 1
+      ∧ value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
+      ∧ (w.memory.readWithPadding ptr.toNat len.toNat).size ≤ 49152)) :
+    (createWith salt value ptr len).exec I w =
+      some (.ok (⟨0⟩, { w with returnData := ByteArray.empty, feed := rest })) := by
+  have hp : ¬ I.perm = false := by simp [hperm]
+  simp only [createWith, next, hfeed, M.exec_bind, M.exec_read, M.exec_get, M.exec_set,
+    M.exec_pure, if_neg hp, if_neg hlen, dif_neg hnot]
+
 /-! ## The code of other accounts -/
 
 /-- `extcodehash(addr)`: the hash of an account's code, zero for an account that is dead. -/
