@@ -137,6 +137,29 @@ theorem readBytes_be (d : ByteArray) (off n : ℕ) (hoff : off < 2 ^ 64) (hn : n
     ← byteArray_toList_eq, hc, byteArray_zeroes_toList, hsz]
   exact fromBytesBigEndian_padded d off n
 
+/-- **Call data read as if extended with zeros**, as EVMLean's precompile specifications read it,
+    gives `beAt`. -/
+theorem readWithPadding_be (d : ByteArray) (off n : ℕ) :
+    fromByteArrayBigEndian (d.readWithPadding off n) = beAt d off n := by
+  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hr : (d.readWithoutPadding off n).toList = (d.toList.drop off).take n := by
+    unfold ByteArray.readWithoutPadding
+    split_ifs with h
+    · rw [List.drop_eq_nil_of_le (by omega), List.take_nil, byteArray_toList_eq]; rfl
+    · rw [byteArray_toList_eq, ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop,
+        ← byteArray_toList_eq]
+      by_cases hn : n ≤ d.size
+      · rw [Nat.min_eq_left hn, Nat.add_sub_cancel_left]
+      · rw [Nat.min_eq_right (by omega), Nat.add_sub_cancel_left,
+          List.take_of_length_le (by rw [List.length_drop, hl]; omega),
+          List.take_of_length_le (by rw [List.length_drop, hl]; omega)]
+  have hsz : (d.readWithoutPadding off n).size = ((d.toList.drop off).take n).length := by
+    rw [← hr, byteArray_toList_eq, Array.length_toList]; rfl
+  unfold ByteArray.readWithPadding
+  rw [fromByteArrayBigEndian, byteArray_toList_eq, ByteArray.data_append, Array.toList_append,
+    ← byteArray_toList_eq, hr, byteArray_zeroes_toList, hsz]
+  exact fromBytesBigEndian_padded d off n
+
 /-- The `n` bytes of `a`, big-endian, as `toBytes32` cuts them, read back. -/
 theorem fromBytesBigEndian_ofFn_shift (n a : ℕ) :
     fromBytesBigEndian (List.ofFn fun i : Fin n => (a >>> (8 * (n - 1 - i.val))).toUInt8) =
@@ -360,6 +383,14 @@ theorem Holds.ptr_add {b : MemBuffer} {d mem : ByteArray} (h : Holds b d mem) {j
     (hj : j < d.size) : (b.ptr + UInt256.ofNat j).toNat = b.ptr.toNat + j := by
   have := h.bound; have := h.small
   rw [uadd_toNat, ulit_toNat' _ (by omega), Nat.mod_eq_of_lt (by omega)]
+
+/-- Memory that grows still holds the bytes. -/
+theorem Holds.append {b : MemBuffer} {d mem : ByteArray} (h : Holds b d mem) (X : ByteArray)
+    (hs : mem.size + X.size < UInt256.size) : Holds b d (mem ++ X) := by
+  have hb := h.bound
+  refine ⟨h.len, by rw [ByteArray.size_append]; omega, ?_, by rw [ByteArray.size_append]; exact hs⟩
+  rw [ByteArray.extract_append, h.bytes, show b.ptr.toNat - mem.size = 0 by omega,
+    show b.ptr.toNat + d.size - mem.size = 0 by omega, ByteArray.extract_same, ByteArray.append_empty]
 
 theorem len_exec (b : MemBuffer) (I : Env) (w : World) :
     (MemBuffer_len_1 b).exec I w = some (.ok (b.len, w)) := rfl

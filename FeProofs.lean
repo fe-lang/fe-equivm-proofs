@@ -64,6 +64,7 @@ import FeProofs.Precompiles.Modexp.SmallPowMem
 import FeProofs.Precompiles.Modexp.Family
 import FeProofs.Precompiles.Modexp.SmallPowLoops
 import FeProofs.Precompiles.Modexp.SmallPowMain
+import FeProofs.Precompiles.Modexp.Input
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints

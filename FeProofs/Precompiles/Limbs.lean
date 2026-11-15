@@ -149,6 +149,43 @@ theorem val_limb : ∀ (ls : List Limb) (k : ℕ) (hk : k < ls.length),
       List.getElem_cons_succ]
     exact val_limb xs k (by simp at hk; omega)
 
+/-- Limbs past the first `c` that are zero do not count. -/
+theorem val_take_of_zero (ls : List Limb) (c : ℕ)
+    (hz : ∀ j (hj : j < ls.length), c ≤ j → ls[j] = 0) : val ls = val (ls.take c) := by
+  have hd : ls.drop c = List.replicate (ls.drop c).length 0 :=
+    List.eq_replicate_iff.mpr ⟨rfl, fun x hx => by
+      obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hx
+      rw [List.getElem_drop]
+      exact hz _ (by simp at hj; omega) (by omega)⟩
+  conv_lhs => rw [← List.take_append_drop c ls, val_append, hd, val_replicate_zero]
+  simp
+
+/-- **The top bit of limbs** whose last nonzero one is limb `c`. -/
+theorem log2_val (ls : List Limb) (c : ℕ) (hc : c < ls.length)
+    (hz : ∀ j (hj : j < ls.length), c < j → ls[j] = 0) (hne : ls[c] ≠ 0) :
+    val ls ≠ 0 ∧ (val ls).log2 = 64 * c + ls[c].val.log2 := by
+  have h1 : val ls = val (ls.take c) + 2 ^ (64 * c) * ls[c].val := by
+    rw [val_take_of_zero ls (c + 1) (fun j hj hcj => hz j hj (by omega)), List.take_add_one,
+      List.getElem?_eq_getElem hc, Option.toList_some, val_append, List.length_take,
+      Nat.min_eq_left hc.le]
+    simp [val]
+  have hlo : val (ls.take c) < 2 ^ (64 * c) := by
+    have := val_lt (ls.take c); rwa [List.length_take, Nat.min_eq_left hc.le] at this
+  have ha : ls[c].val ≠ 0 := fun h => hne (Fin.ext h)
+  have hL1 := Nat.log2_self_le ha
+  have hL2 := Nat.lt_log2_self (n := ls[c].val)
+  have hV : val ls ≠ 0 := by
+    rw [h1]; have : 0 < 2 ^ (64 * c) * ls[c].val := Nat.mul_pos (by positivity) (by omega)
+    omega
+  refine ⟨hV, le_antisymm ?_ ?_⟩
+  · rw [← Nat.lt_succ_iff, Nat.log2_lt hV, h1]
+    calc val (ls.take c) + 2 ^ (64 * c) * ls[c].val < 2 ^ (64 * c) * (ls[c].val + 1) := by
+          rw [Nat.mul_add, Nat.mul_one]; omega
+      _ ≤ 2 ^ (64 * c) * 2 ^ (ls[c].val.log2 + 1) := Nat.mul_le_mul_left _ hL2
+      _ = 2 ^ (64 * c + ls[c].val.log2).succ := by rw [← pow_add]; rfl
+  · rw [Nat.le_log2 hV, h1, pow_add]
+    exact le_trans (Nat.mul_le_mul_left _ hL1) (Nat.le_add_left _ _)
+
 /-- A bit of a number below `2 ^ 64` past its first `q` limbs. -/
 theorem bit_low (n r : ℕ) (hr : r < 64) : n / 2 ^ r % 2 = n % 2 ^ 64 / 2 ^ r % 2 := by
   conv_lhs => rw [← Nat.div_add_mod n (2 ^ 64)]
@@ -308,5 +345,57 @@ theorem store8_zeros (A : ByteArray) (x : Limb) (k q : ℕ) (hq : q = A.size) :
     · rw [if_neg (by omega), if_neg hj, if_neg hk]
 
 theorem zeros_zero : zeros 0 = ByteArray.empty := rfl
+
+theorem limbBytes_append : ∀ a b : List Limb, limbBytes (a ++ b) = limbBytes a ++ limbBytes b
+  | [], b => by rw [List.nil_append, limbBytes, ByteArray.empty_append]
+  | x :: a, b => by rw [List.cons_append, limbBytes, limbBytes, limbBytes_append a b,
+      ByteArray.append_assoc]
+
+theorem byteAt_zero_of_beAt {d : ByteArray} {off : ℕ} :
+    ∀ {n}, beAt d off n = 0 → ∀ k < n, byteAt d (off + k) = 0
+  | 0, _, k, hk => absurd hk (Nat.not_lt_zero _)
+  | n + 1, h, k, hk => by
+    rw [beAt] at h
+    rcases Nat.lt_succ_iff_lt_or_eq.mp hk with hk | hk
+    · exact byteAt_zero_of_beAt (by omega) k hk
+    · subst hk; omega
+
+theorem enc8_zero : enc8 0 = zeros 8 := by
+  have h := beAt_enc8 0
+  apply ext_byteAt (by simp)
+  intro j hj
+  rw [enc8_size] at hj
+  rw [byteAt_zeros, show j = 0 + j by omega]
+  exact byteAt_zero_of_beAt h j hj
+
+/-- **Zero limbs** are zero bytes. -/
+theorem limbBytes_replicate_zero : ∀ k : ℕ, limbBytes (List.replicate k 0) = zeros (8 * k)
+  | 0 => rfl
+  | k + 1 => by
+    rw [List.replicate_succ, limbBytes, limbBytes_replicate_zero k, enc8_zero]
+    apply ByteArray.ext
+    simp [zeros, ByteArray.data_append, show 8 * (k + 1) = 8 + 8 * k by ring, Array.replicate_append_replicate]
+
+/-- The first `n` limbs of `N`, least significant first. -/
+def limbsOf (N : ℕ) : ℕ → List Limb
+  | 0 => []
+  | n + 1 => ⟨N % 2 ^ 64, Nat.mod_lt _ (by norm_num)⟩ :: limbsOf (N / 2 ^ 64) n
+
+@[simp] theorem limbsOf_length (N : ℕ) : ∀ n, (limbsOf N n).length = n
+  | 0 => rfl
+  | n + 1 => by rw [limbsOf, List.length_cons, limbsOf_length _ n]
+
+theorem val_limbsOf : ∀ (N n : ℕ), val (limbsOf N n) = N % 2 ^ (64 * n)
+  | N, 0 => by simp [limbsOf, val, Nat.mod_one]
+  | N, n + 1 => by
+    rw [limbsOf, val, val_limbsOf, show 64 * (n + 1) = 64 + 64 * n by ring, pow_add, Nat.mod_mul]
+
+theorem limbsOf_getElem : ∀ (N n i : ℕ) (hi : i < (limbsOf N n).length),
+    ((limbsOf N n)[i]).val = N / 2 ^ (64 * i) % 2 ^ 64
+  | N, n + 1, 0, _ => by simp [limbsOf]
+  | N, n + 1, i + 1, hi => by
+    rw [show (limbsOf N (n + 1))[i + 1] = (limbsOf (N / 2 ^ 64) n)[i]'(by simp at hi ⊢; omega) from rfl,
+      limbsOf_getElem _ n i, Nat.div_div_eq_div_mul, ← pow_add, show 64 + 64 * i = 64 * (i + 1) by ring]
+
 
 end FeProofs.Precompiles
