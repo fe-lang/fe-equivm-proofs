@@ -70,6 +70,8 @@ import FeProofs.Precompiles.Modexp.Input
 import FeProofs.Precompiles.Modexp.TryRead
 import FeProofs.Precompiles.Modexp.Work
 import FeProofs.Precompiles.Modexp.TryNew
+import FeProofs.Precompiles.Modexp.Knuth
+import FeProofs.Precompiles.Modexp.ReduceLoops
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
