@@ -1,4 +1,4 @@
 # The Fe compiler whose exporter output the `Exported.lean` files hold and the export audit runs:
 # `scripts/fetch_fe.sh` checks out this commit.
 url=https://github.com/sbillig/fe
-rev=bdbe390ce997721502ee8aa6818ec7697f2f00fc
+rev=6e2e10fe247f88e9a1b22f4674dfaa9fbc021c84
