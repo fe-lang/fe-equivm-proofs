@@ -1,10 +1,10 @@
-import FeProofs.ERC20.Constructor
-import FeProofs.ERC20.Approve
-import FeProofs.ERC20.TotalSupply
-import FeProofs.ERC20.TransferFrom
-import FeProofs.ERC20.BalanceOf
-import FeProofs.ERC20.Transfer
-import FeProofs.ERC20.Allowance
+import FeProofs.ERC20.Stele.Constructor
+import FeProofs.ERC20.Stele.Approve
+import FeProofs.ERC20.Stele.TotalSupply
+import FeProofs.ERC20.Stele.TransferFrom
+import FeProofs.ERC20.Stele.BalanceOf
+import FeProofs.ERC20.Stele.Transfer
+import FeProofs.ERC20.Stele.Allowance
 import Stele.Refine
 
 /-!
@@ -13,11 +13,15 @@ import Stele.Refine
 Thin top-level: the selector case split routes each selector to its per-function `…Body`
 lemma, the shared revert paths close the rest, and the constructor is packaged into the
 whole-contract refinement.
+
+The Stele certificate is of the bytecode in this directory (`runtime.hex`, `creation.hex`), which
+Fe `22b156fff` compiled (`FeERC20.build.json`), and is built on its generated block summaries.
+The pinned compiler makes other bytes (`../P1/`), of which the other certificates are.
 -/
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -65,4 +69,4 @@ theorem feERC20ContractCorrect :
     contractRefinement config feERC20CreationBytecode contract :=
   contractRefinement.of_constant feERC20ConstructorCorrect feERC20Correct
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

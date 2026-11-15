@@ -1,5 +1,5 @@
-import FeProofs.ERC20.Dispatch
-import FeProofs.ERC20.Storage
+import FeProofs.ERC20.Stele.Dispatch
+import FeProofs.ERC20.Stele.Storage
 import FeProofs.Common.Basic
 
 /-!
@@ -11,7 +11,7 @@ Arm entry pc 541: the call-value check (revert block 65), then `MSTORE(0, SLOAD(
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -42,4 +42,4 @@ theorem feERC20TotalSupplyBody {σ σ₀ A I} {g : UInt256}
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
     (returnEquiv_of_encode (uint256ReturnEncoding (solcSlotWordAt ⟨2⟩ σ I)))
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

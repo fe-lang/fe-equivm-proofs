@@ -1,5 +1,5 @@
-import FeProofs.ERC20.Dispatch
-import FeProofs.ERC20.MapStorage
+import FeProofs.ERC20.Stele.Dispatch
+import FeProofs.ERC20.Stele.MapStorage
 import FeProofs.Common.Basic
 
 /-!
@@ -13,7 +13,7 @@ check jumps to the revert block at pc 65.
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -63,4 +63,4 @@ theorem feERC20AllowanceBody {σ σ₀ A I} {g : UInt256}
     (nonpayableReturnExprBodyReturns (by simp only [initState]; exact hwv) hread)
     (returnEquiv_of_encode (uint256ReturnEncoding _))
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

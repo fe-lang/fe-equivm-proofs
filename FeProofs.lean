@@ -5,7 +5,7 @@ import FeProofs.NarrowAbi.Correct
 import FeProofs.PackedStore.Correct
 import FeProofs.IndexedPackedStore.Correct
 import FeProofs.Deposit.Correct
-import FeProofs.ERC20.Correct
+import FeProofs.ERC20.Stele.Correct
 import FeProofs.WETH9.Correct
 import FeProofs.Constant.ModelCorrect
 import FeProofs.Constant.Invariant
@@ -17,7 +17,7 @@ import FeProofs.ScalarStore.SonatinaRun
 import FeProofs.ScalarStore.SonatinaCorrect
 import FeProofs.ERC20.SonatinaCorrect
 import FeProofs.PackedStore.RuntimeCorrect
-import FeProofs.ERC20.RuntimeCorrect
+import FeProofs.ERC20.ModelCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
 import FeProofs.WETH9.RuntimeCorrect
 import FeProofs.WETH9.SonatinaArms

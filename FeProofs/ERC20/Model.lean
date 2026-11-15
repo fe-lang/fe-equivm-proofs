@@ -1,4 +1,5 @@
 import Fe.EVM.Refine
+import EVM.Types
 
 /-!
 # FeERC20 model
@@ -152,3 +153,10 @@ def contract : ContractModel :=
   { init := fun args => init args >>= fun _ => pure ByteArray.empty, runtime := runtime }
 
 end FeProofs.ERC20.Model
+
+namespace FeProofs.ERC20
+
+/-- The ABI-encoded constructor argument. -/
+abbrev ctorTail (w : UInt256) : ByteArray := (EVM.Word.toBytesBE w).toByteArray
+
+end FeProofs.ERC20

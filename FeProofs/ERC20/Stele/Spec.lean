@@ -1,4 +1,4 @@
-import FeProofs.ERC20.SpecSyntax
+import FeProofs.ERC20.Stele.SpecSyntax
 import Stele.Semantics
 import Stele.SolidityLayout
 import Stele.MetaSolidityLayout
@@ -14,7 +14,7 @@ declarations), the external-call ABI, and the `Config`.
 
 open Stele ABI
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 def contract : ContractDecl := Syntax.contractSyntax
 
@@ -38,4 +38,4 @@ def config : Config :=
     externalABI := defaultExternalCallABI
     selfDeployment := genSolidityConstructorDeployment contract.ctor.params }
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

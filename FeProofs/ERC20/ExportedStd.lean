@@ -1,6 +1,6 @@
 import FeProofs.Lib.ExportedCorrect
 import FeProofs.ERC20.Exported
-import FeProofs.ERC20.CtorTrace
+import FeProofs.ERC20.Model
 import FeProofs.Common.Abi
 import Fe.EVM.Entry
 

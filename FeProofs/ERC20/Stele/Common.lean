@@ -1,5 +1,5 @@
-import FeProofs.ERC20.Spec
-import FeProofs.ERC20.Bytecode
+import FeProofs.ERC20.Stele.Spec
+import FeProofs.ERC20.Stele.Bytecode
 import FeProofs.ERC20.Selectors
 import Reasoning.ABI
 import Reasoning.Constructor
@@ -27,7 +27,7 @@ immutables plumbing.  Contract-specific helpers shared by several proof files go
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -109,36 +109,4 @@ theorem allowanceSelectorOf : selectorOf allowanceTransition = feERC20SelBytes 5
   rw [hsig]
   exact allowanceSelectorFact
 
-/-! ## Selector words as the dispatcher compares them -/
-
-theorem approveEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨157198259⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 0 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0x09 0x5e 0xa7 0xb3 ⟨157198259⟩ (by decide)
-
-theorem totalSupplyEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨404098525⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 1 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0x18 0x16 0x0d 0xdd ⟨404098525⟩ (by decide)
-
-theorem transferFromEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨599290589⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 2 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0x23 0xb8 0x72 0xdd ⟨599290589⟩ (by decide)
-
-theorem balanceOfEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨1889567281⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 3 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0x70 0xa0 0x82 0x31 ⟨1889567281⟩ (by decide)
-
-theorem transferEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨2835717307⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 4 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0xa9 0x05 0x9c 0xbb ⟨2835717307⟩ (by decide)
-
-theorem allowanceEvmSelector {cd : ByteArray} (hsz : 4 ≤ cd.size) :
-    UInt256.eq ⟨3714247998⟩ (UInt256.shiftRight (uInt256OfByteArray (cd.readBytes 0 32)) ⟨224⟩)
-      = if (feERC20SelBytes 5 == cd.extract 0 4) then ⟨1⟩ else ⟨0⟩ :=
-  evmSelectorDecode hsz 0xdd 0x62 0xed 0x3e ⟨3714247998⟩ (by decide)
-
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

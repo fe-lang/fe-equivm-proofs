@@ -8,7 +8,7 @@ The token at `a` keeps the balances of the holders `S` adding up to the recorded
 every message call and creation, at every depth, whoever makes them, in every execution in which
 each successful frame at `a` is admitted: its calldata is shorter than `2 ^ 64` bytes, and the
 holders cover it (`Covers`).  An instance of `Fe.EVM.refinesOn_keeps`, from the certificate of the
-exported model (`feERC20RefinesExported`) and its conservation (`Exported.runtime_conserves`).
+exported model (`feERC20RefinesExportedP1`) and its conservation (`Exported.runtime_conserves`).
 The token makes no external call, so its model never uses `Deeper`, and admission asks nothing of
 the calls a frame at the token makes (`callsAt := fun _ _ _ _ _ _ => True`).  Conservation does
 not depend on how a frame is entered (`Enters := fun _ _ _ => True`).
@@ -21,11 +21,9 @@ has no code, the data fits a word, and the outermost call is admitted.
 
 The statements hold of any runtime and creation bytecode with `P0` certificates
 (`every_call_keeps`, `deploy_keeps_token`, `every_transaction_keeps`).  The capstones are their
-instances at the pinned bytecode, and `P1.every_call_conserves`, `P1.deploy_conserves_token` and
-`P1.every_transaction_conserves` at the bytecode of `P1/`, through its `P1` certificates.  The
-token's frames are admitted by their calldata and the holders alone (`callsAt` is `True`), so
-`check_xiOk`, that the `P1` bytecode's frames make no call, would remove nothing from them: the
-two sets of statements take the same hypotheses.
+instances at the pinned bytecode, through its `P1` certificates.  The token's frames are
+admitted by their calldata and the holders alone (`callsAt` is `True`), so `check_xiOk`, that the
+bytecode's frames make no call, would remove nothing from them.
 -/
 
 open Ethereum Ethereum.EVM Ethereum.EVM.Invariant Fe Fe.EVM
@@ -47,21 +45,11 @@ theorem conserved_iff {c : AccountAddress} {σ : AccountMap} {S : List UInt256} 
 def TokenAt (code : ByteArray) (S : List UInt256) (acc : Account) : Prop :=
   acc.code = code ∧ ConservedAcc S acc
 
-/-- The token's account: it runs the ERC20 bytecode, and its holders' balances add up to the
-    supply. -/
-def Token (S : List UInt256) (acc : Account) : Prop :=
-  TokenAt feERC20Bytecode S acc
-
 /-- A frame at the token is admitted when its calldata fits and the holders cover it. -/
 def Admits (S : List UInt256) (_ : AccountMap) (I : ExecutionEnv) : Prop :=
   CalldataFits I ∧ Covers S I
 
-set_option maxRecDepth 100000 in
 theorem bytecode_size_ne_zero : feERC20Bytecode.size ≠ 0 := by
-  rw [feERC20Bytecode, ByteArray.size_append]
-  exact Nat.ne_of_gt (Nat.lt_of_lt_of_le (Nat.succ_pos _) (Nat.le_add_right _ _))
-
-theorem P1.bytecode_size_ne_zero : feERC20P1Bytecode.size ≠ 0 := by
   decide +kernel
 
 theorem token_admissible {code : ByteArray} (hsize : code.size ≠ 0) (S : List UInt256) :
@@ -185,6 +173,11 @@ end Certified
 
 /-! ## The pinned bytecode -/
 
+/-- The token's account: it runs the ERC20 bytecode, and its holders' balances add up to the
+    supply. -/
+def Token (S : List UInt256) (acc : Account) : Prop :=
+  TokenAt feERC20Bytecode S acc
+
 /-- **Every message call and creation conserves the token's supply.**  For the token at `a` and
     holders `S` whose balance slots do not collide: every message call and every creation, at any
     depth, that starts where `a` runs the ERC20 bytecode with the holders' balances adding up to
@@ -195,7 +188,7 @@ theorem every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : Colli
     ThetaGood a (Token S) (· = feERC20Bytecode) (fun _ _ _ => True) (Admits S)
         (fun _ _ _ _ _ _ => True) e
       ∧ LambdaGood a (Token S) (Admits S) (fun _ _ _ _ _ _ => True) e :=
-  every_call_keeps Exported.feERC20RefinesExported bytecode_size_ne_zero a hS e
+  every_call_keeps Sonatina.feERC20RefinesExportedP1.toP0 bytecode_size_ne_zero a hS e
 
 /-- **Deployment conserves.**  A creation of the ERC20 creation bytecode with argument `v` that
     succeeds, made by a holder in `S` that has an account, with write permission, ends with the
@@ -208,7 +201,7 @@ theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UI
     (hs : ∃ acc, L.σ[L.s]? = some acc) (hw : L.w = true)
     (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (Token S) L.run.2.1 :=
-  deploy_keeps_token Exported.feERC20DeployRefinesExported hS hi hs hw hdeployer hz
+  deploy_keeps_token Sonatina.feERC20DeployRefinesExportedP1.toP0 hS hi hs hw hdeployer hz
 
 /-- **Every transaction conserves.**  A valid transaction that starts where the token at `a` runs
     the ERC20 bytecode with the holders' balances adding up to the supply, and the ether balances
@@ -228,46 +221,7 @@ theorem every_transaction_conserves (a : AccountAddress) {S : List UInt256}
     (hadmit : TxAdmitted a (Admits S) (fun _ _ _ _ _ _ => True) σ H_f H blocks T S_T)
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
     Holds a (Token S) σ' ∧ total σ' ≤ total σ :=
-  every_transaction_keeps Exported.feERC20RefinesExported bytecode_size_ne_zero a hS hH hT hsender
-    hdata hpay hfee hnonce hadmit hΥ
-
-/-! ## The bytecode of `P1/` -/
-
-/-- The token's account at the bytecode of `P1/`. -/
-def P1.Token (S : List UInt256) (acc : Account) : Prop :=
-  TokenAt feERC20P1Bytecode S acc
-
-/-- `every_call_conserves` for the bytecode of `P1/`. -/
-theorem P1.every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : CollisionFree S)
-    (e : Fin 1025) :
-    ThetaGood a (P1.Token S) (· = feERC20P1Bytecode) (fun _ _ _ => True) (Admits S)
-        (fun _ _ _ _ _ _ => True) e
-      ∧ LambdaGood a (P1.Token S) (Admits S) (fun _ _ _ _ _ _ => True) e :=
-  every_call_keeps Sonatina.feERC20RefinesExportedP1.toP0 P1.bytecode_size_ne_zero a hS e
-
-/-- `deploy_conserves_token` for the bytecode of `P1/`. -/
-theorem P1.deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UInt256}
-    {L : LambdaCall} (hi : L.i = feERC20P1CreationBytecode ++ v.toByteArray)
-    (hs : ∃ acc, L.σ[L.s]? = some acc) (hw : L.w = true)
-    (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
-    L.run.1 = L.addr ∧ Holds L.addr (P1.Token S) L.run.2.1 :=
-  deploy_keeps_token Sonatina.feERC20DeployRefinesExportedP1.toP0 hS hi hs hw hdeployer hz
-
-/-- `every_transaction_conserves` for the bytecode of `P1/`. -/
-theorem P1.every_transaction_conserves (a : AccountAddress) {S : List UInt256}
-    (hS : CollisionFree S) {σ σ' : AccountMap} {H_f : ℕ} {H : BlockHeader}
-    {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress} {A : Substate} {z : Bool}
-    {gu : UInt256} (hH : Holds a (P1.Token S) σ) (hT : total σ < UInt256.size)
-    (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
-    (hdata : T.base.data.size < UInt256.size)
-    (hpay : T.base.gasLimit.toNat * (txPrice T H_f).toNat + calcBlobFee H T + T.base.value.toNat
-      ≤ (balOf σ S_T).toNat)
-    (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
-    (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
-    (hadmit : TxAdmitted a (Admits S) (fun _ _ _ _ _ _ => True) σ H_f H blocks T S_T)
-    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
-    Holds a (P1.Token S) σ' ∧ total σ' ≤ total σ :=
-  every_transaction_keeps Sonatina.feERC20RefinesExportedP1.toP0 P1.bytecode_size_ne_zero a hS hH
+  every_transaction_keeps Sonatina.feERC20RefinesExportedP1.toP0 bytecode_size_ne_zero a hS hH
     hT hsender hdata hpay hfee hnonce hadmit hΥ
 
 end FeProofs.ERC20

@@ -1,5 +1,5 @@
 import FeProofs.ERC20.Conservation
-import FeProofs.ERC20.RuntimeCorrect
+import FeProofs.ERC20.ExportedCorrect
 import FeProofs.ERC20.SonatinaCorrect
 
 /-!
@@ -11,12 +11,12 @@ supply, and a successful deployment makes them so, in a frame whose account exis
 EVM semantics; the models appear only in the proofs, which go through the exported contract: the
 hand-written model conserves (`Conservation.lean`), each exported entry ends as the hand-written
 one does (`runtime_endsAs`, `init_endsAs`), and the bytecode refines the exported contract
-(`feERC20RefinesExported`, `feERC20DeployRefinesExported`).
+(`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`).
 
 The bytecode statements hold of any runtime and creation bytecode with `P0` certificates against
-the exported contract (`call_keeps`, `deploy_keeps`).  `call_conserves` and `deploy_conserves`
-are their instances at the pinned bytecode, `P1.call_conserves` and `P1.deploy_conserves` at the
-bytecode of `P1/`, through its `P1` certificates (`feERC20RefinesExportedP1.toP0`).
+the exported contract (`call_keeps`, `deploy_keeps`).  `call_conserves` and
+`deploy_conserves` are their instances at the pinned bytecode, through its `P1` certificates
+(`feERC20RefinesExportedP1.toP0`).
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
@@ -112,7 +112,7 @@ theorem call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Subs
     (hS : CollisionFree S) (hcall : Covers S I) (hcons : Conserved I.codeOwner σ S)
     (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
     Conserved I.codeOwner σ' S :=
-  call_keeps Exported.feERC20RefinesExported hcode hown hfits hS hcall hcons hrun
+  call_keeps Sonatina.feERC20RefinesExportedP1.toP0 hcode hown hfits hS hcall hcons hrun
 
 /-- A deployment of the creation bytecode with one argument word `v`, at an account that exists,
     that succeeds makes the sum of the balances of the holders `S` equal to the supply, when the
@@ -121,26 +121,6 @@ theorem call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Subs
 theorem deploy_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
     {I : ExecutionEnv} {o : ByteArray} {S : List UInt256} {v : UInt256}
     (hcode : I.code = feERC20CreationBytecode ++ v.toByteArray) (hown : OwnerExists σ I)
-    (hperm : I.perm = true)
-    (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
-    (hzero : ∀ a ∈ S, balance I.codeOwner σ a = ⟨0⟩)
-    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    Conserved I.codeOwner σ' S :=
-  deploy_keeps Exported.feERC20DeployRefinesExported hcode hown hperm hS hdeployer hzero hrun
-
-/-- `call_conserves` for the bytecode of `P1/`. -/
-theorem P1.call_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
-    {I : ExecutionEnv} {o : ByteArray} {S : List UInt256}
-    (hcode : I.code = feERC20P1Bytecode) (hown : OwnerExists σ I) (hfits : CalldataFits I)
-    (hS : CollisionFree S) (hcall : Covers S I) (hcons : Conserved I.codeOwner σ S)
-    (hrun : Ξ σ σ₀ g A I = .ok (.success (σ', g', A') o)) :
-    Conserved I.codeOwner σ' S :=
-  call_keeps Sonatina.feERC20RefinesExportedP1.toP0 hcode hown hfits hS hcall hcons hrun
-
-/-- `deploy_conserves` for the bytecode of `P1/`. -/
-theorem P1.deploy_conserves {σ σ₀ σ' : AccountMap} {g g' : UInt256} {A A' : Substate}
-    {I : ExecutionEnv} {o : ByteArray} {S : List UInt256} {v : UInt256}
-    (hcode : I.code = feERC20P1CreationBytecode ++ v.toByteArray) (hown : OwnerExists σ I)
     (hperm : I.perm = true)
     (hS : CollisionFree S) (hdeployer : UInt256.ofNat I.source.val ∈ S)
     (hzero : ∀ a ∈ S, balance I.codeOwner σ a = ⟨0⟩)

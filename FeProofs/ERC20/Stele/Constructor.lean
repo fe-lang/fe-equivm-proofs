@@ -1,4 +1,4 @@
-import FeProofs.ERC20.CtorBody
+import FeProofs.ERC20.Stele.CtorBody
 
 /-!
 # FeERC20 constructor correctness
@@ -10,7 +10,7 @@ constructor body (`CtorBody.lean`), under the canonical `uint256` deployment.
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 theorem feERC20ConstructorCorrect :
     typedConstructorRefinement config feERC20CreationBytecode contract
@@ -44,4 +44,4 @@ theorem feERC20ConstructorCorrect :
     · exact typedConstructorRefinementFor.execution (by simpa using hrev)
         (hexec (bodyReverts_nonPayable hwv)) (ctorResultEquiv.revert rfl rfl)
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

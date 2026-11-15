@@ -15,7 +15,7 @@ the implicit non-payable guards do.  Logs and revert payloads are outside the re
 
 open Stele Stele.Notation
 
-namespace FeProofs.ERC20.Syntax
+namespace FeProofs.ERC20.Stele.Syntax
 
 def contractSyntax : ContractDecl := solidity% contract FeERC20 {
   mapping(address => uint256) balanceOf;                     -- slot 0
@@ -74,4 +74,4 @@ def contractSyntax : ContractDecl := solidity% contract FeERC20 {
   }
 }
 
-end FeProofs.ERC20.Syntax
+end FeProofs.ERC20.Stele.Syntax
