@@ -45,6 +45,7 @@ import FeProofs.Case44Bank.Bytecode
 import FeProofs.Case44Bank.Exported
 import FeProofs.Deposit.Exported
 import FeProofs.Deposit.ExportedStd
+import FeProofs.Deposit.ExportedEvent
 import FeProofs.Lib.AbiBytes
 import FeProofs.Lib.BytesCodec
 import FeProofs.Lib.AbiEncode
