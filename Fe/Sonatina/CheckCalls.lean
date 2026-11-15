@@ -1567,7 +1567,7 @@ theorem callees_some {low : Lowering} {entry g : String} {ce : Callee}
   · simp [hg] at h
   · simp only [hg, Bool.false_eq_true, ite_false] at h
     simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, -, hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
+    obtain ⟨hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
     cases hce
     exact ⟨by simpa using hg, hint, f, eb, hh, hf, he, ho, rfl, rfl, rfl⟩
 
