@@ -25,7 +25,6 @@ import FeProofs.WETH9.SonatinaTransfer
 import FeProofs.WETH9.SonatinaWithdraw
 import FeProofs.WETH9.SonatinaLoad
 import FeProofs.WETH9.SonatinaCorrect
-import FeProofs.WETH9.SonatinaInit
 import FeProofs.ERC20.ConservationBytecode
 import FeProofs.ERC20.Invariant
 import FeProofs.WETH9.Invariant

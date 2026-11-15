@@ -2,6 +2,7 @@ import FeProofs.WETH9.SonatinaArms
 import FeProofs.WETH9.SonatinaTransfer
 import FeProofs.WETH9.SonatinaWithdraw
 import FeProofs.WETH9.SonatinaString
+import FeProofs.WETH9.SonatinaInit
 
 /-!
 # FeWETH9: the pinned bytecode refines the exported contract at P1
@@ -10,8 +11,8 @@ The machine IR's runtime ends as the exported runtime entry does on each call
 (`runtime_endsAs`): the dispatcher's selector tests are the exported ones (`selWord_eq_iff`), the
 machine IR goes on at the arm's entry block (`ir_dispatch`) or at the fallback's
 (`ir_fallback`), and each arm ends as the exported arm entry does (`SonatinaArms.lean`,
-`SonatinaTransfer.lean`, `SonatinaWithdraw.lean`, `SonatinaString.lean`).  The checker's certificate of the sidecar then carries over to the exported contract
-(`feWETH9Implements`).
+`SonatinaTransfer.lean`, `SonatinaWithdraw.lean`, `SonatinaString.lean`).  The constructor goes the same way (`init_endsAs`, `SonatinaInit.lean`).  The checker's
+certificate of the sidecar then carries over to the exported contract at profile `P1`.
 -/
 
 namespace FeProofs.WETH9.Sonatina
@@ -210,5 +211,28 @@ theorem runtime_endsAs (hw : w.memory = ByteArray.empty) (hfits : I.calldata.siz
 theorem feWETH9Implements :
     Implements Exported.contract (sidecar.model .machine) CalldataFits :=
   fun I σ A feed _ hfits => ⟨feed, runtime_endsAs I (World.init σ A feed) rfl hfits⟩
+
+/-- The machine IR's constructor implements the exported one, on no arguments. -/
+theorem feWETH9ImplementsDeploy :
+    ImplementsDeploy Exported.contract (sidecar.model .machine) feWETH9CreationBytecode
+      feWETH9Bytecode .empty (· = ByteArray.empty) := by
+  rintro I σ A feed args rfl hcode _ hperm
+  exact ⟨feed, init_endsAs I _ rfl hcode hperm⟩
+
+/-- `runtime.hex` refines the exported contract at profile `P1`, on calldata below `2 ^ 64`
+    bytes: the checker's certificate of the sidecar, whose runtime bytes are these, composed
+    with `feWETH9Implements`. -/
+theorem feWETH9RefinesExportedP1 :
+    RefinesOn .P1 feWETH9Bytecode Exported.contract CalldataFits :=
+  RefinesOn.of_implements (sidecar_runtime ▸ sidecar_sound.1) feWETH9Implements rfl
+
+/-- Deployment by `creation.hex` with no arguments refines the exported deployment entry at
+    profile `P1`. -/
+theorem feWETH9DeployRefinesExportedP1 :
+    RefinesDeploy .P1 feWETH9CreationBytecode feWETH9Bytecode Exported.contract
+      (· = ByteArray.empty) :=
+  RefinesDeploy.of_implements (fun σ σ₀ g A I args _ hcode hown hperm =>
+    sidecar_sound.2 σ σ₀ g A I args trivial (by rw [sidecar_init]; exact hcode) hown hperm)
+    feWETH9ImplementsDeploy
 
 end FeProofs.WETH9.Sonatina

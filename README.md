@@ -105,7 +105,12 @@ have certificates of the exported model at `P1`, through the Sonatina checker
 (`Fe/Sonatina/README.md`): `feScalarStoreRefinesExportedP1` and `feERC20RefinesExportedP1`, each
 with its `…Deploy…` twin. FeERC20's `P1` certificates are of the bytecode the pinned Fe commit
 compiles (`FeProofs/ERC20/P1/`, `P1/FeERC20.build.json`); its `P0` ones are of an older
-compiler's (`FeProofs/ERC20/FeERC20.build.json`). The certificates of exported
+compiler's (`FeProofs/ERC20/FeERC20.build.json`). WETH9 has them too,
+`feWETH9RefinesExportedP1` and `feWETH9DeployRefinesExportedP1` (`FeProofs/WETH9/Sonatina*.lean`),
+of the same bytes as its `P0` ones and with no `native_decide`: its machine IR has loops with
+bounds read from storage (the copy of a long string in `%load`, the zeroing of an old one's data
+words in the constructor's `%store`), run by induction on the iterations left
+(`runBlocks_loop`, `Fe/Sonatina/Run.lean`). The certificates of exported
 models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std does.
 `call_conserves` and `deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
 properties of the ERC20 bytecode proved through the exported certificates: every successful call
