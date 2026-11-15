@@ -2333,6 +2333,16 @@ theorem LambdaCall.frame_storage (L : LambdaCall) (h : L.blocked = false) :
   · rw [Std.ExtTreeMap.getD_insert_self]
     exact h.2
 
+/-- The init code of a creation by an account that exists runs where an account exists at its
+    own address: `Lambda` adds the new account to the map before it runs the code.  It adds it
+    only when the creator has an account. -/
+theorem LambdaCall.frame_owner (L : LambdaCall) (hs : ∃ acc, L.σ[L.s]? = some acc) :
+    ∃ acc, L.frame.1[L.frame.2.2.codeOwner]? = some acc := by
+  obtain ⟨acc, hs⟩ := hs
+  unfold LambdaCall.frame
+  simp only [Std.ExtTreeMap.get?_eq_getElem?, hs]
+  exact ⟨_, Std.ExtTreeMap.getElem?_insert_self⟩
+
 /-- A creation that succeeds ran its init code, from an account with empty storage at the new
     address, and installed the code the init code returned. -/
 theorem lambda_success {L : LambdaCall} (hz : L.run.2.2.2.2.1 = true) :
