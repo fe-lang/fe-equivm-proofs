@@ -62,14 +62,14 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
       (Ctx.ofBlock f b code.symbols fr sp).segments (sp.guard b.id) 0 b.body = some (events, calls) ∧
       (Ctx.ofBlock f b code.symbols fr sp).exitOf b.term = some exit ∧
       ((isRoot && b.id == entryBlock.id) = true → stack = []) ∧
-      defined f hint.blocks b (hb.entryStack.filterMap fun | .value id => some id | _ => none) =
-        true ∧
+      defined f hint.blocks sp b
+        (hb.entryStack.filterMap fun | .value id => some id | _ => none) = true ∧
       (b.term.only.all fun s => place s != some pc || rank s < rank b.id) = true ∧
       run code.bytecode (codeTree code.bytecode) (jumpdests code.bytecode)
         (Ctx.ofBlock f b code.symbols fr sp) hint.blocks place b.id
         (2 * low.codeSize + 2)
-        ⟨pc, stack, prologue low (isRoot && b.id == entryBlock.id) events, exit, calls⟩ =
-          true := by
+        ⟨pc, stack, prologue low (isRoot && b.id == entryBlock.id) events, exit, calls,
+          (sp.spillIn b.id).map fun (v, a) => ⟨a, .atom v, some v⟩⟩ = true := by
   unfold checkBlock at h
   cases hhb : hint.blocks.find? (·.block == b.id) with
   | none => simp [hhb] at h
@@ -133,9 +133,10 @@ theorem forM_bind_ok {α ε : Type} {g : α → Except ε Unit} {l : List α} {k
 theorem checkFunc_ok {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : Guard}
     {entry : String} {hint : FuncHint} (h : checkFunc code low plan G entry hint = .ok ()) :
     ∃ f entryBlock, low.machine.func? hint.name = some f ∧ f.blocks.head? = some entryBlock ∧
-      (∀ x ∈ funcChecks low entry hint f entryBlock, x.1 = true) ∧ ∃ sp : FuncSpill,
-      sp.guard = G.at hint.name ∧
-      ∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f) sp (hint.name == entry)
+      (∀ x ∈ funcChecks low entry hint f entryBlock ((plan.lookup hint.name).getD [])
+        (funcSpill plan G hint.name f entryBlock).live, x.1 = true) ∧
+      ∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f)
+        (funcSpill plan G hint.name f entryBlock) (hint.name == entry)
         entryBlock (placeIn low hint.name) (zeroRank f (placeIn low hint.name) f.blocks.length)
           b = .ok () := by
   unfold checkFunc at h
@@ -148,7 +149,7 @@ theorem checkFunc_ok {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G
   | some eb =>
   simp only [he] at h
   obtain ⟨h1, h2⟩ := forM_bind_ok h
-  refine ⟨f, eb, rfl, he, fun x hx => ?_, _, rfl, forM_ok h2⟩
+  refine ⟨f, eb, rfl, he, fun x hx => ?_, forM_ok h2⟩
   have := forM_ok h1 x hx
   obtain ⟨ok, msg⟩ := x
   cases ok
@@ -571,15 +572,17 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
 /-- The bytes are at the start of block `b`, entered from `prev` with the run's values `env`:
     the code, the pc at `b`'s offset, the world agreeing, and the planned entry stack's words on
     top of the EVM stack, as the values are once `b` is entered. -/
-def AtBlock (M : List Made) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame) (I : ExecutionEnv)
-    (b : Block) (prev : Option Nat) (env : Env) (w : World) (st : State) (ret : Option UInt256)
-    (B : List UInt256) : Prop :=
+def AtBlock (M : List Made) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame)
+    (sp : FuncSpill) (I : ExecutionEnv) (b : Block) (prev : Option Nat) (env : Env) (w : World)
+    (st : State) (ret : Option UInt256) (B : List UInt256) : Prop :=
   b ∈ f.blocks ∧ f.block? b.id = some b ∧ st.executionEnv = I ∧ Agree M st w ∧
   ∃ hb pc envB ws, hint.blocks.find? (·.block == b.id) = some hb ∧
     placeIn low hint.name b.id = some pc ∧ st.machineState.pc.toNat = pc ∧
     enter env prev b = pure envB ∧ st.machineState.stack = ws ++ B ∧
     List.Forall₂ (SlotWord envB ret) (fr.slots hb) ws ∧
-    ∀ phi ∈ b.phis, ∃ n, envB[phi.dst]? = some (.int 256 n) ∧ n < UInt256.size
+    (∀ phi ∈ b.phis, ∃ n, envB[phi.dst]? = some (.int 256 n) ∧ n < UInt256.size) ∧
+    ∀ va ∈ sp.spillIn b.id, ∃ v : UInt256, envB[va.1]? = some (.int 256 v.toNat) ∧
+      w.memory.readWithPadding va.2 32 = v.toByteArray
 
 /-- What the section entry's code does before the entry block: it stores the initial free
     pointer. -/

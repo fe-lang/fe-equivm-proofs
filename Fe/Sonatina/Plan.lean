@@ -102,13 +102,18 @@ def Live.at (L : Live) (b k : Nat) : List Nat := ((L.lookup b).bind (·[k]?)).ge
 /-- A set of values, in order and without repeats. -/
 def normSet (xs : List Nat) : List Nat := xs.mergeSort.eraseDups
 
+/-- The phi takes on the edge from `pred` another value than itself: a new value, which the edge
+    stores at its word.  A phi whose operand is itself keeps its word as it is. -/
+def Phi.movedFrom (phi : Phi) (pred : Nat) : Bool :=
+  !((phi.incoming.find? (·.2 == pred)).any (·.1 == .var phi.dst))
+
 /-- One round of reload-liveness for block `b` of `f`: its sets, from those of its successors'
     entries in `L`.  Before the terminator: the values reloaded there and those live at a
-    successor's entry other than its phis; before a statement: those reloaded there and those
-    live after it that it does not kill. -/
+    successor's entry other than its phis that take a new value on the edge from `b`; before a
+    statement: those reloaded there and those live after it that it does not kill. -/
 def blockLive (f : Func) (p : FuncPlan) (L : Live) (b : Block) : List (List Nat) :=
   let out := b.term.succs.flatMap fun S => match f.block? S with
-    | some sb => (L.at S 0).filter fun v => !sb.phis.any (·.dst == v)
+    | some sb => (L.at S 0).filter fun v => !sb.phis.any (fun phi => phi.dst == v && phi.movedFrom b.id)
     | none => []
   b.body.zipIdx.foldr (fun (s, k) acc =>
       normSet (p.reloadsAt b.id k ++ (acc.headD []).filter (!(s.kills p.words).contains ·))
@@ -131,7 +136,7 @@ where
 /-- The sets `L` satisfy the equations of reload-liveness of `f` under `p`: at each point of
     each block, the values reloaded there; before each statement, the values live after it it
     does not kill; before the terminator, the values live at a successor's entry other than its
-    phis. -/
+    phis that take a new value on the edge. -/
 def Func.liveClosed (f : Func) (p : FuncPlan) (L : Live) : Bool :=
   f.blocks.all fun b =>
     (List.range (b.body.length + 1)).all
@@ -140,7 +145,8 @@ def Func.liveClosed (f : Func) (p : FuncPlan) (L : Live) : Bool :=
       (s.kills p.words).contains v || (L.at b.id k).contains v) &&
     b.term.succs.all fun S => match f.block? S with
       | some sb => (L.at S 0).all fun v =>
-        sb.phis.any (·.dst == v) || (L.at b.id b.body.length).contains v
+        sb.phis.any (fun phi => phi.dst == v && phi.movedFrom b.id) ||
+          (L.at b.id b.body.length).contains v
       | none => true
 
 /-! ## The instrumented model -/

@@ -43,12 +43,13 @@ open Ethereum Fe Fe.EVM
 /-! ## Reload-liveness along a path -/
 
 /-- A step of `f` that keeps `v` reload-live backwards: past a statement that does not kill
-    `v`, or from a block's terminator to the entry of a successor of which `v` is no phi. -/
+    `v`, or from a block's terminator to the entry of a successor of which `v` is no phi that
+    takes a new value on the edge. -/
 inductive Func.LiveStep (f : Func) (p : FuncPlan) (v : Nat) : Nat × Nat → Nat × Nat → Prop
   | stmt {b : Block} {k : Nat} {s : Stmt} : b ∈ f.blocks → b.body[k]? = some s →
       v ∉ s.kills p.words → LiveStep f p v (b.id, k) (b.id, k + 1)
   | edge {b : Block} {S : Nat} {sb : Block} : b ∈ f.blocks → S ∈ b.term.succs →
-      f.block? S = some sb → (∀ phi ∈ sb.phis, phi.dst ≠ v) →
+      f.block? S = some sb → (∀ phi ∈ sb.phis, phi.dst = v → phi.movedFrom b.id = false) →
       LiveStep f p v (b.id, b.body.length) (S, 0)
 
 theorem Func.live_reload {f : Func} {p : FuncPlan} {L : Live} (h : f.liveClosed p L = true)
@@ -71,15 +72,17 @@ theorem Func.live_stmt {f : Func} {p : FuncPlan} {L : Live} (h : f.liveClosed p 
 
 theorem Func.live_edge {f : Func} {p : FuncPlan} {L : Live} (h : f.liveClosed p L = true)
     {b : Block} (hb : b ∈ f.blocks) {S v : Nat} {sb : Block} (hS : S ∈ b.term.succs)
-    (hsb : f.block? S = some sb) (hv : v ∈ L.at S 0) (hphi : ∀ phi ∈ sb.phis, phi.dst ≠ v) :
+    (hsb : f.block? S = some sb) (hv : v ∈ L.at S 0)
+    (hphi : ∀ phi ∈ sb.phis, phi.dst = v → phi.movedFrom b.id = false) :
     v ∈ L.at b.id b.body.length := by
   have hb' := List.all_eq_true.mp h b hb
   simp only [Bool.and_eq_true, List.all_eq_true] at hb'
   have := hb'.2 S hS
   rw [hsb] at this
   have := List.all_eq_true.mp this v (by simpa using hv)
-  simp only [Bool.or_eq_true, List.any_eq_true, beq_iff_eq, List.contains_iff_mem] at this
-  exact this.resolve_left fun ⟨phi, hp, he⟩ => hphi phi hp he
+  simp only [Bool.or_eq_true, List.any_eq_true, Bool.and_eq_true, beq_iff_eq,
+    List.contains_iff_mem] at this
+  exact this.resolve_left fun ⟨phi, hp, he, hm⟩ => by rw [hphi phi hp he] at hm; cases hm
 
 /-- Reload-liveness along a path: a value live at the end of steps that keep it live is live
     at their start, given sets that satisfy the equations. -/

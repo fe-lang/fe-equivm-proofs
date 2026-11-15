@@ -362,6 +362,15 @@ theorem forall₂_words {env : Env} {ρ : Nat → UInt256} :
     have := word_inj (Option.some.inj ((hρ d (by simp)).symm.trans h))
     simp [this, forall₂_words hr fun d' h' => hρ d' (List.mem_cons_of_mem _ h')]
 
+theorem forall₂_mem {α β : Type} {R : α → β → Prop} :
+    ∀ {l : List α} {l' : List β}, List.Forall₂ R l l' → ∀ a ∈ l, ∃ b ∈ l', R a b
+  | [], [], .nil, _, h => by cases h
+  | _ :: _, b :: _, .cons h hr, a, ha => by
+    rcases List.mem_cons.mp ha with rfl | ha
+    · exact ⟨b, .head _, h⟩
+    · obtain ⟨b', hb', hr'⟩ := forall₂_mem hr a ha
+      exact ⟨b', .tail _ hb', hr'⟩
+
 theorem forall₂_left {α β : Type} {R : α → β → Prop} :
     ∀ {l : List α} {l' : List β}, List.Forall₂ R l l' → ∀ a ∈ l, ∃ b, R a b
   | [], [], .nil, _, h => by cases h
@@ -771,7 +780,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         Final K M (D_J I.code 0) s
           ((runFuncG g m ic (inh ++ cs.keep) cs.callee (ws.map Fe.Sonatina.word)).exec I w₁) ∨
         ∃ (ws₂ : List UInt256) (w₂ : World) (s₂ : State) (n : Nat) (restE : List Expr)
-          (restW : List UInt256) (ex' : Exit) (fuel' k : Nat),
+          (restW : List UInt256) (ex' : Exit) (fuel' k : Nat) (hs : List Held),
           (runFuncG g m ic (inh ++ cs.keep) cs.callee (ws.map Fe.Sonatina.word)).exec I w₁ =
             some (.ok (ws₂.map Fe.Sonatina.word, w₂)) ∧ ws₂.length = cs.dsts.length ∧
           Steps K (D_J I.code 0) s (.ok (s₂, none)) n ∧ s₂.machineState.pc = UInt256.ofNat k ∧
@@ -779,7 +788,9 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
           s₂.machineState.stack = ws₂ ++ restW ++ B ∧
           restE.mapM (·.eval I ρ) = some restW ∧
           run code (codeTree code) (jumpdests code) c hints place b fuel'
-            ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ = true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree M s₂ w₂ := by
+            ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more, keepHeld cs.keep hs⟩ = true ∧
+          HeldRel I ρ hs w₁.memory ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧
+          s₂.executionEnv = I ∧ Agree M s₂ w₂ := by
       intro cs more w₁ ws hcs htr hargs hnpz
       obtain ⟨ce, hce, hla, hld⟩ := har cs (by rw [hcs]; simp)
       have hE := hends _ htr
@@ -793,8 +804,8 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
       · cases hc0
       · cases hc0
       · cases hc0
-      · obtain ⟨cs', more', ce', n, s', ws', k, restE, restW, ex', fuel', hc', hce', hret', hst,
-          hpc, hargs', hrestW, hstk, hkj, hrun', hval, hexr, henv, hag⟩ := hret
+      · obtain ⟨cs', more', ce', n, s', ws', k, restE, restW, ex', fuel', hs, hc', hce', hret',
+          hst, hpc, hargs', hrestW, hstk, hkj, hrun', hheld, hval, hexr, henv, hag⟩ := hret
         simp only [List.cons.injEq] at hc'
         obtain ⟨rfl, rfl⟩ := hc'
         cases hr
@@ -808,9 +819,10 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         · exact .inl (hf.prepend hst)
         · simp only [Option.some.injEq] at hk'
           subst hk'
-          refine .inr ⟨ws₂, w₂, s₂, n + n₂, restE, restW, ex', fuel', k, hr₂,
+          refine .inr ⟨ws₂, w₂, s₂, n + n₂, restE, restW, ex', fuel', k, hs, hr₂,
             by rw [hl₂, hld, if_pos hret'], hst.append hx₂, hpc₂, hkj,
-            by rw [hstk₂, List.append_assoc], hrestW, hrun', hval, hexr, henv₂.trans henv, hag₂⟩
+            by rw [hstk₂, List.append_assoc], hrestW, hrun', by rw [← hag.memory]; exact hheld,
+            hval, hexr, henv₂.trans henv, hag₂⟩
       · obtain ⟨cs', ce', n, s', ws', t, hc', hce', hnr, hst, hpc, hargs', hstk, henv, hag⟩ := hnr
         simp only [List.cons.injEq] at hc'
         obtain ⟨rfl, rfl⟩ := hc'
@@ -841,28 +853,31 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
       · cases hr
       · cases hr
     | callNone htr ha hz =>
-      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf | ⟨_, _, _, _, _, _, _, _, _, h, -⟩
+      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf | ⟨_, _, _, _, _, _, _, _, _, _, h, -⟩
       · rw [hz] at hf; exact .inl hf
       · rw [hz] at h; cases h
     | callErr htr ha hz hpe =>
-      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h; exact hpe c rfl) with hf | ⟨_, _, _, _, _, _, _, _, _, h, -⟩
+      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h; exact hpe c rfl) with hf | ⟨_, _, _, _, _, _, _, _, _, _, h, -⟩
       · rw [hz] at hf; exact .inl hf
       · rw [hz] at h; cases h
     | @callOk _ cs more _ w₁ w₂ ws r htr ha hz hkz hrest =>
-      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf | ⟨ws₂, w₂', s₂, n, restE, restW, ex', fuel', k, h, hl,
-          hx, hpc, hkj, hstk, hrestW, hrun', hval, hexr, henv, hag⟩
+      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf |
+          ⟨ws₂, w₂', s₂, n, restE, restW, ex', fuel', k, hs, h, hl, hx, hpc, hkj, hstk, hrestW,
+            hrun', hheld, hval, hexr, henv, hag⟩
       · rw [hz] at hf; exact .inl hf.of_ok
       · rw [hz] at h
         simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
         obtain ⟨hv, rfl⟩ := h
         have hws₂ := map_word_inj hv
         obtain ⟨hkd, hkn⟩ := validJump_D_J hsize hp.code hkj
-        have hp' : PathRel code tail I ρ B e0 ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩
+        have hp' : PathRel code tail I ρ B e0
+            ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more, keepHeld cs.keep hs⟩
             s₂ := ⟨henv, hp.code, by rw [hpc, hkn], ⟨cs.dsts.map ρ ++ restW, by
               simp only [List.mapM_append, hrestW]
               rw [show (cs.dsts.map Expr.atom).mapM (·.eval I ρ) = some (cs.dsts.map ρ) by
                 clear * -; induction cs.dsts <;> simp_all [List.mapM_cons, Expr.eval]]
-              rfl, by rw [hstk, hws₂, List.append_assoc]⟩, hval, hexr⟩
+              rfl, by rw [hstk, hws₂, List.append_assoc]⟩, hval, hexr,
+              by rw [hag.memory]; exact hheld.keep hkz⟩
         have har' := fun cs' (h : cs' ∈ more) => har cs' (.tail _ h)
         have hK' : ∀ ev ∈ cs.events ++ more.flatMap (·.events), messageOps.contains ev.op = true →
             K = true := fun ev hev => hK ev (by
@@ -873,7 +888,8 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         · exact .inl (h.prepend hx)
         · exact .inr ⟨w', hr, Ends.prepend hx h⟩
     | callOther htr ha hz hv =>
-      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf | ⟨ws₂, _, _, _, _, _, _, _, _, h, hl, -⟩
+      rcases hcall rfl htr ha (by rw [hz]; intro c h; cases h) with hf |
+          ⟨ws₂, _, _, _, _, _, _, _, _, _, h, hl, -⟩
       · rw [hz] at hf; exact .inl hf.of_ok
       · rw [hz] at h
         simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
@@ -1078,6 +1094,22 @@ theorem segments_arity {c : Ctx} : ∀ {ps : List (List Nat)} {k : Nat} {stmts :
             · cases hi'
     · exact segments_arity hr s hs op args hi
 
+/-- The words a block starts with lie below `2 ^ 32`. -/
+theorem spillIn_lt {sp : FuncSpill} {S : Nat} {va : Nat × Nat} (h : va ∈ sp.spillIn S) :
+    va.2 < 2 ^ 32 := by
+  unfold FuncSpill.spillIn at h
+  split_ifs at h
+  · cases h
+  obtain ⟨v, -, hv⟩ := List.mem_filterMap.mp h
+  cases hl : sp.words.lookup v with
+  | none => rw [hl] at hv; cases hv
+  | some a =>
+    rw [hl] at hv
+    simp only [Option.bind_some] at hv
+    split_ifs at hv with hlt
+    cases hv
+    exact hlt
+
 set_option maxHeartbeats 2000000 in
 /-- One block of a checked function: the bytes end as the IR's run does, return as it does,
     or reach the next block's code where the IR's run goes on there, given that every callee's
@@ -1101,10 +1133,11 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     (hrets : ∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → vs.length = f.rets.length)
     (hfresh : ∀ b ∈ f.blocks, ∀ h ∈ hint.blocks, ∀ id,
       (id ∈ slotValues h.entryStack ∨ id ∈ b.phis.map (·.dst) ∨
-        ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) → id < fr.retId)
+        ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) ∨ id ∈ (sp.spillIn b.id).map (·.1) →
+        id < fr.retId)
     (hK : ∀ b ∈ f.blocks, ∀ s ∈ b.body, s.inst.messages = true → K = true)
     {b : Block} {prev : Option Nat} {env : Env} {w : World} {st : State} {ret : Option UInt256}
-    {B : List UInt256} (hat : AtBlock M low hint f fr I b prev env w st ret B)
+    {B : List UInt256} (hat : AtBlock M low hint f fr sp I b prev env w st ret B)
     (hretk : fr.returns = true → ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true)
     (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
       (ret' : Option UInt256) (B' : List UInt256), fr.callee cs.callee = some ce →
@@ -1127,34 +1160,39 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       ∃ S env' w' st' n B', Reach K (D_J I.code 0) st st' n ∧
         (n = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S.id <
           zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
-        AtBlock M low hint f fr I S (some b.id) env' w' st' ret B' ∧
+        AtBlock M low hint f fr sp I S (some b.id) env' w' st' ret B' ∧
         (fr.exact S.id = true → B' = B ∧ fr.exact b.id = true) ∧ S.id ≠ eb.id ∧
         (preIf isRoot low eb b >>= fun _ => runBlocksG g low.machine ic inh f env prev b.id).exec I w =
           (runBlocksG g low.machine ic inh f env' (some b.id) S.id).exec I w' := by
   obtain ⟨hmem, hblk, henv, hw, hb, pc, envB, ws, hhb, hpc, hstpc, henter, hstk, hslots,
-    hphis⟩ := hat
+    hphis, hspin⟩ := hat
   obtain ⟨hb', pc', stack, events, calls, exit, hhb', hpc', hst, hseg, hex, hempty, hdef, hrank,
     hrun⟩ := checkBlock_ok (hchk b hmem)
   rw [hhb] at hhb'; cases hhb'
   rw [hpc] at hpc'; cases hpc'
-  replace hdef : defined f hint.blocks b (slotValues hb.entryStack) = true := hdef
+  replace hdef : defined f hint.blocks sp b (slotValues hb.entryStack) = true := hdef
   set c := Ctx.ofBlock f b code.symbols fr sp with hc
   unfold defined at hdef
-  cases hDA : definedAfter (slotValues hb.entryStack ++ b.phis.map (·.dst)) b.body with
-  | none => simp [hDA] at hdef
+  cases hDA : definedAfter (slotValues hb.entryStack ++ b.phis.map (·.dst) ++
+      (sp.spillIn b.id).map (·.1)) b.body with
+  | none => rw [hDA] at hdef; simp at hdef
   | some D' =>
   simp only [hDA, Bool.and_eq_true, List.all_eq_true] at hdef
-  set D := slotValues hb.entryStack ++ b.phis.map (·.dst) with hD
+  set D := slotValues hb.entryStack ++ b.phis.map (·.dst) ++ (sp.spillIn b.id).map (·.1) with hD
   obtain ⟨hterm, hsucc⟩ := hdef
   have hfreshS := definedAfter_fresh hDA
   have hnone : ∀ id ∈ D, c.defs.lookup id = none := fun id hid =>
     lookup_none fun s hs d hd h => hfreshS s hs d hd (h ▸ hid)
   have hwB : WordsOf envB (wordsOf envB) D := wordsOf_words fun id hid => by
     rcases List.mem_append.mp hid with h | h
-    · obtain ⟨v, hv⟩ := slot_word hslots (by rw [slotValues_slots]; exact h)
+    · rcases List.mem_append.mp h with h | h
+      · obtain ⟨v, hv⟩ := slot_word hslots (by rw [slotValues_slots]; exact h)
+        exact ⟨v.toNat, hv, v.val.isLt⟩
+      · obtain ⟨phi, hp, rfl⟩ := List.mem_map.mp h
+        exact hphis phi hp
+    · obtain ⟨va, hva, rfl⟩ := List.mem_map.mp h
+      obtain ⟨v, hv, -⟩ := hspin va hva
       exact ⟨v.toNat, hv, v.val.isLt⟩
-    · obtain ⟨phi, hp, rfl⟩ := List.mem_map.mp h
-      exact hphis phi hp
   obtain ⟨w₀, hpre, htrace⟩ := pre_trace' isRoot low eb b I w
   have hbitsb : ∀ s ∈ b.body, ∀ d ∈ s.dsts, d.2.bits = 256 := by
     have := List.all_eq_true.mp hbits b hmem
@@ -1169,9 +1207,11 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     have := hfresh b hmem hb hhint id (by
       rcases definedAfter_sub hDA id hid with h' | h'
       · rcases List.mem_append.mp h' with h' | h'
-        · exact .inl h'
-        · exact .inr (.inl h')
-      · exact .inr (.inr h'))
+        · rcases List.mem_append.mp h' with h' | h'
+          · exact .inl (.inl h')
+          · exact .inl (.inr (.inl h'))
+        · exact .inr h'
+      · exact .inl (.inr (.inr h')))
     omega
   have hR : (preIf isRoot low eb b >>= fun _ =>
       runBlocksG g low.machine ic inh f env prev b.id).exec I w =
@@ -1211,14 +1251,27 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         exact complete_eqn b.body D D' _ hDA (segments_arity hseg) t ht j inst htl hj
   rw [hR]
   have hρD : WordsOf envB ρ D := fun id hid => (hagr id hid).symm.trans (hρ id (hsub id hid))
+  -- The words the block starts with hold its spilled values.
+  have hheld0 : HeldRel I ρ ((sp.spillIn b.id).map fun (v, a) => ⟨a, .atom v, some v⟩)
+      st.machineState.memory := by
+    intro x hx
+    obtain ⟨⟨v, a⟩, hva, rfl⟩ := List.mem_map.mp hx
+    obtain ⟨u, hu, hmu⟩ := hspin _ hva
+    have hvD : v ∈ D := List.mem_append_right _ (List.mem_map_of_mem (f := (·.1)) hva)
+    have hρv : ρ v = u := word_inj (Option.some.inj ((hρD v hvD).symm.trans hu))
+    refine ⟨spillIn_lt hva, ρ v, rfl, ?_⟩
+    rw [hρv, hw.memory]; exact hmu
   have hpath : PathRel code.bytecode tail I ρ B exit
-      ⟨pc, stack, prologue low (isRoot && b.id == eb.id) events, exit, calls⟩ st :=
+      ⟨pc, stack, prologue low (isRoot && b.id == eb.id) events, exit, calls,
+        (sp.spillIn b.id).map fun (v, a) => ⟨a, .atom v, some v⟩⟩ st :=
     ⟨henv, hI, hstpc, ⟨ws,
       entryStack_rel (fun v h => by show ρ fr.retId = v; rw [hρR, h]; rfl) rfl
-        (fun id hid => hnone id (List.mem_append_left _ (by rwa [slotValues_slots] at hid)))
-        (fun id hid => hρD id (List.mem_append_left _ (by rwa [slotValues_slots] at hid))) hslots
+        (fun id hid => hnone id (List.mem_append_left _ (List.mem_append_left _
+          (by rwa [slotValues_slots] at hid))))
+        (fun id hid => hρD id (List.mem_append_left _ (List.mem_append_left _
+          (by rwa [slotValues_slots] at hid)))) hslots
         hst, hstk⟩,
-      exitOf_valid hex I ρ, .inl rfl⟩
+      exitOf_valid hex I ρ, .inl rfl, hheld0⟩
   have hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true :=
     fun h => by
       obtain ⟨k, hk, hkj⟩ := hretk h
@@ -1277,12 +1330,12 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   rcases hE with ⟨n, e', hxs, he'⟩ | ⟨_, _, _, hr, -⟩ |
     ⟨w'', hr, harr | ⟨op, args, hws, -, hex0, hargs, hh⟩ |
     ⟨vals, wsv, nv, sv, -, hex0, hwsv, hstv, hpcv, hstkv, henvv, hagv⟩ |
-    ⟨cs, more, -, -, -, -, -, -, -, -, -, hcl, -⟩ | ⟨cs, -, -, -, -, -, hcl, -⟩⟩
+    ⟨cs, more, -, -, -, -, -, -, -, -, -, -, hcl, -⟩ | ⟨cs, -, -, -, -, -, hcl, -⟩⟩
   · left; left; exact .exhausted hxs he'
   · cases hr
   · cases hr
     obtain ⟨S, n, st', pc', exprs, B', -, hnh, hjmp, hzero, hreach, hnext, hplS, hpcS, harr, hrel,
-      hBS, henvS, hagS⟩ := harr
+      hBS, ⟨req, hreq, hheldA⟩, henvS, hagS⟩ := harr
     simp only [Ctx.arrival, Option.bind_eq_bind, Option.bind_eq_some_iff] at harr
     obtain ⟨hbS, hhbS, Sb, hSb, hmapS⟩ := harr
     change f.block? S = some Sb at hSb
@@ -1290,7 +1343,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     have hSid : Sb.id = S := by simpa using List.find?_some hSb
     -- The successor, entered from `b`, is where the bytes are.
     have key : ∀ d, exit.next I ρ = some d →
-        AtBlock M low hint f fr I Sb (some b.id) env' w' st' ret B' ∧
+        AtBlock M low hint f fr sp I Sb (some b.id) env' w' st' ret B' ∧
         d = Sb.id := by
       intro d hd
       have hdS := hnext d hd
@@ -1299,7 +1352,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       have hsuccS := hsucc _ (exitOf_succ hex hd)
       rw [hSb] at hsuccS
       simp only [Bool.and_eq_true, List.all_eq_true] at hsuccS
-      obtain ⟨hphisS, hslotsS⟩ := hsuccS
+      obtain ⟨⟨hphisS, hslotsS⟩, hspinS⟩ := hsuccS
       have hndS : (Sb.phis.map (·.dst)).Nodup := by
         have := (nodup_iff _).mp hnd
         exact ((List.nodup_flatMap.mp this).1 Sb hSbmem).of_append_left
@@ -1317,7 +1370,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         obtain ⟨o, d, hf, hr, -⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
       obtain ⟨ws', hws', hstk'⟩ := hrel
       refine ⟨hSbmem, by rw [hSid]; exact hSb, henvS, hagS, hbS, pc', envS, ws',
-        by rw [hSid]; exact hhbS, by rw [hSid]; exact hplS, hpcS, henterS, hstk', ?_, ?_⟩
+        by rw [hSid]; exact hhbS, by rw [hSid]; exact hplS, hpcS, henterS, hstk', ?_, ?_, ?_⟩
       · have hall : (fr.slots hbS).all (slotDefined D' Sb) = true := by
           have := hslotsS
           rw [hhbS] at this
@@ -1353,6 +1406,49 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
           | undef ty => exact absurd rfl (hnu ty)
         obtain ⟨bits, k, rfl⟩ := hval
         exact ⟨_, by rw [hS, as_int _ _ (hbitsS.1 phi hp)]; rfl, (UInt256.ofNat k).val.isLt⟩
+      -- The words the successor starts with hold its spilled values, as the path knew.
+      · intro va hva
+        rw [hSid] at hva
+        simp only [Ctx.arrivalHeld, c, Ctx.ofBlock, Option.bind_eq_bind] at hreq
+        simp only [hSb, Option.bind_some] at hreq
+        obtain ⟨⟨a', e⟩, hmem, hfe⟩ := forall₂_mem (mapM_some_iff.mp hreq) va hva
+        obtain ⟨u, hu, hmu⟩ := hheldA _ hmem
+        rw [hagS.memory] at hmu
+        simp only at hu hmu
+        have hspv := hspinS va hva
+        split at hfe
+        · next phi hphi =>
+          have hpm := List.mem_of_find?_eq_some hphi
+          have hpd : phi.dst = va.1 := by simpa using List.find?_some hphi
+          simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+            Option.some.injEq, Prod.mk.injEq] at hfe
+          obtain ⟨⟨o, d⟩, hfo, e', hoe, rfl, rfl⟩ := hfe
+          obtain ⟨o', d', val, hf', hev, hS⟩ := hphiS phi hpm
+          rw [hfo] at hf'; cases hf'
+          obtain ⟨o'', d'', hf'', hr'', -⟩ := hin phi hpm
+          rw [hfo] at hf''; cases hf''
+          obtain ⟨v, hv, -, hev'⟩ := operand_words hcons hρ hr'' hoe
+          rw [hu] at hv; cases hv
+          refine ⟨u, ?_, hmu⟩
+          rw [← hpd, hS, pure_inj (hev.symm.trans hev'), as_int _ _ (hbitsS.1 phi hpm),
+            Reasoning.Theory.u256_ofNat_toNat]
+        · next hnophi =>
+          simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+            Option.some.injEq, Prod.mk.injEq] at hfe
+          obtain ⟨e', hexp, rfl, rfl⟩ := hfe
+          have hnp : ¬ va.1 ∈ Sb.phis.map (·.dst) := fun h => by
+            obtain ⟨phi, hp, hd⟩ := List.mem_map.mp h
+            have := List.find?_eq_none.mp hnophi phi hp
+            simp [hd] at this
+          have hvD : va.1 ∈ D' := by
+            simp only [Bool.or_eq_true, List.any_eq_true, beq_iff_eq, List.contains_iff_mem]
+              at hspv
+            rcases hspv with ⟨phi, hp, hd⟩ | h
+            · exact absurd (List.mem_map.mpr ⟨phi, hp, hd⟩) hnp
+            · exact h
+          have := expand_eval hcons va.1 e' hvD hexp
+          rw [hu] at this; cases this
+          exact ⟨ρ va.1, by rw [hkeepS va.1 hnp, hρ va.1 hvD], hmu⟩
     -- In no step the exit selected the successor: its code is at `b`'s, so it is lower.
     have hlow : n = 0 → zeroRank f (placeIn low hint.name) f.blocks.length Sb.id <
         zeroRank f (placeIn low hint.name) f.blocks.length b.id := fun hn => by
@@ -1369,7 +1465,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         ∃ S' env'' w'' st'' n' B'', Reach K (D_J I.code 0) st st'' n' ∧
           (n' = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S'.id <
             zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
-          AtBlock M low hint f fr I S' (some b.id) env'' w'' st'' ret B'' ∧
+          AtBlock M low hint f fr sp I S' (some b.id) env'' w'' st'' ret B'' ∧
           (fr.exact S'.id = true → B'' = B ∧ fr.exact b.id = true) ∧ S'.id ≠ eb.id ∧
           (runBlocksG g low.machine ic inh f env' (some b.id) d).exec I w' =
             (runBlocksG g low.machine ic inh f env'' (some b.id) S'.id).exec I w'' := fun d hd => by
@@ -1524,8 +1620,9 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
         b.body.all (·.dsts.all (·.2.bits == 256))) = true ∧
       nodup (f.blocks.flatMap fun b =>
         b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))) = true ∧
-      (∃ sp : FuncSpill, sp.guard = G.at f.name ∧ ∀ b ∈ f.blocks, checkBlock code low hint f
-        (frameOf low entry f) sp (hint.name == entry) eb (placeIn low hint.name)
+      (funcSpill plan G hint.name f eb).guard = G.at f.name ∧
+      (∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f)
+        (funcSpill plan G hint.name f eb) (hint.name == entry) eb (placeIn low hint.name)
         (zeroRank f (placeIn low hint.name) f.blocks.length) b = .ok ()) ∧
       (∀ x ∈ f.blocks, eb.id ∉ x.term.succs) ∧
       (∀ b ∈ f.blocks, (frameOf low entry f).exact b.id = false →
@@ -1535,7 +1632,9 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
       (∀ b ∈ f.blocks, ∀ vs, b.term = .ret vs → vs.length = f.rets.length) ∧
       (∀ b ∈ f.blocks, ∀ h ∈ hint.blocks, ∀ id,
         (id ∈ slotValues h.entryStack ∨ id ∈ b.phis.map (·.dst) ∨
-          ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) → id < (frameOf low entry f).retId) ∧
+          ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) ∨
+          id ∈ ((funcSpill plan G hint.name f eb).spillIn b.id).map (·.1) →
+          id < (frameOf low entry f).retId) ∧
       (f.params.all (·.2.bits == 256)) = true ∧ (f.params.map (·.1)).Nodup ∧
       (hint.name = entry → f.params = [] ∧ (frameOf low entry f).returns = false ∧
         placeIn low hint.name eb.id = some 0) ∧
@@ -1543,19 +1642,19 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
         some (f.params.map (.value ·.1) ++
           if (frameOf low entry f).returns then [.funcReturn] else []) ∧
       eb.phis = [] := by
-  obtain ⟨f, eb, hf, he, hchecks, sp, hsp, hchk⟩ := checkFunc_ok h
+  obtain ⟨f, eb, hf, he, hchecks, hchk⟩ := checkFunc_ok h
   have hname : f.name = hint.name := by
     simpa using List.find?_some (show low.machine.funcs.find? (·.name == hint.name) = some f from hf)
   simp only [funcChecks, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp,
     forall_eq, Bool.and_eq_true, Bool.not_eq_true', List.isEmpty_iff, beq_iff_eq,
     Bool.or_eq_true, bne_iff_ne, ne_eq] at hchecks
-  obtain ⟨-, ⟨⟨hbits, hpb⟩, -⟩, hnd, ⟨hephi, hpreds⟩, hroot, hclosed, hretn, -, hslotids,
-    hentry⟩ := hchecks
+  obtain ⟨-, ⟨hwords, -⟩, ⟨⟨hbits, hpb⟩, -⟩, hnd, ⟨hephi, hpreds⟩, hroot, hclosed, hretn, -,
+    hslotids, hentry⟩ := hchecks
   have hnd' := (nodup_iff _).mp hnd
   unfold Func.defs at hnd'
   have hfr : ∀ id ∈ f.defs, id < (frameOf low entry f).retId := fun id h => lt_fresh h
   refine ⟨f, eb, hf, he, hbits, (nodup_iff _).mpr hnd'.of_append_right,
-    ⟨sp, by rw [hsp, hname], hchk⟩,
+    by rw [hname]; rfl, hchk,
     fun x hx hin => by
       have := List.all_eq_true.mp hpreds x hx
       simp [hin] at this,
@@ -1587,7 +1686,7 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
     rw [ht] at this
     simpa using this
   · show id < f.fresh
-    rcases hid with h1 | h1 | ⟨s, hs, d, hd, rfl⟩
+    rcases hid with (h1 | h1 | ⟨s, hs, d, hd, rfl⟩) | h1
     · obtain ⟨sl, hsl, he'⟩ := List.mem_filterMap.mp h1
       cases sl <;> simp at he'
       subst he'
@@ -1597,6 +1696,21 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
         List.mem_append_left _ h1⟩))
     · exact lt_fresh (List.mem_append_right _ (List.mem_flatMap.mpr ⟨b, hb,
         List.mem_append_right _ (List.mem_flatMap.mpr ⟨s, hs, List.mem_map_of_mem hd⟩)⟩))
+    · obtain ⟨⟨v, a⟩, hva, hvid⟩ := List.mem_map.mp h1
+      simp only at hvid
+      subst hvid
+      simp only [funcSpill, FuncSpill.spillIn] at hva
+      split_ifs at hva
+      all_goals try (simp [Live.at] at hva; done)
+      obtain ⟨v', -, hv'⟩ := List.mem_filterMap.mp hva
+      cases hl : List.lookup v' ((plan.lookup hint.name).getD []).words with
+      | none => rw [hl] at hv'; cases hv'
+      | some a' =>
+        rw [hl] at hv'
+        simp only [Option.bind_some] at hv'
+        split_ifs at hv'
+        cases hv'
+        simpa using List.all_eq_true.mp hwords _ (mem_of_lookup hl)
   · rcases hroot with h | h
     · exact absurd hr h
     · exact ⟨by simpa using h.1.1, by simpa using h.1.2, h.2⟩
@@ -1678,7 +1792,8 @@ theorem func_run {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : G
     ∀ fuel (hint : FuncHint) (f : Func) (eb b : Block) prev env w st ret B inh,
       hint ∈ low.funcs → low.machine.func? hint.name = some f → f.blocks.head? = some eb →
       st.machineState.gasAvailable.toNat < fuel →
-      AtBlock M low hint f (frameOf low entry f) I b prev env w st ret B →
+      AtBlock M low hint f (frameOf low entry f) (funcSpill plan G hint.name f eb) I b prev env w
+        st ret B →
       ((frameOf low entry f).returns = true →
         ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true) →
       NoPanicAt ((preIf (hint.name == entry) low eb b >>= fun _ =>
@@ -1695,7 +1810,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : G
   induction r using Nat.strong_induction_on generalizing b with
   | _ r ihr =>
   intro prev env w st ret B inh hmem hf he hg hat hretk hnp
-  obtain ⟨f', eb', hf', he', hbits, hnd, ⟨sp, hsg, hchk⟩, hpred, hexact, hretx, hexr, hrets, hfresh, -, -, -,
+  obtain ⟨f', eb', hf', he', hbits, hnd, hsg, hchk, hpred, hexact, hretx, hexr, hrets, hfresh, -, -, -,
     -, -⟩ := func_facts (hfs hint hmem)
   rw [hf] at hf'; cases hf'
   rw [he] at he'; cases he'
@@ -1718,7 +1833,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : G
     obtain ⟨hne, hint', f', eb', hh, hf', he', hpl, hpar, hrt, hrr⟩ := callees_some hce
     have hmem' := List.mem_of_find?_eq_some hh
     have hname : hint'.name = cs.callee := by simpa using List.find?_some hh
-    obtain ⟨f'', eb'', hf'', he'', -, -, -, -, -, -, -, -, -, hpb, hpnd, -, hent, hephi⟩ :=
+    obtain ⟨f'', eb'', hf'', he'', -, -, -, -, -, -, -, -, -, -, hpb, hpnd, -, hent, hephi⟩ :=
       func_facts (hfs hint' hmem')
     rw [hname, hf'] at hf''; cases hf''
     rw [he'] at he''; cases he''
@@ -1751,13 +1866,15 @@ theorem func_run {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : G
     -- The callee's words on its entry stack.
     have hvals : List.Forall₂ (SlotWord env0 ret') (f'.params.map (.value ·.1)) ws :=
       forall₂_slots hfa
-    have hat' : AtBlock M low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' := by
+    have hat' : AtBlock M low hint' f' (frameOf low entry f') (funcSpill plan G hint'.name f' eb') I eb'
+          none env0 w' st' ret' B' := by
       have hmk : ∀ wsE, st'.machineState.stack = wsE ++ B' →
           List.Forall₂ (SlotWord env0 ret') ((frameOf low entry f').slots hbE) wsE →
-          AtBlock M low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' :=
+          AtBlock M low hint' f' (frameOf low entry f') (funcSpill plan G hint'.name f' eb') I eb'
+          none env0 w' st' ret' B' :=
         fun wsE h1 h2 => ⟨hebm, hblk, henv', hag, hbE, ce.offset, env0, wsE, hfind,
           by rw [hname]; exact hpl, hpc, by simp [enter, hephi, Fe.Sonatina.bind], h1, h2,
-          by simp [hephi]⟩
+          by simp [hephi], by simp [funcSpill, FuncSpill.spillIn]⟩
       have hret0 : (frameOf low entry f').returns = returns f' := rfl
       cases hR : returns f'
       · have hret' : ret' = none := hnr (hrr.trans hR)

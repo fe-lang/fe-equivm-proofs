@@ -120,7 +120,7 @@ def walkBlock (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)
                 match rest.drop cs.args.length with
                 | .const r :: rest' =>
                   walkBlock code tree dests k fuel
-                    ⟨r, cs.dsts.map .atom ++ rest', cs.events, p.exit, more⟩ slots acc
+                    ⟨r, cs.dsts.map .atom ++ rest', cs.events, p.exit, more, []⟩ slots acc
                 | _ => acc
               else acc
             | none => acc
@@ -194,7 +194,7 @@ def walkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : Func
         let slots := (liveIn ++ b.phis.map (·.dst)).filterMap fun v =>
           (words.lookup v).bind fun w => (c.expand v).map fun e => (w, e, some v)
         (walkBlock code.bytecode tree dests wb (2 * low.codeSize + 2)
-          ⟨pc, stack, events, exit, calls⟩ slots []).map fun (v, k) => (v, b.id, k)
+          ⟨pc, stack, events, exit, calls, []⟩ slots []).map fun (v, k) => (v, b.id, k)
       | _, _, _ => []
     | _, _ => []
 
@@ -276,5 +276,23 @@ theorem frameSafe_of_noSpills {s : Sidecar} (h : s.noSpills = true) : FrameSafe 
   rw [FrameSafe, hm]
   exact ⟨fun I σ A feed _ _ => ⟨feed, EndsAs.refl _⟩,
     fun I σ A feed args _ _ _ _ => ⟨feed, EndsAs.refl _⟩⟩
+
+/-! ## The checkers -/
+
+/-- The spill-aware checker: each section of the sidecar checked against its machine IR with
+    the stores of its spill plan (`Sidecar.spillPlan`), under the guard the instrumented model
+    runs it under.  `checkSpills_sound` (`CheckCert.lean`) needs `FrameSafe s` besides. -/
+def Check.checkSpills (s : Sidecar) : Bool := Check.checkWith s.spillPlan s
+
+/-- The checker of sidecars without memory spills, whose spill plans are empty; it reads no
+    plan, so the kernel never runs the walk. -/
+def Check.check (s : Sidecar) : Bool := Check.checkWith (fun _ => []) s && s.noSpills
+
+/-- `check` is `checkSpills` of a sidecar without memory spills. -/
+theorem Check.check_eq (s : Sidecar) : Check.check s = (Check.checkSpills s && s.noSpills) := by
+  unfold Check.check Check.checkSpills
+  cases hn : s.noSpills
+  · simp
+  · rw [show s.spillPlan = fun _ => [] from funext (spillPlan_eq_nil hn)]
 
 end Fe.Sonatina
