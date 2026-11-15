@@ -375,4 +375,73 @@ theorem smul4_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv)
   unfold nat4 at r1 r2
   exact ⟨r2, by rw [r1]; exact hc⟩
 
+theorem nat4_one {a : L4} (h : nat4 a < 2 ^ 64) : nat4 a = a.l0.val := by
+  have := a.l0.isLt; have := a.l1.isLt; have := a.l2.isLt; have := a.l3.isLt
+  unfold nat4 at *; omega
+
+/-- **`Small<1>::mul`**, in `u128` arithmetic. -/
+theorem smul1_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 m < 2 ^ 64)
+    (ha : nat4 a < 2 ^ 64) (hb : nat4 b < 2 ^ 64) (hab : nat4 a * nat4 b < 2 ^ 64 * nat4 m) :
+    nat4 (smul 1 m inv a b) < nat4 m ∧
+      nat4 (smul 1 m inv a b) * 2 ^ 64 % nat4 m = nat4 a * nat4 b % nat4 m := by
+  rw [nat4_one ha, nat4_one hb, nat4_one hm] at *
+  simp only [smul, if_true, smul1]
+  have hc := macLo_cancel m.l0 inv (loD (mulD a.l0 b.l0)) hinv
+  generalize hq : mulLo (loD (mulD a.l0 b.l0)) inv = q at hc
+  have hP := mul_limbs_lt q m.l0
+  have hm0 := m.l0.isLt
+  generalize htd : mulD a.l0 b.l0 = tD at hc hq
+  have htv : tD.val = a.l0.val * b.l0.val := by rw [← htd]; rfl
+  generalize hpd : mulD q m.l0 = pD
+  have hpv : pD.val = q.val * m.l0.val := by rw [← hpd]; rfl
+  simp only [macLo, loD, limb0, Nat.add_zero] at hc
+  -- `s = (t + p) / β` exactly, as `t mod β + p mod β` is `0` or `β`.
+  generalize hsd : addD (addD (L2D (hiD tD)) (L2D (hiD pD)))
+    (L2D (if loD tD = 0 then 0 else 1)) = s
+  have hs : s.val * 2 ^ 64 = a.l0.val * b.l0.val + q.val * m.l0.val := by
+    rw [← hsd, ← htv, ← hpv]
+    simp only [addD, L2D, hiD, loD]
+    have h1 := tD.isLt; have h2 := pD.isLt
+    rw [hpv] at h2
+    split_ifs with h
+    · have h0 : tD.val % 2 ^ 64 = 0 := by simpa using congrArg Fin.val h
+      simp only [limb0]; rw [← hpv] at hc; omega
+    · have h0 : tD.val % 2 ^ 64 ≠ 0 := fun e => h (Fin.ext e)
+      simp only [limb1]; rw [← hpv] at hc; omega
+  -- The reduction.
+  have hsm : s.val < 2 * m.l0.val := by
+    have : q.val * m.l0.val < 2 ^ 64 * m.l0.val := Nat.mul_lt_mul_of_pos_right q.isLt (by
+      rcases Nat.eq_zero_or_pos m.l0.val with h | h
+      · rw [h, Nat.mul_zero] at hab; omega
+      · exact h)
+    nlinarith
+  obtain ⟨hT2, hcm⟩ := mont_close (R := 2 ^ 64) (T := s.val) (Q := q.val) (by norm_num)
+    (by rw [Nat.mul_comm]; exact hs) q.isLt hab rfl
+  have hval : (loD (if m.l0.val ≤ s.val then subD s (L2D m.l0) else s)).val = s.val % m.l0.val := by
+    have := s.isLt
+    split_ifs with h
+    · simp only [loD, subD, L2D]
+      rw [Nat.mod_eq_sub_mod h, Nat.mod_eq_of_lt (show s.val - m.l0.val < m.l0.val by omega)]
+      omega
+    · simp only [loD]; rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+  have hz : nat4 ⟨loD (if m.l0.val ≤ s.val then subD s (L2D m.l0) else s), 0, 0, 0⟩ =
+      s.val % m.l0.val := by
+    unfold nat4; rw [hval]; simp
+  rw [hz]
+  exact ⟨Nat.mod_lt _ (by omega), hcm⟩
+
+/-- **`Small<L>::mul`**, for `L = 1 … 4` and `R = 2 ^ (64 L)`: the product is below `M` and
+    `c R ≡ a b (mod M)`. -/
+theorem smul_spec (L : ℕ) (hL : 1 ≤ L ∧ L ≤ 4) (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv)
+    (hm : nat4 m < 2 ^ (64 * L)) (ha : nat4 a < 2 ^ (64 * L)) (hb : nat4 b < 2 ^ (64 * L))
+    (hab : nat4 a * nat4 b < 2 ^ (64 * L) * nat4 m) :
+    nat4 (smul L m inv a b) < nat4 m ∧
+      nat4 (smul L m inv a b) * 2 ^ (64 * L) % nat4 m = nat4 a * nat4 b % nat4 m := by
+  obtain ⟨h1, h4⟩ := hL
+  interval_cases L
+  · exact smul1_spec m a b inv hinv hm ha hb hab
+  · exact smul2_spec m a b inv hinv hm ha hb hab
+  · exact smul3_spec m a b inv hinv hm ha hb hab
+  · exact smul4_spec m a b inv hinv hab
+
 end FeProofs.Modexp
