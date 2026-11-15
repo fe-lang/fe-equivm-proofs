@@ -19,7 +19,6 @@ Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit and WETH9 with Fe 2
 | `FeProofs.PackedStore` | `StoragePackedArray<8>` lanes 0 and 1 | `fePackedStoreContractCorrect` |
 | `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
 | `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/e4372c0d7/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
-| `FeProofs.ERC20.Stele` | EquiVM's `ERC20` example token written in Fe, bytecode of `FeProofs/ERC20/Stele/` | `feERC20ContractCorrect` |
 | `FeProofs.WETH9` | [canonical WETH9](https://github.com/gnosis/canonical-weth/blob/master/contracts/WETH9.sol) written in Fe | `feWETH9ContractCorrect` (string getters under a string-size precondition) |
 
 Each theorem covers the constructor and the whole runtime: for every input, the deployed
@@ -46,16 +45,6 @@ relation does not compare event logs or revert payloads.
 - The proof is about the exact bytecode in `FeProofs/Deposit/creation.hex` and
   `runtime.hex`. A compiler change that alters that bytecode needs the affected
   proof steps redone.
-
-### The ERC20 token
-
-`FeERC20.fe` is EquiVM's `ERC20` example token written in Fe, and its specification is EquiVM's
-example specification statement for statement. `feERC20ContractCorrect` (`FeProofs/ERC20/Stele/`) is
-of the bytecode Fe `22b156fff` compiled, kept beside its proofs in that directory, not of the
-pinned compiler's (`FeProofs/ERC20/runtime.hex`). It covers the constructor and
-all six entry points, including the reverts for a short balance or allowance and Fe's overflow
-panics. The bytecode and the specification both read each balance after the writes that precede
-it, so the proof does not assume that distinct mapping keys hash to distinct slots.
 
 ### WETH9
 
@@ -106,7 +95,7 @@ heap starts above it.
 | `FeProofs.ScalarStore` | `feScalarStoreRefinesModel` | `feScalarStoreRefinesExported` |
 | `FeProofs.CodeScalar` (one immutable `u256` field) | `feCodeScalarRefinesModel` | `feCodeScalarRefinesExported` |
 | `FeProofs.PackedStore` | `fePackedStoreRefinesHandEntry` (exported arms, entry by hand) | `fePackedStoreRefinesExported` |
-| `FeProofs.ERC20` | `feERC20RefinesModel` (from `feERC20RefinesExportedP1`) | `feERC20RefinesExportedP1` (`P1` only) |
+| `FeProofs.ERC20` (EquiVM's `ERC20` example token written in Fe) | `feERC20RefinesModel` (from `feERC20RefinesExportedP1`) | `feERC20RefinesExportedP1` (`P1` only) |
 | `FeProofs.WETH9` | `feWETH9RefinesModel` | `feWETH9RefinesExported` |
 
 Each has a `…Deploy…` twin for the constructor. All are at `P0`, but FeERC20's exported one.
@@ -404,8 +393,7 @@ fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit byteco
 ```
 
 `out/FeERC20.bin` and `out/FeERC20.runtime.bin` must match `FeProofs/ERC20/creation.hex` and
-`FeProofs/ERC20/runtime.hex`. The bytecode of FeERC20's Stele certificate (`FeProofs/ERC20/Stele/`)
-is built the same way with Fe `22b156fff`.
+`FeProofs/ERC20/runtime.hex`. 
 
 `FeProofs/Case44Bank` is the contract `Case44Bank` of Fe's `acceptance.fe` alone in a file, whose
 runtime calls an internal function twice, with its bytecode and exported model and no proof yet.
