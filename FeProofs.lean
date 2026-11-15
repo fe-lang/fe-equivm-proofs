@@ -50,6 +50,7 @@ import FeProofs.Lib.AbiBytes
 import FeProofs.Lib.BytesCodec
 import FeProofs.Lib.AbiEncode
 import FeProofs.Lib.StaticCall
+import FeProofs.Lib.Ssz
 import FeProofs.Case44Bank.SonatinaCorrect
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Precompiles.Bn254.MulContract
