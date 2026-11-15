@@ -277,7 +277,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     have eg : (entry runtime).exec I w = (entry recv0_arm0_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = get0Arm.exec I w := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = true from h1]
+      simp [handRuntime, hn4, eq_of_beq (show (get0Selector == I.calldata.extract 0 4) = true from h1)]
     rw [eg, eh]
     exact get0_endsAs I w hmem
   have n1 := miss 1 h1
@@ -287,8 +287,8 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     have eg : (entry runtime).exec I w = (entry recv0_arm1_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = get1Arm.exec I w := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,
-        show (get1Selector == I.calldata.extract 0 4) = true from h0]
+      simp [handRuntime, hn4, ne_of_beq_false (show (get0Selector == I.calldata.extract 0 4) = false from n1),
+        eq_of_beq (show (get1Selector == I.calldata.extract 0 4) = true from h0)]
     rw [eg, eh]
     exact get1_endsAs I w hmem
   have n0 := miss 0 h0
@@ -298,9 +298,9 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     have eg : (entry runtime).exec I w = (entry recv0_arm2_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (set0Arm I.calldata).exec I w := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,
-        show (get1Selector == I.calldata.extract 0 4) = false from n0,
-        show (set0Selector == I.calldata.extract 0 4) = true from h4]
+      simp [handRuntime, hn4, ne_of_beq_false (show (get0Selector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (get1Selector == I.calldata.extract 0 4) = false from n0),
+        eq_of_beq (show (set0Selector == I.calldata.extract 0 4) = true from h4)]
     rw [eg, eh]
     exact set0_endsAs I w hmem hsz hfits
   have n4 := miss 4 h4
@@ -310,10 +310,10 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     have eg : (entry runtime).exec I w = (entry recv0_arm3_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (set1Arm I.calldata).exec I w := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,
-        show (get1Selector == I.calldata.extract 0 4) = false from n0,
-        show (set0Selector == I.calldata.extract 0 4) = false from n4,
-        show (set1Selector == I.calldata.extract 0 4) = true from h3]
+      simp [handRuntime, hn4, ne_of_beq_false (show (get0Selector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (get1Selector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (set0Selector == I.calldata.extract 0 4) = false from n4),
+        eq_of_beq (show (set1Selector == I.calldata.extract 0 4) = true from h3)]
     rw [eg, eh]
     exact set1_endsAs I w hmem hsz hfits
   have n3 := miss 3 h3
@@ -323,11 +323,11 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     have eg : (entry runtime).exec I w = (entry recv0_arm4_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : handRuntime.exec I w = (setBothArm I.calldata).exec I w := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,
-        show (get1Selector == I.calldata.extract 0 4) = false from n0,
-        show (set0Selector == I.calldata.extract 0 4) = false from n4,
-        show (set1Selector == I.calldata.extract 0 4) = false from n3,
-        show (setBothSelector == I.calldata.extract 0 4) = true from h2]
+      simp [handRuntime, hn4, ne_of_beq_false (show (get0Selector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (get1Selector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (set0Selector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (set1Selector == I.calldata.extract 0 4) = false from n3),
+        eq_of_beq (show (setBothSelector == I.calldata.extract 0 4) = true from h2)]
     rw [eg, eh]
     exact setBoth_endsAs I w hmem hsz hfits
   have n2 := miss 2 h2
@@ -335,11 +335,11 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
     selWord_miss (setBothEvmSelector hsz) n2
   rw [entry_exec (f := .revert ByteArray.empty) (by
     simp [runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4])]
-  simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = false from n1,
-    show (get1Selector == I.calldata.extract 0 4) = false from n0,
-    show (set0Selector == I.calldata.extract 0 4) = false from n4,
-    show (set1Selector == I.calldata.extract 0 4) = false from n3,
-    show (setBothSelector == I.calldata.extract 0 4) = false from n2]
+  simp [handRuntime, hn4, ne_of_beq_false (show (get0Selector == I.calldata.extract 0 4) = false from n1),
+    ne_of_beq_false (show (get1Selector == I.calldata.extract 0 4) = false from n0),
+    ne_of_beq_false (show (set0Selector == I.calldata.extract 0 4) = false from n4),
+    ne_of_beq_false (show (set1Selector == I.calldata.extract 0 4) = false from n3),
+    ne_of_beq_false (show (setBothSelector == I.calldata.extract 0 4) = false from n2)]
   exact .exit _
 
 end Entries
