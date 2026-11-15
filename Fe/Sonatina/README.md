@@ -350,9 +350,9 @@ no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose ma
 the pure, read, write and halting instructions `Check.lean` translates (message calls among them,
 but no `create` or transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
-state reads below, 31 of them with internal calls, and 391 with them; with message calls it accepts
-405 and rejects 24 for an instruction outside the class (creations, transient storage,
-`blockhash`, `clz`) and one for a dynamic frame. It matches
+state reads below, 31 of them with internal calls, and 391 with them; with message calls and `blockhash`
+it accepts 406 and rejects 23 for an instruction outside the class (creations, transient storage,
+`clz`) and one for a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
@@ -364,8 +364,8 @@ byte, a moved free pointer, dropped redirects: all rejected; moved symbols are a
 section's IR reads none) and a corpus directory.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
-(`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`) are pure
-opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesize` read the
+(`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,
+`blockhash`) are pure opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesize` read the
 accounts, `returndatasize` and `returndatacopy` the return data (a copy past its end is the model's
 `.oob`, the bytes' invalid memory access), and `gas` the gas left: each is an event, its result a
 fresh value. The model's `gas` reads its feed, so the proof builds the feed from the bytes' run:
@@ -387,7 +387,9 @@ the callee appended by `theta_logs_extract`; one not made, for want of funds or 
 returns zero with empty return data. A section whose machine IR makes message calls is checked
 with `K` set, so its steps need not be calm; `check_xiOk` asks that neither section make one.
 `CALL` raised the corpus count from 391 to 399, WETH9's runtime among them; `STATICCALL` and
-`DELEGATECALL` to 405, both sections of the deposit contract among them.
+`DELEGATECALL` to 405, both sections of the deposit contract among them. `blockhash`, a pure
+read of the frame's header and recent blocks as the model's `blockhash` is, added
+`ctx.CtxBox`'s runtime (406).
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal

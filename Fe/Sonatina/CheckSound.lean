@@ -54,6 +54,8 @@ def envOp (ee : ExecutionEnv) : Operation → List UInt256 → Option UInt256
   | .BASEFEE, [] => some (.ofNat ee.header.baseFeePerGas)
   | .COINBASE, [] => some (.ofNat ee.header.beneficiary.val)
   | .PREVRANDAO, [] => some ee.header.prevRandao
+  | .BLOCKHASH, [a] => some (if ee.header.number ≤ a.toNat || a.toNat + 256 < ee.header.number
+      then ⟨0⟩ else (ee.blocks.map ProcessedBlock.hash).getD a.toNat ⟨0⟩)
   | _, _ => none
 
 /-- A pure opcode on words in the frame `ee`. -/

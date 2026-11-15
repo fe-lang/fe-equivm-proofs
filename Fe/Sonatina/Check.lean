@@ -74,7 +74,7 @@ def pureOps : List Operation :=
   [.ADD, .MUL, .SUB, .DIV, .SDIV, .MOD, .SMOD, .ADDMOD, .MULMOD, .EXP, .SIGNEXTEND, .LT, .GT,
    .SLT, .SGT, .EQ, .ISZERO, .AND, .OR, .XOR, .NOT, .BYTE, .SHL, .SHR, .SAR, .ADDRESS, .ORIGIN,
    .CALLER, .CALLVALUE, .CALLDATALOAD, .CALLDATASIZE, .CODESIZE, .CHAINID, .TIMESTAMP, .NUMBER,
-   .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO]
+   .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO, .BLOCKHASH]
 
 /-- The opcodes that read state: their result is an event's.  `GAS` reads the gas left, which
     the model takes from its feed; a message call's result is its success word. -/
@@ -193,7 +193,7 @@ def evmPureOpcode : EvmOp → Option Operation
   | .calldataSize => some .CALLDATASIZE | .codeSize => some .CODESIZE
   | .chainId => some .CHAINID | .timestamp => some .TIMESTAMP | .number => some .NUMBER
   | .gasLimit => some .GASLIMIT | .baseFee => some .BASEFEE | .coinbase => some .COINBASE
-  | .prevRandao => some .PREVRANDAO
+  | .prevRandao => some .PREVRANDAO | .blockHash => some .BLOCKHASH
   | .addMod => some .ADDMOD | .mulMod => some .MULMOD
   | _ => none
 
