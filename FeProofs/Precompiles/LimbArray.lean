@@ -144,6 +144,10 @@ theorem downcast_usize_usize (x : UInt256) : Lib.downcast_truncate_usize_usize x
   simp only [Lib.downcast_truncate_usize_usize, Lib.usize_to_word, Lib.usize_IS_SIGNED,
     Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
 
+theorem downcast_u256_usize (x : UInt256) : Lib.downcast_truncate_u256_usize x = pure x := by
+  simp only [Lib.downcast_truncate_u256_usize, Lib.u256_to_word, Lib.usize_IS_SIGNED,
+    Lib.usize_MASK, Lib.usize_from_word, pure_bind, Bool.false_eq_true, if_false, land_ones]
+
 /-! ## Allocation -/
 
 theorem max_allocation : Lib.MAX_ALLOCATION = pure (UInt256.ofNat (2 ^ 64 - 1)) := rfl
