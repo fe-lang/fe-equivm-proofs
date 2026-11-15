@@ -1,5 +1,5 @@
-import FeProofs.ERC20.Spec
-import FeProofs.ERC20.Bytecode
+import FeProofs.ERC20.Stele.Spec
+import FeProofs.ERC20.Stele.Bytecode
 import FeProofs.ERC20.Selectors
 import Reasoning.ABI
 import Reasoning.Constructor
@@ -27,7 +27,7 @@ immutables plumbing.  Contract-specific helpers shared by several proof files go
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -109,4 +109,4 @@ theorem allowanceSelectorOf : selectorOf allowanceTransition = feERC20SelBytes 5
   rw [hsig]
   exact allowanceSelectorFact
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

@@ -1,5 +1,5 @@
-import FeProofs.ERC20.Dispatch
-import FeProofs.ERC20.MapStorage
+import FeProofs.ERC20.Stele.Dispatch
+import FeProofs.ERC20.Stele.MapStorage
 import FeProofs.Common.Basic
 
 /-!
@@ -17,7 +17,7 @@ Stele storage assignment.
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -234,4 +234,4 @@ theorem feERC20TransferBody {σ σ₀ A I} {g : UInt256}
     (by rw [storageStore_accountMap, storageStore_accountMap]; rfl)
     (returnEquiv_of_encode boolTrueReturnEncoding)
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

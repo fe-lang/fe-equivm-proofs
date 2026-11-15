@@ -19,7 +19,7 @@ Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit and WETH9 with Fe 2
 | `FeProofs.PackedStore` | `StoragePackedArray<8>` lanes 0 and 1 | `fePackedStoreContractCorrect` |
 | `FeProofs.IndexedPackedStore` | runtime-indexed `StoragePackedArray<8>`, `index < 64` | `feIndexedPackedStoreContractCorrect` |
 | `FeProofs.Deposit` | [Fe deposit contract](https://github.com/argotorg/fe/blob/e4372c0d7/crates/fe/tests/fixtures/fe_test/deposit_contract.fe) | `feDepositContractCorrect` (calldata below 2^64 bytes) |
-| `FeProofs.ERC20` | EquiVM's `ERC20` example token written in Fe | `feERC20ContractCorrect` |
+| `FeProofs.ERC20.Stele` | EquiVM's `ERC20` example token written in Fe, bytecode of `FeProofs/ERC20/Stele/` | `feERC20ContractCorrect` |
 | `FeProofs.WETH9` | [canonical WETH9](https://github.com/gnosis/canonical-weth/blob/master/contracts/WETH9.sol) written in Fe | `feWETH9ContractCorrect` (string getters under a string-size precondition) |
 
 Each theorem covers the constructor and the whole runtime: for every input, the deployed
@@ -50,7 +50,9 @@ relation does not compare event logs or revert payloads.
 ### The ERC20 token
 
 `FeERC20.fe` is EquiVM's `ERC20` example token written in Fe, and its specification is EquiVM's
-example specification statement for statement. `feERC20ContractCorrect` covers the constructor and
+example specification statement for statement. `feERC20ContractCorrect` (`FeProofs/ERC20/Stele/`) is
+of the bytecode Fe `22b156fff` compiled, kept beside its proofs in that directory, not of the
+pinned compiler's (`FeProofs/ERC20/P1/`). It covers the constructor and
 all six entry points, including the reverts for a short balance or allowance and Fe's overflow
 panics. The bytecode and the specification both read each balance after the writes that precede
 it, so the proof does not assume that distinct mapping keys hash to distinct slots.

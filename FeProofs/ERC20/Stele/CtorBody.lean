@@ -1,6 +1,6 @@
-import FeProofs.ERC20.CtorTrace
-import FeProofs.ERC20.Storage
-import FeProofs.ERC20.MapStorage
+import FeProofs.ERC20.Stele.CtorTrace
+import FeProofs.ERC20.Stele.Storage
+import FeProofs.ERC20.Stele.MapStorage
 
 /-!
 # FeERC20 constructor body (Stele side)
@@ -11,7 +11,7 @@ The constructor's argument store and its two storage writes under the generated 
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 /-- The constructor's argument store. -/
 abbrev ctorLocals (i : Int) : Store :=
@@ -84,4 +84,4 @@ theorem feERC20CtorBody_ok (evm : EVM.State) (i : Int) (h0 : 0 ≤ i)
       (hval evm) hb) (ExecBlock.consNormal (ExecStmt.assign (hperm := Or.inr hperm1) (hval _) ht)
       (ExecBlock.consNormal (ExecStmt.emit hperm2 hev) ExecBlock.nil))))
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

@@ -10,7 +10,7 @@ Runtime: 863 bytes (863 executable, 0 metadata); creation: 987 bytes.
 
 open Ethereum Ethereum.EVM
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 50000000
 set_option maxHeartbeats 0
@@ -136,4 +136,4 @@ def feERC20CreationBytecode : ByteArray :=
       ] := by
   native_decide
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

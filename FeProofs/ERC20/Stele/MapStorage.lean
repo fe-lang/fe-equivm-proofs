@@ -1,4 +1,4 @@
-import FeProofs.ERC20.Common
+import FeProofs.ERC20.Stele.Common
 import FeProofs.Common.Glue
 import FeProofs.Common.Storage
 
@@ -12,7 +12,7 @@ scratch memory at `0x00` (`keccakWord_mapSlot`).
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 set_option maxRecDepth 2000000
 
@@ -76,4 +76,4 @@ theorem allowance_assign (hL : L.get? "allowance" = none)
 
 end
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

@@ -1,4 +1,4 @@
-import FeProofs.ERC20.Common
+import FeProofs.ERC20.Stele.Common
 
 /-!
 # FeERC20 storage facts
@@ -8,7 +8,7 @@ import FeProofs.ERC20.Common
 
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach
 
-namespace FeProofs.ERC20
+namespace FeProofs.ERC20.Stele
 
 abbrev totalSupplyRef : StorageRef := { base := "totalSupply" }
 
@@ -23,4 +23,4 @@ theorem totalSupply_read {L : Store} {evm : EVM.State} (hL : L.get? "totalSupply
     (t := .int (.uint ⟨256, by decide⟩)) (loc := uint256Loc ⟨2⟩) hL totalSupplyRef_eval
     (by show storageTypeAt? contract.storage _ = _; decide) rfl rfl (storageLocLoad_uint256 evm ⟨2⟩)
 
-end FeProofs.ERC20
+end FeProofs.ERC20.Stele

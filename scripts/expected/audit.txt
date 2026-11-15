@@ -21,7 +21,7 @@ FeProofs.ERC20.P1.every_call_conserves: [Classical.choice, Quot.sound, propext] 
 FeProofs.ERC20.P1.every_transaction_conserves: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ERC20.Sonatina.feERC20DeployRefinesExportedP1: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ERC20.Sonatina.feERC20RefinesExportedP1: [Classical.choice, Quot.sound, propext] + 0 native_decide
-FeProofs.ERC20.feERC20ContractCorrect: [Classical.choice, Quot.sound, propext] + 1086 native_decide
+FeProofs.ERC20.Stele.feERC20ContractCorrect: [Classical.choice, Quot.sound, propext] + 1086 native_decide
 FeProofs.ERC20.feERC20DeployRefinesModel: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ERC20.feERC20RefinesModel: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.ERC20.init_conserves: [Classical.choice, Quot.sound, propext] + 0 native_decide
