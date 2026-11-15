@@ -400,14 +400,13 @@ theorem smul1_spec (m a b : L4) (inv : Limb) (hinv : InvOk m.l0 inv) (hm : nat4 
     (L2D (if loD tD = 0 then 0 else 1)) = s
   have hs : s.val * 2 ^ 64 = a.l0.val * b.l0.val + q.val * m.l0.val := by
     rw [← hsd, ← htv, ← hpv]
-    simp only [addD, L2D, hiD, loD]
     have h1 := tD.isLt; have h2 := pD.isLt
     rw [hpv] at h2
     split_ifs with h
-    · have h0 : tD.val % 2 ^ 64 = 0 := by simpa using congrArg Fin.val h
-      simp only [limb0]; rw [← hpv] at hc; omega
-    · have h0 : tD.val % 2 ^ 64 ≠ 0 := fun e => h (Fin.ext e)
-      simp only [limb1]; rw [← hpv] at hc; omega
+    · have h0 : tD.val % 2 ^ 64 = 0 := by simpa [loD] using congrArg Fin.val h
+      simp only [addD, L2D, hiD, limb0]; rw [← hpv] at hc; omega
+    · have h0 : tD.val % 2 ^ 64 ≠ 0 := fun e => h (Fin.ext (by simpa [loD] using e))
+      simp only [addD, L2D, hiD, limb1]; rw [← hpv] at hc; omega
   -- The reduction.
   have hsm : s.val < 2 * m.l0.val := by
     have : q.val * m.l0.val < 2 ^ 64 * m.l0.val := Nat.mul_lt_mul_of_pos_right q.isLt (by

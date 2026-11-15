@@ -63,16 +63,24 @@ theorem reciprocal_2by1_eq (d : Limb) (hd : 2 ^ 63 ≤ d.val) :
   have hne : d.w ≠ ⟨0⟩ := by
     intro h; have := congrArg UInt256.toNat h; simp at this; omega
   simp only [reciprocal_2by1, checkedDiv, hne, ite_false, pure_bind, LIMB_BASE, IntTy.sub,
-    IntTy.checked, IntTy.Fits, val_u]
+    IntTy.checked]
   have hdiv : (UInt256.ofNat 340282366920938463463374607431768211455 / d.w).toNat =
       (2 ^ 128 - 1) / d.val := by
     show UInt256.toNat (UInt256.ofNat _) / UInt256.toNat d.w = _
     rw [Limb.toNat_w, toNat_lit (by decide)]
     rfl
+  -- The condition first: `simp` unfolding `IntTy.Fits` in it would leave its instance behind.
+  have hfits : (IntTy.u 128).Fits
+      ((IntTy.u 128).val (UInt256.ofNat 340282366920938463463374607431768211455 / d.w) -
+        (IntTy.u 128).val (UInt256.ofNat 18446744073709551616)) := by
+    simp only [IntTy.Fits, val_u, hdiv, toNat_lit (show 18446744073709551616 < 2 ^ 256 by decide)]
+    constructor <;> omega
+  rw [ite_eq_left hfits]
+  simp only [val_u]
   rw [hdiv, toNat_lit (show 18446744073709551616 < 2 ^ 256 by decide),
     show (((2 ^ 128 - 1) / d.val : ℕ) : ℤ) - (18446744073709551616 : ℕ) =
       (((2 ^ 128 - 1) / d.val - 2 ^ 64 : ℕ) : ℤ) by rw [Nat.cast_sub hq]; rfl,
-    ite_eq_left (by constructor <;> omega), wrap_u_nat, pure_bind, downcast_truncate_u128_u64_eq,
+    wrap_u_nat, pure_bind, downcast_truncate_u128_u64_eq,
     toNat_lit (by omega), Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
   rfl
 

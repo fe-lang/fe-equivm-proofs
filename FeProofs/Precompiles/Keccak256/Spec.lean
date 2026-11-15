@@ -115,8 +115,8 @@ theorem hash64 (a b : ℕ) :
     Nat.reduceAdd, Nat.reduceDiv, bind_pure_comp, Std.Legacy.Range.forIn_eq_forIn_range',
     Std.Legacy.Range.size]
   simp only [Id.run_pure, List.range', List.forIn_cons, List.forIn_nil, pure_bind, map_pure,
-    Nat.reduceAdd, Nat.reduceMul, Nat.reduceMod, Nat.reduceSub, Fin.ofNat, Fin.getElem_fin,
-    Nat.zero_mul]
+    Nat.reduceAdd, Nat.reduceMul, Nat.reduceMod, Nat.reduceSub, Nat.reduceDiv, Fin.ofNat,
+    Fin.getElem_fin, Nat.zero_mul]
   simp only [Vector.getElem_ofFn, Vector.getElem_set, Vector.getElem_replicate, Nat.reduceEqDiff,
     Nat.reduceLT, ↓reduceIte, Nat.zero_add]
   simp (disch := omega) only [tb_lo, tb_hi]

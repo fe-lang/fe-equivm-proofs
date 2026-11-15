@@ -76,22 +76,34 @@ macro "spurify" : tactic => `(tactic| (
 theorem smul2_eq (m a b : L4) (inv : Limb) :
     Small_mul_2 ⟨toW m, inv.w⟩ (toW a) (toW b) = pure (toW (smul 2 m inv a b)) := by
   spurify
-  split_ifs <;> rfl
+  -- Lean 4.35 leaves the specification's `if` unsplit (its condition carries another instance):
+  -- rewrite it with the split hypothesis.
+  split_ifs with h <;> simp only [h, ite_true, ite_false, not_true_eq_false, not_false_eq_true,
+    Decidable.not_not] <;> rfl
 
 theorem smul1_eq (m a b : L4) (inv : Limb) :
     Small_mul_1 ⟨toW m, inv.w⟩ (toW a) (toW b) = pure (toW (smul 1 m inv a b)) := by
   spurify
-  split_ifs <;> rfl
+  -- Lean 4.35 leaves the specification's `if` unsplit (its condition carries another instance):
+  -- rewrite it with the split hypothesis.
+  split_ifs with h <;> simp only [h, ite_true, ite_false, not_true_eq_false, not_false_eq_true,
+    Decidable.not_not] <;> rfl
 
 theorem smul3_eq (m a b : L4) (inv : Limb) :
     Small_mul_3 ⟨toW m, inv.w⟩ (toW a) (toW b) = pure (toW (smul 3 m inv a b)) := by
   spurify
-  split_ifs <;> rfl
+  -- Lean 4.35 leaves the specification's `if` unsplit (its condition carries another instance):
+  -- rewrite it with the split hypothesis.
+  split_ifs with h <;> simp only [h, ite_true, ite_false, not_true_eq_false, not_false_eq_true,
+    Decidable.not_not] <;> rfl
 
 theorem smul4_eq (m a b : L4) (inv : Limb) :
     Small_mul_4 ⟨toW m, inv.w⟩ (toW a) (toW b) = pure (toW (smul 4 m inv a b)) := by
   spurify
-  split_ifs <;> rfl
+  -- Lean 4.35 leaves the specification's `if` unsplit (its condition carries another instance):
+  -- rewrite it with the split hypothesis.
+  split_ifs with h <;> simp only [h, ite_true, ite_false, not_true_eq_false, not_false_eq_true,
+    Decidable.not_not] <;> rfl
 
 theorem sdouble1_eq (m x : L4) (inv : Limb) :
     Small_double_1 ⟨toW m, inv.w⟩ (toW x) = pure (toW (sdouble m x)) := by

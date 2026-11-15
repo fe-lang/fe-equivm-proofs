@@ -235,7 +235,6 @@ theorem value_Order (a : L4) :
 theorem one_Base : Mont_one_Base = pure (toB (Mont.new KB 1)) := by
   simp only [Mont_one_Base]
   rw [new_Base _ (by rw [toNat_lit (by decide)]; decide), toNat_lit (by decide)]
-  simp
 
 /-- `is_zero`: every limb is zero. -/
 theorem is_zero_Base (a : L4) : Mont_is_zero_Base (toB a) = pure (Mont.isZero a) := by

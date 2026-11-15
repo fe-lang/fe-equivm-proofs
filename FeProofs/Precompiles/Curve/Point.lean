@@ -318,17 +318,6 @@ theorem addAffine_spec (hB : ∀ x : ZMod F.q, x ^ 3 + B ≠ 0) {P : P3} {a2 b2 
     exact ⟨(nonsingular_smul _ hu).mpr (nonsingular_add hv1 hv2),
       by rw [Point.toAffine_smul _ hu, Point.toAffine_add hv1 hv2]⟩
 
-omit [Fact F.q.Prime] in
-/-- `to_affine` after the inversion: from a representation of `z⁻¹`, representations of
-`x / z ^ 2` and `y / z ^ 3` (both `0` for `z = 0`). -/
-theorem toAffineWith_rep {P : P3} {c : L4} {x y z : ZMod F.q} (hP : F.RepP P x y z)
-    (hc : F.Rep c z⁻¹) :
-    F.Rep (toAffineWith F.K P c).1 (x * (z⁻¹ * z⁻¹)) ∧
-      F.Rep (toAffineWith F.K P c).2 (y * (z⁻¹ * z⁻¹ * z⁻¹)) := by
-  obtain ⟨ha, hb, -⟩ := hP
-  simp only [toAffineWith]
-  exact ⟨by rep_tac, by rep_tac⟩
-
 /-- On a nonsingular triple with `z ≠ 0`, those are the affine coordinates of its point. -/
 theorem toAffine_some {x y z : ZMod F.q} (hv : (Jac F.q B).Nonsingular ![x, y, z]) (hz : z ≠ 0) :
     ∃ h, Point.toAffine (Jac F.q B) ![x, y, z] = .some (x * (z⁻¹ * z⁻¹)) (y * (z⁻¹ * z⁻¹ * z⁻¹)) h := by
@@ -341,6 +330,24 @@ theorem toAffine_some {x y z : ZMod F.q} (hv : (Jac F.q B).Nonsingular ![x, y, z
     rfl
   rw [e1, e2]
   exact ⟨_, Point.toAffine_of_Z_ne_zero hv (by simpa using hz)⟩
+
+end Pt
+
+namespace Pt
+
+/- Outside the section with `[Fact F.q.Prime]`: with it in scope, Mathlib for Lean 4.35 elaborates
+`z⁻¹` through the field structure of `ZMod F.q` and the statement would take the instance. -/
+variable {F : MField}
+
+/-- `to_affine` after the inversion: from a representation of `z⁻¹`, representations of
+`x / z ^ 2` and `y / z ^ 3` (both `0` for `z = 0`). -/
+theorem toAffineWith_rep {P : P3} {c : L4} {x y z : ZMod F.q} (hP : F.RepP P x y z)
+    (hc : F.Rep c z⁻¹) :
+    F.Rep (toAffineWith F.K P c).1 (x * (z⁻¹ * z⁻¹)) ∧
+      F.Rep (toAffineWith F.K P c).2 (y * (z⁻¹ * z⁻¹ * z⁻¹)) := by
+  obtain ⟨ha, hb, -⟩ := hP
+  simp only [toAffineWith]
+  exact ⟨by rep_tac, by rep_tac⟩
 
 end Pt
 

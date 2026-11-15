@@ -254,7 +254,8 @@ theorem tz_w (a : Limb) : IntTy.trailingZeros (.u 64) a.w = a.tz.w := by
   rfl
 
 theorem downcast_u64_i64_w (a : Limb) : downcast_truncate_u64_i64 a.w = pure (I a.sgn) := by
-  rw [downcast_truncate_u64_i64_eq, Limb.toNat_w, Limb.sgn]
+  rw [downcast_truncate_u64_i64_eq, Limb.toNat_w]
+  rfl
 
 theorem downcast_i64_u64_I (x : ℤ) : downcast_truncate_i64_u64 (I x) = pure (Limb.ofInt x).w := by
   rw [downcast_truncate_i64_u64_eq]

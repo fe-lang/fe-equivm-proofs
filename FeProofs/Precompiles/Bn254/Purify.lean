@@ -143,7 +143,6 @@ theorem value_Bn254Base (a : L4) :
 theorem one_Bn254Base : Mont_one_Bn254Base = pure (toBn (Mont.new KBn 1)) := by
   simp only [Mont_one_Bn254Base]
   rw [new_Bn254Base _ (by rw [toNat_lit (by decide)]; decide), toNat_lit (by decide)]
-  simp
 
 /-- `is_zero`: every limb is zero. -/
 theorem is_zero_Bn254Base (a : L4) : Mont_is_zero_Bn254Base (toBn a) = pure (Mont.isZero a) := by
