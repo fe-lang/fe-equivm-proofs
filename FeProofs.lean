@@ -20,6 +20,7 @@ import FeProofs.PackedStore.RuntimeCorrect
 import FeProofs.ERC20.RuntimeCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
 import FeProofs.WETH9.RuntimeCorrect
+import FeProofs.WETH9.Sonatina
 import FeProofs.ERC20.ConservationBytecode
 import FeProofs.ERC20.Invariant
 import FeProofs.WETH9.Invariant
