@@ -5,8 +5,8 @@ import Fe.Sonatina.Parse
 Runs the checker of bytes against machine IR (`Fe/Sonatina/Check.lean`): on the fixtures, which
 it must accept where they are in its class, on mutations of their hints, which it must reject
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
-fixtures with internal calls, of WETH9's message call and of a reentrancy guard's transient
-storage, which it must reject, and on every sidecar of a directory, as
+fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage
+and of a factory's creation, which it must reject, and on every sidecar of a directory, as
 `SONATINA_CHECK_DIR` names, counting the sections it accepts and why it rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
@@ -108,9 +108,34 @@ def transientMutations : List (String × (CodeSection → CodeSection)) :=
       | .evm .tstore args => .evm .sstore args
       | i => i)]
 
+/-- The factory's runtime block 13 with its creation changed by `g`: the creation is
+    `evm_create2 0 v34 v29 v18` (the value, the init code's offset and size, the salt), the init
+    code `v23` bytes of the child's code at `v34` followed by two argument words. -/
+def mapCreate (g : List Operand → Inst) : CodeSection → CodeSection :=
+  mapFunc "contract_runtime_root_Factory" <| mapBlock 13 fun b =>
+    { b with body := b.body.map fun s => match s.inst with
+      | .evm .create2 args => { s with inst := g args }
+      | _ => s }
+
+/-- Mutations of the factory's creation, each of which the bytes contradict. -/
+def createMutations : List (String × (CodeSection → CodeSection)) :=
+  [("a wrong value operand", mapCreate fun
+      | _ :: rest => .evm .create2 (.imm 256 1 :: rest)
+      | args => .evm .create2 args),
+   ("the init code without its argument words", mapCreate fun
+      | [v, p, _, z] => .evm .create2 [v, p, .var 23, z]
+      | args => .evm .create2 args),
+   ("the init code's offset and size swapped", mapCreate fun
+      | [v, p, l, z] => .evm .create2 [v, l, p, z]
+      | args => .evm .create2 args),
+   ("a wrong salt", mapCreate fun
+      | [v, p, l, _] => .evm .create2 [v, p, l, .var 23]
+      | args => .evm .create2 args),
+   ("create for create2", mapCreate fun args => .evm .create (args.take 3))]
+
 #eval show IO Unit from do
   for f in ["FeConstant", "FeScalarStore", "FeERC20", "DepositContract", "Case44Bank",
-      "TypedCallsTarget", "WETH9", "ReentrancyMutex"] do
+      "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory"] do
     let s ← IO.ofExcept
       (Parse.parseSidecar (← IO.FS.readFile s!"Fe/Sonatina/Fixtures/{f}.sidecar.json"))
     for (name, entry) in Check.entries s do
@@ -147,6 +172,14 @@ def transientMutations : List (String × (CodeSection → CodeSection)) :=
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  TRANSIENT MUTANT {what}: {verdict}"
+        if f == "Factory" && name == "runtime" then
+          for (what, m) in createMutations do
+            let changed := m code
+            let verdict := if changed.lowering == code.lowering then "UNCHANGED"
+              else match Check.checkSection changed entry with
+                | .ok () => "ACCEPTED"
+                | .error e => s!"rejected: {e}"
+            IO.println s!"  CREATE MUTANT {what}: {verdict}"
 
 #eval show IO Unit from do
   let some dir ← IO.getEnv "SONATINA_CHECK_DIR" | return
