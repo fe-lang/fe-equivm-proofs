@@ -105,8 +105,6 @@ def Sidecar.spilledModel (s : Sidecar) (plan : String → SpillPlan) : ContractM
 
 theorem SpillPlan.prepare_nil : SpillPlan.prepare [] = fun m => (m, .none) := by
   funext m
-  simp only [prepare, Module.instrument, guard, List.lookup, List.filterMap_nil, Option.bind,
-    Option.getD_none, List.map_id']
   rfl
 
 /-- Under the empty plan the instrumented model is the machine IR's. -/

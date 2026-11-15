@@ -230,6 +230,7 @@ inductive Trace (I : ExecutionEnv) (ρ : Nat → UInt256) :
   | ok {ev : Event} {evs : List Event} {w w' : World} {r : Option (Except (Fe.Exit World) World)}
       {args : List UInt256} (ha : ev.args.mapM (·.eval I ρ) = some args)
       (hr : (evRun ev.op args).exec I w = some (.ok (ev.result.map ρ, w')))
+      (hk : ∀ a ∈ ev.keep, w'.memory.readWithPadding a 32 = w.memory.readWithPadding a 32)
       (rest : Trace I ρ evs w' r) : Trace I ρ (ev :: evs) w r
   | fail {ev : Event} {evs : List Event} {w : World} {e : Fe.Exit World} {args : List UInt256}
       (ha : ev.args.mapM (·.eval I ρ) = some args)
@@ -392,13 +393,13 @@ theorem Ends.event {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} 
   · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inl rfl⟩
   · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inr rfl⟩
   · cases htr with
-    | ok ha hr _ => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
+    | ok ha hr _ _ => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
     | fail ha hr =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
       exact .inr (.inl ⟨f, e, 1, rfl, hf, .step hc hx fun t ht => by simp at ht⟩)
     | stuck ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
   · cases htr with
-    | ok ha hr hrest =>
+    | ok ha hr _ hrest =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
       exact Ends.cons hc hx henv' (h s' w' hpc hst henv' hw' hrest)
     | fail ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr

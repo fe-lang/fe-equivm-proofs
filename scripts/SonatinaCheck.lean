@@ -160,19 +160,19 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
       (Parse.parseSidecar (← IO.FS.readFile s!"Fe/Sonatina/Fixtures/{f}.sidecar.json"))
     for (name, entry) in Check.entries s do
       let some code := s.section? name | continue
-      let verdict := match Check.checkSection code entry with
+      let verdict := match Check.checkSection code entry [] with
         | .ok () => "accepted"
         | .error e => s!"rejected: {e}"
       IO.println s!"CHECK {f} {name} {verdict}"
-      if Check.checkSection code entry matches .ok () then
+      if Check.checkSection code entry [] matches .ok () then
         for (what, m) in mutations do
           let changed := m code
           unless changed.lowering == code.lowering && changed.symbols == code.symbols do
-            if Check.checkSection changed entry matches .ok () then
+            if Check.checkSection changed entry [] matches .ok () then
               IO.println s!"  MUTANT ACCEPTED {what}"
         if f == "Case44Bank" && name == "runtime" then
           for (what, m) in callMutations do
-            let verdict := match Check.checkSection (m code) entry with
+            let verdict := match Check.checkSection (m code) entry [] with
               | .ok () => "ACCEPTED"
               | .error e => s!"rejected: {e}"
             IO.println s!"  CALL MUTANT {what}: {verdict}"
@@ -180,7 +180,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in messageMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry [] with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  MESSAGE MUTANT {what}: {verdict}"
@@ -188,7 +188,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in transientMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry [] with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  TRANSIENT MUTANT {what}: {verdict}"
@@ -197,7 +197,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
             let changed := m code
             let verdict := if changed.lowering == code.lowering && changed.bytecode == code.bytecode
               then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry [] with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  CLZ MUTANT {what}: {verdict}"
@@ -205,7 +205,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in createMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry [] with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  CREATE MUTANT {what}: {verdict}"
@@ -222,7 +222,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
     | .ok s =>
       for (name, fn) in Check.entries s do
         let some code := s.section? name | continue
-        match Check.checkSection code fn with
+        match Check.checkSection code fn [] with
         | .ok () =>
           accepted := accepted + 1
           IO.println s!"SECTION {entry.fileName} {name} accepted"

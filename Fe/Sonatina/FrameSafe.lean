@@ -27,21 +27,20 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Check
 /-! ## The walk -/
 
 /-- What the walk knows of a block: the checker's context, the block's hints and places, its
-    id, the positions of its statements with an event or a call, in order, the number of its
-    statements, and the word and value each statement stores, if it is a spill store. -/
+    id, and the number of its statements. -/
 structure WalkBlock where
   c : Check.Ctx
   hints : List BlockHint
   place : Nat → Option Nat
   b : Nat
-  items : List Nat
   len : Nat
-  storeOf : Nat → Option (Nat × Nat)
 
 /-- The position of the IR's next event or call in the block, or the terminator's. -/
 def WalkBlock.gap (k : WalkBlock) (p : Path) : Nat :=
-  let r := p.events.length + p.calls.foldl (fun n cs => n + 1 + cs.events.length) 0
-  if r == 0 then k.len else (k.items[k.items.length - r]?).getD k.len
+  match p.events, p.calls with
+  | ev :: _, _ => ev.pos
+  | [], cs :: _ => cs.pos
+  | [], [] => k.len
 
 /-- Walk the bytes of a block from `p` for at most `fuel` steps, as `Check.run` does, but on
     every path and to the end of what matches: each reload found, its value and point, added to
@@ -103,9 +102,7 @@ def walkBlock (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)
             match ev.result, readOps.contains op with
             | some id, true => go (.atom id :: p.stack.drop n) events
             | none, false => go (p.stack.drop n) events (match op, ev.args with
-              | .MSTORE, [.const w, e] =>
-                (w, e, (k.storeOf (k.gap p)).bind fun (w', v) => if w' == w then some v else none)
-                  :: slots
+              | .MSTORE, [.const w, e] => (w, e, ev.stores) :: slots
               | _, _ => slots)
             | _, _ => acc
           else acc
@@ -183,20 +180,16 @@ def walkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : Func
   let isRoot := hint.name == entry
   let entryId := (fi.blocks.head?.map (·.id)).getD 0
   fi.blocks.flatMap fun b =>
-    let c := Ctx.ofBlock fi b code.symbols fr
+    let c := Ctx.ofBlock fi b code.symbols fr ⟨words, [], fun _ => [], entryId⟩
     match hint.blocks.find? (·.block == b.id), place b.id with
     | some h, some pc =>
-      match c.entryStack h, c.segments b.body, c.exitOf b.term with
+      match c.entryStack h, c.segments [] 0 b.body, c.exitOf b.term with
       | some stack, some (events, calls), some exit =>
         let events := match low.entryFreePtr, isRoot && b.id == entryId with
-          | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
+          | some ptr, true =>
+            { op := .MSTORE, args := [.const 0x40, .const ptr], result := none } :: events
           | _, _ => events
-        let items := (b.body.zipIdx.filter fun (s, _) =>
-          (s.inst matches .call _ _) || (c.eventOfStmt s matches some (some _))).map (·.2)
-        let items := if isRoot && b.id == entryId && low.entryFreePtr.isSome then 0 :: items
-          else items
-        let wb : WalkBlock := ⟨c, hint.blocks, place, b.id, items, b.body.length,
-          fun k => (b.body[k]?).bind (storedValue fi words b)⟩
+        let wb : WalkBlock := ⟨c, hint.blocks, place, b.id, b.body.length⟩
         let liveIn := ((live.lookup b.id).getD []).filter (words.lookup · |>.isSome)
         let slots := (liveIn ++ b.phis.map (·.dst)).filterMap fun v =>
           (words.lookup v).bind fun w => (c.expand v).map fun e => (w, e, some v)

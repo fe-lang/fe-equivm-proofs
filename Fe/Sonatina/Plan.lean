@@ -74,6 +74,7 @@ def Func.instrument (words : List (Nat × Nat)) (f : Func) : Func :=
 
 /-- The module with the stores of each function the plan names (`Func.instrument`). -/
 def Module.instrument (plan : SpillPlan) (m : Module) : Module :=
+  if plan.isEmpty then m else
   { m with funcs := m.funcs.map fun f => match plan.lookup f.name with
     | some p => f.instrument p.words
     | none => f }
