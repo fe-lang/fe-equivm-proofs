@@ -72,7 +72,7 @@ theorem nonsingular_iff (x y : Fq) :
   Weierstrass.nonsingular_iff (by decide) three_ne_zero x y
 
 theorem fp_eq (v : UInt256) (hv : v.toNat < BN254.p) : fp v = pure (toBn (Mont.new KBn v.toNat)) := by
-  rw [fp, new_Bn254Base v hv, pure_bind]
+  rw [fp, new_Bn254Base v hv]
 
 /-- `on_curve`: `y² = x³ + b`. -/
 theorem on_curve_spec {a b c : L4} {x y β : Fq} (ha : RepBn a x) (hb : RepBn b y) (hc : RepBn c β) :
