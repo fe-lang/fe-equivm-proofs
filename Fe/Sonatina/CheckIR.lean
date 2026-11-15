@@ -387,7 +387,7 @@ theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List 
       simp [EvmOp.run, evRun, RunAs, Fe.EVM.sstore, Fe.EVM.mload, Fe.EVM.sload,
         Fe.EVM.keccak256, Fe.EVM.mstore, Fe.EVM.mstore8, Fe.EVM.codecopy, Fe.EVM.calldatacopy,
         Fe.EVM.mcopy, Fe.EVM.selfbalance, Fe.EVM.balance, Fe.EVM.extcodesize,
-        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.next, exec_returndatacopy, word, hp, hf]
+        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.next, exec_returndatacopy, word, hp, hf]
     all_goals split_ifs <;> simp
 
 

@@ -351,12 +351,12 @@ with the results' words on top of the caller's stack.
 
 `Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
 no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
-the pure, read, write and halting instructions `Check.lean` translates (message calls among them,
-but no `create` or transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+the pure, read, write and halting instructions `Check.lean` translates (message calls and transient
+storage among them, but no `create`), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
-state reads below, 31 of them with internal calls, and 391 with them; with message calls and `blockhash`
-it accepts 406 and rejects 23 for an instruction outside the class (creations, transient storage,
-`clz`) and one for a dynamic frame. It matches
+state reads below, 31 of them with internal calls, and 391 with them; with message calls,
+`blockhash` and transient storage it accepts 425 and rejects 4 for an instruction outside the
+class (three `create2`, one `clz`) and one for a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
@@ -395,7 +395,10 @@ with `K` set, so its steps need not be calm; `check_xiOk` asks that neither sect
 `CALL` raised the corpus count from 391 to 399, WETH9's runtime among them; `STATICCALL` and
 `DELEGATECALL` to 405, both sections of the deposit contract among them. `blockhash`, a pure
 read of the frame's header and recent blocks as the model's `blockhash` is, added
-`ctx.CtxBox`'s runtime (406).
+`ctx.CtxBox`'s runtime (406). `tload` and `tstore` are a read and a write event as `sload` and
+`sstore` are (`tload_evMoves`, `tstore_evMoves`): transient storage lives in the account map,
+which `Agree` already equates, and a call's `Θ` keeps or restores it on both sides alike. They
+added 19 sections (425), the three reentrancy guards that call out among them.
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal

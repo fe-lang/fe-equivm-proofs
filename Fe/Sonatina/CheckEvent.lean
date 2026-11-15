@@ -371,7 +371,9 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .CALL, [g, a, v, ap, al, rp, rl] => some <$> call g a v ap al rp rl
   | .STATICCALL, [g, a, ap, al, rp, rl] => some <$> staticcall g a ap al rp rl
   | .DELEGATECALL, [g, a, ap, al, rp, rl] => some <$> delegatecall g a ap al rp rl
+  | .TLOAD, [k] => some <$> tload k
   | .SSTORE, [k, v] => do sstore k v; return none
+  | .TSTORE, [k, v] => do tstore k v; return none
   | .MSTORE, [a, v] => do mstore a v; return none
   | .MSTORE8, [a, v] => do mstore8 a v; return none
   | .CODECOPY, [d, o, l] => do codecopy d o l; return none
@@ -953,6 +955,39 @@ theorem delegatecall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List U
       simp only [List.append_assoc, List.singleton_append]
       rfl
 
+theorem tload_evMoves {s : State} {k : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.TLOAD, none))
+    (hs : s.machineState.stack = k :: t) : EvMoves s .TLOAD [k] t := by
+  evmoves_from step_tload
+
+/-- `TSTORE` writes the current contract's transient storage, in the account map, as the model's
+    `tstore` does, and fails under a static call as it does. -/
+theorem tstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.TSTORE, none))
+    (hs : s.machineState.stack = k :: v :: t) : EvMoves s .TSTORE [k, v] t := by
+  intro M w hw
+  have h := step_tstore s hdec
+  simp only [hs] at h
+  by_cases h1 : s.machineState.gasAvailable.toNat < Ctstore
+  · rw [if_pos h1] at h; exact .inl h
+  rw [if_neg h1] at h
+  by_cases h2 : (k :: v :: t).length - 2 + 0 > 1024
+  · rw [if_pos h2] at h; exact .inr (.inl h)
+  rw [if_neg h2] at h
+  by_cases h3 : ¬s.executionEnv.perm = true
+  · rw [if_pos h3] at h
+    exact .inr (.inr (.inl ⟨.static, _, by simp [evRun, Fe.EVM.tstore, h3], h, rfl⟩))
+  rw [if_neg h3] at h
+  simp only [not_not] at h3
+  refine .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide) (by decide))
+    (calm_of hdec (by decide)) h
+    (w' := { w with accounts := ((w.accounts.get? s.executionEnv.codeOwner).option w.accounts
+      fun acc => w.accounts.insert s.executionEnv.codeOwner (acc.updateTransientStorage k v)) })
+    (by simp [evRun, Fe.EVM.tstore, h3]) rfl (by simp) rfl hw.memory ?_ ?_ hw.returnData rfl
+    rfl)))
+  · rw [← hw.accounts]; rfl
+  · exact hw.logs
+
 /-- An event's opcode, its operands on top, steps as `EvMoves` says. -/
 theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     (hp : (readOps.contains op || writeOps.contains op) = true)
@@ -961,9 +996,8 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     EvMoves s op args t := by
   simp only [readOps, writeOps, List.contains_cons, List.contains_nil, Bool.or_false,
     Bool.or_eq_true, beq_iff_eq] at hp
-  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl | rfl | rfl
-    | rfl
-    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl | rfl
+    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨g, _ | ⟨i, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩⟩
       <;>
@@ -980,6 +1014,7 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
   · exact call_evMoves hdec hs
   · exact staticcall_evMoves hdec hs
   · exact delegatecall_evMoves hdec hs
+  · exact tload_evMoves hdec hs
   · exact sstore_evMoves hdec hs
   · exact mstore_evMoves hdec hs
   · exact mstore8_evMoves hdec hs
@@ -992,5 +1027,6 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
   · exact log3_evMoves hdec hs
   · exact log4_evMoves hdec hs
   · exact returndatacopy_evMoves hdec hs
+  · exact tstore_evMoves hdec hs
 
 end Fe.Sonatina.Check

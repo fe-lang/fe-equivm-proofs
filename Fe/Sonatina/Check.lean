@@ -80,7 +80,7 @@ def pureOps : List Operation :=
     the model takes from its feed; a message call's result is its success word. -/
 def readOps : List Operation :=
   [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL,
-   .STATICCALL, .DELEGATECALL]
+   .STATICCALL, .DELEGATECALL, .TLOAD]
 
 /-- The message calls the checker matches: an event each, its result the success word. -/
 def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
@@ -88,7 +88,7 @@ def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
 /-- The opcodes that write state. -/
 def writeOps : List Operation :=
   [.SSTORE, .MSTORE, .MSTORE8, .CODECOPY, .CALLDATACOPY, .MCOPY, .LOG0, .LOG1, .LOG2, .LOG3,
-   .LOG4, .RETURNDATACOPY]
+   .LOG4, .RETURNDATACOPY, .TSTORE]
 
 /-- The halting opcodes, with the operands they take. -/
 def haltOps : List Operation := [.RETURN, .REVERT, .STOP, .INVALID]
@@ -207,6 +207,7 @@ def evmEventOpcode : EvmOp → Option Operation
   | .selfBalance => some .SELFBALANCE | .balance => some .BALANCE
   | .extCodeSize => some .EXTCODESIZE | .returnDataSize => some .RETURNDATASIZE
   | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
+  | .tload => some .TLOAD | .tstore => some .TSTORE
   | .call => some .CALL | .staticCall => some .STATICCALL | .delegateCall => some .DELEGATECALL
   | _ => none
 
