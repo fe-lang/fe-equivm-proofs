@@ -788,11 +788,12 @@ theorem nonPayable_bind_ok {β : Type} {k : Unit → FeM β} {b : β}
   obtain ⟨hv, rfl⟩ := exec_nonPayable_ok h₁
   exact ⟨hv, k₁⟩
 
+/-- A guard `if c then M.revert e` in `do` notation: Lean 4.35 elaborates the rest of the block
+    into both branches, so the `else` branch is the rest itself. -/
 theorem guard_bind_ok {β γ : Type} {c : Prop} {inst : Decidable c} {e : ByteArray}
-    {k₁ : γ → FeM β} {k₂ : PUnit → FeM β} {b : β}
-    (h : (@ite _ c inst ((M.revert e : FeM γ) >>= k₁)
-      ((pure PUnit.unit : FeM PUnit) >>= k₂)).exec I w = some (.ok (b, w'))) :
-    ¬ c ∧ (k₂ PUnit.unit).exec I w = some (.ok (b, w')) := by
+    {k₁ : γ → FeM β} {m : FeM β} {b : β}
+    (h : (@ite _ c inst ((M.revert e : FeM γ) >>= k₁) m).exec I w = some (.ok (b, w'))) :
+    ¬ c ∧ m.exec I w = some (.ok (b, w')) := by
   by_cases hc : c <;> simp [hc] at h
   exact ⟨hc, h⟩
 
