@@ -8,7 +8,10 @@ import Lean.Elab.Command
 `parseModule` reads a module in the text form Sonatina's `ModuleWriter` prints, a statement a
 line, and `parseSidecar` the JSON `fe build --emit sidecar` writes: that text, and the bytes and
 symbols of each section compiled from it.  An instruction outside the subset of `Syntax.lean` is
-an error, not skipped.
+an error, not skipped.  In a sidecar, what the checker reads (the object declarations, and per
+section the bytes, symbols, machine IR and hints) must be read; the module after optimization
+and a section's IR before machine lowering are `none` where they are outside the subset, and a
+model of either level is then stuck.
 
 `sonatina_sidecar name "path"` reads a sidecar when it elaborates and defines `name` as the
 `Sidecar` it holds, so that the IR is a term of its own.  The parser runs only then; nothing
@@ -42,10 +45,12 @@ partial def parseTy (s : String) : P Ty :=
   | '*' :: rest => return .ptr (← parseTy (String.ofList rest))
   | '@' :: rest => return .struct (String.ofList rest)
   | '[' :: rest =>
-    match ((String.ofList rest).dropEnd 1).toString.splitOn ";" with
-    | [elem, len] => do
+    -- The length follows the last `;`: the element type may be an array.
+    let body := ((String.ofList rest).dropEnd 1).toString
+    match body.splitOn ";" |>.reverse with
+    | len :: elem@(_ :: _) => do
       let some len := len.trimAscii.toString.toNat? | throw s!"bad array type {s}"
-      return .array (← parseTy elem.trimAscii.toString) len
+      return .array (← parseTy (";".intercalate elem.reverse).trimAscii.toString) len
     | _ => throw s!"bad array type {s}"
   | 'i' :: rest =>
     match (String.ofList rest).toNat? with
@@ -53,7 +58,13 @@ partial def parseTy (s : String) : P Ty :=
       if [1, 8, 16, 32, 64, 128, 256].contains bits then pure (.int bits)
       else throw s!"unknown type {s}"
     | none => throw s!"unknown type {s}"
-  | _ => if s == "unit" then pure .unit else throw s!"unsupported type {s}"
+  | _ =>
+    if s == "unit" then pure .unit
+    else if let some t := (s.dropPrefix? "objref<").bind (·.toString.dropSuffix? ">") then
+      return .objRef (← parseTy t.toString)
+    else if let some t := (s.dropPrefix? "constref<").bind (·.toString.dropSuffix? ">") then
+      return .constRef (← parseTy t.toString)
+    else throw s!"unsupported type {s}"
 
 /-- `word` split at its first `.`. -/
 def splitDot (word : String) : String × String :=
@@ -260,7 +271,7 @@ def funcHeader (line : String) : P (String × List (Nat × Ty) × List Ty) := do
   let afterName := (rest.dropWhile (· != '(')).toString
   let params := (afterName.drop 1 |>.takeWhile (· != ')')).toString
   let params ← (params.splitOn ",").map String.trimAscii |>.filter (!·.isEmpty)
-    |>.mapM fun p => parseDecl ((p.toString.splitOn " ").getLast!)
+    |>.mapM fun p => parseDecl (tokens p.toString).getLast!
   let afterParams := (afterName.dropWhile (· != ')')).toString.drop 1 |>.toString
   let rets ← match afterParams.splitOn "->" with
     | [_, ret] =>
@@ -269,9 +280,12 @@ def funcHeader (line : String) : P (String × List (Nat × Ty) × List Ty) := do
     | _ => pure []
   return (name, params, rets)
 
-/-- A module from the text `ModuleWriter` prints. -/
-def parseModule (text : String) : P Module := do
-  let lines := (text.splitOn "\n").map (·.trimAscii.toString) |>.filter (!·.isEmpty)
+/-- The lines of a text, trimmed, without empty ones. -/
+def lines (text : String) : List String :=
+  (text.splitOn "\n").map (·.trimAscii.toString) |>.filter (!·.isEmpty)
+
+/-- A module and its objects from the lines of the text `ModuleWriter` prints. -/
+def parseLines (lines : List String) : P (Module × List Object) := do
   let mut structs : List (String × List Ty) := []
   let mut funcs : List Func := []
   let mut objects : List Object := []
@@ -346,7 +360,21 @@ def parseModule (text : String) : P Module := do
       | _ => throw s!"bad object: {line}"
     else throw s!"unsupported declaration: {line}"
   if func.isSome || object.isSome then throw "unterminated function or object"
-  return ⟨structs.reverse, funcs.reverse, objects.reverse⟩
+  return (⟨structs.reverse, funcs.reverse⟩, objects.reverse)
+
+/-- A module from the text `ModuleWriter` prints. -/
+def parseModule (text : String) : P Module := (·.1) <$> parseLines (lines text)
+
+/-- The lines of the text's object declarations, and the other lines.  An object is declared
+    at the top level, from `object @name {` to the `}` that closes it. -/
+def splitObjects (lines : List String) : List String × List String :=
+  let (objs, rest, _) := lines.foldl (init := ([], [], 0)) fun (objs, rest, depth) line =>
+    if depth == 0 && !line.startsWith "object " then (objs, line :: rest, depth)
+    else
+      let depth := if line.endsWith "{" then depth + 1 else if line == "}" then depth - 1
+        else depth
+      (line :: objs, rest, depth)
+  (objs.reverse, rest.reverse)
 
 /-- The bytes a string of hex digits spells. -/
 def hexBytes (digits : String) : P ByteArray := do
@@ -441,7 +469,11 @@ def parseSidecar (text : String) : P Sidecar := do
   let json ← Json.parse text
   let version ← json.getObjValAs? Nat "version"
   unless version == sidecarVersion do throw s!"sidecar version {version}, not {sidecarVersion}"
-  let module ← parseModule (← json.getObjValAs? String "ir")
+  -- The objects are read strictly, since the checker reads each section's entry from them; the
+  -- rest of the module only where it is in the subset, as no check needs it.
+  let (objectLines, moduleLines) := splitObjects (lines (← json.getObjValAs? String "ir"))
+  let (_, objects) ← parseLines objectLines
+  let module := (parseLines moduleLines).toOption.map (·.1)
   let sections ← (← json.getObjValAs? (Array Json) "sections").toList.mapM fun s => do
     let symbols ← (← s.getObjValAs? (Array Json) "symbols").toList.mapM fun sym =>
       return (← sym.getObjValAs? String "symbol", ← sym.getObjValAs? Nat "offset",
@@ -451,7 +483,7 @@ def parseSidecar (text : String) : P Sidecar := do
       | .null => pure none
       | l => some <$> parseLowering l
     return (⟨← s.getObjValAs? String "name", bytecode, symbols, lowering⟩ : CodeSection)
-  return ⟨← json.getObjValAs? String "object", module, sections⟩
+  return ⟨← json.getObjValAs? String "object", objects, module, sections⟩
 
 end Fe.Sonatina.Parse
 

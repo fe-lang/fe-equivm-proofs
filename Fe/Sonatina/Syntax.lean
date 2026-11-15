@@ -28,13 +28,18 @@ inductive Ty where
   /-- `[T; n]`, a value of `n` elements like a struct's fields. -/
   | array (elem : Ty) (len : Nat)
   | unit
+  /-- `objref<T>` and `constref<T>`: a reference to an object of type `T` in memory or to a
+      constant.  The interpreter has no instruction on one; a machine IR keeps the struct types
+      of its section IR, some with such fields, which no machine instruction uses. -/
+  | objRef (pointee : Ty)
+  | constRef (pointee : Ty)
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
 /-- The bits a scalar of the type takes; a struct takes none of its own. -/
 def Ty.bits : Ty → Nat
   | .int bits => bits
   | .ptr _ => 256
-  | .struct _ | .array _ _ | .unit => 0
+  | .struct _ | .array _ _ | .unit | .objRef _ | .constRef _ => 0
 
 /-- An operand: a value the function defines, or an immediate. -/
 inductive Operand where
@@ -170,10 +175,10 @@ structure Object where
   sections : List Section
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
+/-- The struct types and functions of a module; its objects are the sidecar's. -/
 structure Module where
   structs : List (String × List Ty)
   funcs : List Func
-  objects : List Object
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
 def Module.func? (m : Module) (name : String) : Option Func := m.funcs.find? (·.name == name)
@@ -260,10 +265,15 @@ structure CodeSection where
   symbols : List (String × Nat × Nat)
   lowering : Option Lowering
 
-/-- The sidecar of an object: the module the backend compiled it from, and its sections. -/
+/-- The sidecar of an object: the objects of the module the backend compiled it from, that
+    module, and the object's sections. -/
 structure Sidecar where
   object : String
-  module : Module
+  /-- Each section's entry function and embeds. -/
+  objects : List Object
+  /-- `none` when the module uses what the subset does not read: only each section's machine
+      IR is needed to check the bytes. -/
+  module : Option Module
   sections : List CodeSection
 
 def Sidecar.section? (s : Sidecar) (name : String) : Option CodeSection :=

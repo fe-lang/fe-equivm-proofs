@@ -73,7 +73,7 @@ theorem X_of_Xi_success {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I 
     entry block, ended where it would return. -/
 theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Section}
     {code : CodeSection} {low : Lowering} {f : Func} {eb : Block} {I : ExecutionEnv}
-    {w : World} (hobj : s.module.objects.find? (·.name == s.object) = some obj)
+    {w : World} (hobj : s.objects.find? (·.name == s.object) = some obj)
     (hsec : obj.sections.find? (·.name == name) = some sec)
     (hcode : s.section? name = some code) (hlow : code.lowering = some low)
     (hf : low.machine.func? sec.entry = some f) (he : f.blocks.head? = some eb)
@@ -149,7 +149,7 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
   obtain ⟨hall, -, -⟩ := check_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
   unfold entries at hentry hall
-  cases hobj : s.module.objects.find? (·.name == s.object) with
+  cases hobj : s.objects.find? (·.name == s.object) with
   | none => simp [hobj] at hentry
   | some obj =>
   simp only [hobj, Option.map_some, Option.getD_some] at hentry hall

@@ -835,7 +835,7 @@ def checkSection (code : CodeSection) (entry : String) : Except String Unit := d
 
 /-- The entry function of each section of the sidecar's object. -/
 def entries (s : Sidecar) : List (String × String) :=
-  ((s.module.objects.find? (·.name == s.object)).map (·.sections)).getD [] |>.map
+  ((s.objects.find? (·.name == s.object)).map (·.sections)).getD [] |>.map
     fun sec => (sec.name, sec.entry)
 
 /-- The section `name` of the sidecar is checked against its entry function `entry`. -/

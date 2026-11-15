@@ -62,8 +62,16 @@ every EVM instruction the model library has a primitive for: storage, transient 
 code, logs, the environment, `gas`, message calls and creations. The same subset covers the IR
 after optimization, a section's IR after the backend's pipeline and its machine IR; a value takes
 the width its definition declares, so the machine IR's `i256` comparison results are words. Other
-instructions (`gep`, `obj.*`, `enum.*`, narrow memory accesses), object reference types, and any
-use of a global or an enum are parse errors; enum and global declarations are skipped.
+instructions (`gep`, `obj.*`, `enum.*`, narrow memory accesses) and any use of a global or an
+enum are parse errors; enum and global declarations are skipped. Object reference types
+(`objref<T>`, `constref<T>`) are read, with no instruction on them: a machine IR keeps the struct
+types of its section IR, some with such fields. A sidecar
+is read if what the checker reads is: the object declarations, and per section the bytes, symbols,
+machine IR and hints. The module after optimization (`Sidecar.module`) and a section's IR after
+the pipeline (`Lowering.source`) are `none` where they are outside the subset, and the model of
+that level is then stuck; the differential tests report such a sidecar as not read at that
+level. Of the fevm precompile contracts, the module uses `obj.*`, `const.*`, `enum.*`, `bswap`
+and `freeze`, and the section IR `gep`, none of which the interpreter has a meaning for.
 
 `Interp.lean` runs it in `FeM`, the monad of exported models, over EVMLean's state; every EVM
 instruction is the model library's primitive (`sload`, `call`, `logData`, …). Values are typed
@@ -225,7 +233,7 @@ references, enums or nested arrays. One more, `abi_bounded_input_len_untrusted`'
 its IRs were, which lost that contract at every level.)
 
 `Hints.check` finds no failure in the 7914 machine blocks of the 428 sections of the corpus's
-sidecars (the 34 sidecars the reader stops at aside). It refutes what it can see: on the six
+sidecars (the 34 sidecars the reader then stopped at aside). It refutes what it can see: on the six
 sections of FeScalarStore, FeERC20 and the deposit contract, removing one slot from every entry
 stack fails five (FeScalarStore's runtime starts every block empty), and moving every offset by a
 byte fails all six. An extra slot passes, since the check is
@@ -370,7 +378,27 @@ section's IR reads none), mutations of WETH9's message call (a wrong gas operand
 the address swapped, the return or the arguments' window off by a word: all rejected), of a
 reentrancy guard's transient storage, of a factory's `create2` (a wrong value operand, the init
 code without its argument words, the init code's offset and size swapped, a wrong salt, `create`
-for `create2`: all rejected) and a corpus directory.
+for `create2`: all rejected) and a corpus directory, a line per section and per sidecar it does
+not read.
+
+Those counts left out the 33 of the 248 sidecars of `corpus-v3` that the reader then rejected, all
+on the module after optimization (enums, object references, nested arrays), which the checker
+does not read. Read as now, all 248 are read, and of their 496 sections it accepts 487: the 66
+sections of those 33 add 59, and 7 rejections, 5 for memory spills (`erc4337.Account`,
+`erc4337.EntryPoint`, `mem_replace_take.C`, `msg_nested_array_arg.Caller`, `signature.Wallet`)
+and 2 for a `br_table` without a default (`msg_enum_field.Paymaster`, `mul_div.MulDivProbe`).
+`corpus-v4` is the corpus emitted again after a fix to the sidecar emitter (it named a section's
+symbols against the wrong module, Fe `sonatina-hints` `50b0be4131`), with the ingot
+`FeProofs/Ecrecover` and nine more sidecars: fevm's precompile contracts (ECRECOVER twice, BN254
+addition and multiplication, BLAKE2 F, RIPEMD-160, modular exponentiation, identity) and
+`Case44Bank`. Its 248 sidecars of `corpus-v3` are the same, byte for byte, so no verdict changed.
+Of its 258 sidecars, all read, it accepts 499 of 516 sections and rejects 17: 13 for memory spills
+(the runtimes of seven precompile contracts and of the ingot's ECRECOVER among them), 2 for a
+`br_table` without a default, 1 for `clz` and 1 for a dynamic frame. The precompiles' init
+sections and the identity contract's runtime are accepted. Of the 109 functions of their nine
+runtimes, 26 have memory spills; of the others, 8 use `clz`, and 8 hold straight-line blocks of
+hundreds of pure instructions (four-limb multiplication) whose expressions, expanded without
+sharing, have millions of nodes and depths above 64, which the checker does not finish.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
 (`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,

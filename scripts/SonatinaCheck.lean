@@ -7,7 +7,8 @@ it must accept where they are in its class, on mutations of their hints, which i
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
 fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage
 and of a factory's creation, which it must reject, and on every sidecar of a directory, as
-`SONATINA_CHECK_DIR` names, counting the sections it accepts and why it rejects the others.
+`SONATINA_CHECK_DIR` names, with a line per section and per sidecar the reader rejects, counting
+the sections it accepts and why it rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
 
@@ -183,16 +184,24 @@ def createMutations : List (String × (CodeSection → CodeSection)) :=
 
 #eval show IO Unit from do
   let some dir ← IO.getEnv "SONATINA_CHECK_DIR" | return
-  let mut (accepted, rejected) := (0, (#[] : Array String))
-  for entry in ← System.FilePath.readDir dir do
+  let mut (accepted, rejected, unparsed) := (0, (#[] : Array String), 0)
+  for entry in (← System.FilePath.readDir dir).qsort (·.fileName < ·.fileName) do
     unless entry.fileName.endsWith ".sidecar.json" do continue
-    let .ok s := Parse.parseSidecar (← IO.FS.readFile entry.path) | continue
-    for (name, fn) in Check.entries s do
-      let some code := s.section? name | continue
-      match Check.checkSection code fn with
-      | .ok () => accepted := accepted + 1
-      | .error e => rejected := rejected.push e
-  IO.println s!"sections accepted {accepted}, rejected {rejected.size}"
+    match Parse.parseSidecar (← IO.FS.readFile entry.path) with
+    | .error e =>
+      unparsed := unparsed + 1
+      IO.println s!"UNPARSED {entry.fileName}: {e}"
+    | .ok s =>
+      for (name, fn) in Check.entries s do
+        let some code := s.section? name | continue
+        match Check.checkSection code fn with
+        | .ok () =>
+          accepted := accepted + 1
+          IO.println s!"SECTION {entry.fileName} {name} accepted"
+        | .error e =>
+          rejected := rejected.push e
+          IO.println s!"SECTION {entry.fileName} {name} rejected: {e}"
+  IO.println s!"sidecars unparsed {unparsed}; sections accepted {accepted}, rejected {rejected.size}"
   let reasons := rejected.toList.map fun e =>
     String.ofList ((e.splitOn ": ").getLast!.toList.filter (!·.isDigit))
   for r in reasons.eraseDups do

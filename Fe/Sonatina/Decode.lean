@@ -122,6 +122,38 @@ def instrs : Nat → List UInt8 → Nat → List (Nat × Operation × Option Nat
         else some (fromBytes' (bs.take w).reverse % UInt256.size)
       (i, op, arg, i + 1 + w) :: instrs fuel (bs.drop w) (i + 1 + w)
 
+/-- `instrs` with the instructions so far in an accumulator, which the compiled code runs in its
+    place (`instrs_eq_instrsTR`): a large section has more instructions than the stack frames
+    `instrs` would take.  The kernel runs `instrs`. -/
+def instrsTR (fuel : Nat) (bs : List UInt8) (i : Nat) :
+    List (Nat × Operation × Option Nat × Nat) :=
+  go fuel bs i #[]
+where
+  go : Nat → List UInt8 → Nat → Array (Nat × Operation × Option Nat × Nat) →
+      List (Nat × Operation × Option Nat × Nat)
+  | 0, _, _, acc | _, [], _, acc => acc.toList
+  | fuel + 1, b :: bs, i, acc => match parseByte b with
+    | none => acc.toList
+    | some op =>
+      let w := argOnNBytesOfInstr op
+      let arg := if w == 0 then (if op == .PUSH0 then some 0 else none)
+        else some (fromBytes' (bs.take w).reverse % UInt256.size)
+      go fuel (bs.drop w) (i + 1 + w) (acc.push (i, op, arg, i + 1 + w))
+
+theorem instrsTR_go : ∀ (fuel : Nat) (bs : List UInt8) (i : Nat) acc,
+    instrsTR.go fuel bs i acc = acc.toList ++ instrs fuel bs i
+  | 0, _, _, _ => by simp [instrsTR.go, instrs]
+  | _ + 1, [], _, _ => by simp [instrsTR.go, instrs]
+  | fuel + 1, b :: bs, i, acc => by
+    unfold instrsTR.go instrs
+    cases parseByte b with
+    | none => simp
+    | some op => simp [instrsTR_go fuel]
+
+@[csimp] theorem instrs_eq_instrsTR : @instrs = @instrsTR := by
+  funext fuel bs i
+  simp [instrsTR, instrsTR_go]
+
 /-- A search tree keyed by offsets. -/
 inductive PcTree (α : Type) where
   | leaf
