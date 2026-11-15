@@ -200,6 +200,9 @@ The files of an exported contract:
 `FeProofs/Lib/ExportedCorrect.lean` theorems about them. A method is named after the type its
 impl is for (`CallData_word_at`, `u256_to_word`). Where `FeProofs.Lib` is open, `simp` unfolds
 these definitions, except the ones `ExportedCorrect.lean` states a theorem for.
+`FeProofs/Lib/AbiBytes.lean` specifies the ABI encoding of `bytes` values as byte arrays, and
+`BytesCodec.lean`, `AbiEncode.lean` and `StaticCall.lean` state std's `bytes` decoder, its `bytes`
+encoders (a tuple's fields, a returned value, a log) and its static calls against it.
 `FeProofs/Fixtures/` has the exporter's output on fixtures without a bytecode proof, with checks
 of what it means.
 
