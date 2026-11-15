@@ -109,11 +109,11 @@ open Classical in
 set_option maxRecDepth 100000 in
 set_option maxHeartbeats 16000000 in
 /-- The machine IR's constructor ends as the exported deployment entry does, on the creation
-    code with no arguments, from the empty memory a call starts with and with write
-    permission, as a creation has. -/
+    code with no arguments, from the empty memory a call starts with (which the exported entry
+    reserves) and with write permission, as a creation has. -/
 theorem init_endsAs (hw : w.memory = ByteArray.empty)
     (hcode : I.code = feWETH9CreationBytecode ++ ByteArray.empty) (hperm : I.perm = true) :
-    EndsAs ((Exported.init_entry ByteArray.empty >>= fun tail =>
+    EndsAs ((deploy Exported.init_entry ByteArray.empty >>= fun tail =>
         pure (feWETH9Bytecode ++ tail)).exec I w)
       (((sidecar.model .machine).init ByteArray.empty >>= fun tail =>
         pure (ByteArray.empty ++ tail)).exec I w) := by
@@ -124,7 +124,8 @@ theorem init_endsAs (hw : w.memory = ByteArray.empty)
     rw [write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide), hcode,
       ByteArray.append_empty, ← hrt]
   clear hcode
-  rw [init_bind_eq]
+  have hres : w.reserved.memory.size = 96 := by rw [World.reserved_size, hw]; rfl
+  rw [deploy_bind_eq, init_bind_eq]
   apply ir_init_endsAs
   intro m ic hs1 hst hsl hre
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -138,11 +139,13 @@ theorem init_endsAs (hw : w.memory = ByteArray.empty)
   have h4 : UInt256.ofNat 4 = UInt256.ofNat (⟨#[87, 69, 84, 72]⟩ : ByteArray).size := rfl
   simp only [Exported.init_entry, Fe.M.exec_bind, exec_nonPayable, hwv, ite_eq_left, Exported.init,
     Exported.nameField, Exported.symbolField, Exported.decimalsField, h13, h4]
-  rw [Exported.stringLiteral_exec I w (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray) (by decide) (by decide) (by rw [hw]; decide)]
+  rw [Exported.stringLiteral_exec I w.reserved (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116,
+    104, 101, 114]⟩ : ByteArray) (by decide) (by decide) (by rw [hres]; decide)]
   simp only []
-  rw [Exported.storeStringLit_exec I _ (UInt256.ofNat 0) w.memory.size (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray) (by decide) (by decide)
-    Exported.nameWordLit_eq (Exported.literal_read _ _ (by decide)) (by rw [hw]; decide)
-    (by simp [hw, zeros_size]; decide)]
+  rw [Exported.storeStringLit_exec I _ (UInt256.ofNat 0) w.reserved.memory.size (⟨#[87, 114, 97,
+    112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray) (by decide) (by decide)
+    Exported.nameWordLit_eq (Exported.literal_read _ _ (by decide)) (by rw [hres]; decide)
+    (by simp [hres, zeros_size]; decide)]
   clear h13 h4
   have hst' := store_eq ic I hst hsl hre
   by_cases hb0 : strHeadBad (slotWord I w.accounts (UInt256.ofNat 0))
@@ -155,11 +158,11 @@ theorem init_endsAs (hw : w.memory = ByteArray.empty)
   have hb0z : ¬ strHeadBad (slotWord I w.accounts ⟨0⟩) := hb0
   simp [hb0, hperm, Exported.DynString_drop, FeProofs.Lib.dealloc_u8, FeProofs.Lib.cast_u8_u8]
   rw [Exported.stringLiteral_exec I _ (⟨#[87, 69, 84, 72]⟩ : ByteArray) (by decide) (by decide)
-    (by simp [hw, zeros_size]; decide)]
+    (by simp [hres, zeros_size]; decide)]
   simp only []
   rw [Exported.storeStringLit_exec I _ (UInt256.ofNat 1) _ (⟨#[87, 69, 84, 72]⟩ : ByteArray) (by decide) (by decide)
     Exported.symbolWordLit_eq (Exported.literal_read _ _ (by decide))
-    (by simp [hw, zeros_size]; decide) (by simp [hw, zeros_size]; decide)]
+    (by simp [hres, zeros_size]; decide) (by simp [hres, zeros_size]; decide)]
   by_cases hb1 : strHeadBad (slotWord I (strWriteMap I w.accounts (UInt256.ofNat 0) (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray))
     (UInt256.ofNat 1))
   · have hb1z : strHeadBad (slotWord I (strWriteMap I w.accounts ⟨0⟩ (⟨#[87, 114, 97, 112, 112, 101, 100, 32, 69, 116, 104, 101, 114]⟩ : ByteArray)) (UInt256.ofNat 1)) := hb1

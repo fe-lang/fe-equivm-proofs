@@ -222,18 +222,21 @@ theorem feEcrecoverContractCorrect (e v r s : UInt256) (I : ExecutionEnv) (w : W
         { w with memory := memory })) := by
   obtain ⟨hsz, -, h4, h36, h68, h100⟩ := calldata_facts e v r s
   rw [← hcd] at hsz h4 h36 h68 h100
-  have hdec := decodeRecover_exec I w (by omega) (by omega)
+  have hdec := decodeRecover_exec I w.reserved (by omega) (by omega)
   rw [ite_eq_right (by omega), h4, h36, h68, h100] at hdec
-  rcases arm_spec e v r s I w with harm | harm
+  rcases arm_spec e v r s I w.reserved with harm | harm
   · left
-    simp [entry, runtime_recover e v r s I w hcd, recv0_arm0_entry, exec_nonPayable, hv, hdec,
-      harm]
+    simp [entry, runtime_recover e v r s I w.reserved hcd, recv0_arm0_entry, exec_nonPayable, hv,
+      hdec, harm]
   · right
-    obtain ⟨memory, hret⟩ := FeProofs.Lib.returnTriple_exec I w
-      (tripleOf (Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat)) hmem
+    obtain ⟨memory, hret⟩ := FeProofs.Lib.returnTriple_exec I w.reserved
+      (tripleOf (Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat))
+      (reserveMemory_room hmem (by decide))
     refine ⟨memory, ?_⟩
-    simp only [entry, M.exec_bind, runtime_recover e v r s I w hcd, recv0_arm0_entry,
-      exec_nonPayable, hv, ite_true, hdec, harm, hret, encodeTriple]
+    simp only [entry, M.exec_bind, exec_reserve, runtime_recover e v r s I w.reserved hcd,
+      recv0_arm0_entry, exec_nonPayable, hv, ite_true, hdec, harm, hret, encodeTriple,
+      World.reserved_accounts, World.reserved_logs, World.reserved_returnData,
+      World.reserved_feed, World.reserved_calls]
 
 /-- Other calls revert with no data: calldata shorter than a selector, a selector other than
     `recover`'s, or call value sent. -/
@@ -259,7 +262,7 @@ theorem runtime_value (e v r s : UInt256) (I : ExecutionEnv) (w : World)
     (hcd : I.calldata = calldata e.toNat v.toNat r.toNat s.toNat) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_recover e v r s I w hcd]
+  rw [runtime_recover e v r s I w.reserved hcd]
   rw [recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 /-- **What `Main.lean` prints.**  The stand-in for ECDSARECOVER returns the key `x ‖ y` exactly

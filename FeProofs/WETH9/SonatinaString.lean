@@ -53,6 +53,8 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     repeat ir_step
     exact .exit _
   have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
+  have hmr : w.reserved.memory.size + 2 ^ 66 < UInt256.size := by
+    rw [World.reserved_size, hw]; decide
   rw [show (entry Exported.recv0_arm0_entry).exec I w = (entry (Exported.SolString_load
       (.storage (UInt256.ofNat 0)) >>= Exported.Evm_return_value_Sol_DynString)).exec I w by
     simp [entry, Exported.recv0_arm0_entry, exec_nonPayable, hwv, Exported.decodeName_exec,
@@ -76,7 +78,7 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     swap
     · have h64l : ¬ 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd,
+        simp only [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd,
           show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64, h64l]
@@ -103,25 +105,29 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     simp only [ofNat_zero_eq] at hrv' hext
     by_cases h64' : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
     · have h64l' : 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
-      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_true]; rfl)]
+      rw [entry_exec (by simp only [Exported.stringReturn_exec I w.reserved _ hmr,
+        World.reserved_accounts, hd, h64', ite_true]; rfl)]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l', hext]
       exact .stop_stop rfl rfl rfl
     · have h64l' : ¬ 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_false])]
+        simp only [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd,
+          h64', ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l']
       exact .panic_revert 65
   | revert =>
     have hd' : solidityDecodeBytesLengthHeader (slotWord I w.accounts ⟨0⟩) = .revert := hd
-    rw [entry_exec (f := .revert (panicData 0x22)) (by rw [Exported.stringReturn_exec I w _ hw, hd])]
+    rw [entry_exec (f := .revert (panicData 0x22))
+      (by rw [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd])]
     ir_step
     ir_step [hrun, loadOut, hd, hd']
     exact .exit _
   | error =>
     have hd' : solidityDecodeBytesLengthHeader (slotWord I w.accounts ⟨0⟩) = .error := hd
-    rw [entry_exec (f := .revert (panicData 0x22)) (by rw [Exported.stringReturn_exec I w _ hw, hd])]
+    rw [entry_exec (f := .revert (panicData 0x22))
+      (by rw [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd])]
     ir_step
     ir_step [hrun, loadOut, hd, hd']
     exact .exit _
@@ -144,6 +150,8 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     repeat ir_step
     exact .exit _
   have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
+  have hmr : w.reserved.memory.size + 2 ^ 66 < UInt256.size := by
+    rw [World.reserved_size, hw]; decide
   rw [show (entry Exported.recv0_arm7_entry).exec I w = (entry (Exported.SolString_load
       (.storage (UInt256.ofNat 1)) >>= Exported.Evm_return_value_Sol_DynString)).exec I w by
     simp [entry, Exported.recv0_arm7_entry, exec_nonPayable, hwv, Exported.decodeSymbol_exec,
@@ -167,7 +175,7 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     swap
     · have h64l : ¬ 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd,
+        simp only [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd,
           show ¬ 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64 by omega, ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64, h64l]
@@ -193,25 +201,29 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     have h64l : 32 + (L + 31) / 32 * 32 < 18446744073709551616 := h64
     by_cases h64' : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
     · have h64l' : 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
-      rw [entry_exec (by simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_true]; rfl)]
+      rw [entry_exec (by simp only [Exported.stringReturn_exec I w.reserved _ hmr,
+        World.reserved_accounts, hd, h64', ite_true]; rfl)]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l', hext]
       exact .stop_stop rfl rfl rfl
     · have h64l' : ¬ 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 := h64'
       rw [entry_exec (f := .panic 0x41) (by
-        simp only [Exported.stringReturn_exec I w _ hw, hd, h64', ite_false])]
+        simp only [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd,
+          h64', ite_false])]
       ir_step
       ir_step [hrun, loadOut, hd, hd', h64l, hSm, hrv', h64', h64l']
       exact .panic_revert 65
   | revert =>
     have hd' : solidityDecodeBytesLengthHeader (slotWord I w.accounts ⟨1⟩) = .revert := hd
-    rw [entry_exec (f := .revert (panicData 0x22)) (by rw [Exported.stringReturn_exec I w _ hw, hd])]
+    rw [entry_exec (f := .revert (panicData 0x22))
+      (by rw [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd])]
     ir_step
     ir_step [hrun, loadOut, hd, hd']
     exact .exit _
   | error =>
     have hd' : solidityDecodeBytesLengthHeader (slotWord I w.accounts ⟨1⟩) = .error := hd
-    rw [entry_exec (f := .revert (panicData 0x22)) (by rw [Exported.stringReturn_exec I w _ hw, hd])]
+    rw [entry_exec (f := .revert (panicData 0x22))
+      (by rw [Exported.stringReturn_exec I w.reserved _ hmr, World.reserved_accounts, hd])]
     ir_step
     ir_step [hrun, loadOut, hd, hd']
     exact .exit _

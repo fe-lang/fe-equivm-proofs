@@ -1,0 +1,263 @@
+import FeProofs.Precompiles.Buffer
+
+/-!
+# Precompiles: limbs in memory
+
+Fe's `MemArray<u64>` is a pointer and a length; element `i` lies at `ptr + 8 i`, and the exported
+code reads it with `mloadInt (.u 64)` and writes it with `mstoreInt (.u 64)`: eight bytes,
+big-endian.  This file says what memory holds in those terms.
+
+- Bytes: `byteAt_append`, `byteAt_write`, `zeros`, `ext_byteAt` (two memories with the same
+  bytes are equal), `beAt_congr` (a number read depends only on its bytes), `read_beAt` (what
+  `readWithPadding` gives, as `beAt`).
+- Limbs: `val` (the little-endian number of limbs), `enc8` and `store8` (the bytes `mstoreInt`
+  writes), `LimbsAt mem p ls` (memory at `p` holds the limbs `ls`), with the lemmas for a store
+  over one of them (`LimbsAt.store`), a store elsewhere (`LimbsAt.store_other`), memory that
+  grows (`LimbsAt.append`) and fresh zeros (`limbsAt_zeros`).
+-/
+
+open Ethereum Fe Fe.EVM Reasoning.Theory
+
+namespace FeProofs.Precompiles
+
+/-! ## Bytes -/
+
+theorem byteAt_eq (d : ByteArray) (j : ℕ) :
+    byteAt d j = if h : j < d.size then d[j].toNat else 0 := by
+  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  split_ifs with h
+  · simp only [byteAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : j < d.toList.length),
+      Option.getD_some]
+    congr 1
+    rw [List.getElem_of_eq (byteArray_toList_eq d)]
+    simp [Array.getElem_toList]
+    rfl
+  · exact byteAt_of_ge (by omega)
+
+theorem byteAt_append (a b : ByteArray) (j : ℕ) :
+    byteAt (a ++ b) j = if j < a.size then byteAt a j else byteAt b (j - a.size) := by
+  have hs := ByteArray.size_append (a := a) (b := b)
+  by_cases h : j < a.size
+  · rw [ite_eq_left h, byteAt_eq, byteAt_eq, dite_eq_left (by omega), dite_eq_left h,
+      ByteArray.getElem_append_left h]
+  · rw [ite_eq_right h, byteAt_eq, byteAt_eq]
+    by_cases h' : j - a.size < b.size
+    · rw [dite_eq_left (by omega), dite_eq_left h', ByteArray.getElem_append_right (by omega)]
+    · rw [dite_eq_right (by omega), dite_eq_right h']
+
+theorem byteAt_extract (d : ByteArray) (s e j : ℕ) (h : e ≤ d.size) :
+    byteAt (d.extract s e) j = if j < e - s then byteAt d (s + j) else 0 := by
+  have hs : (d.extract s e).size = e - s := by rw [ByteArray.size_extract, Nat.min_eq_left h]
+  by_cases hj : j < e - s
+  · rw [ite_eq_left hj, byteAt_eq, byteAt_eq, dite_eq_left (by omega), dite_eq_left (by omega),
+      ByteArray.getElem_extract]
+  · rw [ite_eq_right hj, byteAt_of_ge (by omega)]
+
+/-- Writing `n` bytes of `src` at `a` inside `mem` changes those bytes only. -/
+theorem byteAt_write (src mem : ByteArray) (a n j : ℕ) (hn : n ≤ src.size) (h : a + n ≤ mem.size) :
+    byteAt (src.write 0 mem a n) j = if a ≤ j ∧ j < a + n then byteAt src (j - a) else byteAt mem j := by
+  by_cases h0 : n = 0
+  · subst h0; rw [byteArray_write_len_zero]; simp
+  rw [write_eq_gen _ _ _ _ h0 hn h, byteAt_append, byteAt_append]
+  simp only [ByteArray.size_append, ByteArray.size_extract, Nat.min_eq_left (show a ≤ mem.size by omega),
+    Nat.min_eq_left hn, Nat.sub_zero]
+  rw [byteAt_extract _ _ _ _ (by omega), byteAt_extract _ _ _ _ (by omega),
+    byteAt_extract _ _ _ _ le_rfl]
+  simp only [Nat.sub_zero, Nat.zero_add]
+  by_cases h1 : j < a
+  · rw [ite_eq_left (by omega), ite_eq_left h1, ite_eq_left h1, ite_eq_right (by omega)]
+  · by_cases h2 : j < a + n
+    · rw [ite_eq_left h2, ite_eq_right h1, ite_eq_left (by omega), ite_eq_left ⟨by omega, h2⟩]
+    · rw [ite_eq_right h2, ite_eq_right (show ¬ (a ≤ j ∧ j < a + n) by omega)]
+      by_cases h3 : j - (a + n) < mem.size - (a + n)
+      · rw [ite_eq_left h3, show a + n + (j - (a + n)) = j by omega]
+      · rw [ite_eq_right h3, byteAt_of_ge (by omega)]
+
+/-- `n` zero bytes. -/
+def zeros (n : ℕ) : ByteArray := ⟨Array.replicate n 0⟩
+
+@[simp] theorem zeros_size (n : ℕ) : (zeros n).size = n := Array.size_replicate
+
+theorem byteAt_zeros (n j : ℕ) : byteAt (zeros n) j = 0 := by
+  rw [byteAt_eq]
+  split_ifs with h
+  · show ((zeros n).data[j]'(by simpa using h)).toNat = 0
+    simp [zeros]
+  · rfl
+
+/-- **Memories with the same bytes are equal.** -/
+theorem ext_byteAt {d d' : ByteArray} (hs : d.size = d'.size)
+    (h : ∀ j < d.size, byteAt d j = byteAt d' j) : d = d' := by
+  apply ByteArray.ext
+  apply Array.ext hs
+  intro j h1 h2
+  have := h j h1
+  rw [byteAt_eq, byteAt_eq, dite_eq_left (show j < d.size from h1),
+    dite_eq_left (show j < d'.size from h2)] at this
+  exact UInt8.toNat_inj.mp this
+
+/-- A number read depends only on its bytes. -/
+theorem beAt_congr {d d' : ByteArray} {o o' : ℕ} :
+    ∀ {n}, (∀ k < n, byteAt d (o + k) = byteAt d' (o' + k)) → beAt d o n = beAt d' o' n
+  | 0, _ => rfl
+  | n + 1, h => by
+    rw [beAt, beAt, beAt_congr (fun k hk => h k (by omega)), h n (by omega)]
+
+/-- **A read inside memory** is `beAt`. -/
+theorem read_beAt (mem : ByteArray) (a n : ℕ) (hn : 0 < n) (hn64 : n < 2 ^ 64)
+    (h : a + n ≤ mem.size) : fromByteArrayBigEndian (mem.readWithPadding a n) = beAt mem a n := by
+  rw [readWithPadding_eq_extract' _ _ _ hn hn64 h, fromByteArrayBigEndian_extract _ _ _ h]
+
+/-! ## Limbs -/
+
+/-- The number of limbs, least significant first. -/
+def val : List Limb → ℕ
+  | [] => 0
+  | x :: xs => x.val + 2 ^ 64 * val xs
+
+theorem val_lt : ∀ ls : List Limb, val ls < 2 ^ (64 * ls.length)
+  | [] => by simp [val]
+  | x :: xs => by
+    have := val_lt xs
+    have := x.isLt
+    rw [val, List.length_cons, show 64 * (xs.length + 1) = 64 + 64 * xs.length by ring, pow_add]
+    nlinarith
+
+theorem val_append : ∀ a b : List Limb, val (a ++ b) = val a + 2 ^ (64 * a.length) * val b
+  | [], b => by simp [val]
+  | x :: xs, b => by
+    rw [List.cons_append, val, val, val_append xs b, List.length_cons,
+      show 64 * (xs.length + 1) = 64 + 64 * xs.length by ring, pow_add]
+    ring
+
+theorem val_replicate_zero (n : ℕ) : val (List.replicate n 0) = 0 := by
+  induction n with
+  | zero => rfl
+  | succ n ih => rw [List.replicate_succ, val, ih]; rfl
+
+/-- Limb `k` of the number. -/
+theorem val_limb : ∀ (ls : List Limb) (k : ℕ) (hk : k < ls.length),
+    val ls / 2 ^ (64 * k) % 2 ^ 64 = ls[k].val
+  | x :: xs, 0, _ => by
+    simp only [val, Nat.mul_zero, pow_zero, Nat.div_one, List.getElem_cons_zero]
+    rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt x.isLt]
+  | x :: xs, k + 1, hk => by
+    have hx := x.isLt
+    rw [val, show 64 * (k + 1) = 64 + 64 * k by ring, pow_add, ← Nat.div_div_eq_div_mul,
+      show (x.val + 2 ^ 64 * val xs) / 2 ^ 64 = val xs by
+        rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt hx, Nat.zero_add],
+      List.getElem_cons_succ]
+    exact val_limb xs k (by simp at hk; omega)
+
+/-- A bit of a number below `2 ^ 64` past its first `q` limbs. -/
+theorem bit_low (n r : ℕ) (hr : r < 64) : n / 2 ^ r % 2 = n % 2 ^ 64 / 2 ^ r % 2 := by
+  conv_lhs => rw [← Nat.div_add_mod n (2 ^ 64)]
+  rw [show 2 ^ 64 * (n / 2 ^ 64) = 2 ^ r * (2 ^ (64 - r) * (n / 2 ^ 64)) by
+      rw [← Nat.mul_assoc, ← pow_add, Nat.add_sub_cancel' hr.le], Nat.add_comm,
+    Nat.add_mul_div_left _ _ (by positivity), Nat.add_mod,
+    show 2 ^ (64 - r) * (n / 2 ^ 64) % 2 = 0 by
+      rw [show 64 - r = (64 - r - 1) + 1 by omega, pow_succ]
+      rw [Nat.mul_assoc, Nat.mul_comm 2, ← Nat.mul_assoc]; exact Nat.mul_mod_left _ _,
+    Nat.add_zero, Nat.mod_mod]
+
+/-- **Bit `p` of the number** is bit `p mod 64` of limb `p / 64`. -/
+theorem val_bit (ls : List Limb) (p : ℕ) (hp : p < 64 * ls.length) :
+    val ls / 2 ^ p % 2 = ls[p / 64].val / 2 ^ (p % 64) % 2 := by
+  rw [← val_limb ls (p / 64) (by omega), ← bit_low _ _ (Nat.mod_lt _ (by norm_num)),
+    Nat.div_div_eq_div_mul, ← pow_add, Nat.div_add_mod]
+
+/-- The eight bytes `mstoreInt (.u 64)` writes of a limb. -/
+def enc8 (x : Limb) : ByteArray := x.w.toByteArray.extract 24 32
+
+@[simp] theorem enc8_size (x : Limb) : (enc8 x).size = 8 := by
+  rw [enc8, ByteArray.size_extract, toByteArray_size]; rfl
+
+theorem beAt_enc8 (x : Limb) : beAt (enc8 x) 0 8 = x.val := by
+  rw [← fromByteArrayBigEndian_extract _ 0 8 (by simp), Nat.zero_add,
+    show (enc8 x).extract 0 8 = enc8 x by
+      conv_rhs => rw [← ByteArray.extract_zero_size (b := enc8 x)]
+      rw [enc8_size],
+    enc8, fromByteArrayBigEndian_low8, Limb.toNat_w, Nat.mod_eq_of_lt x.isLt]
+
+/-- Memory with the limb `x` stored at `q`. -/
+def store8 (mem : ByteArray) (q : ℕ) (x : Limb) : ByteArray := (enc8 x).write 0 mem q 8
+
+theorem store8_size {mem : ByteArray} {q : ℕ} (x : Limb) (h : q + 8 ≤ mem.size) :
+    (store8 mem q x).size = mem.size :=
+  byteArray_write_size_of_inBounds _ _ _ _ (by simp) h
+
+theorem byteAt_store8 {mem : ByteArray} {q : ℕ} (x : Limb) (h : q + 8 ≤ mem.size) (j : ℕ) :
+    byteAt (store8 mem q x) j =
+      if q ≤ j ∧ j < q + 8 then byteAt (enc8 x) (j - q) else byteAt mem j :=
+  byteAt_write _ _ _ _ _ (by simp) h
+
+theorem beAt_store8_same {mem : ByteArray} {q : ℕ} (x : Limb) (h : q + 8 ≤ mem.size) :
+    beAt (store8 mem q x) q 8 = x.val := by
+  rw [← beAt_enc8 x]
+  apply beAt_congr
+  intro k hk
+  rw [byteAt_store8 x h, ite_eq_left (by omega), Nat.zero_add, Nat.add_sub_cancel_left]
+
+/-- A store leaves the bytes of a window apart from it. -/
+theorem beAt_store8_other {mem : ByteArray} {q r n : ℕ} (x : Limb) (h : q + 8 ≤ mem.size)
+    (hd : r + n ≤ q ∨ q + 8 ≤ r) : beAt (store8 mem q x) r n = beAt mem r n := by
+  apply beAt_congr
+  intro k hk
+  rw [byteAt_store8 x h, ite_eq_right (by omega)]
+
+/-- **Memory at `p` holds the limbs `ls`**: element `i` is the big-endian number of the eight
+    bytes at `p + 8 i`, all inside memory. -/
+def LimbsAt (mem : ByteArray) (p : ℕ) (ls : List Limb) : Prop :=
+  p + 8 * ls.length ≤ mem.size ∧ ∀ i (h : i < ls.length), beAt mem (p + 8 * i) 8 = ls[i].val
+
+/-- A store over limb `i`. -/
+theorem LimbsAt.store {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : LimbsAt mem p ls) {i : ℕ}
+    (hi : i < ls.length) (x : Limb) : LimbsAt (store8 mem (p + 8 * i) x) p (ls.set i x) := by
+  have hq : p + 8 * i + 8 ≤ mem.size := by have := h.1; omega
+  refine ⟨by rw [store8_size x hq, List.length_set]; exact h.1, fun k hk => ?_⟩
+  rw [List.length_set] at hk
+  by_cases hik : i = k
+  · subst hik; rw [List.getElem_set_self, beAt_store8_same x hq]
+  · rw [List.getElem_set_ne hik, beAt_store8_other x hq (by omega), h.2 k hk]
+
+/-- A store apart from the limbs. -/
+theorem LimbsAt.store_other {mem : ByteArray} {p q : ℕ} {ls : List Limb} (h : LimbsAt mem p ls)
+    (hq : q + 8 ≤ mem.size) (hd : q + 8 ≤ p ∨ p + 8 * ls.length ≤ q) (x : Limb) :
+    LimbsAt (store8 mem q x) p ls :=
+  ⟨by rw [store8_size x hq]; exact h.1, fun k hk => by
+    rw [beAt_store8_other x hq (by omega), h.2 k hk]⟩
+
+/-- Memory that grows keeps the limbs. -/
+theorem LimbsAt.append {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : LimbsAt mem p ls)
+    (X : ByteArray) : LimbsAt (mem ++ X) p ls :=
+  ⟨by rw [ByteArray.size_append]; have := h.1; omega, fun k hk => by
+    rw [← h.2 k hk]
+    apply beAt_congr
+    intro j hj
+    rw [byteAt_append, ite_eq_left (by have := h.1; omega)]⟩
+
+/-- Memory whose bytes over the limbs are the same holds them too. -/
+theorem LimbsAt.congr {mem mem' : ByteArray} {p : ℕ} {ls : List Limb} (h : LimbsAt mem p ls)
+    (hs : p + 8 * ls.length ≤ mem'.size)
+    (hb : ∀ j, p ≤ j → j < p + 8 * ls.length → byteAt mem' j = byteAt mem j) :
+    LimbsAt mem' p ls :=
+  ⟨hs, fun k hk => by
+    rw [← h.2 k hk]
+    apply beAt_congr
+    intro j hj
+    exact hb _ (by omega) (by omega)⟩
+
+/-- **Fresh zeros** hold zero limbs. -/
+theorem limbsAt_zeros (mem : ByteArray) (n : ℕ) :
+    LimbsAt (mem ++ zeros (8 * n)) mem.size (List.replicate n 0) := by
+  refine ⟨by simp [ByteArray.size_append], fun k hk => ?_⟩
+  rw [List.length_replicate] at hk
+  rw [List.getElem_replicate]
+  have : beAt (mem ++ zeros (8 * n)) (mem.size + 8 * k) 8 = beAt (zeros 8) 0 8 := by
+    apply beAt_congr
+    intro j hj
+    rw [byteAt_append, ite_eq_right (by omega), byteAt_zeros, byteAt_zeros]
+  rw [this]
+  simp [beAt, byteAt_zeros]
+
+end FeProofs.Precompiles

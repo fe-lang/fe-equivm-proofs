@@ -64,7 +64,7 @@ theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.cal
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.runtime, exec_nonPayable, hwv, hn4, ne_of_beq_false (sel0_not h0), eq_of_beq (sel1 h1)]
   rw [eg, eh]
-  exact endsAs_arm (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (keepsMemory_sload _) hmem
+  exact endsAs_arm (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) (ignoresMemory_sload _) hmem
 
 /-- The `Set` entry ends as the model's entry does on calldata with the selector of
     `set(uint256)`. -/
@@ -79,19 +79,20 @@ theorem set_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 
     exact .exit _
   by_cases hshort : I.calldata.size < 36
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I w hlo hfits, hshort]),
+      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort]),
       runtime_set_head hlo h0 hwv (hbad.mpr (by omega))]
     exact .exit _
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { w with accounts := storeWord I.codeOwner w.accounts ⟨0⟩ (word I.calldata 4) }) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I w hlo hfits, hshort,
+        { w.reserved with
+          accounts := storeWord I.codeOwner w.accounts ⟨0⟩ (word I.calldata 4) }) (by
+      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
         recv0_arm1_eq, Model.set, Model.storedSlot, exec_sstore, hperm, returnNone_exec]),
       runtime_set hlo h0 hwv hgood hperm]
     exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I w hlo hfits, hshort,
+      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
         recv0_arm1_eq, Model.set, exec_sstore, hperm]),
       runtime_set_static hlo h0 hwv hgood (by simpa using hperm)]
     exact .exit _
@@ -142,12 +143,12 @@ end Entries
 /-- The exported deployment entry ends as the hand-written model's does, on one argument word. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
     (hmem : w.memory.size + 32 < UInt256.size) :
-    EndsAs ((init_entry (ctorTail v) >>= fun tail => pure (out ++ tail)).exec I w)
+    EndsAs ((deploy init_entry (ctorTail v) >>= fun tail => pure (out ++ tail)).exec I w)
       ((Model.init (ctorTail v) >>= fun _ => pure out).exec I w) := by
   have hsz : (ctorTail v).size = 32 := word_toBytesBE_toByteArray_size v
   have hword : uInt256OfByteArray ((ctorTail v).readBytes 0 32) = v := by
     rw [readBytes_all32 _ hsz, ctorTail_eq, uInt256OfByteArray_toByteArray]
-  rw [M.exec_bind, initEntry_exec I w v hmem]
+  rw [deploy_bind_eq, M.exec_bind, initEntry_exec I _ v (reserveMemory_room hmem (by decide))]
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · simp [Model.init, exec_nonPayable, hwv]

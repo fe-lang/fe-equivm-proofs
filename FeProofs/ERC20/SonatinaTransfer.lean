@@ -41,8 +41,10 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
     (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm0_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 40).exec I w)) := by
+  have hr : w.reserved.memory.size + 512 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := decodeTransfer_exec I w hsz hfits
+  have hdec := decodeTransfer_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -85,7 +87,8 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
     repeat ir_step
     exact .exit _
   -- The receiver's balance after the sender's is written, which both sides read.
-  have hk : ∀ k r k' r' k'' r'', (keyed (keyed (keyed w.memory k r) k' r') k'' r'').size + 64 <
+  have hk : ∀ k r k' r' k'' r'',
+    (keyed (keyed (keyed w.reserved.memory k r) k' r') k'' r'').size + 64 <
       UInt256.size := by
     intro _ _ _ _ _ _; simp only [keyed_size]; omega
   simp (maxSteps := 2000000) (disch := room) [hwv, hdec, hshort, hna, Exported.Evm_caller,
@@ -112,11 +115,13 @@ theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.E
     have hoverB := hover
     simp only [UInt256.size] at hoverB
     have he : ∀ k r k' r' k'' r'' k3 r3 k4 r4,
-        (keyed (keyed (keyed (keyed (keyed w.memory k r) k' r') k'' r'') k3 r3) k4 r4).size + 32 <
+        (keyed (keyed (keyed (keyed
+          (keyed w.reserved.memory k r) k' r') k'' r'') k3 r3) k4 r4).size + 32 <
           UInt256.size := by
       intro _ _ _ _ _ _ _ _ _ _; simp only [keyed_size]; omega
     have hr : ∀ k r k' r' k'' r'' k3 r3 k4 r4 v,
-        (returned (keyed (keyed (keyed (keyed (keyed w.memory k r) k' r') k'' r'') k3 r3) k4 r4)
+        (returned (keyed (keyed (keyed (keyed
+          (keyed w.reserved.memory k r) k' r') k'' r'') k3 r3) k4 r4)
           v).size + 32 < UInt256.size := by
       intro _ _ _ _ _ _ _ _ _ _ _; simp only [keyed_size, returned_size]; omega
     simp only [hoverW, ↓reduceIte]

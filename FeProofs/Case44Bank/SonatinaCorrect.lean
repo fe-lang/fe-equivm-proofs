@@ -78,7 +78,8 @@ theorem arm_credit (hm : m.func? "credit" = some creditFunc)
     EndsAs ((entry Exported.recv0_arm0_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 5).exec I w)) := by
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeCredit_exec I w hsz hfits
+  have hdec := Exported.decodeCredit_exec I w.reserved hsz hfits
+  have hr : w.reserved.memory.size + 512 < UInt256.size := reserveMemory_room hmem (by decide)
   have hc := fun w => ir_credit m ic I w hm
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -232,7 +233,7 @@ theorem ir_init_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × World))
     bytes after the pinned creation code: neither reads them, and both return the runtime
     code. -/
 theorem init_endsAs (args : ByteArray) (hcode : I.code = case44BankCreationBytecode ++ args) :
-    EndsAs ((Exported.init_entry args >>= fun tail =>
+    EndsAs ((deploy Exported.init_entry args >>= fun tail =>
         pure (case44BankBytecode ++ tail)).exec I w)
       (((sidecar.model .machine).init args >>= fun tail =>
         pure (ByteArray.empty ++ tail)).exec I w) := by
@@ -242,7 +243,7 @@ theorem init_endsAs (args : ByteArray) (hcode : I.code = case44BankCreationBytec
     intro M
     rw [Reasoning.Theory.write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide),
       hcode, Reasoning.Theory.extract_append_left _ _ _ _ (by omega), hrt]
-  rw [init_bind_eq, Fe.M.exec_bind, Exported.initEntry_exec]
+  rw [deploy_bind_eq, init_bind_eq, Fe.M.exec_bind, Exported.initEntry_exec]
   apply ir_init_endsAs
   intro m ic hs
   by_cases hwv : I.weiValue = ⟨0⟩

@@ -91,8 +91,75 @@ structure ContractModel where
   /-- The bytes the immutable fields take. -/
   immutables : Nat := 0
 
-/-- An entry as a computation of return data: it never returns, so it has none to give. -/
-def entry (m : FeM Empty) : FeM ByteArray := m >>= fun e => nomatch e
+/-- The low memory a compiled section's entry code reserves before the contract's code runs: the
+    scratch space at `0x00` and the free-pointer word at `0x40`.  A section that allocates stores
+    its initial free pointer at `0x40`, which grows memory to at least `0x60` bytes, and its heap
+    starts at or above `0x60`; a section that does not allocate has no heap.  So no allocation
+    of the bytecode is at address 0, which core's `try_alloc_bytes` reads as a failed allocation.
+    The model allocates at the end of memory (`alloc`), so its entries grow memory to this size
+    first.  No exported code reads memory at a fixed address, so what these bytes hold is not
+    observed: the model's are zeros where the bytecode's free-pointer word is not. -/
+def reservedMemory : Nat := 0x60
+
+/-- Memory grown with zeros to at least `reservedMemory` bytes, as a store at `0x40` grows it. -/
+@[irreducible] def reserveMemory (memory : ByteArray) : ByteArray :=
+  memory ++ ⟨Array.replicate (reservedMemory - memory.size) 0⟩
+
+/-- The world with low memory reserved. -/
+def World.reserved (w : World) : World := { w with memory := reserveMemory w.memory }
+
+@[simp] theorem World.reserved_accounts (w : World) : w.reserved.accounts = w.accounts := rfl
+@[simp] theorem World.reserved_logs (w : World) : w.reserved.logs = w.logs := rfl
+@[simp] theorem World.reserved_returnData (w : World) : w.reserved.returnData = w.returnData := rfl
+@[simp] theorem World.reserved_feed (w : World) : w.reserved.feed = w.feed := rfl
+@[simp] theorem World.reserved_calls (w : World) : w.reserved.calls = w.calls := rfl
+
+/-- What a section's entry code does before the contract's code runs: reserve low memory. -/
+def reserve : FeM Unit := modify World.reserved
+
+@[simp] theorem exec_reserve (I : ExecutionEnv) (w : World) :
+    reserve.exec I w = some (.ok ((), w.reserved)) := rfl
+
+theorem reserveMemory_size (memory : ByteArray) :
+    (reserveMemory memory).size = max memory.size reservedMemory := by
+  simp only [reserveMemory, ByteArray.size_append]
+  change memory.size + (Array.replicate _ _).size = _
+  rw [Array.size_replicate]
+  omega
+
+theorem World.reserved_size (w : World) : w.reserved.memory.size = max w.memory.size 96 :=
+  reserveMemory_size w.memory
+
+/-- Reserved memory has room for `k` more bytes when memory had, and low memory has. -/
+theorem reserveMemory_room {memory : ByteArray} {k : Nat} (h : memory.size + k < UInt256.size)
+    (hk : reservedMemory + k < UInt256.size) : (reserveMemory memory).size + k < UInt256.size := by
+  rw [reserveMemory_size]
+  omega
+
+/-- The runtime entry: reserve low memory, then run the entry the exporter prints, which never
+    returns, so it has no return data to give. -/
+def entry (m : FeM Empty) : FeM ByteArray := do
+  reserve
+  m >>= fun e => nomatch e
+
+/-- The deployment entry: reserve low memory, then run the constructor's entry the exporter
+    prints, `init`, on the argument bytes. -/
+def deploy (init : ByteArray → FeM ByteArray) (args : ByteArray) : FeM ByteArray := do
+  reserve
+  init args
+
+/-- The runtime entry runs the exporter's entry on reserved memory. -/
+theorem entry_eq (m : FeM Empty) (I : ExecutionEnv) (w : World) :
+    (entry m).exec I w =
+      (m >>= fun e => nomatch e : FeM ByteArray).exec I w.reserved := by
+  simp only [entry, M.exec_bind, exec_reserve]
+
+/-- The deployment entry runs the constructor's entry on reserved memory. -/
+theorem deploy_bind_eq (init : ByteArray → FeM ByteArray) (args : ByteArray)
+    (k : ByteArray → FeM ByteArray) (I : ExecutionEnv) (w : World) :
+    (deploy init args >>= k).exec I w =
+      (init args >>= k).exec I w.reserved := by
+  simp only [deploy, M.exec_bind, exec_reserve]
 
 /-- The bytecode halts for want of a resource the model does not have: gas, or room on the
     EVM's stack of 1024 words, which a deep enough recursion fills.  A caller cannot tell the two

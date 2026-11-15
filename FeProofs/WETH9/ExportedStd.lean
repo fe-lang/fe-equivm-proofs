@@ -597,7 +597,7 @@ set_option maxHeartbeats 4000000 in
 /-- A string getter's body: `SolString::load` at `slot`, returned, from the empty memory a call
     starts with.  The bytes `loaded` copies, after the offset word and the length word, or
     `Panic(0x41)` at `2 ^ 64` bytes, or `Panic(0x22)` on a bad head. -/
-theorem stringReturn_exec (slot : UInt256) (hw : w.memory = ByteArray.empty) :
+theorem stringReturn_exec (slot : UInt256) (hmem : w.memory.size + 2 ^ 66 < UInt256.size) :
     (SolString_load (.storage slot) >>= Evm_return_value_Sol_DynString).exec I w =
       match solidityDecodeBytesLengthHeader (slotWord I w.accounts slot) with
       | .ok L =>
@@ -609,9 +609,8 @@ theorem stringReturn_exec (slot : UInt256) (hw : w.memory = ByteArray.empty) :
                 ((UInt256.ofNat L).toByteArray ++ loaded w.accounts I slot L)) }))
         else some (.error (.panic 0x41))
       | _ => some (.error (.revert (panicData 0x22))) := by
-  have hmem : w.memory.size + 2 ^ 65 < UInt256.size := by rw [hw]; decide
   have hsz : UInt256.size = 2 ^ 256 := rfl
-  simp only [M.exec_bind, solStringLoad_exec I w slot hmem]
+  simp only [M.exec_bind, solStringLoad_exec I w slot (by omega)]
   cases hd : solidityDecodeBytesLengthHeader (slotWord I w.accounts slot) with
   | ok L =>
     have hL : L < 2 ^ 255 := by
@@ -632,7 +631,7 @@ theorem stringReturn_exec (slot : UInt256) (hw : w.memory = ByteArray.empty) :
               ((UInt256.ofNat L).toByteArray ++ loaded w.accounts I slot L).size by omega,
             byteArray_extract_self])
       (by simp only [ByteArray.size_append, hB]; omega) (by omega)
-      (by simp only [ByteArray.size_append, hB, hw]; simp; omega) h32]
+      (by simp only [ByteArray.size_append, hB]; omega) h32]
   | revert => rfl
   | error => rfl
 
@@ -838,6 +837,6 @@ theorem writeDecimalsLit_exec :
 end Constructor
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
+def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
 
 end FeProofs.WETH9.Exported

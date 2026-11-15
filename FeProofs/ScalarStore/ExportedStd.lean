@@ -77,6 +77,6 @@ theorem initEntry_exec (v : UInt256) (hmem : w.memory.size + 32 < UInt256.size) 
   · simp [init_entry, exec_nonPayable, hwv]
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
+def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
 
 end FeProofs.ScalarStore.Exported
