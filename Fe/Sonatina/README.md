@@ -487,6 +487,16 @@ FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the bytecode of `FeP
 from its entry to the block of the selector's arm, one lemma per arm runs that block to its end
 against the arm of the exported contract from any environment, and `runtime_endsAs` composes them.
 
+WETH9's (`FeProofs/WETH9/Sonatina*.lean`, in progress) is of the pinned `FeProofs/WETH9/runtime.hex`
+and `creation.hex` themselves: Fe `8a33d20257` (Sonatina `bd20fac3`, `-O 1`) compiles
+`FeProofs/WETH9` to the same bytes as the commit `FeWETH9.build.json` names, which was checked by
+rebuilding it, so the P0 and P1 certificates are of one bytecode.  Its machine IR has internal
+calls (`%deposit`, `%transfer_from`, `%load` with `%stored_len` and `%revert_error`, and
+`%return_value__g7f54`), each run by one callee lemma used at every call site, and keeps map keys
+in its arena at 160 and 192, above the memory a call starts with (`pair_slot_gap`).  `withdraw`'s
+message call is `Fe.EVM.call` on both sides; with no input and no output both are the call on
+empty memory (`call_noData`, `call_noData0`), so both runs go on from one result.
+
 Checker changes the proof needed, none changing a verdict except the third:
 - `opEval` gives `SDIV`, `SMOD`, `SIGNEXTEND`, `ADDMOD`, `MULMOD` and `EXP` their values;
 - the machine IR must be word-typed (the interpreter computes `add` at the operands' width);

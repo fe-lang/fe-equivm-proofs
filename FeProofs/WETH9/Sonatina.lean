@@ -7,7 +7,10 @@ import FeProofs.WETH9.Bytecode
 
 The sidecar `fe build --emit sidecar` wrote for WETH9 (`Fe/Sonatina/Fixtures`), and the facts
 the certificate through `check_sound` needs of it: its runtime and init bytes are `runtime.hex`
-and `creation.hex` of this directory, which the pinned Fe commit compiles as the older one did;
+and `creation.hex` of this directory.  Fe `8a33d20257` (Sonatina `bd20fac3`, `-O 1`, `osaka`), the
+commit the sidecar comes from, compiles `FeProofs/WETH9` to these same bytes as the commit
+`FeWETH9.build.json` names, which was checked by rebuilding it, so the P0 and P1 certificates are
+of one bytecode;
 the creation code holds the runtime code where the init section's symbol `&WETH9_runtime` puts
 it; and the checker accepts the sidecar.  All four are decided by the kernel.  The `*Func`s are
 the machine IR's functions of the two sections, read from the sidecar.
