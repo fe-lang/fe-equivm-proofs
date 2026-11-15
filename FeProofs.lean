@@ -17,7 +17,7 @@ import FeProofs.ScalarStore.SonatinaRun
 import FeProofs.ScalarStore.SonatinaCorrect
 import FeProofs.ERC20.SonatinaCorrect
 import FeProofs.PackedStore.RuntimeCorrect
-import FeProofs.ERC20.RuntimeCorrect
+import FeProofs.ERC20.ModelCorrect
 import FeProofs.CodeScalar.RuntimeCorrect
 import FeProofs.WETH9.RuntimeCorrect
 import FeProofs.WETH9.SonatinaArms
