@@ -444,4 +444,66 @@ theorem smul_spec (L : ℕ) (hL : 1 ≤ L ∧ L ≤ 4) (m a b : L4) (inv : Limb)
   · exact smul3_spec m a b inv hinv hm ha hb hab
   · exact smul4_spec m a b inv hinv hab
 
+/-- The doubled limbs and the top bit denote `2 x`. -/
+theorem dbl_val (x : L4) :
+    nat4 ⟨dblL x.l0, shl1 x.l1 x.l0, shl1 x.l2 x.l1, shl1 x.l3 x.l2⟩ + 2 ^ 256 * (hib x.l3).val =
+      2 * nat4 x := by
+  have h0 := x.l0.isLt; have h1 := x.l1.isLt; have h2 := x.l2.isLt; have h3 := x.l3.isLt
+  simp only [nat4, dblL, shl1, hib]
+  omega
+
+/-- **`Small::double`**: for `x < m`, `2 x mod m`. -/
+theorem sdouble_spec (m x : L4) (hx : nat4 x < nat4 m) :
+    nat4 (sdouble m x) = 2 * nat4 x % nat4 m ∧ nat4 (sdouble m x) < nat4 m := by
+  have hm := nat4_lt m
+  have hS := dbl_val x
+  simp only [sdouble]
+  generalize dblL x.l0 = s0 at hS ⊢
+  generalize shl1 x.l1 x.l0 = s1 at hS ⊢
+  generalize shl1 x.l2 x.l1 = s2 at hS ⊢
+  generalize shl1 x.l3 x.l2 = s3 at hS ⊢
+  generalize hib x.l3 = tb at hS ⊢
+  have e0 := sbb_step s0 m.l0 0 zero_val_le
+  have b0 := sbbHi_val_le s0 m.l0 0
+  generalize sbbHi s0 m.l0 0 = c0 at *
+  have e1 := sbb_step s1 m.l1 c0 b0
+  have b1 := sbbHi_val_le s1 m.l1 c0
+  generalize sbbHi s1 m.l1 c0 = c1 at *
+  have e2 := sbb_step s2 m.l2 c1 b1
+  have b2 := sbbHi_val_le s2 m.l2 c1
+  generalize sbbHi s2 m.l2 c1 = c2 at *
+  have e3 := sbb_step s3 m.l3 c2 b2
+  have b3 := sbbHi_val_le s3 m.l3 c2
+  generalize sbbHi s3 m.l3 c2 = c3 at *
+  have f := sbb_step tb 0 c3 b3
+  have hf := sbbHi_val_le tb 0 c3
+  have hE := chain4 e0 e1 e2 e3 f
+  have hd0 := (sbbLo s0 m.l0 0).isLt
+  have hd1 := (sbbLo s1 m.l1 c0).isLt
+  have hd2 := (sbbLo s2 m.l2 c1).isLt
+  have hd3 := (sbbLo s3 m.l3 c2).isLt
+  have hlo := (sbbLo tb 0 c3).isLt
+  generalize sbbHi tb 0 c3 = bf at *
+  generalize sbbLo s0 m.l0 0 = d0 at *
+  generalize sbbLo s1 m.l1 c0 = d1 at *
+  generalize sbbLo s2 m.l2 c1 = d2 at *
+  generalize sbbLo s3 m.l3 c2 = d3 at *
+  generalize sbbLo tb 0 c3 = lo at *
+  rw [← hS]
+  unfold nat4 at hm hx hS ⊢
+  have hT : s0.val + 2 ^ 64 * s1.val + 2 ^ 128 * s2.val + 2 ^ 192 * s3.val + 2 ^ 256 * tb.val <
+      2 * (m.l0.val + 2 ^ 64 * m.l1.val + 2 ^ 128 * m.l2.val + 2 ^ 192 * m.l3.val) := by
+    rw [hS]; exact Nat.mul_lt_mul_of_pos_left hx (by norm_num)
+  by_cases h : bf = 1
+  · rw [if_pos h]
+    rw [h, limb1, Nat.mul_one] at hE
+    exact ssub_borrow (R := 2 ^ 256) (top := tb.val) hE (lt256 hd0 hd1 hd2 hd3) hlo hm rfl hT
+  · have h0 : bf.val = 0 := by
+      rcases bf_cases hf with h' | h'
+      · exact h'
+      · exact absurd (Fin.ext h') h
+    rw [if_neg h]
+    rw [h0, Nat.mul_zero, Nat.add_zero] at hE
+    exact ssub_noborrow (R := 2 ^ 256) hE hm hT rfl
+
 end FeProofs.Modexp
