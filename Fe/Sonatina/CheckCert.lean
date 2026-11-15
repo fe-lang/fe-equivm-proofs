@@ -134,14 +134,15 @@ theorem lookup_entries {secs : List Section} {name entry : String}
       exact ⟨sec', by simp [hb', h1], h2, List.mem_cons_of_mem _ h3⟩
 
 /-- A section of a checked sidecar, run as `Ξ` runs a frame on its code followed by any bytes,
-    refines the machine IR's run of it at profile `P1`, and the frame makes no message call nor
-    creation: `XiOk` holds of it for every condition on them. -/
+    refines the machine IR's run of it at profile `P1`; if its machine IR makes no message call,
+    the frame makes no message call nor creation: `XiOk` holds of it for every condition on
+    them; and a frame that succeeds makes only the calls the machine IR's run records. -/
 theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
     {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail) :
     (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed,
       Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A feed))) ∧
-      (∀ Q, Invariant.XiOk Q σ σ₀ g A I) ∧
+      (s.hasCalls name = false → ∀ Q, Invariant.XiOk Q σ σ₀ g A I) ∧
       ∀ Q, (∀ feed out w, Succeeds ((s.runSection name .machine).exec I (World.init σ A feed)) out w →
         ∀ c ∈ w.calls, c.Ok Q) → (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) →
         Invariant.XiOk Q σ σ₀ g A I := by
@@ -187,9 +188,9 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
         simpa [hpar, hret] using this
     have hslots : (frameOf low entry f).slots hb = [] := by
       unfold Frame.slots; split <;> simp [hentry]
-    have hfin := func_run (K := false) (M := M) (tail := tail)
+    have hfin := func_run (K := low.machine.hasCalls) (M := M) (tail := tail)
       (ic := ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩) hI hsize rfl
-      hfuncs (g.toNat + 1) hint f eb eb none {}
+      hfuncs id (g.toNat + 1) hint f eb eb none {}
       (World.init σ A feed) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] hmemh
       (by rw [hname]; exact hf) he
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
@@ -201,9 +202,14 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     have hF := hfin.final
     refine ⟨(Xi_agrees (hF.agrees (by
       simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp
-      id fun h => ⟨feed, ?_⟩, fun Q => hF.xOk (g.toNat + 1), fun Q hQ ⟨_, _, hΞ⟩ => ?_⟩
+      id fun h => ⟨feed, ?_⟩, fun hnc Q => ?_, fun Q hQ ⟨_, _, hΞ⟩ => ?_⟩
     · rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
       exact h
+    -- Without message calls every step is calm.
+    · have hnc' : low.machine.hasCalls = false := by
+        simpa [Sidecar.hasCalls, hcode, hlow] using hnc
+      rw [hnc'] at hF
+      exact hF.xOk (g.toNat + 1)
     -- A frame that succeeds is the IR's run that stops, so its calls are the run's.
     obtain ⟨s', o', hX⟩ := X_of_Xi_success hΞ
     obtain ⟨out, w', hr, hc⟩ := hF.success (by
@@ -246,17 +252,19 @@ theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
         | error e => rw [hr] at hx; exact hx
         | ok p => exact absurd hr (runSection_not_ok s "init" .machine I _ p.1 p.2)
 
-/-- The frames of a checked sidecar make no message call nor creation: `XiOk` holds, for every
-    condition on calls, of a frame that runs the runtime bytes followed by any bytes, and of one
-    that runs the init bytes followed by any arguments. -/
-theorem check_xiOk {s : Sidecar} (h : check s = true) :
+/-- The frames of a checked sidecar whose machine IR makes no message call make no message call
+    nor creation: `XiOk` holds, for every condition on calls, of a frame that runs the runtime
+    bytes followed by any bytes, and of one that runs the init bytes followed by any
+    arguments. -/
+theorem check_xiOk {s : Sidecar} (h : check s = true) (hrc : s.hasCalls "runtime" = false)
+    (hic : s.hasCalls "init" = false) :
     (∀ Q σ σ₀ g A (I : ExecutionEnv) tail, I.code = s.code "runtime" ++ tail →
       Invariant.XiOk Q σ σ₀ g A I) ∧
     ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args →
       Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨-, hinit, hrt⟩ := check_ok h
-  exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2.1 Q,
-    fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2.1 Q⟩
+  exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2.1 hrc Q,
+    fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2.1 hic Q⟩
 
 /-- The calls of a checked sidecar's frames are the model's: a frame that succeeds, of the
     runtime bytes followed by any bytes or of the init bytes followed by any arguments, makes only

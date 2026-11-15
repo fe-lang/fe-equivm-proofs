@@ -347,12 +347,12 @@ with the results' words on top of the caller's stack.
 
 `Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
 no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
-the pure, read, write and halting instructions `Check.lean` translates (no external call, no
-`create`, no transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+the pure, read, write and halting instructions `Check.lean` translates (`call` among them, but no
+`staticcall`, `delegatecall`, `create` or transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
-state reads below, 31 of them with internal calls, and accepts 391 with them; it rejects 38 for an
-instruction outside the class (calls, creations, transient storage, `blockhash`, `clz`) and one for
-a dynamic frame. It matches
+state reads below, 31 of them with internal calls, and 391 with them; with `CALL` it accepts 399
+and rejects 30 for an instruction outside the class (other calls, creations, transient storage,
+`blockhash`, `clz`) and one for a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
@@ -376,6 +376,16 @@ feed exists because each step that goes on spends gas (`fut_exists`). A `gas` on
 only by running out of gas or stack there. These raised the corpus count from 387 to 391:
 `eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
 `payable.PayableBox` (`selfbalance`).
+
+**Message calls.** `call` is an event on its seven operands, its result the success word
+(`call_evMoves`): the bytes' `CALL` runs out of gas or stack, fails under a static call with value
+where the model's `call` fails `.static`, or is the model's call on the feed's next entry, the
+gas cap, the substate with the callee accessed and the original account map, which `supplyOf`
+gives. A call made is `Θ` on the inputs `callArgs` reads (`messageCall` equals them), the logs
+the callee appended by `theta_logs_extract`; one not made, for want of funds or at depth 1024,
+returns zero with empty return data. A section whose machine IR makes message calls is checked
+with `K` set, so its steps need not be calm; `check_xiOk` asks that neither section make one.
+`CALL` raised the corpus count from 391 to 399, WETH9's runtime among them.
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal
@@ -443,10 +453,11 @@ Proved so far:
    `zeroRank`, gives the P1 agreement (`XAgrees`) of the bytes' iterator with the IR's run of the
    function from any block's start (`AtBlock`), the prologue first for the entry block, and
    `XOk` of the iterator for every condition on calls: `run_ends` gathers its steps as `Steps`,
-   through states whose instruction is no call nor creation (`Calm`).
+   through states whose instruction is no call nor creation (`Calm`), or, in a section whose
+   machine IR makes message calls (`Module.hasCalls`, the `K` of `Steps`), any state.
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
    runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
-   of both frames. `check_xiOk_callsAt` states the frames' calls without asking that there be
+   of both frames when neither section's machine IR makes a message call (`Sidecar.hasCalls`). `check_xiOk_callsAt` states the frames' calls without asking that there be
    none: a frame that succeeds makes only calls satisfying `Q` when every successful run of the
    machine IR from its account map and substate records only such calls
    (`ContractModel.callsAt`), as `Fut.xOk` gives from the calls the bytes' run makes, which

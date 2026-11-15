@@ -18,7 +18,8 @@ interpreter's EVM instructions run.  `EvMoves`: one `Xstep` runs out of gas or s
 under a static call where the world's operation does (`Fails`: a write under a static call, a
 copy past the return data), or does what it does and moves on with the word it reads on top, the
 states still agreeing.  `event_evMoves` gives it for every opcode of `readOps` and `writeOps`
-from EVMLean's `step_*` lemmas.  The logs agree too, so the proof reaches profile `P1`.
+from EVMLean's `step_*` lemmas, `CALL` the model's `call` on the feed's entry (`call_evMoves`).
+The logs agree too, so the proof reaches profile `P1`.
 -/
 
 namespace Fe.Sonatina.Check
@@ -367,6 +368,7 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .EXTCODESIZE, [a] => some <$> extcodesize a
   | .RETURNDATASIZE, [] => some <$> returndatasize
   | .GAS, [] => some <$> gas
+  | .CALL, [g, a, v, ap, al, rp, rl] => some <$> call g a v ap al rp rl
   | .SSTORE, [k, v] => do sstore k v; return none
   | .MSTORE, [a, v] => do mstore a v; return none
   | .MSTORE8, [a, v] => do mstore8 a v; return none
@@ -607,6 +609,115 @@ theorem sstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
   · show Substate.logSeries (Option.option _ _ _) = _
     cases Std.ExtTreeMap.get? s.accountMap s.executionEnv.codeOwner <;> exact hw.logs
 
+open Ethereum.EVM.Invariant in
+/-- `CALL` is the model's `call`: out of gas or stack, the static failure, or the message call
+    made or not, as the feed's entry and the bytes' step agree. -/
+theorem call_evMoves {s : State} {g a v ap al rp rl : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.CALL, none))
+    (hs : s.machineState.stack = g :: a :: v :: ap :: al :: rp :: rl :: t) :
+    EvMoves s .CALL [g, a, v, ap, al, rp, rl] t := by
+  rcases s with ⟨σ, σ₀, tg, tr, A, I, ⟨pc, stk, el, ga, aw, mem, rd, hr⟩⟩
+  simp only at hs
+  subst hs
+  intro M w hw
+  have h := step_call _ hdec
+  simp only at h
+  set S : State := ⟨σ, σ₀, tg, tr, A, I, ⟨pc, g :: a :: v :: ap :: al :: rp :: rl :: t, el, ga, aw,
+    mem, rd, hr⟩⟩ with hSd
+  have hI : S.executionEnv = I := rfl
+  have hq : supplyOf S = [⟨.ofNat (Cgascap (.ofUInt256 a) (.ofUInt256 a) v g σ
+      (callState S .CALL).machineState A), (S.addAccessedAccount (.ofUInt256 a)).substate, σ₀⟩] := by
+    unfold supplyOf; rw [hdec]
+  have hmd : ∀ r, Xstep (D_J S.executionEnv.code 0) S = .ok r →
+      madeOf S = callMade g (.ofNat I.codeOwner) a a v v ap al I.perm (callState S .CALL) := by
+    intro r hx
+    obtain ⟨c, hz⟩ := Z_of_Xstep hx
+    unfold madeOf
+    rw [hdec] at hz ⊢
+    simp only [Option.getD_some] at hz ⊢
+    rw [hz]
+    rfl
+  split_ifs at h with h1 h2 h3 h4 h5 h6
+  · exact .inl h
+  · exact .inl h
+  · exact .inr (.inl h)
+  · have h4' : I.perm = false ∧ v ≠ ⟨0⟩ := by simpa using h4
+    exact .inr (.inr (.inl ⟨.static, _, by simp [evRun, Fe.EVM.call, hI, h4'], h, rfl⟩))
+  all_goals
+    have hperm : I.perm = true ∨ v = ⟨0⟩ := by
+      cases hp : I.perm
+      · exact .inr (Classical.byContradiction fun hv => h4 ⟨by simp [hp], hv⟩)
+      · exact .inl rfl
+    obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
+    rw [hq, List.singleton_append] at hf
+  -- Made: `Θ` on the inputs the feed's entry completes, its success word on top.
+  rotate_left 2
+  -- Not made: no call, the word zero.
+  · rw [hmd _ h, callMade, if_neg (by exact h5 : ¬ (v ≤ ((callState S .CALL).accountMap.get? (callState S .CALL).executionEnv.codeOwner
+        |>.option ⟨0⟩ (·.balance)) ∧ (callState S .CALL).executionEnv.depth < 1024)),
+      List.nil_append] at hm'
+    have hex := call_notMade (addr := a) (value := v) (retPtr := rp) (retLen := rl) (argsPtr := ap) (argsLen := al)
+      (gasArg := g) hf hperm (by rw [← hw.accounts]; exact h5)
+    have hex' : (evRun .CALL [g, a, v, ap, al, rp, rl]).exec S.executionEnv w =
+        some (.ok (some ⟨0⟩, { w with
+          logs := w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate
+            (S.addAccessedAccount (.ofUInt256 a)).substate
+          memory := ByteArray.empty.write 0 w.memory rp.toNat
+            (min rl (.ofNat ByteArray.empty.size)).toNat
+          returnData := ByteArray.empty
+          feed := f' })) := by
+      simp only [evRun, Fe.M.exec_map, hI, hex]
+    refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, rfl, rfl, ?_, hw.accounts, ?_, rfl,
+      ⟨m', hF', ?_⟩⟩))
+    · rw [← hw.memory]
+    · rw [appended_self, Array.append_empty, ← hw.logs]; rfl
+    · rw [← hM, hm']
+  · rename_i hx
+    exact absurd (by simp) hx
+  all_goals
+    have hcall : messageCall I w ⟨.ofNat (Cgascap (.ofUInt256 a) (.ofUInt256 a) v g σ
+        (callState S .CALL).machineState A), (S.addAccessedAccount (.ofUInt256 a)).substate, σ₀⟩
+        g I.codeOwner (.ofUInt256 a) (.ofUInt256 a) v v ap al I.perm =
+        callArgs g (.ofNat I.codeOwner) a a v v ap al I.perm (callState S .CALL) := by
+      unfold messageCall callArgs
+      rw [← hw.accounts, ← hw.memory, AccountAddress.ofUInt256_ofNat, forwardedGas_Cgascap]
+      rfl
+    set T := callArgs g (.ofNat I.codeOwner) a a v v ap al I.perm (callState S .CALL) with hT
+    rw [hmd _ h, callMade, if_pos (by exact h5 : (v ≤ ((callState S .CALL).accountMap.get? (callState S .CALL).executionEnv.codeOwner
+        |>.option ⟨0⟩ (·.balance)) ∧ (callState S .CALL).executionEnv.depth < 1024)),
+      List.singleton_append] at hm'
+    have hex := call_made (σ' := T.run.1) (g' := T.run.2.1) (A' := T.run.2.2.1)
+      (z := T.run.2.2.2.1) (o := T.run.2.2.2.2) (retPtr := rp) (retLen := rl) hf hperm
+      (by rw [← hw.accounts]; exact h5) (by rw [hcall])
+    rw [hcall] at hex
+    have hb : ¬ (v > (σ.get? I.codeOwner).elim ⟨0⟩ (·.balance)) := by
+      have := h5.1
+      cases hc : σ.get? I.codeOwner <;> simp only [hc, Option.option, Option.elim] at this ⊢ <;>
+        exact fun hlt => Nat.lt_irrefl _ (Nat.lt_of_le_of_lt this hlt)
+    have hdep : (I.depth == 1024) = false := beq_eq_false_iff_ne.mpr (ne_of_lt h5.2)
+    simp only [hb, hdep, decide_false, Bool.or_false, Bool.not_eq_true', Bool.not_eq_false] at h6
+    have hz : T.run.2.2.2.1 = _ := h6
+    have hex' : (evRun .CALL [g, a, v, ap, al, rp, rl]).exec S.executionEnv w =
+        some (.ok (some (if T.run.2.2.2.1 then ⟨1⟩ else ⟨0⟩), { w with
+          accounts := T.run.1
+          logs := w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate T.run.2.2.1
+          memory := T.run.2.2.2.2.write 0 w.memory rp.toNat (min rl (.ofNat T.run.2.2.2.2.size)).toNat
+          returnData := T.run.2.2.2.2
+          feed := f'
+          calls := w.calls ++ [.theta T] })) := by
+      simp only [evRun, Fe.M.exec_map, hI, hex]
+    refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, by rw [hz]; rfl, rfl, ?_, rfl, ?_, rfl,
+      ⟨m', hF', ?_⟩⟩))
+    · rw [← hw.memory]; rfl
+    · show T.run.2.2.1.logSeries =
+        w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate T.run.2.2.1
+      rw [← hw.logs]
+      exact Ethereum.EVM.Substates.theta_logs_extract ..
+    · rw [← hM, hm']
+      simp only [List.append_assoc, List.singleton_append]
+      rfl
+
 /-- An event's opcode, its operands on top, steps as `EvMoves` says. -/
 theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     (hp : (readOps.contains op || writeOps.contains op) = true)
@@ -615,10 +726,10 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     EvMoves s op args t := by
   simp only [readOps, writeOps, List.contains_cons, List.contains_nil, Bool.or_false,
     Bool.or_eq_true, beq_iff_eq] at hp
-  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl | rfl | rfl | rfl | rfl
-    | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl) | rfl | rfl | rfl | rfl
+    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
-    rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨g, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩
+    rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨g, _ | ⟨i, _ | ⟨_, _⟩⟩⟩⟩⟩⟩⟩⟩
       <;>
       simp [δ] at hk
     simp only [List.cons_append, List.nil_append] at hs
@@ -630,6 +741,7 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
   · exact extcodesize_evMoves hdec hs
   · exact returndatasize_evMoves hdec hs
   · exact gas_evMoves hdec hs
+  · exact call_evMoves hdec hs
   · exact sstore_evMoves hdec hs
   · exact mstore_evMoves hdec hs
   · exact mstore8_evMoves hdec hs

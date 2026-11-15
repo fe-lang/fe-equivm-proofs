@@ -344,6 +344,13 @@ theorem exec_returndatacopy (ee : ExecutionEnv) (w : World) (d o l : UInt256) :
   split_ifs <;> simp
 
 open Fe Fe.EVM in
+/-- A word the IR's instruction gives is the word the event reads. -/
+theorem runAs_one (m : FeM UInt256) (ee : ExecutionEnv) (w : World) :
+    RunAs ((do return [word (← m)] : FeM (List Val)).exec ee w) ((some <$> m).exec ee w) := by
+  simp only [Fe.M.exec_bind, Fe.M.exec_map, Fe.M.exec_pure]
+  rcases m.exec ee w with _ | _ | ⟨x, w'⟩ <;> rfl
+
+open Fe Fe.EVM in
 /-- An event's EVM instruction runs as its operation on the world. -/
 theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List UInt256}
     (h : evmEventOpcode op = some opc) (hk : δ opc = some args.length) (w : World) :
@@ -358,6 +365,12 @@ theorem evm_run {ee : ExecutionEnv} {op : EvmOp} {opc : Operation} {args : List 
     all_goals
       by_cases hp : ee.perm = true <;>
         simp [EvmOp.run, evRun, RunAs, Fe.EVM.logData, Fe.EVM.emit, hp]
+  case call =>
+    simp only [evmEventOpcode, Option.some.injEq] at h
+    subst h
+    rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, _ | ⟨e, _ | ⟨f, _ | ⟨g, _ | _⟩⟩⟩⟩⟩⟩⟩ <;>
+      simp [δ] at hk
+    exact runAs_one _ ee w
   all_goals simp only [evmEventOpcode, reduceCtorEq, Option.some.injEq] at h
   all_goals
     subst h
