@@ -305,6 +305,40 @@ theorem panic_read (mem : ByteArray) (c : UInt256) :
       rw [ByteArray.size_append, hc, h4], byteArray_extract_self, panicData,
     u256_ofNat_toNat]
 
+/-- A word written at `off` below `2 ^ 32` reads back, whatever the memory's size: a write past
+    the end extends memory with zeros first. -/
+theorem word_read_gap (mem : ByteArray) (v : UInt256) {off : Nat} (h : off < 2 ^ 32) :
+    (v.toByteArray.write 0 mem off 32).readWithPadding off 32 = v.toByteArray :=
+  toByteArray_write_read_back_of_gap v mem off
+    (lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ h))
+
+/-- Two words stored at `off` and `off + 32`, read back as 64 bytes, whatever the memory's
+    size: the machine IR stores a map's key and root in its arena, above the free pointer. -/
+theorem pair_read_gap (mem : ByteArray) (key root : UInt256) {off off2 : Nat}
+    (h : off2 < 2 ^ 32) (h2 : off2 = off + 32) :
+    (root.toByteArray.write 0 (key.toByteArray.write 0 mem off 32) off2 32).readWithPadding
+      off 64 = key.toByteArray ++ root.toByteArray := by
+  subst h2
+  have hgap : ∀ (M : ByteArray) (o : Nat), o < 2 ^ 32 → o - M.size < USize.size :=
+    fun M o ho => lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ ho)
+  have h1 := toByteArray_write_size_ge_off_add32 key mem off (hgap _ _ (by omega))
+  have h2 := toByteArray_write_size_ge_off_add32 root (key.toByteArray.write 0 mem off 32)
+    (off + 32) (hgap _ _ (by omega))
+  rw [show (64 : Nat) = 32 + 32 from rfl, byteArray_readWithPadding_split _ off 32 32
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by omega),
+    toByteArray_write_read_below_of_gap _ _ _ _ h1 (le_refl _) (hgap _ _ (by omega)),
+    toByteArray_write_read_back_of_gap _ _ _ (hgap _ _ (by omega)),
+    toByteArray_write_read_back_of_gap _ _ _ (hgap _ _ h)]
+
+/-- The slot the machine IR hashes a map's key and root into from its arena at `off`, as
+    `mapSlot` gives it. -/
+theorem pair_slot_gap (mem : ByteArray) (key root : UInt256) {off off2 : Nat}
+    (h : off2 < 2 ^ 32) (h2 : off2 = off + 32) :
+    UInt256.ofNat (fromByteArrayBigEndian (KEC ((root.toByteArray.write 0
+      (key.toByteArray.write 0 mem off 32) off2 32).readWithPadding off 64))) =
+      mapSlot key root := by
+  rw [pair_read_gap mem key root h h2, mappingSlot_single]; rfl
+
 /-! ## Internal calls
 
 `ir_step` does not run a callee: at a `call` statement it leaves the callee's run,

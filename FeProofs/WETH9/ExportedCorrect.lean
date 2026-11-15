@@ -1,5 +1,6 @@
 import FeProofs.Lib.ExportedCorrect
 import FeProofs.WETH9.Exported
+import FeProofs.WETH9.ExportedStd
 import FeProofs.WETH9.Model
 import FeProofs.Common.Abi
 import Fe.EVM.Entry
@@ -157,112 +158,6 @@ theorem emitWithdrawal_exec (e : Withdrawal) (hmem : w.memory.size + 32 < UInt25
   simp only [UInt256.size] at hroom
   simp [toNat0, toNat32, toNatMax, toNatU64, sub32_0, Fe.EVM.add_zero, hsize, UInt256.size,
     hroom, exec_emit, returned_read, returned, withdrawalTopic_eq]
-
-/-! ### Decoders -/
-
-theorem decodeName_exec : decode_runtime_args_Evm_Sol_Name.exec I w = some (.ok (⟨⟩, w)) := by
-  simp [toNat0]
-
-theorem decodeTotalSupply_exec :
-    decode_runtime_args_Evm_Sol_TotalSupply.exec I w = some (.ok (⟨⟩, w)) := by
-  simp [toNat0]
-
-theorem decodeDecimals_exec :
-    decode_runtime_args_Evm_Sol_Decimals.exec I w = some (.ok (⟨⟩, w)) := by
-  simp [toNat0]
-
-theorem decodeSymbol_exec :
-    decode_runtime_args_Evm_Sol_Symbol.exec I w = some (.ok (⟨⟩, w)) := by
-  simp [toNat0]
-
-theorem decodeDeposit_exec :
-    decode_runtime_args_Evm_Sol_Deposit.exec I w = some (.ok (⟨⟩, w)) := by
-  simp [toNat0]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeApprove_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_Approve.exec I w =
-      if I.calldata.size < 68 then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
-    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
-  by_cases h : I.calldata.size < 68 <;>
-    by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
-    simp [h, ha, word]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeTransfer_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_Transfer.exec I w =
-      if I.calldata.size < 68 then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
-    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
-  by_cases h : I.calldata.size < 68 <;>
-    by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
-    simp [h, ha, word]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeBalanceOf_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_BalanceOf.exec I w =
-      if I.calldata.size < 36 then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 32 ↔ I.calldata.size < 36 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, ne32, at4,
-    headCheck hlo hfits (by norm_num : 32 < 2 ^ 64), hshort, shr160_eq_zero_iff]
-  by_cases h : I.calldata.size < 36 <;>
-    by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
-    simp [h, ha, word]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeWithdraw_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_Withdraw.exec I w =
-      if I.calldata.size < 36 then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 32 ↔ I.calldata.size < 36 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, ne32, at4,
-    headCheck hlo hfits (by norm_num : 32 < 2 ^ 64), hshort]
-  by_cases h : I.calldata.size < 36 <;> simp [h, word]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeAllowance_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_Allowance.exec I w =
-      if I.calldata.size < 68 then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 36) then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4, word I.calldata 36⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 64 ↔ I.calldata.size < 68 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, ne64, at4, at36,
-    headCheck hlo hfits (by norm_num : 64 < 2 ^ 64), hshort, shr160_eq_zero_iff]
-  by_cases h : I.calldata.size < 68 <;>
-    by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
-    by_cases hb : NotAddress (uInt256OfByteArray (I.calldata.readBytes 36 32)) <;>
-    simp [h, ha, hb, word]
-
-set_option maxRecDepth 100000 in
-set_option maxHeartbeats 4000000 in
-theorem decodeTransferFrom_exec (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) :
-    decode_runtime_args_Evm_Sol_TransferFrom.exec I w =
-      if I.calldata.size < 100 then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 4) then some (.error (.revert ByteArray.empty))
-      else if NotAddress (word I.calldata 36) then some (.error (.revert ByteArray.empty))
-      else some (.ok (⟨word I.calldata 4, word I.calldata 36, word I.calldata 68⟩, w)) := by
-  have hshort : I.calldata.size - 4 < 96 ↔ I.calldata.size < 100 := by omega
-  simp [toNat0, toNat32, truncate_size _ hfits, add0_32, add32_32, add64_32, ne96, at4, at36, at68,
-    headCheck hlo hfits (by norm_num : 96 < 2 ^ 64), hshort, shr160_eq_zero_iff]
-  by_cases h : I.calldata.size < 100 <;>
-    by_cases ha : NotAddress (uInt256OfByteArray (I.calldata.readBytes 4 32)) <;>
-    by_cases hb : NotAddress (uInt256OfByteArray (I.calldata.readBytes 36 32)) <;>
-    simp [h, ha, hb, word]
 
 /-! ### The returns -/
 
