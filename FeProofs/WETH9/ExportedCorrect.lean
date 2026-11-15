@@ -291,11 +291,11 @@ attribute [local simp] balanceOfPlace recv0_arm4 Model.withdraw Model.balanceSlo
   toNat0 toNatMax toNatU64
 
 set_option maxHeartbeats 4000000 in
-/-- The model's arm runs on empty memory, as the runtime entry starts with it: its call, with no
-    input and no output, is then the exported call made on empty memory. -/
-theorem withdraw_alike (wad : UInt256) (hw : w.memory = ByteArray.empty) :
-    Alike 224 w ((recv0_arm4 wad).exec I w) ((Model.withdraw wad).exec I w) := by
-  have hmem : w.memory.size + 224 < UInt256.size := by rw [hw]; decide
+/-- The model's arm, run on empty memory: its call, with no input and no output, is then the
+    exported call made on empty memory (`call_noData`). -/
+theorem withdraw_alike (wad : UInt256) (hmem : w.memory.size + 224 < UInt256.size) :
+    Alike 224 w ((recv0_arm4 wad).exec I w)
+      ((Model.withdraw wad).exec I { w with memory := ByteArray.empty }) := by
   by_cases hb : (slotWord I w.accounts (Fe.EVM.mapSlot (sender I) ⟨3⟩)).toNat < wad.toNat
   · simp (maxSteps := 4000000) (disch := room) [hb, Nat.not_le.mpr hb]
     alike
@@ -306,7 +306,7 @@ theorem withdraw_alike (wad : UInt256) (hw : w.memory = ByteArray.empty) :
   have hz0 : ((⟨0⟩ : UInt256) = UInt256.ofNat 0) = True := eq_true rfl
   by_cases hz : wad = ⟨0⟩
   · simp (maxSteps := 4000000) (disch := room) [hp, hz, hz0, alloc_zero,
-      maxAllocation_fits, call_noData, hw]
+      maxAllocation_fits, call_noData]
     generalize M.exec (Fe.EVM.call _ _ _ ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩) I _ = r
     rcases r with _ | _ | ⟨a, v⟩
     · exact Alike.diverge
@@ -317,7 +317,7 @@ theorem withdraw_alike (wad : UInt256) (hw : w.memory = ByteArray.empty) :
     · simp (disch := room) [ha, show ¬ a = UInt256.ofNat 0 from ha, hp, returndatasize]
       alike
   · simp (maxSteps := 4000000) (disch := room) [hb, Nat.not_lt.mp hb, hp, hz,
-      show ¬ wad = UInt256.ofNat 0 from hz, alloc_zero, maxAllocation_fits, call_noData, hw]
+      show ¬ wad = UInt256.ofNat 0 from hz, alloc_zero, maxAllocation_fits, call_noData]
     generalize M.exec (Fe.EVM.call _ _ _ ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩) I _ = r
     rcases r with _ | _ | ⟨a, v⟩
     · exact Alike.diverge
@@ -345,13 +345,15 @@ variable (I : ExecutionEnv) (w : World)
 
 set_option maxHeartbeats 4000000 in
 /-- A string getter: `SolString::load` at `slot`, returned, ends as the model's `stringReturn`
-    does, from the empty memory a call starts with. -/
+    does, from the empty memory a call starts with, which the entry reserves. -/
 theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry (SolString_load (.storage slot) >>= Evm_return_value_Sol_DynString)).exec I w)
       ((Model.stringReturn slot).exec I w) := by
-  have hmem : w.memory.size + 2 ^ 65 < UInt256.size := by rw [hw]; decide
+  have hv : w.reserved.memory.size = 96 := by rw [World.reserved_size, hw]; rfl
+  have hmem : w.reserved.memory.size + 2 ^ 65 < UInt256.size := by rw [hv]; decide
   have hsz : UInt256.size = 2 ^ 256 := rfl
-  simp only [entry, M.exec_bind, solStringLoad_exec I w slot hmem]
+  simp only [entry, M.exec_bind, exec_reserve, solStringLoad_exec I w.reserved slot hmem,
+    World.reserved_accounts]
   cases hd : solidityDecodeBytesLengthHeader (slotWord I w.accounts slot) with
   | ok L =>
     have hL : L < 2 ^ 255 := by
@@ -370,13 +372,14 @@ theorem stringReturn_endsAs (slot : UInt256) (hw : w.memory = ByteArray.empty) :
     simp only []
     rw [if_pos h32]
     simp only []
-    rw [returnDynString_exec I _ w.memory.size (32 + (L + 31) / 32 * 32) (UInt256.ofNat L) _ hB
+    rw [returnDynString_exec I _ w.reserved.memory.size (32 + (L + 31) / 32 * 32)
+      (UInt256.ofNat L) _ hB
       (by rw [extract_append_right_window _ _ _ _ (le_refl _), Nat.sub_self,
-            show w.memory.size + (32 + (L + 31) / 32 * 32) - w.memory.size =
+            show w.reserved.memory.size + (32 + (L + 31) / 32 * 32) - w.reserved.memory.size =
               ((UInt256.ofNat L).toByteArray ++ loaded w.accounts I slot L).size by omega,
             byteArray_extract_self])
       (by simp only [ByteArray.size_append, hB]; omega) (by omega)
-      (by simp only [ByteArray.size_append, hB, hw]; simp; omega) h32]
+      (by simp only [ByteArray.size_append, hB, hv]; omega) h32]
     by_cases h64 : 32 + (32 + (L + 31) / 32 * 32) < 2 ^ 64
     · simp [Model.stringReturn, hd,
         show 32 + (32 + (L + 31) / 32 * 32) < 18446744073709551616 from h64,
@@ -526,11 +529,13 @@ theorem storeString_model (slot : UInt256) (bytes : ByteArray) (hperm : I.perm =
   by_cases hb : strHeadBad (slotWord I w.accounts slot) <;> simp [Model.storeString, hb, hperm]
 
 /-- The exported deployment entry ends as the model's constructor does, on the empty memory a
-    call starts with and with write permission, as a creation has. -/
+    call starts with, which the entry reserves, and with write permission, as a creation has. -/
 theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty)
     (hperm : I.perm = true) :
-    EndsAs ((init_entry args >>= fun tail => pure (rt ++ tail)).exec I w)
+    EndsAs ((deploy init_entry args >>= fun tail => pure (rt ++ tail)).exec I w)
       ((Model.contract.init args >>= fun tail => pure (rt ++ tail)).exec I w) := by
+  have hv : w.reserved.memory.size = 96 := by rw [World.reserved_size, hw]; rfl
+  rw [deploy_bind_eq]
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · simp [init_entry, Model.contract, Model.init, exec_nonPayable, hwv]
@@ -542,23 +547,23 @@ theorem init_endsAs (args rt : ByteArray) (hw : w.memory = ByteArray.empty)
   have h4 : UInt256.ofNat 4 = UInt256.ofNat Model.symbolBytes.size := rfl
   simp only [init_entry, Model.contract, Model.init, Fe.M.exec_bind, exec_nonPayable, hwv, if_pos,
     init, hfold, hfold', namePlace, symbolPlace, decimalsPlace, h13, h4]
-  rw [stringLiteral_exec I w Model.nameBytes (by decide) (by decide) (by rw [hw]; decide)]
+  rw [stringLiteral_exec I w.reserved Model.nameBytes (by decide) (by decide) (by rw [hv]; decide)]
   simp only []
-  rw [storeString_exec I _ Model.nameSlot w.memory.size Model.nameBytes (by decide) (by decide)
-    nameWord_eq (literal_read _ _ (by decide)) (by rw [hw]; decide)
-    (by simp [hw, zeros_size]; decide),
+  rw [storeString_exec I _ Model.nameSlot w.reserved.memory.size Model.nameBytes (by decide)
+    (by decide) nameWord_eq (literal_read _ _ (by decide)) (by rw [hv]; decide)
+    (by simp [hv, zeros_size]; decide),
     storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
   by_cases hb0 : strHeadBad (slotWord I w.accounts Model.nameSlot)
   · simp [hb0]
     exact .exit _
   simp [hb0, DynString_drop]
   rw [stringLiteral_exec I _ Model.symbolBytes (by decide) (by decide)
-    (by simp [hw, zeros_size]; decide)]
+    (by simp [hv, zeros_size]; decide)]
   simp only []
   rw [storeString_exec I _ Model.symbolSlot _ Model.symbolBytes (by decide) (by decide)
     symbolWord_eq (literal_read _ _ (by decide))
-    (by simp [hw, zeros_size]; decide)
-    (by simp [hw, zeros_size]; decide),
+    (by simp [hv, zeros_size]; decide)
+    (by simp [hv, zeros_size]; decide),
     storeString_model I _ _ _ hperm, storeString_model I _ _ _ hperm]
   by_cases hb1 : strHeadBad (slotWord I (strWriteMap I w.accounts Model.nameSlot Model.nameBytes)
     Model.symbolSlot)

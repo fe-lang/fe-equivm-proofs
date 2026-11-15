@@ -268,12 +268,13 @@ theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.e
 
 /-- Without call value the entry ends as the arm does. -/
 theorem entry_runtime_none (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩)
-    (h : recv0_arm0.exec I w = none) : (entry runtime).exec I w = none := by
-  simp only [entry, M.exec_bind, runtime_eq, recv0_arm0_entry, exec_nonPayable, if_pos hv,
-    h]
+    (h : recv0_arm0.exec I w.reserved = none) : (entry runtime).exec I w = none := by
+  simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv0_arm0_entry, exec_nonPayable,
+    if_pos hv, h]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w = some (.error f)) : (entry runtime).exec I w = some (.error f) := by
+    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
   simp only [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
 
@@ -291,7 +292,9 @@ theorem feBn254AddContractCorrect (I : ExecutionEnv) (w : World) (hfits : Callda
         (entry runtime).exec I w = some (.error (.stop o { w with memory := memory }))) ∨
       (r = none ∧ (entry runtime).exec I w = some (.error (.revert ByteArray.empty))) := by
   intro d r
-  rcases arm_exec I w hfits hmem with h | ⟨o, ho, memory, h⟩ | ⟨ho, h⟩
+  have hr : w.reserved.memory.size + I.calldata.size + 64 < UInt256.size := by
+    have := w.reserved_size; unfold CalldataFits at hfits; unfold UInt256.size at hmem ⊢; omega
+  rcases arm_exec I w.reserved hfits hr with h | ⟨o, ho, memory, h⟩ | ⟨ho, h⟩
   · exact Or.inl (entry_runtime_none I w hv h)
   · exact Or.inr (Or.inl ⟨o, ho, memory, entry_runtime_error I w hv h⟩)
   · exact Or.inr (Or.inr ⟨ho, entry_runtime_error I w hv h⟩)

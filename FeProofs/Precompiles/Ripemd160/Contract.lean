@@ -96,7 +96,8 @@ theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.e
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w = some (.error f)) : (entry runtime).exec I w = some (.error f) := by
+    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
   simp only [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv, h]
 
@@ -109,7 +110,9 @@ theorem feRipemd160ContractCorrect (I : ExecutionEnv) (w : World) (hfits : Calld
     ∃ memory, (entry runtime).exec I w =
       some (.error (.stop (ByteArray.zeroes 12 ++ RIPEMD160.hash I.calldata)
         { w with memory := memory })) := by
-  obtain ⟨memory, h⟩ := arm_exec I w hfits hmem
+  have hr : w.reserved.memory.size + 32 + I.calldata.size < UInt256.size := by
+    have := w.reserved_size; unfold CalldataFits at hfits; unfold UInt256.size at hmem ⊢; omega
+  obtain ⟨memory, h⟩ := arm_exec I w.reserved hfits hr
   exact ⟨memory, entry_runtime_error I w hv h⟩
 
 /-- With call value the entry reverts with no data: the fallback is not payable. -/

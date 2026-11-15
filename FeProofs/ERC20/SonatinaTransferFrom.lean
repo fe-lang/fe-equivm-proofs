@@ -43,8 +43,10 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
     (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm2_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 15).exec I w)) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := decodeTransferFrom_exec I w hsz hfits
+  have hdec := decodeTransferFrom_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -76,11 +78,12 @@ theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonat
   have hb : (Fe.EVM.word I.calldata 36).toNat >>> 160 = 0 := by
     by_contra h; exact hnb ((notAddress_iff _).mpr h)
   simp only [Fe.EVM.word] at hb
-  have hk : ∀ k r k' r' k'' r'', (keyed (keyed (keyed w.memory k r) k' r') k'' r'').size + 64 <
+  have hk : ∀ k r k' r' k'' r'',
+    (keyed (keyed (keyed w.reserved.memory k r) k' r') k'' r'').size + 64 <
       UInt256.size := by
     intro _ _ _ _ _ _; simp only [keyed_size]; omega
   have hk4 : ∀ k r k' r' k'' r'' k3 r3,
-      (keyed (keyed (keyed (keyed w.memory k r) k' r') k'' r'') k3 r3).size + 64 <
+      (keyed (keyed (keyed (keyed w.reserved.memory k r) k' r') k'' r'') k3 r3).size + 64 <
         UInt256.size := by
     intro _ _ _ _ _ _ _ _; simp only [keyed_size]; omega
   -- The allowance check.

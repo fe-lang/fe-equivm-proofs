@@ -41,7 +41,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
   have hn4 : ¬ I.calldata.size < 4 := by omega
   have s0 := selWord_eq_iff (cd := I.calldata) (k := 0x60fe47b1) (by decide)
   have s1 := selWord_eq_iff (cd := I.calldata) (k := 0x6d4ce63c) (by decide)
-  have hdec := decodeSet_exec I w hsz hfits
+  have hdec := decodeSet_exec I w.reserved hsz hfits
   by_cases h0 : selWord I.calldata = UInt256.ofNat 0x60fe47b1
   · -- `set(uint256)`
     have hs := s0.mp h0
@@ -58,7 +58,8 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
       exact .exit _
     by_cases hperm : I.perm = true
     · rw [entry_exec (f := .stop .empty
-          { w with accounts := storeWord I.codeOwner w.accounts (.ofNat 0) (word I.calldata 4) })
+          { w.reserved with
+            accounts := storeWord I.codeOwner w.accounts (.ofNat 0) (word I.calldata 4) })
           (by simp [hwv, hdec, hshort, hperm]),
         ir_runtime (fun m ic => ir_set m ic w hsz hfits hs hwv (by omega) hperm)]
       exact .stop_stop rfl rfl rfl
@@ -77,8 +78,9 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
         ir_runtime (fun m ic => ir_get_value m ic w hsz hfits hs hwv)]
       exact .exit _
     rw [entry_exec (f := .stop (slotWord I w.accounts (.ofNat 0)).toByteArray
-          { w with memory := returned w.memory (slotWord I w.accounts (.ofNat 0)) })
-          (by simp [hwv, decodeGet_exec, FeProofs.Lib.returnU256_exec I w _ hmem]),
+          { w with memory := returned w.reserved.memory (slotWord I w.accounts (.ofNat 0)) })
+          (by simp [hwv, decodeGet_exec, FeProofs.Lib.returnU256_exec I w.reserved _
+            (reserveMemory_room hmem (by decide))]),
       ir_runtime (fun m ic => ir_get m ic w hsz hfits hs hwv)]
     exact .stop_stop rfl rfl rfl
   · -- no arm's selector
@@ -105,7 +107,7 @@ theorem feScalarStoreRefinesExportedP1 :
     word after the pinned creation code. -/
 theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 32 < UInt256.size)
     (hcode : I.code = feScalarStoreCreationBytecode ++ ctorTail v) (hperm : I.perm = true) :
-    EndsAs ((Exported.init_entry (ctorTail v) >>= fun tail =>
+    EndsAs ((deploy Exported.init_entry (ctorTail v) >>= fun tail =>
         pure (feScalarStoreBytecode ++ tail)).exec I w)
       (((sidecar.model .machine).init (ctorTail v) >>= fun tail =>
         pure (ByteArray.empty ++ tail)).exec I w) := by
@@ -131,8 +133,8 @@ theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 32 < UInt256.size)
     intro M
     rw [Reasoning.Theory.write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide),
       hcode, Reasoning.Theory.extract_append_left _ _ _ _ (by omega), hrt]
-  rw [Fe.M.exec_bind (m := (sidecar.model .machine).init (ctorTail v)), Fe.M.exec_bind,
-    initEntry_exec I w v hroom]
+  rw [deploy_bind_eq, Fe.M.exec_bind (m := (sidecar.model .machine).init (ctorTail v)),
+    Fe.M.exec_bind, initEntry_exec I w.reserved v (reserveMemory_room hroom (by decide))]
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [ir_init_run (fun m ic hs0 hs1 => ir_init m ic w₀ hs0 hs1 hwv hperm hsize hword), hret]
     simp [hwv, hperm]

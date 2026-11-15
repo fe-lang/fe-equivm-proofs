@@ -213,7 +213,8 @@ theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.e
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w = some (.error f)) : (entry runtime).exec I w = some (.error f) := by
+    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
   simp only [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv,
     h]
@@ -232,7 +233,9 @@ theorem feBlake2FContractCorrect (I : ExecutionEnv) (w : World) (hfits : Calldat
       ∃ memory, (entry runtime).exec I w =
         some (.error (.stop (BLAKE2.compressInput I.calldata) { w with memory := memory }))
     else (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
-  have h := arm_exec I w hfits hmem
+  have hr : w.reserved.memory.size + I.calldata.size + 64 < UInt256.size := by
+    have := w.reserved_size; unfold CalldataFits at hfits; unfold UInt256.size at hmem ⊢; omega
+  have h := arm_exec I w.reserved hfits hr
   simp only [flag_iff]
   split
   · rw [if_pos (by assumption)] at h

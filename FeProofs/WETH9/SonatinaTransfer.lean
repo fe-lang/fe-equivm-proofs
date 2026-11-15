@@ -65,8 +65,10 @@ theorem arm_transferFrom (htf : m.func? "transfer_from" = some transferFromFunc)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm3_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 18).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeTransferFrom_exec I w hsz hfits
+  have hdec := Exported.decodeTransferFrom_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -140,8 +142,10 @@ theorem arm_transfer (htf : m.func? "transfer_from" = some transferFromFunc)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm8_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 52).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeTransfer_exec I w hsz hfits
+  have hdec := Exported.decodeTransfer_exec I w.reserved hsz hfits
   -- `%transfer_from`'s lemma at the caller's word, as the machine IR passes it.
   have htr := fun w' dst wad => transferFrom_eq ic I w' htf (callerWord I) dst wad
   simp only [callerWord, Check.toNat_ofNat, UInt256.size] at htr

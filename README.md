@@ -93,6 +93,13 @@ Both speak only of frames whose account, `I.codeOwner`, exists (`OwnerExists`), 
 the EVM runs. Without the account EVMLean's `SSTORE` drops the write, so a load after a store
 reads 0, while the compiler forwards a stored value to a later load of the same slot.
 
+An exported contract's model is `{ init := deploy init_entry, runtime := entry runtime }`: the
+deployment and runtime entries the exporter prints, each run after reserving low memory
+(`reserve`), as the compiled entry code does when it stores the free pointer at `0x40`. The model
+allocates at the end of memory (`alloc`), so without the reservation a call's first allocation
+would be at address 0, which core's `try_alloc_bytes` reads as a failed allocation; the bytecode's
+heap starts above it.
+
 | Module | Hand-written model | Exported model |
 | --- | --- | --- |
 | `FeProofs.Constant` | `feConstantRefinesModel` | |
@@ -254,9 +261,7 @@ exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BL
 `Ξ_ECREC`, `Ξ_ID`, `Ξ_EXPMOD`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on
 generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
 on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
-(EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it. One
-disagreement is known: `Identity` reverts on empty call data, because the model's first allocation
-is at address 0, which `try_alloc_bytes` takes for a failure.
+(EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it.
 
 ### Sonatina IR
 

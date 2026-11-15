@@ -66,8 +66,10 @@ theorem arm_withdraw (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm4_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 27).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 256 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeWithdraw_exec I w hsz hfits
+  have hdec := Exported.decodeWithdraw_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))

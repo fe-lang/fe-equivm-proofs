@@ -271,8 +271,10 @@ theorem selWord_miss {cd sel : ByteArray} {word : UInt256}
 
 /-! ## Entries -/
 
+/-- An entry whose code exits on reserved memory exits so. -/
 theorem entry_exec {m : FeM Empty} {I : ExecutionEnv} {w : World} {f : Exit World}
-    (h : m.exec I w = some (.error f)) : (entry m).exec I w = some (.error f) := by
+    (h : m.exec I w.reserved = some (.error f)) :
+    (entry m).exec I w = some (.error f) := by
   simp [entry, h]
 
 /-- With calldata below `2 ^ 64` bytes, std's head check is the one a hand-written entry makes. -/
@@ -284,26 +286,6 @@ theorem badHead_iff (cd : ByteArray) (words : Nat) (hfits : cd.size < 2 ^ 64) :
     · exact h
     · omega
   · exact Or.inl
-
-/-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm` that
-    returns the encoding `enc` of its result, when `ret` stops with that encoding and changes
-    memory only, and `arm` leaves memory alone. -/
-theorem endsAs_arm {α : Type} {arm : FeM α} {ret : α → FeM Empty} {enc : α → ByteArray}
-    {I : ExecutionEnv} {w : World}
-    (hret : ∀ r w', w'.memory.size + 32 < UInt256.size →
-      ∃ memory, (ret r).exec I w' = some (.error (.stop (enc r) { w' with memory := memory })))
-    (hkeep : KeepsMemory arm) (hmem : w.memory.size + 32 < UInt256.size) :
-    EndsAs ((entry (arm >>= ret)).exec I w) ((arm >>= fun r => pure (enc r)).exec I w) := by
-  cases h : arm.exec I w with
-  | none => simp [entry, h]; exact .diverge
-  | some res =>
-    cases res with
-    | error f => simp [entry, h]; exact .exit f
-    | ok p =>
-      obtain ⟨r, w'⟩ := p
-      obtain ⟨memory, hr⟩ := hret r w' (by rw [hkeep I w r w' h]; exact hmem)
-      simp [entry, h, hr]
-      exact .stop_ok rfl rfl rfl
 
 /-! ## Runs alike up to memory -/
 
@@ -396,25 +378,205 @@ theorem call_noData (gasArg addr value argsPtr retPtr : UInt256) (I : ExecutionE
       have h00 : (UInt256.ofNat 0 ⊓ UInt256.ofNat 0).toNat = 0 := hmin ByteArray.empty
       simp [h00, byteArray_write_len_zero]
 
+/-! ## Code that ignores memory
+
+The hand-written models have no memory, so the exported entries, which run on reserved memory,
+end as they do on the world a call starts in. -/
+
+/-- The computation neither reads nor writes memory: on other memory it ends as it does, with
+    that memory. -/
+def IgnoresMemory {α : Type} (m : FeM α) : Prop :=
+  ∀ I w memory, m.exec I { w with memory := memory } = withMemory memory (m.exec I w)
+
+theorem IgnoresMemory.pure {α : Type} (a : α) : IgnoresMemory (pure a : FeM α) :=
+  fun _ _ _ => rfl
+
+theorem IgnoresMemory.fail {α : Type} (f : Exit World) : IgnoresMemory (Fe.M.fail f : FeM α) :=
+  fun _ _ _ => rfl
+
+theorem IgnoresMemory.revert {α : Type} (data : ByteArray) :
+    IgnoresMemory (Fe.M.revert data : FeM α) := fun _ _ _ => rfl
+
+theorem IgnoresMemory.panic {α : Type} (code : Nat) : IgnoresMemory (Fe.M.panic code : FeM α) :=
+  fun _ _ _ => rfl
+
+theorem IgnoresMemory.bind {α β : Type} {m : FeM α} {k : α → FeM β} (hm : IgnoresMemory m)
+    (hk : ∀ a, IgnoresMemory (k a)) : IgnoresMemory (m >>= k) := by
+  intro I w memory
+  rw [M.exec_bind, M.exec_bind, hm]
+  cases m.exec I w with
+  | none => rfl
+  | some r =>
+    cases r with
+    | error f => rfl
+    | ok p => exact hk p.1 I p.2 memory
+
+theorem IgnoresMemory.ite {α : Type} (c : Prop) [Decidable c] {a b : FeM α} (ha : IgnoresMemory a)
+    (hb : IgnoresMemory b) : IgnoresMemory (if c then a else b) := by
+  split <;> assumption
+
+theorem ignoresMemory_read : IgnoresMemory (read : FeM Env) := fun _ _ _ => rfl
+
+theorem ignoresMemory_sload (slot : UInt256) : IgnoresMemory (sload slot) := fun _ _ _ => rfl
+
+theorem ignoresMemory_caller : IgnoresMemory caller := fun _ _ _ => rfl
+
+theorem ignoresMemory_callvalue : IgnoresMemory callvalue := fun _ _ _ => rfl
+
+theorem ignoresMemory_selfbalance : IgnoresMemory selfbalance := fun _ _ _ => rfl
+
+theorem ignoresMemory_cload (offset : UInt256) : IgnoresMemory (cload offset) := fun _ _ _ => rfl
+
+theorem ignoresMemory_immutableAt (total slot : Nat) : IgnoresMemory (immutableAt total slot) :=
+  fun _ _ _ => rfl
+
+theorem ignoresMemory_sstore (slot val : UInt256) : IgnoresMemory (sstore slot val) := by
+  intro I w memory
+  rw [exec_sstore, exec_sstore]
+  split <;> rfl
+
+theorem ignoresMemory_emit (topics : Array UInt256) (data : ByteArray) :
+    IgnoresMemory (emit topics data) := by
+  intro I w memory
+  rw [exec_emit, exec_emit]
+  split <;> rfl
+
+theorem ignoresMemory_nonPayable : IgnoresMemory nonPayable := by
+  intro I w memory
+  rw [exec_nonPayable, exec_nonPayable]
+  split <;> rfl
+
+theorem ignoresMemory_checkedAdd (a b : UInt256) : IgnoresMemory (checkedAdd a b) := by
+  intro I w memory
+  unfold checkedAdd
+  split <;> rfl
+
+theorem ignoresMemory_checkedSub (a b : UInt256) : IgnoresMemory (checkedSub a b) := by
+  intro I w memory
+  unfold checkedSub
+  split <;> rfl
+
+theorem withMemory_withMemory {α : Type} (memory memory' : ByteArray)
+    (x : Option (Except (Exit World) (α × World))) :
+    withMemory memory (withMemory memory' x) = withMemory memory x := by
+  match x with
+  | none => rfl
+  | some (.error f) => rfl
+  | some (.ok (a, v)) => rfl
+
+/-- A call with no input and no output copied ignores memory (`call_noData`). -/
+theorem ignoresMemory_call (gasArg addr value : UInt256) :
+    IgnoresMemory (call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩) := by
+  intro I w memory
+  have h₁ : (call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I { w with memory := memory } =
+      withMemory memory ((call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I
+        { w with memory := ByteArray.empty }) :=
+    call_noData _ _ _ _ _ I _
+  have h₂ : (call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I w =
+      withMemory w.memory ((call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I
+        { w with memory := ByteArray.empty }) := call_noData _ _ _ _ _ I w
+  rw [h₁, h₂, withMemory_withMemory]
+
+open Fe.M in
+/-- Prove `IgnoresMemory` for a computation built from binds, conditionals and the operations
+    above.  Unfold the definitions it should look into first. -/
+macro "ignores_memory" : tactic =>
+  `(tactic| repeat' first
+    | with_reducible exact ignoresMemory_sload _
+    | with_reducible exact ignoresMemory_sstore _ _
+    | with_reducible exact ignoresMemory_emit _ _
+    | with_reducible exact ignoresMemory_caller
+    | with_reducible exact ignoresMemory_callvalue
+    | with_reducible exact ignoresMemory_selfbalance
+    | with_reducible exact ignoresMemory_read
+    | with_reducible exact ignoresMemory_cload _
+    | with_reducible exact ignoresMemory_immutableAt _ _
+    | with_reducible exact ignoresMemory_nonPayable
+    | with_reducible exact ignoresMemory_checkedAdd _ _
+    | with_reducible exact ignoresMemory_checkedSub _ _
+    | with_reducible exact ignoresMemory_call _ _ _
+    | with_reducible exact IgnoresMemory.pure _
+    | with_reducible exact IgnoresMemory.fail _
+    | with_reducible exact IgnoresMemory.revert _
+    | with_reducible exact IgnoresMemory.panic _
+    | assumption
+    | with_reducible apply IgnoresMemory.ite
+    | with_reducible apply IgnoresMemory.bind
+    | intro (_ : _))
+
+/-- A run of code that ignores memory ends as its run on other memory. -/
+theorem IgnoresMemory.endsAs {m : FeM ByteArray} (h : IgnoresMemory m) (I : ExecutionEnv)
+    (w : World) (memory : ByteArray) : EndsAs (m.exec I { w with memory := memory })
+      (m.exec I w) := by
+  rw [h]
+  match m.exec I w with
+  | none => exact .diverge
+  | some (.error f) => exact .exit f
+  | some (.ok (out, v)) => exact .ok_ok rfl rfl rfl
+
+/-- A run alike up to memory with one is alike with it on other memory. -/
+theorem Alike.of_withMemory {α : Type} {grow : Nat} {w : World} {memory : ByteArray}
+    {x y : Option (Except (Exit World) (α × World))} (h : Alike grow w x (withMemory memory y)) :
+    Alike grow w x y := by
+  match y, h with
+  | none, h => exact h
+  | some (.error f), h => exact h
+  | some (.ok (a, v)), .ok ha hl hc hm => exact .ok ha hl hc hm
+
+/-- A run alike up to memory with a run of code that ignores memory is alike with its run on any
+    memory. -/
+theorem Alike.of_ignoresMemory {α : Type} {grow : Nat} {v w : World} {memory : ByteArray}
+    {x : Option (Except (Exit World) (α × World))} {arm : FeM α} {I : ExecutionEnv}
+    (h : Alike grow v x (arm.exec I { w with memory := memory })) (hign : IgnoresMemory arm) :
+    Alike grow v x (arm.exec I w) :=
+  Alike.of_withMemory (hign I w memory ▸ h)
+
+/-! ## Entries that end as hand-written ones -/
+
+/-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm` that
+    returns the encoding `enc` of its result, when `ret` stops with that encoding and changes
+    memory only, and `arm` ignores memory. -/
+theorem endsAs_arm {α : Type} {arm : FeM α} {ret : α → FeM Empty} {enc : α → ByteArray}
+    {I : ExecutionEnv} {w : World}
+    (hret : ∀ r w', w'.memory.size + 32 < UInt256.size →
+      ∃ memory, (ret r).exec I w' = some (.error (.stop (enc r) { w' with memory := memory })))
+    (hign : IgnoresMemory arm) (hmem : w.memory.size + 32 < UInt256.size) :
+    EndsAs ((entry (arm >>= ret)).exec I w) ((arm >>= fun r => pure (enc r)).exec I w) := by
+  rw [entry_eq]
+  have hv : arm.exec I w.reserved = withMemory (reserveMemory w.memory) (arm.exec I w) :=
+    hign I w _
+  cases h : arm.exec I w with
+  | none => simp [hv, h]; exact .diverge
+  | some res =>
+    cases res with
+    | error f => simp [hv, h]; exact .exit f
+    | ok p =>
+      obtain ⟨r, w'⟩ := p
+      obtain ⟨memory, hr⟩ := hret r { w' with memory := reserveMemory w.memory }
+        (reserveMemory_room hmem (by decide))
+      simp [hv, h, hr]
+      exact .stop_ok rfl rfl rfl
+
 /-- An entry that runs `arm` and returns its result through `ret` ends as a run of `arm'` that
-    returns the encoding `enc` of its result, when the two arms end alike up to memory and `ret`
-    stops with that encoding, changing memory only. -/
+    returns the encoding `enc` of its result, when `arm` on reserved memory and `arm'` end alike
+    up to memory, and `ret` stops with that encoding, changing memory only. -/
 theorem endsAs_alike {α : Type} {arm arm' : FeM α} {ret : α → FeM Empty} {enc : α → ByteArray}
     {I : ExecutionEnv} {w : World} {grow : Nat}
     (hret : ∀ r w', w'.memory.size + 32 < UInt256.size →
       ∃ memory, (ret r).exec I w' = some (.error (.stop (enc r) { w' with memory := memory })))
-    (halike : Alike grow w (arm.exec I w) (arm'.exec I w))
-    (hmem : w.memory.size + grow + 32 < UInt256.size) :
+    (halike : Alike grow w.reserved (arm.exec I w.reserved) (arm'.exec I w))
+    (hmem : w.reserved.memory.size + grow + 32 < UInt256.size) :
     EndsAs ((entry (arm >>= ret)).exec I w) ((arm' >>= fun r => pure (enc r)).exec I w) := by
-  generalize ha : arm.exec I w = x at halike
+  rw [entry_eq]
+  generalize ha : arm.exec I w.reserved = x at halike
   generalize hb : arm'.exec I w = y at halike
   cases halike with
   | ok hacc hlogs hcalls hm =>
     rename_i a v v'
     obtain ⟨memory, hr⟩ := hret a v (by omega)
-    simp [entry, ha, hb, hr]
+    simp [ha, hb, hr]
     exact .stop_ok hacc hlogs hcalls
-  | exit f => simp [entry, ha, hb]; exact .exit f
-  | diverge => simp [entry, ha, hb]; exact .diverge
+  | exit f => simp [ha, hb]; exact .exit f
+  | diverge => simp [ha, hb]; exact .diverge
 
 end Fe.EVM

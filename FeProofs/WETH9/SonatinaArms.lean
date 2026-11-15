@@ -40,10 +40,12 @@ theorem arm_totalSupply (hmem : w.memory.size + 32 < UInt256.size) (M : ByteArra
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm2_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 15).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 32 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   by_cases hwv : I.weiValue = ⟨0⟩
   · have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
     simp [hwv, Exported.decodeTotalSupply_exec, Exported.Evm_selfbalance, Exported.Wei_as_wei,
-      Exported.wei, Fe.EVM.selfbalance, FeProofs.Lib.returnU256_exec I w _ hmem]
+      Exported.wei, Fe.EVM.selfbalance, FeProofs.Lib.returnU256_exec I w.reserved _ hr]
     repeat ir_step [Fe.EVM.selfbalance]
     exact .stop_stop rfl rfl rfl
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -58,6 +60,8 @@ theorem arm_deposit (hdep : m.func? "deposit" = some depositFunc)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm9_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 59).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 256 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   by_cases hp : I.perm = true <;>
   · simp (disch := room) [Exported.decodeDeposit_exec, Exported.Evm_caller, Exported.Evm_value,
       Exported.Wei_as_wei, Exported.wei, Fe.EVM.callvalue, FeProofs.Lib.locateAddress_exec,
@@ -72,6 +76,8 @@ theorem arm_fallback (hdep : m.func? "deposit" = some depositFunc)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv1_arm0_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 4).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 256 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   by_cases hp : I.perm = true <;>
   · simp (disch := room) [Exported.Evm_caller, Exported.Evm_value, Exported.Wei_as_wei,
       Exported.wei, Fe.EVM.callvalue, FeProofs.Lib.locateAddress_exec,
@@ -85,6 +91,8 @@ theorem arm_decimals (hmem : w.memory.size + 32 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm5_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 39).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 32 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   by_cases hwv : I.weiValue = ⟨0⟩
   · have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
     have hl : ∀ x : UInt256, UInt256.ofNat (x.toNat &&& 255) = x.land (UInt256.ofNat 255) :=
@@ -92,7 +100,7 @@ theorem arm_decimals (hmem : w.memory.size + 32 < UInt256.size) (M : ByteArray)
         rw [FeProofs.land_lit_toNat x 8 _ rfl, Check.toNat_ofNat_lt
           (lt_of_le_of_lt Nat.and_le_right (by decide)), Nat.and_two_pow_sub_one_eq_mod _ 8])
     simp [hwv, Exported.decodeDecimals_exec, Exported.decimalsLit_exec,
-      FeProofs.Lib.returnU8_exec I w _ hmem]
+      FeProofs.Lib.returnU8_exec I w.reserved _ hr]
     repeat ir_step [hl]
     exact .stop_stop rfl rfl rfl
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -109,8 +117,10 @@ theorem arm_balanceOf (hmem : w.memory.size + 96 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm6_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 42).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 96 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeBalanceOf_exec I w hsz hfits
+  have hdec := Exported.decodeBalanceOf_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -145,8 +155,10 @@ theorem arm_allowance (hmem : w.memory.size + 160 < UInt256.size) (M : ByteArray
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm10_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 60).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 160 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeAllowance_exec I w hsz hfits
+  have hdec := Exported.decodeAllowance_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
@@ -190,8 +202,10 @@ theorem arm_approve (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
     EndsAs ((entry Exported.recv0_arm1_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 8).exec I { w with memory := M })) := by
+  have hr : w.reserved.memory.size + 256 < UInt256.size :=
+    reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  have hdec := Exported.decodeApprove_exec I w hsz hfits
+  have hdec := Exported.decodeApprove_exec I w.reserved hsz hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
