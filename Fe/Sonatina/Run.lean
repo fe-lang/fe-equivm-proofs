@@ -74,6 +74,21 @@ theorem wrap_add_lt (a b : UInt256) :
   simp only [wrap]; rw [Check.size_eq] at ha hb ⊢
   omega
 
+/-- The machine IR's `add` of two words, as the value a later instruction reads.  Not in
+    `ir_step`'s set: pass it, with `add_toNat_lt`, where a sum is an operand of a later block. -/
+theorem wrap_add_toNat (a b : UInt256) :
+    wrap 256 ((a.toNat : Int) + (b.toNat : Int)) = (a + b).toNat := by
+  rw [← wrap_add_word, Check.toNat_ofNat_lt]
+  have := wrap_mod ((a.toNat : Int) + (b.toNat : Int))
+  simp only [wrap, UInt256.size] at this ⊢
+  omega
+
+/-- The overflow test of an `add` whose sum `wrap_add_toNat` made a word. -/
+theorem add_toNat_lt (a b : UInt256) :
+    (a + b).toNat < a.toNat ↔ UInt256.size ≤ a.toNat + b.toNat := by
+  rw [← wrap_add_toNat]
+  exact wrap_add_lt a b
+
 /-- A word shifted right, below `2 ^ 256`. -/
 theorem shr_mod (u : UInt256) (k : Nat) : u.toNat >>> k % size256 = u.toNat >>> k :=
   Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) u.val.isLt)
@@ -290,8 +305,34 @@ theorem panic_read (mem : ByteArray) (c : UInt256) :
       rw [ByteArray.size_append, hc, h4], byteArray_extract_self, panicData,
     u256_ofNat_toNat]
 
+/-! ## Internal calls
+
+`ir_step` does not run a callee: at a `call` statement it leaves the callee's run,
+`(runFunc m ic "f" args).exec I w`, in the goal, its arguments evaluated
+(`[Val.int 256 a.toNat, …]`).  A contract proves one lemma per callee, from any world and any
+argument words, stating what that run returns or how it halts, and passes it to `ir_step` (in
+its list or as a hypothesis, which `ir_step` uses too): each call site then rewrites with it
+and goes on with the caller's next statement.  A callee lemma whose right side is an `if` (an
+overflow check, a static call) needs its condition decided by a hypothesis in the form
+`ir_step` leaves it, so that `simp` takes the branch before the caller's continuation.
+
+The callee lemma holds of any module `m` whose function `f` is the callee's IR
+(`m.func? "f" = some fFunc`); the section's own module satisfies it by `rfl`.  Its proof
+starts at the callee's entry block by `runFunc_entry` and runs the callee's blocks by
+`ir_step`. -/
+
+/-- A call of function `name` of `m`: the function's blocks from its entry block, its parameters
+    bound to the arguments. -/
+theorem runFunc_entry {m : Module} {c : Ctx} {name : String} {f : Func} {eb : Block}
+    {args : List Val} (hf : m.func? name = some f) (he : f.blocks.head? = some eb) :
+    runFunc m c name args =
+      (Fe.Sonatina.bind {} f.params args >>= fun env => runBlocks m c f env none eb.id) := by
+  rw [runFunc.eq_1]
+  simp only [hf, he]
+
 /-- Unfold `runBlocks` once and simplify the block the run is at, with the interpreter's
     definitions, the model library's primitives, the local hypotheses and the extra lemmas.
+    A call is left to a lemma about the callee (see above).
     `CharP.cast_eq_zero` is left out: on every cast of a word's value to `ℤ` it searches for a
     `CharP ℤ` instance, unfolding the word to compare it with `0`. -/
 syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
