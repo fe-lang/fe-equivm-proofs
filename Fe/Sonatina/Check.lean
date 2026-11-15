@@ -81,6 +81,9 @@ def pureOps : List Operation :=
 def readOps : List Operation :=
   [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS]
 
+/-- The message calls the checker matches: an event each, its result the success word. -/
+def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
+
 /-- The opcodes that write state. -/
 def writeOps : List Operation :=
   [.SSTORE, .MSTORE, .MSTORE8, .CODECOPY, .CALLDATACOPY, .MCOPY, .LOG0, .LOG1, .LOG2, .LOG3,
@@ -204,6 +207,15 @@ def evmEventOpcode : EvmOp → Option Operation
   | .extCodeSize => some .EXTCODESIZE | .returnDataSize => some .RETURNDATASIZE
   | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
   | _ => none
+
+/-- The instruction makes a message call the checker matches. -/
+def _root_.Fe.Sonatina.Inst.messages : Inst → Bool
+  | .evm .call _ | .evm .staticCall _ | .evm .delegateCall _ => true
+  | _ => false
+
+/-- Some function of the module makes a message call. -/
+def _root_.Fe.Sonatina.Module.hasCalls (m : Module) : Bool :=
+  m.funcs.any fun f => f.blocks.any fun b => b.body.any (·.inst.messages)
 
 /-- The value a statement defines, if one, with its instruction. -/
 def _root_.Fe.Sonatina.Stmt.def? (s : Stmt) : Option (Nat × Inst) :=

@@ -369,9 +369,10 @@ opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesi
 accounts, `returndatasize` and `returndatacopy` the return data (a copy past its end is the model's
 `.oob`, the bytes' invalid memory access), and `gas` the gas left: each is an event, its result a
 fresh value. The model's `gas` reads its feed, so the proof builds the feed from the bytes' run:
-`Feeds s f` says `f` is what the run from `s` supplies, at each `GAS` the word it pushes, and
-`Agree` holds it of the world's feed. A run's feed exists because each step that goes on spends
-gas (`feeds_exists`). A `gas` on an empty feed is stuck (`Trace.stuck`), which the bytes match
+`Fut s f m` says `f` is what the run from `s` supplies, at each `GAS` the word it pushes, and `m`
+the calls and creations it makes, each as `XstepOk` reads it (`madeOf`); `Agree M` holds the
+first of the world's feed and says the world's recorded calls followed by `m` are `M`. A run's
+feed exists because each step that goes on spends gas (`fut_exists`). A `gas` on an empty feed is stuck (`Trace.stuck`), which the bytes match
 only by running out of gas or stack there. These raised the corpus count from 387 to 391:
 `eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
 `payable.PayableBox` (`selfbalance`).

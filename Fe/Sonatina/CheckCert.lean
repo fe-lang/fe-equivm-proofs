@@ -147,7 +147,7 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     have hcode' : s.code name = code.bytecode := by simp [Sidecar.code, hcode]
     rw [hcode'] at hI
     -- The feed is what the bytes' run supplies.
-    obtain ⟨feed, hfeed⟩ := feeds_exists (g.toNat + 1)
+    obtain ⟨feed, M, hfeed⟩ := fut_exists (g.toNat + 1)
       (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I)
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
     obtain ⟨hebm, hblk⟩ := head_block he
@@ -162,13 +162,13 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
         simpa [hpar, hret] using this
     have hslots : (frameOf low entry f).slots hb = [] := by
       unfold Frame.slots; split <;> simp [hentry]
-    have hfin := func_run (tail := tail)
+    have hfin := func_run (K := false) (M := M) (tail := tail)
       (ic := ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩) hI hsize rfl
       hfuncs (g.toNat + 1) hint f eb eb none {}
       (World.init σ A feed) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] hmemh
       (by rw [hname]; exact hf) he
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
-      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl, rfl, hfeed⟩, hb, 0, {}, [], hhb, hplace,
+      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl, rfl, ⟨M, hfeed, rfl⟩⟩, hb, 0, {}, [], hhb, hplace,
         rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
         by simp [hephi]⟩
       (fun h => by rw [hret] at h; cases h)
