@@ -482,7 +482,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = (Model.approveArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = true from h0]
+        eq_of_beq (show (Model.approveSelector == I.calldata.extract 0 4) = true from h0)]
     rw [eg, eh]
     exact approve_endsAs I w hmem hsz hfits
   have n0 := miss 0 h0
@@ -493,8 +493,8 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = Model.totalSupplyArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h1]
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+        eq_of_beq (show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h1)]
     rw [eg, eh]
     exact totalSupply_endsAs I w hmem
   have n1 := miss 1 h1
@@ -505,9 +505,9 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = (Model.transferFromArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h2]
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1),
+        eq_of_beq (show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h2)]
     rw [eg, eh]
     exact transferFrom_endsAs I w hmem hsz hfits
   have n2 := miss 2 h2
@@ -518,10 +518,10 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = (Model.balanceOfArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h3]
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2),
+        eq_of_beq (show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h3)]
     rw [eg, eh]
     exact balanceOf_endsAs I w hmem hsz hfits
   have n3 := miss 3 h3
@@ -532,11 +532,11 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = (Model.transferArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.transferSelector == I.calldata.extract 0 4) = true from h4]
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3),
+        eq_of_beq (show (Model.transferSelector == I.calldata.extract 0 4) = true from h4)]
     rw [eg, eh]
     exact transfer_endsAs I w hmem hsz hfits
   have n4 := miss 4 h4
@@ -547,12 +547,12 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     have eh : Model.runtime.exec I w = (Model.allowanceArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.transferSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h5]
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.transferSelector == I.calldata.extract 0 4) = false from n4),
+        eq_of_beq (show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h5)]
     rw [eg, eh]
     exact allowance_endsAs I w hmem hsz hfits
   have n5 := miss 5 h5
@@ -560,12 +560,12 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hfits : I.c
   rw [entry_exec (f := .revert ByteArray.empty) (by
     simp [runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4, w5])]
   simp [Model.runtime, hn4,
-    show (Model.approveSelector == I.calldata.extract 0 4) = false from n0,
-    show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1,
-    show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2,
-    show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3,
-    show (Model.transferSelector == I.calldata.extract 0 4) = false from n4,
-    show (Model.allowanceSelector == I.calldata.extract 0 4) = false from n5]
+    ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n0),
+    ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n1),
+    ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n2),
+    ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n3),
+    ne_of_beq_false (show (Model.transferSelector == I.calldata.extract 0 4) = false from n4),
+    ne_of_beq_false (show (Model.allowanceSelector == I.calldata.extract 0 4) = false from n5)]
   exact .exit _
 
 end Entries

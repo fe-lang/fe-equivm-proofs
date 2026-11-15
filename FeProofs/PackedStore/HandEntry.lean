@@ -265,34 +265,34 @@ theorem fePackedStoreRefinesHandEntry : Refines .P0 fePackedStoreBytecode handCo
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h1 : selIs I (fePackedStoreSelBytes 1)
   · have e : handRuntime.exec I (World.init σ A) = get0Arm.exec I (World.init σ A) := by
-      simp [handRuntime, hn4, show (get0Selector == I.calldata.extract 0 4) = true from h1]
+      simp [handRuntime, hn4, eq_of_beq (show (get0Selector == I.calldata.extract 0 4) = true from h1)]
     rw [ArmAgrees, e]; exact get0Arm_refines hcode hsize h1
   have n1 : (get0Selector == I.calldata.extract 0 4) = false := sel 1 h1
   by_cases h0 : selIs I (fePackedStoreSelBytes 0)
   · have e : handRuntime.exec I (World.init σ A) = get1Arm.exec I (World.init σ A) := by
-      simp [handRuntime, hn4, n1, show (get1Selector == I.calldata.extract 0 4) = true from h0]
+      simp [handRuntime, hn4, ne_of_beq_false n1, eq_of_beq (show (get1Selector == I.calldata.extract 0 4) = true from h0)]
     rw [ArmAgrees, e]; exact get1Arm_refines hcode hsize h0
   have n0 : (get1Selector == I.calldata.extract 0 4) = false := sel 0 h0
   by_cases h4 : selIs I (fePackedStoreSelBytes 4)
   · have e : handRuntime.exec I (World.init σ A) = (set0Arm I.calldata).exec I (World.init σ A) := by
-      simp [handRuntime, hn4, n1, n0, show (set0Selector == I.calldata.extract 0 4) = true from h4]
+      simp [handRuntime, hn4, ne_of_beq_false n1, ne_of_beq_false n0, eq_of_beq (show (set0Selector == I.calldata.extract 0 4) = true from h4)]
     rw [ArmAgrees, e]; exact set0Arm_refines hcode hsize h4
   have n4 : (set0Selector == I.calldata.extract 0 4) = false := sel 4 h4
   by_cases h3 : selIs I (fePackedStoreSelBytes 3)
   · have e : handRuntime.exec I (World.init σ A) = (set1Arm I.calldata).exec I (World.init σ A) := by
-      simp [handRuntime, hn4, n1, n0, n4, show (set1Selector == I.calldata.extract 0 4) = true from h3]
+      simp [handRuntime, hn4, ne_of_beq_false n1, ne_of_beq_false n0, ne_of_beq_false n4, eq_of_beq (show (set1Selector == I.calldata.extract 0 4) = true from h3)]
     rw [ArmAgrees, e]; exact set1Arm_refines hcode hsize h3
   have n3 : (set1Selector == I.calldata.extract 0 4) = false := sel 3 h3
   by_cases h2 : selIs I (fePackedStoreSelBytes 2)
   · have e : handRuntime.exec I (World.init σ A) = (setBothArm I.calldata).exec I (World.init σ A) := by
-      simp [handRuntime, hn4, n1, n0, n4, n3,
-        show (setBothSelector == I.calldata.extract 0 4) = true from h2]
+      simp [handRuntime, hn4, ne_of_beq_false n1, ne_of_beq_false n0, ne_of_beq_false n4, ne_of_beq_false n3,
+        eq_of_beq (show (setBothSelector == I.calldata.extract 0 4) = true from h2)]
     rw [ArmAgrees, e]; exact setBothArm_refines hcode hsize h2
   have n2 : (setBothSelector == I.calldata.extract 0 4) = false := sel 2 h2
   exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode
     (fePackedStoreX_noMatch hcode hsz hsize (fePackedStoreNoSelectorMatches h0 h1 h2 h3 h4))
     (f := .revert ByteArray.empty)
-    (by simp [handRuntime, hn4, n0, n1, n2, n3, n4]) (by simp)
+    (by simp [handRuntime, hn4, ne_of_beq_false n0, ne_of_beq_false n1, ne_of_beq_false n2, ne_of_beq_false n3, ne_of_beq_false n4]) (by simp)
 
 /-- Deployment, with no constructor arguments, refines the handContract's `init`. -/
 theorem fePackedStoreDeployRefinesHandEntry :

@@ -378,7 +378,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.nameArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = true from h0]
+        eq_of_beq (show (Model.nameSelector == I.calldata.extract 0 4) = true from h0)]
     rw [eg, eh]
     exact name_endsAs I w hw
   have n0 := miss 0 h0
@@ -390,8 +390,8 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.approveArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = true from h1]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        eq_of_beq (show (Model.approveSelector == I.calldata.extract 0 4) = true from h1)]
     rw [eg, eh]
     exact approve_endsAs I w hw hsz hfits
   have n1 := miss 1 h1
@@ -403,9 +403,9 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.totalSupplyArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h2]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        eq_of_beq (show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h2)]
     rw [eg, eh]
     exact totalSupply_endsAs I w hw
   have n2 := miss 2 h2
@@ -417,10 +417,10 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.transferFromArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h3]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        eq_of_beq (show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h3)]
     rw [eg, eh]
     exact transferFrom_endsAs I w hw hsz hfits
   have n3 := miss 3 h3
@@ -432,11 +432,11 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.withdrawArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = true from h4]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        eq_of_beq (show (Model.withdrawSelector == I.calldata.extract 0 4) = true from h4)]
     rw [eg, eh]
     exact withdraw_endsAs I w hw hsz hfits
   have n4 := miss 4 h4
@@ -448,12 +448,12 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.decimalsArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = true from h5]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        eq_of_beq (show (Model.decimalsSelector == I.calldata.extract 0 4) = true from h5)]
     rw [eg, eh]
     exact decimals_endsAs I w hw
   have n5 := miss 5 h5
@@ -465,13 +465,13 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.balanceOfArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h6]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+        eq_of_beq (show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h6)]
     rw [eg, eh]
     exact balanceOf_endsAs I w hw hsz hfits
   have n6 := miss 6 h6
@@ -483,14 +483,14 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.symbolArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6,
-        show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6),
+        eq_of_beq (show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7)]
     rw [eg, eh]
     exact symbol_endsAs I w hw
   have n7 := miss 7 h7
@@ -502,15 +502,15 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.transferArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6,
-        show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7,
-        show (Model.transferSelector == I.calldata.extract 0 4) = true from h8]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6),
+        ne_of_beq_false (show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7),
+        eq_of_beq (show (Model.transferSelector == I.calldata.extract 0 4) = true from h8)]
     rw [eg, eh]
     exact transfer_endsAs I w hw hsz hfits
   have n8 := miss 8 h8
@@ -522,16 +522,16 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6,
-        show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7,
-        show (Model.transferSelector == I.calldata.extract 0 4) = false from n8,
-        show (Model.depositSelector == I.calldata.extract 0 4) = true from h9]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6),
+        ne_of_beq_false (show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7),
+        ne_of_beq_false (show (Model.transferSelector == I.calldata.extract 0 4) = false from n8),
+        eq_of_beq (show (Model.depositSelector == I.calldata.extract 0 4) = true from h9)]
     rw [eg, eh]
     exact deposit_endsAs I w hw
   have n9 := miss 9 h9
@@ -543,17 +543,17 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.allowanceArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
-        show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-        show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-        show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-        show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-        show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-        show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-        show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6,
-        show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7,
-        show (Model.transferSelector == I.calldata.extract 0 4) = false from n8,
-        show (Model.depositSelector == I.calldata.extract 0 4) = false from n9,
-        show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h10]
+        ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+        ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+        ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+        ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+        ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+        ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+        ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6),
+        ne_of_beq_false (show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7),
+        ne_of_beq_false (show (Model.transferSelector == I.calldata.extract 0 4) = false from n8),
+        ne_of_beq_false (show (Model.depositSelector == I.calldata.extract 0 4) = false from n9),
+        eq_of_beq (show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h10)]
     rw [eg, eh]
     exact allowance_endsAs I w hw hsz hfits
   have n10 := miss 10 h10
@@ -563,17 +563,17 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     simp [entry, runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10]
   have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by
     simp [Model.runtime, hn4,
-      show (Model.nameSelector == I.calldata.extract 0 4) = false from n0,
-      show (Model.approveSelector == I.calldata.extract 0 4) = false from n1,
-      show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2,
-      show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3,
-      show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4,
-      show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5,
-      show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6,
-      show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7,
-      show (Model.transferSelector == I.calldata.extract 0 4) = false from n8,
-      show (Model.depositSelector == I.calldata.extract 0 4) = false from n9,
-      show (Model.allowanceSelector == I.calldata.extract 0 4) = false from n10]
+      ne_of_beq_false (show (Model.nameSelector == I.calldata.extract 0 4) = false from n0),
+      ne_of_beq_false (show (Model.approveSelector == I.calldata.extract 0 4) = false from n1),
+      ne_of_beq_false (show (Model.totalSupplySelector == I.calldata.extract 0 4) = false from n2),
+      ne_of_beq_false (show (Model.transferFromSelector == I.calldata.extract 0 4) = false from n3),
+      ne_of_beq_false (show (Model.withdrawSelector == I.calldata.extract 0 4) = false from n4),
+      ne_of_beq_false (show (Model.decimalsSelector == I.calldata.extract 0 4) = false from n5),
+      ne_of_beq_false (show (Model.balanceOfSelector == I.calldata.extract 0 4) = false from n6),
+      ne_of_beq_false (show (Model.symbolSelector == I.calldata.extract 0 4) = false from n7),
+      ne_of_beq_false (show (Model.transferSelector == I.calldata.extract 0 4) = false from n8),
+      ne_of_beq_false (show (Model.depositSelector == I.calldata.extract 0 4) = false from n9),
+      ne_of_beq_false (show (Model.allowanceSelector == I.calldata.extract 0 4) = false from n10)]
   rw [eg, eh]
   exact fallback_endsAs I w hw
 

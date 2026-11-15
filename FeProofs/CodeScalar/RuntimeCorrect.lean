@@ -119,7 +119,7 @@ theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.cal
       (entry (Model.get >>= Evm_return_value_Sol_u256)).exec I w := by
     simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeGet_exec, recv0_arm0_eq]
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
-    simp [Model.runtime, exec_nonPayable, hwv, hn4, sel0 h0]
+    simp [Model.runtime, exec_nonPayable, hwv, hn4, eq_of_beq (sel0 h0)]
   rw [eg, eh]
   exact endsAs_arm (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) keepsMemory_get hmem
 
