@@ -339,6 +339,32 @@ theorem pair_slot_gap (mem : ByteArray) (key root : UInt256) {off off2 : Nat}
       mapSlot key root := by
   rw [pair_read_gap mem key root h h2, mappingSlot_single]; rfl
 
+/-- The selector of `Panic(uint256)` stored at `off` and the code at `off + 4`, read back as 36
+    bytes, whatever the memory's size: the payload of a `revert_error` that stores in its arena. -/
+theorem panic_read_gap (mem : ByteArray) (c : UInt256) {off off4 : Nat} (h : off + 36 < 2 ^ 32)
+    (h4 : off4 = off + 4) :
+    (c.toByteArray.write 0 ((UInt256.ofNat
+      35408467139433450592217433187231851964531694900788300625387963629091585785856
+      ).toByteArray.write 0 mem off 32) off4 32).readWithPadding off 36 = panicData c.toNat := by
+  subst h4
+  have hgap : ∀ (M : ByteArray) (o : Nat), o < 2 ^ 32 → o - M.size < USize.size :=
+    fun M o ho => lt_of_le_of_lt (Nat.sub_le _ _) (lt_usize _ ho)
+  have h1 := toByteArray_write_size_ge_off_add32 (UInt256.ofNat
+      35408467139433450592217433187231851964531694900788300625387963629091585785856) mem off
+    (hgap _ _ (by omega))
+  have h2 := toByteArray_write_size_ge_off_add32 c ((UInt256.ofNat
+      35408467139433450592217433187231851964531694900788300625387963629091585785856
+      ).toByteArray.write 0 mem off 32) (off + 4) (hgap _ _ (by omega))
+  rw [show (36 : Nat) = 4 + 32 from rfl, byteArray_readWithPadding_split _ off 4 32
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by omega),
+    toByteArray_write_read_below_len_of_gap _ _ _ _ _ (by omega) (le_refl _) (by decide)
+      (by decide) (hgap _ _ (by omega)),
+    toByteArray_write_read_back_of_gap _ _ _ (hgap _ _ (by omega)),
+    show off = off + 0 from rfl, toByteArray_write_read_window_of_gap _ _ _ 0 4 (by decide)
+      (by decide) (by decide) (hgap _ _ (by omega)), panicData, u256_ofNat_toNat]
+  congr 1
+  decide +kernel
+
 /-! ## Internal calls
 
 `ir_step` does not run a callee: at a `call` statement it leaves the callee's run,
@@ -387,5 +413,38 @@ macro_rules
       Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
       show (⟨0⟩ : UInt256).toNat = 0 from rfl,
       Std.TreeMap.getElem_insert, -CharP.cast_eq_zero, *, $ls,*]))
+
+
+/-- `ir_step`'s simplification without the unfolding: for the rest of a block after a call whose
+    callee's result the goal holds symbolically (a match on it), once case facts decide it, and
+    for an exported arm and the machine IR simplified together. -/
+syntax "ir_simp" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
+
+macro_rules
+  | `(tactic| ir_simp) => `(tactic| ir_simp [])
+  | `(tactic| ir_simp [$ls,*]) => `(tactic| (simp [enter,
+      Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
+      evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
+      Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
+      Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
+      Fe.EVM.codecopy, Fe.EVM.calldatacopy, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore,
+      Fe.EVM.mload,
+      Fe.EVM.keccak256, revertData, returnData, Reasoning.Theory.byteArray_readWithPadding_zero,
+      toNat_mod, sel_mod, shr_mod, ofNat_mod, pair_slot, error_read, panic_read,
+      wrap_sub_word, wrap_add_word, wrap_add_lt, wrap_mod,
+      Reasoning.Theory.toByteArray_write32_read_back,
+      Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
+      show (⟨0⟩ : UInt256).toNat = 0 from rfl,
+      Std.TreeMap.getElem_insert, -CharP.cast_eq_zero, *, $ls,*]))
+
+/-- A message call with no input and no output, as `ir_step` leaves its zero lengths: the call
+    on empty memory, the memory then put back (`Fe.EVM.call_noData`).  A rewrite to use once with
+    `rw`: as a `simp` lemma it applies to its own right side. -/
+theorem call_noData0 (gasArg addr value argsPtr retPtr : UInt256) (I : ExecutionEnv)
+    (w : World) :
+    (Fe.EVM.call gasArg addr value argsPtr ⟨0⟩ retPtr ⟨0⟩).exec I w =
+      withMemory w.memory ((Fe.EVM.call gasArg addr value ⟨0⟩ ⟨0⟩ ⟨0⟩ ⟨0⟩).exec I
+        { w with memory := ByteArray.empty }) :=
+  call_noData gasArg addr value argsPtr retPtr I w
 
 end Fe.Sonatina

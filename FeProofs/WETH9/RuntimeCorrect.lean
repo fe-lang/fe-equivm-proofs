@@ -579,9 +579,6 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
 
 /-! ## The certificate -/
 
-/-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
-
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feWETH9RefinesExported : RefinesOn .P0 feWETH9Bytecode contract CalldataFits := by
   refine RefinesOn.of_code rfl ?_
