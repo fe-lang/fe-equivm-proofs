@@ -652,7 +652,8 @@ theorem way_exit_isJump {e e' : Exit} {cond : Expr} {taken : Bool}
 theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx}
     {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {e0 : Exit}
     (hsize : code.size < UInt256.size)
-    (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true) :
+    (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true)
+    (hval : c.canon.Valid I ρ) :
     ∀ fuel p s w r B, (∀ ev ∈ p.events, messageOps.contains ev.op = true → K = true) →
       run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s →
       Agree M s w → Trace I ρ p.events w r → Ends K M code I ρ c hints place b B e0 p.exit p.calls s r
@@ -699,7 +700,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         run code c hints place b fuel { p with pc := next, stack := es } = true →
         Ends K M code I ρ c hints place b B e0 p.exit p.calls s r :=
       fun pc' stk es hc hg hm hn hst hrun =>
-      Ends.moves hp.env hc hm fun g hx => ⟨_, run_ends hsize hretj fuel
+      Ends.moves hp.env hc hm fun g hx => ⟨_, run_ends hsize hretj hval fuel
         { p with pc := next, stack := es } _ w r B hK
         hrun ⟨hp.env, hp.code, hn, hst, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet hg (by simpa [Calm, hdec] using hc)) hx) htr⟩
     have hone : next = p.pc + 1 → (s.machineState.pc + ⟨1⟩).toNat = next := fun hn => by
@@ -806,7 +807,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           have hpm := pure_moves h3 hdec hs (by rw [hp.env]; exact hv)
           exact cont _ _ _ (calm_of_mem hdec (by decide) h3)
             (by rintro rfl; exact absurd h3 (by decide)) hpm hone'
-            (hrest.cons (by rw [hev]; simpa using hv)) h
+            (hrest.cons (hval.intern (by rw [hev]; simpa using hv))) h
         · cases h
       · cases h
     rw [if_neg h3] at h
@@ -838,14 +839,14 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         split at h
         · next _ _ id hr _ =>
           rw [hr] at hst
-          exact run_ends hsize hretj fuel ⟨next, .atom id :: p.stack.drop k, events, p.exit,
+          exact run_ends hsize hretj hval fuel ⟨next, .atom id :: p.stack.drop k, events, p.exit,
             p.calls⟩ _ w' r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h
             ⟨henv, hp.code, hpc', by
               simpa [hst] using hrest.cons (e := .atom id) (v := ρ id) rfl, hp.valid, hp.exit⟩
             hw2 htr'
         · next _ _ hr _ =>
           rw [hr] at hst
-          exact run_ends hsize hretj fuel ⟨next, p.stack.drop k, events, p.exit, p.calls⟩ _ w'
+          exact run_ends hsize hretj hval fuel ⟨next, p.stack.drop k, events, p.exit, p.calls⟩ _ w'
             r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit⟩ hw2 htr'
         · cases h
       · cases h
@@ -972,7 +973,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
                 (fun d hd => selected_sound hS hp.valid (hp.next ▸ hd)) hrest h
                 (e0_not_halt hp hS) (isJump_of_selected hp hS)⟩
             · cases h
-          · exact ⟨_, run_ends hsize hretj fuel { p with pc := t, stack := rest } _ w r B hK h
+          · exact ⟨_, run_ends hsize hretj hval fuel { p with pc := t, stack := rest } _ w r B hK h
               ⟨hp.env, hp.code, htn, hrest, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet (by decide) (by decide)) hx)
               htr⟩
       · -- A return.
@@ -1046,7 +1047,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           split at hnt
           · next S hS =>
             have hn := way_sound hS hcv ht hp.valid
-            exact ⟨_, run_ends hsize hretj fuel
+            exact ⟨_, run_ends hsize hretj hval fuel
               { p with pc := next, stack := rest, exit := .goto S } _ w r B hK hnt
               ⟨hp.env, hp.code, hone', hrest, trivial,
               .inr ⟨by rw [← hp.next, hn]; rfl, fun op args =>
@@ -1054,7 +1055,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           · next hS => exact (way_sound hS hcv ht hp.valid).elim
           · next e' hS =>
             have hn := way_sound hS hcv ht hp.valid
-            exact ⟨_, run_ends hsize hretj fuel { p with pc := next, stack := rest, exit := e' } _
+            exact ⟨_, run_ends hsize hretj hval fuel { p with pc := next, stack := rest, exit := e' } _
               w r B hK hnt ⟨hp.env, hp.code, hone', hrest, hn.2,
               .inr ⟨by rw [hn.1, hp.next], fun op args =>
                 ⟨nohalt hS op args, way_exit_not_halt hS op args⟩, way_exit_isJump hS,

@@ -277,17 +277,14 @@ theorem caseOf_sound {ee : ExecutionEnv} {env : Nat → UInt256} {s cond : Expr}
       simp [eq_comm]
   next => cases h
 
-theorem mem_of_lookup {l : List (Nat × Nat)} {k d : Nat} (h : l.lookup k = some d) :
-    (k, d) ∈ l := by
-  induction l with
-  | nil => cases h
-  | cons kd rest ih =>
-    obtain ⟨k', d'⟩ := kd
-    by_cases he : k = k'
-    · subst he; simp only [List.lookup, BEq.rfl, Option.some.injEq] at h; subst h; simp
-    · have hb : (k == k') = false := by simpa using he
-      simp only [List.lookup, hb] at h
-      exact List.mem_cons_of_mem _ (ih h)
+theorem mem_of_lookup {α β : Type} [BEq α] [LawfulBEq α] {a : α} {b : β} :
+    ∀ {l : List (α × β)}, l.lookup a = some b → (a, b) ∈ l
+  | [], h => by simp [List.lookup] at h
+  | (k, v) :: l, h => by
+    unfold List.lookup at h
+    split at h
+    · next he => cases h; rw [eq_of_beq he]; exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (mem_of_lookup h)
 
 /-- What a way says of the exit `e` it is a way of: the successor it goes to, an exit that goes
     where `e` goes, or nothing. -/
@@ -368,5 +365,35 @@ theorem selected_sound {ee : ExecutionEnv} {env : Nat → UInt256} {e : Exit} {s
     obtain ⟨v, hsv, rfl⟩ := hn
     simp [find_ruled hall (hv.2 v hsv)]
   | _ => simp [Exit.selected] at h
+
+/-! ## Value numbering -/
+
+/-- Every expression of `k` has the word, under `ρ`, of the value it is or names. -/
+def Canon.Valid (ee : ExecutionEnv) (ρ : Nat → UInt256) (k : Canon) : Prop :=
+  (∀ p ∈ k.vals, p.2.eval ee ρ = some (ρ p.1)) ∧ ∀ p ∈ k.nodes, p.1.eval ee ρ = some (ρ p.2)
+
+theorem Canon.valid_empty (ee : ExecutionEnv) (ρ : Nat → UInt256) :
+    (⟨[], []⟩ : Canon).Valid ee ρ := ⟨by simp, by simp⟩
+
+theorem Canon.Valid.expand {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
+    (hv : k.Valid ee ρ) {id : Nat} {e : Expr} (h : k.expand id = some e) :
+    e.eval ee ρ = some (ρ id) := by
+  simp only [Canon.expand, Option.some.injEq] at h
+  subst h
+  cases hl : k.vals.lookup id with
+  | none => rfl
+  | some e' => simpa using hv.1 _ (mem_of_lookup hl)
+
+theorem Canon.Valid.intern {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
+    (hv : k.Valid ee ρ) {e : Expr} {x : UInt256} (h : e.eval ee ρ = some x) :
+    (k.intern e).eval ee ρ = some x := by
+  unfold Canon.intern
+  cases hl : k.nodes.lookup e with
+  | none => simpa using h
+  | some w =>
+    have := hv.2 _ (mem_of_lookup hl)
+    simp only at this
+    rw [this] at h
+    simpa [Expr.eval] using h
 
 end Fe.Sonatina.Check

@@ -21,20 +21,43 @@ theorem local_def {t : Stmt} {p : Nat × Inst} (h : t.local? = some p) : t.def? 
   · cases h
   · exact h
 
+theorem local_of_def {s : Stmt} {id : Nat} {ty : Ty} (hs : s.dsts = [(id, ty)])
+    (hnc : ∀ callee args, s.inst ≠ .call callee args) : s.local? = some (id, s.inst) := by
+  unfold Stmt.local?
+  split
+  · next h => obtain ⟨g, a, he⟩ : ∃ g a, s.inst = .call g a := by
+                revert h; cases s.inst <;> simp
+              exact absurd he (hnc g a)
+  · simp [Stmt.def?, hs]
+
+/-- A value no statement defines has no definition. -/
+theorem lookup_none {stmts : List Stmt} {id : Nat}
+    (h : ∀ s ∈ stmts, ∀ d ∈ s.dsts, d.1 ≠ id) :
+    (stmts.filterMap Stmt.local?).lookup id = none := by
+  induction stmts with
+  | nil => rfl
+  | cons t rest ih =>
+    have ih' := ih fun s hs => h s (List.mem_cons_of_mem _ hs)
+    cases ht : t.local? with
+    | none => simpa [List.filterMap_cons, ht] using ih'
+    | some p =>
+      have hp : p.1 ≠ id := by
+        have ht := local_def ht
+        unfold Stmt.def? at ht
+        split at ht
+        · next id' ty' hd => cases ht; exact h t (by simp) (id', ty') (by simp [hd])
+        · cases ht
+      have hb : (id == p.1) = false := by simpa using Ne.symm hp
+      rw [List.filterMap_cons, ht]
+      simp only [List.lookup, hb]
+      exact ih'
+
 theorem lookup_def {pre rest : List Stmt} {s : Stmt} {id : Nat} {ty : Ty}
     (hs : s.dsts = [(id, ty)]) (hnc : ∀ callee args, s.inst ≠ .call callee args)
     (hpre : ∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ≠ id) :
     ((pre ++ s :: rest).filterMap Stmt.local?).lookup id = some s.inst := by
   induction pre with
-  | nil =>
-    have : s.local? = some (id, s.inst) := by
-      unfold Stmt.local?
-      split
-      · next h => obtain ⟨g, a, he⟩ : ∃ g a, s.inst = .call g a := by
-                    revert h; cases s.inst <;> simp
-                  exact absurd he (hnc g a)
-      · simp [Stmt.def?, hs]
-    simp [this]
+  | nil => simp [local_of_def hs hnc]
   | cons t pre ih =>
     have ih' := ih fun t' h => hpre t' (List.mem_cons_of_mem _ h)
     cases ht : t.local? with
@@ -268,15 +291,51 @@ theorem WordsOf.same {env : Env} {ρ ρ' : Nat → UInt256} {D : List Nat} (hw :
   word_inj (Option.some.inj ((hw id hid).symm.trans (hw' id hid)))
 
 theorem Cons.mono {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D D₂ : List Nat}
-    (hc : Cons ee ρ c D) (h : ∀ x ∈ D, x ∈ D₂) (hn : ∀ id ∈ D₂, id ∉ D → ∀ inst,
-      c.defs.lookup id = some inst → reads D₂ inst.operands = true ∧
-      ∀ d e, pureWith (c.expand d) c.symbols inst = some e →
-        instWord ee ρ c.symbols inst = some (ρ id)) : Cons ee ρ c D₂ := by
-  intro id hid inst hl
-  by_cases hd : id ∈ D
-  · obtain ⟨hr, hp⟩ := hc id hd inst hl
-    exact ⟨reads_mono h hr, hp⟩
-  · exact hn id hid hd inst hl
+    (hc : Cons ee ρ c D) (h : ∀ x ∈ D, x ∈ D₂) (hn : ∀ id ∈ D₂, id ∉ D →
+      (∀ inst, c.defs.lookup id = some inst → reads D₂ inst.operands = true ∧
+        Eqn ee ρ c.symbols id inst) ∧
+      ∀ e, c.expand id = some e → e.eval ee ρ = some (ρ id)) : Cons ee ρ c D₂ := by
+  refine ⟨hc.1, fun id hid inst hl => ?_, fun id hid e he => ?_⟩
+  · by_cases hd : id ∈ D
+    · obtain ⟨hr, hp⟩ := hc.2.1 id hd inst hl
+      exact ⟨reads_mono h hr, hp⟩
+    · exact (hn id hid hd).1 inst hl
+  · by_cases hd : id ∈ D
+    · exact hc.2.2 id hd e he
+    · exact (hn id hid hd).2 e he
+
+theorem local_dst {t : Stmt} {p : Nat × Inst} (h : t.local? = some p) :
+    ∃ ty, (p.1, ty) ∈ t.dsts := by
+  have ht := local_def h
+  unfold Stmt.def? at ht
+  split at ht
+  · next id ty hd => cases ht; exact ⟨ty, by simp [hd]⟩
+  · cases ht
+
+/-- The expressions of the values the statements before `D`'s end define are valid. -/
+theorem prefix_valid {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : List Nat}
+    {pre post : List Stmt} (hc : Cons ee ρ c D)
+    (hdefs : c.defs = (pre ++ post).filterMap Stmt.local?)
+    (hpre : ∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ∈ D) :
+    (Canon.ofDefs c.symbols (pre.filterMap Stmt.local?)).Valid ee ρ :=
+  Canon.valid_ofDefs fun j inst hl => by
+    obtain ⟨t, ht, htl⟩ := List.mem_filterMap.mp (mem_of_lookup hl)
+    obtain ⟨ty, hty⟩ := local_dst htl
+    exact (hc.2.1 j (hpre t ht _ hty) inst
+      (by rw [hdefs, List.filterMap_append]; exact lookup_append hl)).2
+
+/-- The expression of the value a statement defines has its word, when the values before it
+    have theirs and it has its own. -/
+theorem expand_stmt {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : List Nat}
+    {pre rest post : List Stmt} {s : Stmt} {id : Nat} {ty : Ty} (hc : Cons ee ρ c D)
+    (hdefs : c.defs = (pre ++ s :: rest ++ post).filterMap Stmt.local?)
+    (hpre : ∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ∈ D) (hid : id ∉ D) (hs : s.dsts = [(id, ty)])
+    (hnc : ∀ callee args, s.inst ≠ .call callee args) (he : Eqn ee ρ c.symbols id s.inst) :
+    ∀ e, c.expand id = some e → e.eval ee ρ = some (ρ id) :=
+  expand_new hc.1 (xs := pre.filterMap Stmt.local?) (ys := (rest ++ post).filterMap Stmt.local?)
+    (by rw [hdefs]; simp [List.filterMap_append, local_of_def hs hnc])
+    (lookup_none fun t ht d hd h => hid (h ▸ hpre t ht d hd))
+    (prefix_valid hc (post := s :: rest ++ post) (by rw [hdefs]; simp) hpre) he
 
 theorem definedAfter_mono : ∀ {stmts : List Stmt} {D D' : List Nat},
     definedAfter D stmts = some D' → ∀ x ∈ D, x ∈ D'
@@ -361,20 +420,22 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           · exact absurd h' he'
       have hc' : ∀ ρ, WordsOf env₁ ρ (D ++ [id]) → Cons ee ρ c (D ++ [id]) := by
         intro ρ hρ
-        refine (hc ρ (WordsOf.agree hagree (fun id' h' => hρ id' (List.mem_append_left _ h')))).mono
-          (fun x hx => List.mem_append_left _ hx) fun id' h' hn inst hl => ?_
+        have hc0 := hc ρ (WordsOf.agree hagree (fun id' h' => hρ id' (List.mem_append_left _ h')))
+        have heqn : Eqn ee ρ c.symbols id s.inst := fun _ _ _ => by
+          have hsame := WordsOf.same (WordsOf.agree hagree (fun x hx => hρ x
+            (List.mem_append_left _ hx))) hw₁
+          rw [instWord_congr hsame hr, hv]
+          congr 1
+          exact word_inj (Option.some.inj ((show env₁[id]? = some (Val.int 256 v.toNat) by
+            simp [env₁]).symm.trans (hρ id (by simp))))
+        refine hc0.mono (fun x hx => List.mem_append_left _ hx) fun id' h' hn => ?_
         have : id' = id := by simpa [hn] using h'
         subst this
+        refine ⟨fun inst hl => ?_, expand_stmt hc0 hdefs hpre hid hds hnc heqn⟩
         rw [hdefs, List.append_assoc, List.cons_append,
           lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
         cases hl
-        refine ⟨reads_mono (fun x hx => List.mem_append_left _ hx) hr, fun _ _ _ => ?_⟩
-        have hsame := WordsOf.same (WordsOf.agree hagree (fun x hx => hρ x
-          (List.mem_append_left _ hx))) hw₁
-        rw [instWord_congr hsame hr, hv]
-        congr 1
-        exact word_inj (Option.some.inj ((show env₁[id']? = some (Val.int 256 v.toNat) by
-          simp [env₁]).symm.trans (hρ id' (by simp))))
+        exact ⟨reads_mono (fun x hx => List.mem_append_left _ hx) hr, heqn⟩
       obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w evs post
         hdefs' hpre' hd he hbits' ⟨_, hw₁'⟩ hc'
       refine ⟨x, ?_, ?_⟩
@@ -402,7 +463,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
       have hk' : δ opc = some args.length := by rw [hk, hal]
       -- The event's operands under any valuation of the values defined before it.
       have hevargs : ∀ ρ, WordsOf env ρ D → es.mapM (·.eval ee ρ) = some args := fun ρ hρ => by
-        rw [operands_eval (fun id' e' h' he' => expand_eval (hc ρ hρ) depth id' e' h' he') hr' hos,
+        rw [operands_eval (fun id' e' h' he' => expand_eval (hc ρ hρ) id' e' h' he') hr' hos,
           opWords_congr (WordsOf.same hρ hw₁) hr', hargs]
       have hrun := evm_run (ee := ee) hopc hk' w
       obtain ⟨res, rfl, hres⟩ : ∃ res, o = some ⟨opc, es, res⟩ ∧
@@ -486,16 +547,18 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               · exact absurd h' he'
           have hc' : ∀ ρ, WordsOf env₁ ρ (D ++ [id]) → Cons ee ρ c (D ++ [id]) := by
             intro ρ hρ
-            refine (hc ρ (WordsOf.agree hagree fun id' h' => hρ id' (hsub id' h'))).mono hsub
-              fun id' h' hn inst hl => ?_
+            have hc0 := hc ρ (WordsOf.agree hagree fun id' h' => hρ id' (hsub id' h'))
+            have heqn : Eqn ee ρ c.symbols id s.inst := fun _ e he' => by
+              rw [hinst] at he'
+              simp [pureWith, hnp] at he'
+            refine hc0.mono hsub fun id' h' hn => ?_
             have : id' = id := by simpa [hn] using h'
             subst this
+            refine ⟨fun inst hl => ?_, expand_stmt hc0 hdefs hpre hid hds hnc heqn⟩
             rw [hdefs, List.append_assoc, List.cons_append,
           lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
             cases hl
-            refine ⟨reads_mono hsub hr, fun d e he' => ?_⟩
-            rw [hinst] at he'
-            simp [pureWith, hnp] at he'
+            exact ⟨reads_mono hsub hr, heqn⟩
           obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w₁ evs' post
             hdefs' hpre' hd hrest hbits' ⟨_, hw₁'⟩ hc'
           -- The word the read gives is the valuation's.
