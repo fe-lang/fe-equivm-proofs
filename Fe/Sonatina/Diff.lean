@@ -74,6 +74,9 @@ def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List
   sidecars.filterMapM fun (path, interface) => do
     match Parse.parseSidecar (← IO.FS.readFile path) with
     | .ok s =>
+      if level == .postOpt && s.module.isNone then
+        IO.println s!"UNSUPPORTED {file}::{path}: a module IR this subset does not read"
+        return none
       if level == .source && s.sections.any (·.lowering.any (·.source.isNone)) then
         IO.println s!"UNSUPPORTED {file}::{path}: a section IR this subset does not read"
         return none
@@ -91,14 +94,14 @@ def targetsOf (file : String) (sidecars : List (String × Interface)) : IO (List
     printed: the object has one section `runtime` embedded at the end of `init`, where Sonatina
     lays out embeds, and no other symbol is read.  An error unless `runtime` ends `init`. -/
 def Sidecar.ofPinned (ir : String) (creation runtime : ByteArray) : Except String Sidecar := do
-  let module ← Parse.parseModule ir
-  let [obj] := module.objects | throw "expected one object"
+  let (module, objects) ← Parse.parseLines (Parse.lines ir)
+  let [obj] := objects | throw "expected one object"
   let offset := creation.size - runtime.size
   unless runtime.size ≤ creation.size && creation.extract offset creation.size == runtime do
     throw "the runtime code does not end the creation code"
   let embeds := (obj.sections.find? (·.name == "init")).map (·.embeds) |>.getD []
   let [(symbol, "runtime")] := embeds | throw "expected init to embed runtime alone"
-  return ⟨obj.name, module,
+  return ⟨obj.name, objects, some module,
     [⟨"init", creation, [(".", 0, creation.size), (symbol, offset, runtime.size)], none⟩,
      ⟨"runtime", runtime, [(".", 0, runtime.size)], none⟩]⟩
 

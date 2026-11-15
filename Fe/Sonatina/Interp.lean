@@ -80,7 +80,7 @@ def Val.as (v : Val) (ty : Ty) : Val :=
 def Val.zero : Ty → Val
   | .int bits => .int bits 0
   | .ptr _ => .int 256 0
-  | .struct _ | .array _ _ | .unit => .agg []
+  | .struct _ | .array _ _ | .unit | .objRef _ | .constRef _ => .agg []
 
 def evalOperand (env : Env) : Operand → FeM Val
   | .var id => match env[id]? with
@@ -266,7 +266,7 @@ def Ty.size (structs : List (String × List Ty)) (ty : Ty) : Nat :=
 where
   go : Nat → Ty → Nat
     | 0, _ => 0
-    | _ + 1, .int _ | _ + 1, .ptr _ => 32
+    | _ + 1, .int _ | _ + 1, .ptr _ | _ + 1, .objRef _ | _ + 1, .constRef _ => 32
     | depth + 1, .array elem len => len * go depth elem
     | depth + 1, .struct name => ((structs.lookup name).getD []).foldl (· + go depth ·) 0
     | _ + 1, .unit => 0
@@ -413,17 +413,18 @@ inductive Level where
 
 /-- The module section `code` runs at the level. -/
 def Sidecar.moduleAt (s : Sidecar) (code : CodeSection) : Level → Option Module
-  | .postOpt => some s.module
+  | .postOpt => s.module
   | .source => code.lowering.bind (·.source)
   | .machine => code.lowering.map (·.machine)
 
 /-- Run section `name` of the sidecar's object from its entry, in the IR of the level.  The
-    entry ends the call itself: one that returns is stuck.  At the machine level the run starts
+    entry ends the call itself: one that returns is stuck, as is a run at a level whose IR the
+    sidecar does not have (`Sidecar.moduleAt`).  At the machine level the run starts
     with what the section entry's code does before the machine IR: it stores the initial free
     pointer the lowering record names. -/
 def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt) :
     FeM ByteArray := do
-  let some obj := s.module.objects.find? (·.name == s.object) | stuck
+  let some obj := s.objects.find? (·.name == s.object) | stuck
   let some sec := obj.sections.find? (·.name == name) | stuck
   let some code := s.section? name | stuck
   let some m := s.moduleAt code level | stuck

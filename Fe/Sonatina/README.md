@@ -63,8 +63,16 @@ every EVM instruction the model library has a primitive for: storage, transient 
 code, logs, the environment, `gas`, message calls and creations. The same subset covers the IR
 after optimization, a section's IR after the backend's pipeline and its machine IR; a value takes
 the width its definition declares, so the machine IR's `i256` comparison results are words. Other
-instructions (`gep`, `obj.*`, `enum.*`, narrow memory accesses), object reference types, and any
-use of a global or an enum are parse errors; enum and global declarations are skipped.
+instructions (`gep`, `obj.*`, `enum.*`, narrow memory accesses) and any use of a global or an
+enum are parse errors; enum and global declarations are skipped. Object reference types
+(`objref<T>`, `constref<T>`) are read, with no instruction on them: a machine IR keeps the struct
+types of its section IR, some with such fields. A sidecar
+is read if what the checker reads is: the object declarations, and per section the bytes, symbols,
+machine IR and hints. The module after optimization (`Sidecar.module`) and a section's IR after
+the pipeline (`Lowering.source`) are `none` where they are outside the subset, and the model of
+that level is then stuck; the differential tests report such a sidecar as not read at that
+level. Of the fevm precompile contracts, the module uses `obj.*`, `const.*`, `enum.*`, `bswap`
+and `freeze`, and the section IR `gep`, none of which the interpreter has a meaning for.
 
 `Interp.lean` runs it in `FeM`, the monad of exported models, over EVMLean's state; every EVM
 instruction is the model library's primitive (`sload`, `call`, `logData`, …). Values are typed
@@ -370,7 +378,8 @@ section's IR reads none), mutations of WETH9's message call (a wrong gas operand
 the address swapped, the return or the arguments' window off by a word: all rejected), of a
 reentrancy guard's transient storage, of a factory's `create2` (a wrong value operand, the init
 code without its argument words, the init code's offset and size swapped, a wrong salt, `create`
-for `create2`: all rejected) and a corpus directory.
+for `create2`: all rejected) and a corpus directory, a line per section and per sidecar it does
+not read.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
 (`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,
