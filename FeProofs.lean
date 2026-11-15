@@ -42,6 +42,7 @@ import FeProofs.Case44Bank.Exported
 import FeProofs.Case44Bank.SonatinaCorrect
 import FeProofs.Precompiles.Ripemd160.Contract
 import FeProofs.Precompiles.Bn254.MulContract
+import FeProofs.Precompiles.Secp256k1.PrecompileContract
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints

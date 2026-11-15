@@ -33,8 +33,11 @@ not, whose termination is not proved; on the bytecode that is running out of gas
 and 28, passing `v - 27` as the recovery id; it returns the address of the key, the last 20 bytes
 of the Keccak-256 hash of `x ‖ y`, left-padded, or nothing.  The contract takes the recovery id
 itself (0 or 1, anything else giving `(false, 0, 0)`) and returns the key `(ok, x, y)`, not its
-address.  So the contract on `(e, v - 27, r, s)` gives `ecrecover` on `(e, v, r, s)` for `v` in
-`{27, 28}` after hashing `x ‖ y` and cutting the address; that step is not stated here.
+address.  The precompile's own format is the contract `EcrecoverPrecompile`, which runs fevm's
+`ecrecover` (the check of `v`, `recover_signer` hashing `x ‖ y` with fevm's Keccak-256 and
+cutting the address): `FeProofs.EcrecoverPrecompile.feEcrecoverPrecompileContractCorrect` and
+its `precompile_eq` state it against `Spec.ecrecover` and `Ξ_ECREC`
+(`Secp256k1/PrecompileContract.lean`).
 -/
 
 open Ethereum Ethereum.EVM Reasoning.Theory Fe Fe.EVM
