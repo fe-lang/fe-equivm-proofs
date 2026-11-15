@@ -44,7 +44,7 @@ theorem identitySelectorOf : selectorOf identityTransition = feIdentitySelBytes 
   have hsig : transitionSigStr identityTransition = "identity(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, identityTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact identitySelectorFact

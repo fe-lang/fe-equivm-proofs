@@ -44,7 +44,7 @@ theorem answerSelectorOf : selectorOf answerTransition = feConstantSelBytes 0 :=
   have hsig : transitionSigStr answerTransition = "answer()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, answerTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact answerSelectorFact

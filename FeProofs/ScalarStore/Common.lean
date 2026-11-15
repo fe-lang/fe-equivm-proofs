@@ -44,7 +44,7 @@ theorem setSelectorOf : selectorOf setTransition = feScalarStoreSelBytes 0 := by
   have hsig : transitionSigStr setTransition = "set(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, setTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact setSelectorFact
@@ -56,7 +56,7 @@ theorem getSelectorOf : selectorOf getTransition = feScalarStoreSelBytes 1 := by
   have hsig : transitionSigStr getTransition = "get()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, getTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact getSelectorFact

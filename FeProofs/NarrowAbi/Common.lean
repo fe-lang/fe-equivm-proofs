@@ -44,7 +44,7 @@ theorem echo_i8SelectorOf : selectorOf echo_i8Transition = feNarrowAbiSelBytes 0
   have hsig : transitionSigStr echo_i8Transition = "echo_i8(int8)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, echo_i8Transition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 8 = "8" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact echo_i8SelectorFact
@@ -56,7 +56,7 @@ theorem echo_u8SelectorOf : selectorOf echo_u8Transition = feNarrowAbiSelBytes 1
   have hsig : transitionSigStr echo_u8Transition = "echo_u8(uint8)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, echo_u8Transition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 8 = "8" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact echo_u8SelectorFact
@@ -68,7 +68,7 @@ theorem echo_boolSelectorOf : selectorOf echo_boolTransition = feNarrowAbiSelByt
   have hsig : transitionSigStr echo_boolTransition = "echo_bool(bool)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, echo_boolTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact echo_boolSelectorFact
@@ -80,7 +80,7 @@ theorem echo_addressSelectorOf : selectorOf echo_addressTransition = feNarrowAbi
   have hsig : transitionSigStr echo_addressTransition = "echo_address(address)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, echo_addressTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact echo_addressSelectorFact

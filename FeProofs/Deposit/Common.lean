@@ -44,7 +44,7 @@ theorem supportsInterfaceSelectorOf : selectorOf supportsInterfaceTransition = f
   have hsig : transitionSigStr supportsInterfaceTransition = "supportsInterface(bytes4)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, supportsInterfaceTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, show Nat.repr 4 = "4" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact supportsInterfaceSelectorFact
@@ -56,7 +56,7 @@ theorem depositSelectorOf : selectorOf depositTransition = feDepositSelBytes 1 :
   have hsig : transitionSigStr depositTransition = "deposit(bytes,bytes,bytes,bytes32)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, depositTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, show Nat.repr 32 = "32" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact depositSelectorFact
@@ -68,7 +68,7 @@ theorem get_deposit_countSelectorOf : selectorOf get_deposit_countTransition = f
   have hsig : transitionSigStr get_deposit_countTransition = "get_deposit_count()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get_deposit_countTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get_deposit_countSelectorFact
@@ -80,7 +80,7 @@ theorem get_deposit_rootSelectorOf : selectorOf get_deposit_rootTransition = feD
   have hsig : transitionSigStr get_deposit_rootTransition = "get_deposit_root()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get_deposit_rootTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get_deposit_rootSelectorFact

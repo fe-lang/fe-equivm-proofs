@@ -44,7 +44,7 @@ theorem approveSelectorOf : selectorOf approveTransition = feERC20SelBytes 0 := 
   have hsig : transitionSigStr approveTransition = "approve(address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, approveTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact approveSelectorFact
@@ -56,7 +56,7 @@ theorem totalSupplySelectorOf : selectorOf totalSupplyTransition = feERC20SelByt
   have hsig : transitionSigStr totalSupplyTransition = "totalSupply()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, totalSupplyTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact totalSupplySelectorFact
@@ -68,7 +68,7 @@ theorem transferFromSelectorOf : selectorOf transferFromTransition = feERC20SelB
   have hsig : transitionSigStr transferFromTransition = "transferFrom(address,address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, transferFromTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact transferFromSelectorFact
@@ -80,7 +80,7 @@ theorem balanceOfSelectorOf : selectorOf balanceOfTransition = feERC20SelBytes 3
   have hsig : transitionSigStr balanceOfTransition = "balanceOf(address)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, balanceOfTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact balanceOfSelectorFact
@@ -92,7 +92,7 @@ theorem transferSelectorOf : selectorOf transferTransition = feERC20SelBytes 4 :
   have hsig : transitionSigStr transferTransition = "transfer(address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, transferTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact transferSelectorFact
@@ -104,7 +104,7 @@ theorem allowanceSelectorOf : selectorOf allowanceTransition = feERC20SelBytes 5
   have hsig : transitionSigStr allowanceTransition = "allowance(address,address)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, allowanceTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact allowanceSelectorFact

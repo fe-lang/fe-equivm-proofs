@@ -45,7 +45,7 @@ theorem nameSelectorOf : selectorOf nameTransition = feWETH9SelBytes 0 := by
   have hsig : transitionSigStr nameTransition = "name()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, nameTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact nameSelectorFact
@@ -57,7 +57,7 @@ theorem approveSelectorOf : selectorOf approveTransition = feWETH9SelBytes 1 := 
   have hsig : transitionSigStr approveTransition = "approve(address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, approveTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact approveSelectorFact
@@ -69,7 +69,7 @@ theorem totalSupplySelectorOf : selectorOf totalSupplyTransition = feWETH9SelByt
   have hsig : transitionSigStr totalSupplyTransition = "totalSupply()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, totalSupplyTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact totalSupplySelectorFact
@@ -81,7 +81,7 @@ theorem transferFromSelectorOf : selectorOf transferFromTransition = feWETH9SelB
   have hsig : transitionSigStr transferFromTransition = "transferFrom(address,address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, transferFromTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact transferFromSelectorFact
@@ -93,7 +93,7 @@ theorem withdrawSelectorOf : selectorOf withdrawTransition = feWETH9SelBytes 4 :
   have hsig : transitionSigStr withdrawTransition = "withdraw(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, withdrawTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact withdrawSelectorFact
@@ -105,7 +105,7 @@ theorem decimalsSelectorOf : selectorOf decimalsTransition = feWETH9SelBytes 5 :
   have hsig : transitionSigStr decimalsTransition = "decimals()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, decimalsTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact decimalsSelectorFact
@@ -117,7 +117,7 @@ theorem balanceOfSelectorOf : selectorOf balanceOfTransition = feWETH9SelBytes 6
   have hsig : transitionSigStr balanceOfTransition = "balanceOf(address)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, balanceOfTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact balanceOfSelectorFact
@@ -129,7 +129,7 @@ theorem symbolSelectorOf : selectorOf symbolTransition = feWETH9SelBytes 7 := by
   have hsig : transitionSigStr symbolTransition = "symbol()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, symbolTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact symbolSelectorFact
@@ -141,7 +141,7 @@ theorem transferSelectorOf : selectorOf transferTransition = feWETH9SelBytes 8 :
   have hsig : transitionSigStr transferTransition = "transfer(address,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, transferTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact transferSelectorFact
@@ -153,7 +153,7 @@ theorem depositSelectorOf : selectorOf depositTransition = feWETH9SelBytes 9 := 
   have hsig : transitionSigStr depositTransition = "deposit()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, depositTransition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact depositSelectorFact
@@ -165,7 +165,7 @@ theorem allowanceSelectorOf : selectorOf allowanceTransition = feWETH9SelBytes 1
   have hsig : transitionSigStr allowanceTransition = "allowance(address,address)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, allowanceTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact allowanceSelectorFact

@@ -44,7 +44,7 @@ theorem setSelectorOf : selectorOf setTransition = feIndexedPackedStoreSelBytes 
   have hsig : transitionSigStr setTransition = "set(uint256,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, setTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact setSelectorFact
@@ -56,7 +56,7 @@ theorem setTwoSelectorOf : selectorOf setTwoTransition = feIndexedPackedStoreSel
   have hsig : transitionSigStr setTwoTransition = "setTwo(uint256,uint256,uint256,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, setTwoTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact setTwoSelectorFact
@@ -68,7 +68,7 @@ theorem getSelectorOf : selectorOf getTransition = feIndexedPackedStoreSelBytes 
   have hsig : transitionSigStr getTransition = "get(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, getTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact getSelectorFact

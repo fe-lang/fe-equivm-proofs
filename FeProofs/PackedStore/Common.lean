@@ -44,7 +44,7 @@ theorem get1SelectorOf : selectorOf get1Transition = fePackedStoreSelBytes 0 := 
   have hsig : transitionSigStr get1Transition = "get1()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get1Transition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get1SelectorFact
@@ -56,7 +56,7 @@ theorem get0SelectorOf : selectorOf get0Transition = fePackedStoreSelBytes 1 := 
   have hsig : transitionSigStr get0Transition = "get0()" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, get0Transition, contract,
       Syntax.contractSyntax]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact get0SelectorFact
@@ -68,7 +68,7 @@ theorem setBothSelectorOf : selectorOf setBothTransition = fePackedStoreSelBytes
   have hsig : transitionSigStr setBothTransition = "setBoth(uint256,uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, setBothTransition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact setBothSelectorFact
@@ -80,7 +80,7 @@ theorem set1SelectorOf : selectorOf set1Transition = fePackedStoreSelBytes 3 := 
   have hsig : transitionSigStr set1Transition = "set1(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, set1Transition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact set1SelectorFact
@@ -92,7 +92,7 @@ theorem set0SelectorOf : selectorOf set0Transition = fePackedStoreSelBytes 4 := 
   have hsig : transitionSigStr set0Transition = "set0(uint256)" := by
     simp [transitionSigStr, ABI.printSignature, transitionSignature, set0Transition, contract,
       Syntax.contractSyntax, ABI.abiToSigStr, ABI.elemToSigStr, ABI.intTypeToSigStr, show Nat.repr 256 = "256" by decide +kernel]
-    decide +kernel
+      <;> decide +kernel
   unfold selectorOf
   rw [hsig]
   exact set0SelectorFact
