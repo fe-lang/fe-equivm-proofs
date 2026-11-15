@@ -293,4 +293,26 @@ theorem recip32_val (d1 d0 : Limb) (hd : 2 ^ 63 ≤ d1.val) :
     linear_combination h3 + h2
   exact recip32b_val d1 d0 v1 p1 hd hQ hup
 
+/-! ## The quotient of three limbs by two, as the Fe code computes it -/
+
+/-- `div_3by2` on limbs: the quotient of `(u2, u1, u0)` by `(d1, d0)` with the reciprocal `v`. -/
+def div32 (u2 u1 u0 d1 d0 v : Limb) : Limb :=
+  let x := addD (mulD v u2) (joinD u2 u1)
+  let q1 := hiD x
+  let q0 := loD x
+  let r1 := subMod u1 (mulLo q1 d1)
+  let d := joinD d1 d0
+  let r := subD (subD (joinD r1 u0) (mulD d0 q1)) d
+  let q := addMod q1 1
+  if q0.val ≤ (hiD r).val then
+    if d.val ≤ (addD r d).val then addMod (subMod q 1) 1 else subMod q 1
+  else if d.val ≤ r.val then addMod q 1 else q
+
+theorem div_3by2_eq (u2 u1 u0 d1 d0 v : Limb) :
+    div_3by2 u2.w u1.w u0.w d1.w d0.w v.w = pure (div32 u2 u1 u0 d1 d0 v).w := by
+  simp only [div_3by2, div_3by2_k1, div_3by2_k2, mulW128_eq, shl128_join, addW128_eq, shr64_eq,
+    down128_limb_eq, down128_eq, pure_bind, mulW64_eq, subW64_eq, addW64_eq, subW128_eq, one_w,
+    Limb.toNat_w, Dbl.toNat_w, div32, decide_eq_true_eq]
+  split_ifs <;> rfl
+
 end FeProofs.Modexp
