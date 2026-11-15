@@ -389,8 +389,10 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
 
-FeERC20's bytecode is built with the Fe commit `fe.pin` names, which `FeERC20.build.json` records
-(`scripts/check_bytecode.sh` checks it):
+FeERC20's, FeDeposit's and WETH9's bytecode is what the Fe commit `fe.pin` names compiles, which
+their `*.build.json` record (`scripts/check_bytecode.sh` checks it). A record's `contract` is the
+name of the contract's files here; where Fe's contract has another name, `compiler.feContract`
+gives it (`DepositContract`, `WETH9`):
 
 ```sh
 fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode
