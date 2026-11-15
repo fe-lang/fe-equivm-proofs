@@ -51,6 +51,7 @@ import FeProofs.Precompiles.Secp256k1.PrecompileContract
 import FeProofs.Precompiles.Modexp.Quot32
 import FeProofs.Precompiles.Modexp.Small
 import FeProofs.Precompiles.Modexp.SmallMul
+import FeProofs.Precompiles.Modexp.Window
 import FeProofs.Fixtures.Decode
 import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
