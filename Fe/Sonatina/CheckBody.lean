@@ -214,12 +214,18 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
     r.isSome = readOps.contains opc := by
   unfold evRun at h
   split at h
+  -- A message call's word.
+  case h_9 | h_10 | h_11 =>
+    simp only [Fe.M.exec_map] at h
+    split at h <;> simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq,
+      reduceCtorEq] at h
+    rw [← h.1]; rfl
   all_goals
     by_cases hp : ee.perm = true <;> cases hf : w.feed <;>
       simp [Fe.EVM.sstore, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.sload, Fe.EVM.mload,
         Fe.EVM.keccak256, Fe.EVM.mstore, Fe.EVM.mstore8, Fe.EVM.codecopy, Fe.EVM.calldatacopy,
         Fe.EVM.mcopy, Fe.EVM.selfbalance, Fe.EVM.balance, Fe.EVM.extcodesize,
-        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.next, exec_returndatacopy, hp, hf] at h
+        Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.next, exec_returndatacopy, hp, hf] at h
   all_goals (try split_ifs at h) <;> (try simp at h); rw [← h.1]; rfl
 
 theorem eventWith_evm {expand : Nat → Option Expr} {inst : Inst} {opc : Operation}

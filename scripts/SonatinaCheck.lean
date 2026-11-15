@@ -5,7 +5,8 @@ import Fe.Sonatina.Parse
 Runs the checker of bytes against machine IR (`Fe/Sonatina/Check.lean`): on the fixtures, which
 it must accept where they are in its class, on mutations of their hints, which it must reject
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
-fixtures with internal calls, which it must reject, and on every sidecar of a directory, as
+fixtures with internal calls, of WETH9's message call and of a reentrancy guard's transient
+storage, which it must reject, and on every sidecar of a directory, as
 `SONATINA_CHECK_DIR` names, counting the sections it accepts and why it rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
@@ -61,9 +62,55 @@ def callMutations : List (String × (CodeSection → CodeSection)) :=
    ("an unreachable after a returning call", mapFunc "contract_runtime_root_Case44Bank" <|
       mapBlock 11 fun b => { b with body := b.body.take 2, term := .unreachable })]
 
+/-- WETH9's runtime block 36 with its message call's operands changed by `g`: the call is
+    `evm_call v0 v115 v119 v130 0 224 0` (gas, the caller, the amount, the arguments' offset and
+    size, the return window's offset and size). -/
+def mapCall (g : List Operand → List Operand) : CodeSection → CodeSection :=
+  mapFunc "contract_runtime_root_WETH9" <| mapBlock 36 fun b =>
+    { b with body := b.body.map fun s => match s.inst with
+      | .evm .call args => { s with inst := .evm .call (g args) }
+      | _ => s }
+
+/-- Mutations of WETH9's message call, each of which the bytes contradict. -/
+def messageMutations : List (String × (CodeSection → CodeSection)) :=
+  [("a wrong gas operand", mapCall fun
+      | _ :: rest => .imm 256 0 :: rest
+      | args => args),
+   ("the value and the address swapped", mapCall fun
+      | g :: a :: v :: rest => g :: v :: a :: rest
+      | args => args),
+   ("the return window off by a word", mapCall fun
+      | [g, a, v, ap, al, .imm b rp, rl] => [g, a, v, ap, al, .imm b (rp + 32), rl]
+      | args => args),
+   ("the arguments' window off by a word", mapCall fun
+      | [g, a, v, ap, .imm b al, rp, rl] => [g, a, v, ap, .imm b (al + 32), rp, rl]
+      | args => args)]
+
+/-- The reentrancy guard's runtime block `id` with its statements changed by `g`. -/
+def mapGuard (id : Nat) (g : Inst → Inst) : CodeSection → CodeSection :=
+  mapFunc "contract_runtime_root_B" <| mapBlock id fun b =>
+    { b with body := b.body.map fun s => { s with inst := g s.inst } }
+
+/-- Mutations of the reentrancy guard's transient storage: block 12 sets the lock with
+    `evm_tstore 1 1`, block 11 reads it with `evm_tload 1`, block 24 stores with `evm_sstore 0 v18`
+    and clears the lock with `evm_tstore 1 0`. -/
+def transientMutations : List (String × (CodeSection → CodeSection)) :=
+  [("a wrong transient slot written", mapGuard 12 fun
+      | .evm .tstore [_, v] => .evm .tstore [.imm 256 2, v]
+      | i => i),
+   ("a wrong transient slot read", mapGuard 11 fun
+      | .evm .tload [_] => .evm .tload [.imm 256 2]
+      | i => i),
+   ("tstore for sstore", mapGuard 24 fun
+      | .evm .sstore args => .evm .tstore args
+      | i => i),
+   ("sstore for tstore", mapGuard 24 fun
+      | .evm .tstore args => .evm .sstore args
+      | i => i)]
+
 #eval show IO Unit from do
   for f in ["FeConstant", "FeScalarStore", "FeERC20", "DepositContract", "Case44Bank",
-      "TypedCallsTarget"] do
+      "TypedCallsTarget", "WETH9", "ReentrancyMutex"] do
     let s ← IO.ofExcept
       (Parse.parseSidecar (← IO.FS.readFile s!"Fe/Sonatina/Fixtures/{f}.sidecar.json"))
     for (name, entry) in Check.entries s do
@@ -84,6 +131,22 @@ def callMutations : List (String × (CodeSection → CodeSection)) :=
               | .ok () => "ACCEPTED"
               | .error e => s!"rejected: {e}"
             IO.println s!"  CALL MUTANT {what}: {verdict}"
+        if f == "WETH9" && name == "runtime" then
+          for (what, m) in messageMutations do
+            let changed := m code
+            let verdict := if changed.lowering == code.lowering then "UNCHANGED"
+              else match Check.checkSection changed entry with
+                | .ok () => "ACCEPTED"
+                | .error e => s!"rejected: {e}"
+            IO.println s!"  MESSAGE MUTANT {what}: {verdict}"
+        if f == "ReentrancyMutex" && name == "runtime" then
+          for (what, m) in transientMutations do
+            let changed := m code
+            let verdict := if changed.lowering == code.lowering then "UNCHANGED"
+              else match Check.checkSection changed entry with
+                | .ok () => "ACCEPTED"
+                | .error e => s!"rejected: {e}"
+            IO.println s!"  TRANSIENT MUTANT {what}: {verdict}"
 
 #eval show IO Unit from do
   let some dir ← IO.getEnv "SONATINA_CHECK_DIR" | return

@@ -13,7 +13,7 @@ fail, not pass.
 | `Hints.lean` | cheap checks of the lowering record against the bytes |
 | `Refine.lean` | `Implements`, and the composition `RefinesOn.of_implements` |
 | `Diff.lean` | IR against bytecode, with `Fe/EVM/Diff.lean` and `Generate.lean` |
-| `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20 and the deposit contract |
+| `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20, the deposit contract, WETH9 and others |
 
 `scripts/SonatinaDiff.lean` runs the fixtures and the committed `.sona` files against the pinned
 bytecode; `scripts/audit_sonatina.sh <fe checkout>` runs every contract of Fe's test fixtures and of
@@ -351,12 +351,12 @@ with the results' words on top of the caller's stack.
 
 `Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
 no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
-the pure, read, write and halting instructions `Check.lean` translates (no external call, no
-`create`, no transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+the pure, read, write and halting instructions `Check.lean` translates (message calls and transient
+storage among them, but no `create`), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
-state reads below, 31 of them with internal calls, and accepts 391 with them; it rejects 38 for an
-instruction outside the class (calls, creations, transient storage, `blockhash`, `clz`) and one for
-a dynamic frame. It matches
+state reads below, 31 of them with internal calls, and 391 with them; with message calls,
+`blockhash` and transient storage it accepts 425 and rejects 4 for an instruction outside the
+class (three `create2`, one `clz`) and one for a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
 are ordered by a total order on expressions (ordering only constants and values left nested
@@ -365,11 +365,13 @@ bytes compute the IR's `is_zero` of a boolean; and `INVALID` halts with no opera
 constant branches, these raised the count from 282. `scripts/SonatinaCheck.lean` runs the
 fixtures, mutations of their hints (a dropped, added or swapped entry slot, offsets moved by a
 byte, a moved free pointer, dropped redirects: all rejected; moved symbols are accepted where the
-section's IR reads none) and a corpus directory.
+section's IR reads none), mutations of WETH9's message call (a wrong gas operand, the value and
+the address swapped, the return or the arguments' window off by a word: all rejected) and a
+corpus directory.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
-(`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`) are pure
-opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesize` read the
+(`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,
+`blockhash`) are pure opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesize` read the
 accounts, `returndatasize` and `returndatacopy` the return data (a copy past its end is the model's
 `.oob`, the bytes' invalid memory access), and `gas` the gas left: each is an event, its result a
 fresh value. The model's `gas` reads its feed, so the proof builds the feed from the bytes' run:
@@ -380,6 +382,23 @@ feed exists because each step that goes on spends gas (`fut_exists`). A `gas` on
 only by running out of gas or stack there. These raised the corpus count from 387 to 391:
 `eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
 `payable.PayableBox` (`selfbalance`).
+
+**Message calls.** `call`, `staticcall` and `delegatecall` are events on their seven or six
+operands, their result the success word (`call_evMoves`, `staticcall_evMoves`,
+`delegatecall_evMoves`): the bytes' step runs out of gas or stack, fails under a static call
+with value (`CALL` only) where the model's `call` fails `.static`, or is the model's call on the
+feed's next entry, the gas cap, the substate with the callee accessed and the original account
+map, which `supplyOf` gives. A call made is `Θ` on the inputs `callArgs` reads (`messageCall` equals them), the logs
+the callee appended by `theta_logs_extract`; one not made, for want of funds or at depth 1024,
+returns zero with empty return data. A section whose machine IR makes message calls is checked
+with `K` set, so its steps need not be calm; `check_xiOk` asks that neither section make one.
+`CALL` raised the corpus count from 391 to 399, WETH9's runtime among them; `STATICCALL` and
+`DELEGATECALL` to 405, both sections of the deposit contract among them. `blockhash`, a pure
+read of the frame's header and recent blocks as the model's `blockhash` is, added
+`ctx.CtxBox`'s runtime (406). `tload` and `tstore` are a read and a write event as `sload` and
+`sstore` are (`tload_evMoves`, `tstore_evMoves`): transient storage lives in the account map,
+which `Agree` already equates, and a call's `Θ` keeps or restores it on both sides alike. They
+added 19 sections (425), the three reentrancy guards that call out among them.
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal
@@ -447,10 +466,11 @@ Proved so far:
    `zeroRank`, gives the P1 agreement (`XAgrees`) of the bytes' iterator with the IR's run of the
    function from any block's start (`AtBlock`), the prologue first for the entry block, and
    `XOk` of the iterator for every condition on calls: `run_ends` gathers its steps as `Steps`,
-   through states whose instruction is no call nor creation (`Calm`).
+   through states whose instruction is no call nor creation (`Calm`), or, in a section whose
+   machine IR makes message calls (`Module.hasCalls`, the `K` of `Steps`), any state.
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
    runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
-   of both frames. `check_xiOk_callsAt` states the frames' calls without asking that there be
+   of both frames when neither section's machine IR makes a message call (`Sidecar.hasCalls`). `check_xiOk_callsAt` states the frames' calls without asking that there be
    none: a frame that succeeds makes only calls satisfying `Q` when every successful run of the
    machine IR from its account map and substate records only such calls
    (`ContractModel.callsAt`), as `Fut.xOk` gives from the calls the bytes' run makes, which
