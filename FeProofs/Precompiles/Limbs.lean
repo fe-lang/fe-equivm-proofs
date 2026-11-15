@@ -73,6 +73,36 @@ theorem byteAt_write (src mem : ByteArray) (a n j : ℕ) (hn : n ≤ src.size) (
       · rw [if_pos h3, show a + n + (j - (a + n)) = j by omega]
       · rw [if_neg h3, byteAt_of_ge (by omega)]
 
+/-- Writing `n` bytes of `src` from `so` at `a` inside `mem` changes those bytes only. -/
+theorem byteAt_write_from (src mem : ByteArray) (so a n j : ℕ) (hn : so + n ≤ src.size)
+    (h : a + n ≤ mem.size) :
+    byteAt (src.write so mem a n) j =
+      if a ≤ j ∧ j < a + n then byteAt src (so + (j - a)) else byteAt mem j := by
+  by_cases h0 : n = 0
+  · subst h0; rw [byteArray_write_len_zero]; simp
+  rw [write_eq_gen_from _ _ _ _ _ h0 hn h, byteAt_append, byteAt_append]
+  simp only [ByteArray.size_append, ByteArray.size_extract, Nat.min_eq_left (show a ≤ mem.size by omega),
+    Nat.min_eq_left hn, Nat.sub_zero, Nat.add_sub_cancel_left]
+  rw [byteAt_extract _ _ _ _ (by omega), byteAt_extract _ _ _ _ hn,
+    byteAt_extract _ _ _ _ le_rfl]
+  simp only [Nat.sub_zero, Nat.zero_add, Nat.add_sub_cancel_left]
+  by_cases h1 : j < a
+  · rw [if_pos (by omega), if_pos h1, if_pos h1, if_neg (by omega)]
+  · by_cases h2 : j < a + n
+    · rw [if_pos (by omega), if_neg h1, if_pos (by omega), if_pos ⟨(by omega), h2⟩]
+    · rw [if_neg (by omega), if_neg (show ¬ (a ≤ j ∧ j < a + n) by omega)]
+      by_cases h3 : j < mem.size
+      · rw [if_pos (by omega)]; congr 1; omega
+      · rw [if_neg (by omega), byteAt_of_ge (by omega)]
+
+theorem write_size_from (src mem : ByteArray) (so a n : ℕ) (hn : so + n ≤ src.size)
+    (h : a + n ≤ mem.size) : (src.write so mem a n).size = mem.size := by
+  by_cases h0 : n = 0
+  · subst h0; rw [byteArray_write_len_zero]
+  rw [write_eq_gen_from _ _ _ _ _ h0 hn h]
+  simp only [ByteArray.size_append, ByteArray.size_extract]
+  omega
+
 /-- `n` zero bytes. -/
 def zeros (n : ℕ) : ByteArray := ⟨Array.replicate n 0⟩
 

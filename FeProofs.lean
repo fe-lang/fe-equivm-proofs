@@ -50,6 +50,7 @@ import FeProofs.Precompiles.Bn254.MulContract
 import FeProofs.Precompiles.Secp256k1.PrecompileContract
 import FeProofs.Precompiles.Limbs
 import FeProofs.Precompiles.LimbArray
+import FeProofs.Precompiles.LimbSlice
 import FeProofs.Precompiles.Modexp.Quot32
 import FeProofs.Precompiles.Modexp.Small
 import FeProofs.Precompiles.Modexp.SmallMul
