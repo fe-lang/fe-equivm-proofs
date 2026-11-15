@@ -802,6 +802,7 @@ theorem area_exec (width height : UInt256) (I : ExecutionEnv) (w : World) :
 theorem grow_exec (side : UInt256) (I : ExecutionEnv) (w : World) :
     (recv0_arm2 side).exec I w = (checkedAdd side (UInt256.ofNat 1)).exec I w := by
   simp [recv0_arm2, Shape.Square_0, Shape.set_Square_0, checkedAdd]
+  rfl
 
 end FeProofs.Fixtures.Enums
 
