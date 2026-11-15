@@ -474,13 +474,16 @@ structure Path where
   calls : List CallSeg
 
 /-- The bytes' opcode at `pc`, its immediate, and the next pc, if the instruction lies in the
-    code: what follows the code (a constructor's arguments) does not change it. -/
-def opAt (code : ByteArray) (pc : Nat) : Option (Operation × Option Nat × Nat) :=
-  ((codeTree code).find pc).filter fun (_, _, next) => next ≤ code.size
+    code: what follows the code (a constructor's arguments) does not change it.  `tree` is the
+    code's search tree, `codeTree code`, built once for a block. -/
+def opAt (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (pc : Nat) :
+    Option (Operation × Option Nat × Nat) :=
+  (tree.find pc).filter fun (_, _, next) => next ≤ code.size
 
-/-- `true` if `t` is a valid jump destination of the code: one `D_J` finds. -/
-def validJump (code : ByteArray) (t : Nat) : Bool :=
-  t < code.size && (jumpdests code).contains t
+/-- `true` if `t` is a valid jump destination of the code: one `D_J` finds.  `dests` is the
+    code's `jumpdests code`, found once for a block. -/
+def validJump (code : ByteArray) (dests : List Nat) (t : Nat) : Bool :=
+  t < code.size && dests.contains t
 
 /-- The number of the `DUP` or `SWAP`: `DUPn` copies the `n`-th item, `SWAPn` swaps the first
     with the `n + 1`-th. -/
@@ -545,7 +548,8 @@ def Exit.selected : Exit → Option Nat
 
 /-- Run the bytes of block `b` from `p` for at most `fuel` steps; `true` if every path matches
     the IR.  `place` gives where the code of a block starts. -/
-def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → Option Nat)
+def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (dests : List Nat)
+    (c : Ctx) (hints : List BlockHint) (place : Nat → Option Nat)
     (b : Nat) : Nat → Path → Bool
   | 0, _ => false
   | fuel + 1, p =>
@@ -555,11 +559,11 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
       | some s => arrives c hints b s p.stack
       | none => false
     else
-    match opAt code p.pc with
+    match opAt code tree p.pc with
     | none => false
     | some (op, arg, next) =>
       let go (stack : List Expr) (events : List Event) :=
-        run code c hints place b fuel { p with pc := next, stack, events }
+        run code tree dests c hints place b fuel { p with pc := next, stack, events }
       if op == .JUMPDEST then go p.stack p.events
       else if let some v := arg then
         go (.const v :: p.stack) p.events
@@ -604,7 +608,7 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
       else if op == .JUMP then
         match p.stack with
         | .const t :: rest =>
-          validJump code t &&
+          validJump code dests t &&
           match p.events, p.calls with
           -- The next call: the callee's arguments on top, then, if it returns, the address of
           -- the code the run goes on at with its results on top.
@@ -615,8 +619,8 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
               rest.take cs.args.length == cs.args &&
               if ce.returns then
                 (match rest.drop cs.args.length with
-                  | .const k :: rest' => validJump code k &&
-                    run code c hints place b fuel
+                  | .const k :: rest' => validJump code dests k &&
+                    run code tree dests c hints place b fuel
                       ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more⟩
                   | _ => false)
               else more.isEmpty && cs.events.isEmpty && (p.exit matches .unreach)
@@ -628,7 +632,7 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
               | none => false
             -- Into code that is no block's: an outlined unit, which the run continues in.
             else if (hints.any (place ·.block == some t)) then false
-            else run code c hints place b fuel { p with pc := t, stack := rest }
+            else run code tree dests c hints place b fuel { p with pc := t, stack := rest }
         -- A return: the return address on top of exactly the values.
         | .atom r :: rest =>
           p.events.isEmpty && p.calls.isEmpty && c.frame.returns && r == c.frame.retId &&
@@ -639,17 +643,19 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
       else if op == .JUMPI then
         match p.stack with
         | .const t :: cond :: rest =>
-          p.events.isEmpty && p.calls.isEmpty && validJump code t &&
+          p.events.isEmpty && p.calls.isEmpty && validJump code dests t &&
           (match p.exit.way cond true with
             | some (.succ s) => place s == some t && arrives c hints b s rest
             | some .never => true
             | _ => false) &&
           (match p.exit.way cond false with
             | some (.succ s) =>
-              run code c hints place b fuel { p with pc := next, stack := rest, exit := .goto s }
+              run code tree dests c hints place b fuel
+                { p with pc := next, stack := rest, exit := .goto s }
             | some .never => true
             | some (.exit e) =>
-              run code c hints place b fuel { p with pc := next, stack := rest, exit := e }
+              run code tree dests c hints place b fuel
+                { p with pc := next, stack := rest, exit := e }
             | none => false)
         | _ => false
       else false
@@ -802,7 +808,8 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
   let events := match low.entryFreePtr, isRoot && b.id == entryBlock.id with
     | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
     | _, _ => events
-  unless run code.bytecode c hint.blocks place b.id (2 * low.codeSize + 2)
+  unless run code.bytecode (codeTree code.bytecode) (jumpdests code.bytecode) c hint.blocks place
+      b.id (2 * low.codeSize + 2)
       ⟨pc, stack, events, exit, calls⟩ do
     throw s!"block{b.id} at {pc} does not match its bytes"
 

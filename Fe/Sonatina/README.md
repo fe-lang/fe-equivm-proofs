@@ -402,10 +402,14 @@ sections and the identity contract's runtime are accepted. Of the 109 functions 
 runtimes, 26 have memory spills; of the others, 8 use `clz`, and 8 hold straight-line blocks of
 hundreds of pure instructions (four-limb multiplication) whose expressions, expanded without
 sharing, have millions of nodes and depths above 64. The checker did not finish them until it
-numbered values (below); it now accepts all eight, in 19 to 60 s each as `lake env lean`
-interprets it, nearly all of it decoding: `opAt` builds the code's tree at each step outside the
-kernel, about 10 ms for 9 KB of code. The 8 that use `clz` (Modexp's four `r2`, the four
-`invert_256` of the ECRECOVER contracts) are accepted since `CLZ`, in 12 to 144 s each.
+numbered values (below); it now accepts all eight, in 0.2 to 0.4 s each as `lake env lean`
+interprets it. The 8 that use `clz` (Modexp's four `r2`, the four `invert_256` of the ECRECOVER
+contracts) are accepted since `CLZ`, in 0.6 to 1.5 s each. Until `run` took the code's search
+tree and jump destinations, built once for a block (`opAt`, `validJump`), each step rebuilt the
+tree, about 10 ms for 9 KB of code: the 392-instruction multiplication block took 14 s, now
+0.13 s, and the corpus-v4 run of `scripts/SonatinaCheck.lean` 135 s, now 56 s. The kernel's
+check of FeERC20 and WETH9 is unchanged (2.6 s and 6.2 to 6.6 s either way), presumably since
+the kernel evaluated the tree once before too.
 
 **`CLZ`.** The machine IR's `clz` is an event, its result a value as a read's is (`readOps`):
 from Osaka on it is the count of leading zeros, before it a trap, as the bytes' `CLZ` is an

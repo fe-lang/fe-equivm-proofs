@@ -1310,7 +1310,7 @@ theorem step_clz_invalid (s : State) {a : UInt256} {t : List UInt256}
   · simp only [hgas, α, Operation.isCreate]
     by_cases hoverflow : 1024 < t.length + 1
     · simp [hoverflow]
-    · simp [hoverflow, bind, Except.bind]
+    · simp [hoverflow]
       unfold step
       simp only [hf, if_false]
       exact .inr (.inr rfl)

@@ -673,7 +673,7 @@ theorem FinalW.of_callee {D : Array UInt256} {st : State}
 
 theorem validJump_D_J {code tail : ByteArray} {I : ExecutionEnv} {t : Nat}
     (hsize : code.size < UInt256.size) (hI : I.code = code ++ tail)
-    (hj : validJump code t = true) :
+    (hj : validJump code (jumpdests code) t = true) :
     (D_J I.code 0).contains (UInt256.ofNat t) = true ∧ (UInt256.ofNat t).toNat = t := by
   simp only [validJump, Bool.and_eq_true, decide_eq_true_eq] at hj
   refine ⟨by rw [hI]; exact D_J_append (jumpdests_D_J hj.2), ?_⟩
@@ -716,7 +716,8 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
       (∀ ev ∈ p.events ++ calls.flatMap (·.events), messageOps.contains ev.op = true → K = true) →
       (∀ cs ∈ calls, ∃ ce, c.frame.callee cs.callee = some ce ∧ cs.args.length = ce.params ∧
         cs.dsts.length = (if ce.returns then ce.rets else 0)) →
-      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s → Agree M s w →
+      run code (codeTree code) (jumpdests code) c hints place b fuel p = true →
+      PathRel code tail I ρ B e0 p s → Agree M s w →
       Segs I m ic ρ p.events calls w r → s.machineState.gasAvailable.toNat ≤ G →
       FinalW K M (D_J I.code 0) s r ∨
         ∃ w', r = some (.ok w') ∧ Ends K M code I ρ c hints place b B e0 p.exit [] s (some (.ok w'))
@@ -735,10 +736,11 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
           (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁ =
             some (.ok (ws₂.map Fe.Sonatina.word, w₂)) ∧ ws₂.length = cs.dsts.length ∧
           Steps K (D_J I.code 0) s (.ok (s₂, none)) n ∧ s₂.machineState.pc = UInt256.ofNat k ∧
-          validJump code k = true ∧ s₂.machineState.stack = ws₂ ++ restW ++ B ∧
+          validJump code (jumpdests code) k = true ∧
+          s₂.machineState.stack = ws₂ ++ restW ++ B ∧
           restE.mapM (·.eval I ρ) = some restW ∧
-          run code c hints place b fuel' ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ =
-            true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree M s₂ w₂ := by
+          run code (codeTree code) (jumpdests code) c hints place b fuel'
+            ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ = true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree M s₂ w₂ := by
       intro cs more w₁ ws hcs htr hargs
       obtain ⟨ce, hce, hla, hld⟩ := har cs (by rw [hcs]; simp)
       have hE := hends _ htr
