@@ -359,6 +359,7 @@ The exported models are checked with the Fe commit pinned in `fe.pin`:
 fe=$(scripts/fetch_fe.sh)        # checks it out in .lake/fe
 scripts/check_build.sh Fe
 scripts/check_sync.sh "$fe"      # the golden test passes; Exported.lean and .trust files hold its output
+scripts/check_bytecode.sh "$fe"  # each contract whose *.build.json names that commit compiles to its pinned bytes
 scripts/check_corpus.sh "$fe"    # the export audit, against scripts/expected/exports.txt
 ```
 
