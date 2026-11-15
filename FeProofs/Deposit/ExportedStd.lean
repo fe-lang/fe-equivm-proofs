@@ -1,4 +1,4 @@
-import FeProofs.Deposit.SonatinaHash
+import FeProofs.Lib.StaticCall
 import FeProofs.Lib.ExportedCorrect
 
 /-!
