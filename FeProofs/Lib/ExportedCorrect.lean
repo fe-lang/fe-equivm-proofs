@@ -394,6 +394,6 @@ theorem decodeAddressField_exec (base len : UInt256) {off : Nat} (hoff : off < U
     decode_field_from_Sol_Address_CallData, Address_decode_from_Sol_CallData, CallData_word_at,
     calldataload, word, ofNat_add_ofNat (show 0 + off < UInt256.size by omega), ulit_toNat' _ hoff,
     shr160_eq_zero_iff]
-  split_ifs <;> simp [revertEmpty]
+  split_ifs with h <;> simp [revertEmpty, h]
 
 end FeProofs.Lib
