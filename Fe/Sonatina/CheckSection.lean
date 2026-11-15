@@ -394,6 +394,22 @@ theorem Final.agrees {D : Array UInt256} {st : State}
     subst hr
     exact .inr (.inr ⟨_, hX⟩)
 
+/-- Where the bytes' iterator succeeds, the IR's run stops, having made the calls `M`. -/
+theorem Final.success {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final K M D st r) {fuel : Nat}
+    (hg : st.machineState.gasAvailable.toNat < fuel) {s' : State} {o : ByteArray}
+    (hX : X fuel D st = .ok (.success s' o)) :
+    ∃ out w', r = some (.error (.stop out w')) ∧ w'.calls = M := by
+  rcases h with ⟨n, e, hx, -⟩ | ⟨n, s₁, out, w', hx, hr, -, -, hc⟩ | ⟨n, s₁, data, hx, -⟩ <;>
+    replace hx := hx.xstepN
+  · have hX' := XstepN_X_error hx (fuel - n)
+    rw [Nat.sub_add_cancel (XstepN_fuel hx hg), hX] at hX'
+    cases hX'
+  · exact ⟨out, w', hr, hc⟩
+  · have hX' := XstepN_X_halt_revert (f := fuel - n) D hx
+    rw [Nat.sub_add_cancel (XstepN_fuel hx hg), hX] at hX'
+    cases hX'
+
 /-- A calm state's step makes no call nor creation, so any condition on them holds of it. -/
 theorem Calm.xstepOk {Q : Invariant.CallPreds} {D : Array UInt256} {s : State} (h : Calm s) :
     Invariant.XstepOk Q D s := by

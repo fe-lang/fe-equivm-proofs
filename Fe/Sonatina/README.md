@@ -446,7 +446,12 @@ Proved so far:
    through states whose instruction is no call nor creation (`Calm`).
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
    runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
-   of both frames. They depend on `propext`, `Classical.choice` and `Quot.sound` only.
+   of both frames. `check_xiOk_callsAt` states the frames' calls without asking that there be
+   none: a frame that succeeds makes only calls satisfying `Q` when every successful run of the
+   machine IR from its account map and substate records only such calls
+   (`ContractModel.callsAt`), as `Fut.xOk` gives from the calls the bytes' run makes, which
+   `Agree` equates with the IR's. They depend on `propext`, `Classical.choice` and `Quot.sound`
+   only.
 
 The model half for FeScalarStore (`FeProofs/ScalarStore/SonatinaRun.lean`,
 `SonatinaCorrect.lean`): the interpreter's runs of the machine IR's runtime and init functions by

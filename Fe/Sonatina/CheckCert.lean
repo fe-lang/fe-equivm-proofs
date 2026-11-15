@@ -1,5 +1,6 @@
 import Fe.Sonatina.CheckCalls
 import Reasoning.Stepping
+import Fe.EVM.RefineInvariant
 
 /-!
 # The checker is sound
@@ -8,7 +9,8 @@ import Reasoning.Stepping
 bytes refine the machine IR's runtime on every call whose calldata fits, and a constructor whose
 bytes refine the machine IR's constructor on every deployment, at profile `P1`.  `check_xiOk`:
 neither makes a message call nor a creation, so `XiOk` holds of their frames for every condition
-on calls.
+on calls.  `check_xiOk_callsAt`: a frame that succeeds makes only the calls the machine IR's
+successful runs record, so a condition `ContractModel.callsAt` states of the model holds of them.
 
 `section_sound` gives it of each section: `runSection_eq` rewrites the machine IR's run of the
 section to the prologue and its entry function's blocks from the entry block, `section_run`
@@ -46,6 +48,26 @@ theorem Xi_agrees {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : Exec
     | some (.error .static), hx => exact Reasoning.Theory.Xi_error_of_X hx
     | some (.error .trap), hx => exact Reasoning.Theory.Xi_error_of_X hx
     | some (.error .oob), hx => exact Reasoning.Theory.Xi_error_of_X hx
+
+/-- A frame that succeeds has an iterator that succeeds. -/
+theorem X_of_Xi_success {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
+    {r : AccountMap × UInt256 × Substate} {o : ByteArray}
+    (h : Ξ σ σ₀ g A I = .ok (.success r o)) :
+    ∃ s' o', X (g.toNat + 1) (D_J I.code 0)
+      (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) = .ok (.success s' o') := by
+  cases hX : X (g.toNat + 1) (D_J I.code 0) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I)
+    with
+  | error e =>
+    simp only [Reasoning.Theory.initState] at hX
+    simp only [Ξ, hX] at h
+    cases h
+  | ok res =>
+    cases res with
+    | success s' o' => exact ⟨s', o', rfl⟩
+    | revert g' o' =>
+      simp only [Reasoning.Theory.initState] at hX
+      simp only [Ξ, hX] at h
+      cases h
 
 /-- The machine IR's run of a section is the prologue and its entry function's blocks from the
     entry block, ended where it would return. -/
@@ -119,7 +141,10 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail) :
     (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed,
       Agrees .P1 (Ξ σ σ₀ g A I) ((s.runSection name .machine).exec I (World.init σ A feed))) ∧
-      ∀ Q, Invariant.XiOk Q σ σ₀ g A I := by
+      (∀ Q, Invariant.XiOk Q σ σ₀ g A I) ∧
+      ∀ Q, (∀ feed out w, Succeeds ((s.runSection name .machine).exec I (World.init σ A feed)) out w →
+        ∀ c ∈ w.calls, c.Ok Q) → (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) →
+        Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨hall, -, -⟩ := check_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
   unfold entries at hentry hall
@@ -176,9 +201,18 @@ theorem section_sound {s : Sidecar} (h : check s = true) {name : String}
     have hF := hfin.final
     refine ⟨(Xi_agrees (hF.agrees (by
       simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp
-      id fun h => ⟨feed, ?_⟩, fun Q => hF.xOk (g.toNat + 1)⟩
-    rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
-    exact h
+      id fun h => ⟨feed, ?_⟩, fun Q => hF.xOk (g.toNat + 1), fun Q hQ ⟨_, _, hΞ⟩ => ?_⟩
+    · rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar]
+      exact h
+    -- A frame that succeeds is the IR's run that stops, so its calls are the run's.
+    obtain ⟨s', o', hX⟩ := X_of_Xi_success hΞ
+    obtain ⟨out, w', hr, hc⟩ := hF.success (by
+      simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _) hX
+    have hrun : (s.runSection name .machine).exec I (World.init σ A feed) =
+        some (.error (.stop out w')) := by
+      rw [runSection_eq hobj hsec hcode hlow (by rw [hse]; exact hf) he hpar, hr]
+      rfl
+    exact hfeed.xOk (fun c hc' => hQ feed out w' (.inr hrun) c (hc ▸ hc')) (g.toNat + 1)
   · simp at hce
 
 /-- A section's run never returns: it ends stuck where its entry would. -/
@@ -221,7 +255,24 @@ theorem check_xiOk {s : Sidecar} (h : check s = true) :
     ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args →
       Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨-, hinit, hrt⟩ := check_ok h
-  exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2 Q,
-    fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2 Q⟩
+  exact ⟨fun Q _ _ _ _ _ _ hI => (section_sound h hrt hI).2.1 Q,
+    fun Q _ _ _ _ _ _ hI => (section_sound h hinit hI).2.1 Q⟩
+
+/-- The calls of a checked sidecar's frames are the model's: a frame that succeeds, of the
+    runtime bytes followed by any bytes or of the init bytes followed by any arguments, makes only
+    calls and creations satisfying `Q`, given that every successful run of the machine IR's
+    runtime (or constructor) from the frame's account map and substate records only such calls,
+    under any feed.  For the runtime that hypothesis is `ContractModel.callsAt`. -/
+theorem check_xiOk_callsAt {s : Sidecar} (h : check s = true) :
+    (∀ Q σ σ₀ g A (I : ExecutionEnv) tail, I.code = s.code "runtime" ++ tail → CalldataFits I →
+      (s.model .machine).callsAt Q σ σ₀ g A I → (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) →
+      Invariant.XiOk Q σ σ₀ g A I) ∧
+    ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args →
+      (∀ feed out w, Succeeds (((s.model .machine).init args).exec I (World.init σ A feed)) out w →
+        ∀ c ∈ w.calls, c.Ok Q) → (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) →
+      Invariant.XiOk Q σ σ₀ g A I := by
+  obtain ⟨-, hinit, hrt⟩ := check_ok h
+  exact ⟨fun Q _ _ _ _ _ _ hI _ hc hx => (section_sound h hrt hI).2.2 Q hc hx,
+    fun Q _ _ _ _ _ _ hI hc hx => (section_sound h hinit hI).2.2 Q hc hx⟩
 
 end Fe.Sonatina.Check
