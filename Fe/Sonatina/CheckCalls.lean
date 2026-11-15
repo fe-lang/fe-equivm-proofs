@@ -18,6 +18,8 @@ namespace Fe.Sonatina.Check
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
 
+variable {K : Bool} {M : List Made}
+
 /-- How the IR's run of a block's statements goes, from the world `w`, under the valuation `ρ`,
     up to the result `r` of the statements: the events `evs` trace the world up to the first
     of the calls `cls`, and each call runs its callee on its arguments' words. -/
@@ -469,7 +471,7 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
 
 theorem Steps.append {D : Array UInt256} {s s₁ : State}
     {r : Except ExecutionException (State × Option (HaltCause × ByteArray))} {n k : Nat}
-    (h : Steps D s (.ok (s₁, none)) n) (h' : Steps D s₁ r k) : Steps D s r (n + k) := by
+    (h : Steps K D s (.ok (s₁, none)) n) (h' : Steps K D s₁ r k) : Steps K D s r (n + k) := by
   generalize hx : (Except.ok (s₁, none) : Except ExecutionException _) = x at h
   induction h with
   | step hc hs henv =>
@@ -481,7 +483,7 @@ theorem Steps.append {D : Array UInt256} {s s₁ : State}
     exact .trans hc hs henv (ih hx)
 
 theorem Steps.gas_lt {D : Array UInt256} {s s' : State} {n : Nat}
-    (h : Steps D s (.ok (s', none)) n) :
+    (h : Steps K D s (.ok (s', none)) n) :
     s'.machineState.gasAvailable.toNat < s.machineState.gasAvailable.toNat := by
   generalize hx : (Except.ok (s', none) : Except ExecutionException _) = x at h
   induction h with
@@ -495,7 +497,7 @@ theorem Steps.gas_lt {D : Array UInt256} {s s' : State} {n : Nat}
     omega
 
 theorem Steps.env {D : Array UInt256} {s s' : State} {n : Nat}
-    (h : Steps D s (.ok (s', none)) n) : s'.executionEnv = s.executionEnv := by
+    (h : Steps K D s (.ok (s', none)) n) : s'.executionEnv = s.executionEnv := by
   generalize hx : (Except.ok (s', none) : Except ExecutionException _) = x at h
   induction h with
   | step _ _ henv => subst hx; exact henv _ rfl
@@ -503,7 +505,7 @@ theorem Steps.env {D : Array UInt256} {s s' : State} {n : Nat}
 
 theorem Final.prepend {D : Array UInt256} {s s₁ : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} {n : Nat}
-    (h : Steps D s (.ok (s₁, none)) n) (hf : Final D s₁ r) : Final D s r := by
+    (h : Steps K D s (.ok (s₁, none)) n) (hf : Final K M D s₁ r) : Final K M D s r := by
   rcases hf with ⟨k, e, hx, he⟩ | ⟨k, s', out, w', hx, h2⟩ | ⟨k, s', data, hx, h2⟩
   · exact .inl ⟨n + k, e, h.append hx, he⟩
   · exact .inr (.inl ⟨n + k, s', out, w', h.append hx, h2⟩)
@@ -512,9 +514,9 @@ theorem Final.prepend {D : Array UInt256} {s s₁ : State}
 theorem Ends.prepend {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx}
     {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {B : List UInt256}
     {e0 ex ex₁ : Exit} {cls : List CallSeg} {s s₁ : State} {r : Except (Fe.Exit World) World}
-    {n : Nat} (h : Steps (D_J I.code 0) s (.ok (s₁, none)) n)
-    (he : Ends code I ρ c hints place b B e0 ex₁ cls s₁ r) :
-    Ends code I ρ c hints place b B e0 ex cls s r := by
+    {n : Nat} (h : Steps K (D_J I.code 0) s (.ok (s₁, none)) n)
+    (he : Ends K M code I ρ c hints place b B e0 ex₁ cls s₁ r) :
+    Ends K M code I ρ c hints place b B e0 ex cls s r := by
   generalize hx : (Except.ok (s₁, none) : Except ExecutionException _) = x at h
   induction h generalizing ex with
   | step hc hs henv => subst hx; exact Ends.cons hc hs (henv _ rfl) he
@@ -522,38 +524,38 @@ theorem Ends.prepend {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256
 
 /-- The bytes end from `st` as the IR's run `r` ends, or return as it does: they reach the
     return address `ret` with the values' words on top of `B`, the world agreeing. -/
-def Final' (D : Array UInt256) (st : State)
+def Final' (K : Bool) (M : List Made) (D : Array UInt256) (st : State)
     (r : Option (Except (Fe.Exit World) (List Val × World))) (ret : Option UInt256)
     (B : List UInt256) (nrets : Nat) : Prop :=
-  Final D st r ∨ ∃ k ws w' n st', ret = some k ∧ r = some (.ok (ws.map Fe.Sonatina.word, w')) ∧
-    ws.length = nrets ∧ Steps D st (.ok (st', none)) n ∧ st'.machineState.pc = k ∧
-    st'.machineState.stack = ws ++ B ∧ st'.executionEnv = st.executionEnv ∧ Agree st' w'
+  Final K M D st r ∨ ∃ k ws w' n st', ret = some k ∧ r = some (.ok (ws.map Fe.Sonatina.word, w')) ∧
+    ws.length = nrets ∧ Steps K D st (.ok (st', none)) n ∧ st'.machineState.pc = k ∧
+    st'.machineState.stack = ws ++ B ∧ st'.executionEnv = st.executionEnv ∧ Agree M st' w'
 
 theorem Final'.prepend {D : Array UInt256} {s s₁ : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} {ret : Option UInt256}
-    {B : List UInt256} {nrets n : Nat} (h : Steps D s (.ok (s₁, none)) n)
-    (hf : Final' D s₁ r ret B nrets) : Final' D s r ret B nrets := by
+    {B : List UInt256} {nrets n : Nat} (h : Steps K D s (.ok (s₁, none)) n)
+    (hf : Final' K M D s₁ r ret B nrets) : Final' K M D s r ret B nrets := by
   rcases hf with hf | ⟨k, ws, w', m, st', h1, h2, h3, hx, h4, h5, h6, h7⟩
   · exact .inl (hf.prepend h)
   · exact .inr ⟨k, ws, w', n + m, st', h1, h2, h3, h.append hx, h4, h5, h6.trans h.env, h7⟩
 
 /-- How the bytes end as the IR's run of a block's statements `r` ends, the world only. -/
-def FinalW (D : Array UInt256) (st : State) (r : Option (Except (Fe.Exit World) World)) :
+def FinalW (K : Bool) (M : List Made) (D : Array UInt256) (st : State) (r : Option (Except (Fe.Exit World) World)) :
     Prop :=
-  Final D st (r.map (·.map fun w => ([], w)))
+  Final K M D st (r.map (·.map fun w => ([], w)))
 
 /-- Out of gas or stack, the bytes end as any run of the IR. -/
 theorem Final.exhausted {D : Array UInt256} {st : State} {e : ExecutionException} {n : Nat}
-    (h : Steps D st (.error e) n) (he : e = .OutOfGass ∨ e = .StackOverflow)
-    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final D st r :=
+    (h : Steps K D st (.error e) n) (he : e = .OutOfGass ∨ e = .StackOverflow)
+    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final K M D st r :=
   .inl ⟨n, e, h, by rcases he with rfl | rfl <;> simp⟩
 
 /-- What the bytes do from where a callee's result is not the IR's: they run out of gas or
     stack. -/
 theorem Final.of_ok {D : Array UInt256} {st : State} {vals : List Val} {w : World}
-    (h : Final D st (some (.ok (vals, w))))
+    (h : Final K M D st (some (.ok (vals, w))))
     {r : Option (Except (Fe.Exit World) (List Val × World))} :
-    Final D st r := by
+    Final K M D st r := by
   rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
   · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩ | ⟨_, h⟩
     · exact .exhausted hx (.inl rfl)
@@ -566,16 +568,16 @@ theorem Final.of_ok {D : Array UInt256} {st : State} {vals : List Val} {w : Worl
 
 /-- An event's failure ends the bytes as it ends the IR's run. -/
 theorem Final.of_fails {D : Array UInt256} {st : State} {f : Fe.Exit World}
-    {e : ExecutionException} {n : Nat} (hx : Steps D st (.error e) n) (hf : Fails f e) :
-    Final D st (some (.error f)) := by
+    {e : ExecutionException} {n : Nat} (hx : Steps K D st (.error e) n) (hf : Fails f e) :
+    Final K M D st (some (.error f)) := by
   refine .inl ⟨n, e, hx, ?_⟩
   cases f <;> simp only [Fails] at hf <;> subst hf <;> simp
 
 /-- A callee's ending is the block's: its failure, or getting stuck. -/
 theorem FinalW.of_callee {D : Array UInt256} {st : State}
     {z : Option (Except (Fe.Exit World) (List Val × World))}
-    (h : Final D st z) (hz : ∀ vals w, z ≠ some (.ok (vals, w))) :
-    FinalW D st (z.map (·.map Prod.snd)) := by
+    (h : Final K M D st z) (hz : ∀ vals w, z ≠ some (.ok (vals, w))) :
+    FinalW K M D st (z.map (·.map Prod.snd)) := by
   unfold FinalW
   rcases z with _ | _ | ⟨vals, w⟩
   · exact h
@@ -614,39 +616,39 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
     (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true)
     (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
       (ret' : Option UInt256) (B' : List UInt256), c.frame.callee cs.callee = some ce →
-      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree M st' w' →
       ws.length = ce.params →
       st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
       (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
       (ce.returns = false → ret' = none) → st'.machineState.gasAvailable.toNat < G →
-      Final' (D_J I.code 0) st' ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w')
+      Final' K M (D_J I.code 0) st' ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w')
         ret' B' ce.rets) :
     ∀ (calls : List CallSeg) (fuel : Nat) (p : Path) (s : State) (w : World)
       (r : Option (Except (Fe.Exit World) World)) (B : List UInt256), p.calls = calls →
       (∀ cs ∈ calls, ∃ ce, c.frame.callee cs.callee = some ce ∧ cs.args.length = ce.params ∧
         cs.dsts.length = (if ce.returns then ce.rets else 0)) →
-      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s → Agree s w →
+      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s → Agree M s w →
       Segs I m ic ρ p.events calls w r → s.machineState.gasAvailable.toNat ≤ G →
-      FinalW (D_J I.code 0) s r ∨
-        ∃ w', r = some (.ok w') ∧ Ends code I ρ c hints place b B e0 p.exit [] s (some (.ok w'))
+      FinalW K M (D_J I.code 0) s r ∨
+        ∃ w', r = some (.ok w') ∧ Ends K M code I ρ c hints place b B e0 p.exit [] s (some (.ok w'))
   | calls, fuel, p, s, w, r, B, hcl, har, hrun, hp, hw, hseg, hg => by
     -- The bytes up to the segment's end, as `run_ends` gives them.
     have hends := fun r' (htr : Trace I ρ p.events w r') =>
-      run_ends (tail := tail) (e0 := e0) hsize hretj fuel p s w r' B hrun hp hw htr
+      run_ends (K := K) (tail := tail) (e0 := e0) hsize hretj fuel p s w r' B hrun hp hw htr
     -- A path whose next call is `cs`, its events done: the bytes end as the callee's IR run,
     -- or the callee returns its words to the code the run goes on at.
     have hcall : ∀ {cs more w₁ ws}, calls = cs :: more → Trace I ρ p.events w (some (.ok w₁)) →
         cs.args.mapM (·.eval I ρ) = some ws →
-        Final (D_J I.code 0) s ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁) ∨
+        Final K M (D_J I.code 0) s ((runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁) ∨
         ∃ (ws₂ : List UInt256) (w₂ : World) (s₂ : State) (n : Nat) (restE : List Expr)
           (restW : List UInt256) (ex' : Exit) (fuel' k : Nat),
           (runFunc m ic cs.callee (ws.map Fe.Sonatina.word)).exec I w₁ =
             some (.ok (ws₂.map Fe.Sonatina.word, w₂)) ∧ ws₂.length = cs.dsts.length ∧
-          Steps (D_J I.code 0) s (.ok (s₂, none)) n ∧ s₂.machineState.pc = UInt256.ofNat k ∧
+          Steps K (D_J I.code 0) s (.ok (s₂, none)) n ∧ s₂.machineState.pc = UInt256.ofNat k ∧
           validJump code k = true ∧ s₂.machineState.stack = ws₂ ++ restW ++ B ∧
           restE.mapM (·.eval I ρ) = some restW ∧
           run code c hints place b fuel' ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ =
-            true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree s₂ w₂ := by
+            true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s₂.executionEnv = I ∧ Agree M s₂ w₂ := by
       intro cs more w₁ ws hcs htr hargs
       obtain ⟨ce, hce, hla, hld⟩ := har cs (by rw [hcs]; simp)
       have hE := hends _ htr
@@ -770,8 +772,8 @@ theorem Segs.pre {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {ρ : N
   | callOk h ha hz hr => exact .callOk (ht _ h) ha hz hr
   | callOther h ha hz hv => exact .callOther (ht _ h) ha hz hv
 
-theorem Final.of_none {D : Array UInt256} {st : State} (h : Final D st none)
-    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final D st r := by
+theorem Final.of_none {D : Array UInt256} {st : State} (h : Final K M D st none)
+    {r : Option (Except (Fe.Exit World) (List Val × World))} : Final K M D st r := by
   rcases h with ⟨n, e, hx, he⟩ | ⟨_, _, _, _, _, h, _⟩ | ⟨_, _, _, _, h⟩
   · rcases he with rfl | rfl | ⟨_, h⟩ | ⟨_, h⟩ | ⟨_, h⟩
     · exact .exhausted hx (.inl rfl)
@@ -843,26 +845,26 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       (id ∈ slotValues h.entryStack ∨ id ∈ b.phis.map (·.dst) ∨
         ∃ s ∈ b.body, ∃ d ∈ s.dsts, d.1 = id) → id < fr.retId)
     {b : Block} {prev : Option Nat} {env : Env} {w : World} {st : State} {ret : Option UInt256}
-    {B : List UInt256} (hat : AtBlock low hint f fr I b prev env w st ret B)
+    {B : List UInt256} (hat : AtBlock M low hint f fr I b prev env w st ret B)
     (hretk : fr.returns = true → ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true)
     (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
       (ret' : Option UInt256) (B' : List UInt256), fr.callee cs.callee = some ce →
-      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree M st' w' →
       ws.length = ce.params →
       st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
       (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
       (ce.returns = false → ret' = none) →
       st'.machineState.gasAvailable.toNat < st.machineState.gasAvailable.toNat →
-      Final' (D_J I.code 0) st'
+      Final' K M (D_J I.code 0) st'
         ((runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w') ret' B'
         ce.rets) :
-    Final' (D_J I.code 0) st
+    Final' K M (D_J I.code 0) st
         ((preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w)
         (if fr.exact b.id then ret else none) B f.rets.length ∨
-      ∃ S env' w' st' n B', Reach (D_J I.code 0) st st' n ∧
+      ∃ S env' w' st' n B', Reach K (D_J I.code 0) st st' n ∧
         (n = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S.id <
           zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
-        AtBlock low hint f fr I S (some b.id) env' w' st' ret B' ∧
+        AtBlock M low hint f fr I S (some b.id) env' w' st' ret B' ∧
         (fr.exact S.id = true → B' = B ∧ fr.exact b.id = true) ∧ S.id ≠ eb.id ∧
         (preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
           (runBlocks low.machine ic f env' (some b.id) S.id).exec I w' := by
@@ -986,7 +988,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     have hSid : Sb.id = S := by simpa using List.find?_some hSb
     -- The successor, entered from `b`, is where the bytes are.
     have key : ∀ d, exit.next I ρ = some d →
-        AtBlock low hint f fr I Sb (some b.id) env' w' st' ret B' ∧
+        AtBlock M low hint f fr I Sb (some b.id) env' w' st' ret B' ∧
         d = Sb.id := by
       intro d hd
       have hdS := hnext d hd
@@ -1062,10 +1064,10 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         · rw [hSid]; exact h
       · subst hn; cases hx
     have hfin : ∀ d, exit.next I ρ = some d →
-        ∃ S' env'' w'' st'' n' B'', Reach (D_J I.code 0) st st'' n' ∧
+        ∃ S' env'' w'' st'' n' B'', Reach K (D_J I.code 0) st st'' n' ∧
           (n' = 0 → zeroRank f (placeIn low hint.name) f.blocks.length S'.id <
             zeroRank f (placeIn low hint.name) f.blocks.length b.id) ∧
-          AtBlock low hint f fr I S' (some b.id) env'' w'' st'' ret B'' ∧
+          AtBlock M low hint f fr I S' (some b.id) env'' w'' st'' ret B'' ∧
           (fr.exact S'.id = true → B'' = B ∧ fr.exact b.id = true) ∧ S'.id ≠ eb.id ∧
           (runBlocks low.machine ic f env' (some b.id) d).exec I w' =
             (runBlocks low.machine ic f env'' (some b.id) S'.id).exec I w'' := fun d hd => by
@@ -1327,7 +1329,7 @@ theorem preIf_succ {isRoot : Bool} {low : Lowering} {eb S : Block} (h : S.id ≠
 
 theorem Final'.of_none {D : Array UInt256} {st : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} {B B' : List UInt256} {n n' : Nat}
-    (h : Final' D st r none B n) {ret : Option UInt256} : Final' D st r ret B' n' := by
+    (h : Final' K M D st r none B n) {ret : Option UInt256} : Final' K M D st r ret B' n' := by
   rcases h with h | ⟨_, _, _, _, _, h, -⟩
   · exact .inl h
   · cases h
@@ -1335,15 +1337,15 @@ theorem Final'.of_none {D : Array UInt256} {st : State}
 /-- Where the function cannot return, the bytes end as the IR's run does. -/
 theorem Final'.final {D : Array UInt256} {st : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} {B : List UInt256} {n : Nat}
-    (h : Final' D st r none B n) : Final D st r := by
+    (h : Final' K M D st r none B n) : Final K M D st r := by
   rcases h with h | ⟨_, _, _, _, _, h, -⟩
   · exact h
   · cases h
 
 theorem Final'.reach {D : Array UInt256} {s s₁ : State}
     {r : Option (Except (Fe.Exit World) (List Val × World))} {ret : Option UInt256}
-    {B : List UInt256} {nrets n : Nat} (h : Reach D s s₁ n) (hf : Final' D s₁ r ret B nrets) :
-    Final' D s r ret B nrets := by
+    {B : List UInt256} {nrets n : Nat} (h : Reach K D s s₁ n) (hf : Final' K M D s₁ r ret B nrets) :
+    Final' K M D s r ret B nrets := by
   rcases h with ⟨-, rfl⟩ | hx
   · exact hf
   · exact hf.prepend hx
@@ -1369,10 +1371,10 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
     ∀ fuel (hint : FuncHint) (f : Func) (eb b : Block) prev env w st ret B,
       hint ∈ low.funcs → low.machine.func? hint.name = some f → f.blocks.head? = some eb →
       st.machineState.gasAvailable.toNat < fuel →
-      AtBlock low hint f (frameOf low entry f) I b prev env w st ret B →
+      AtBlock M low hint f (frameOf low entry f) I b prev env w st ret B →
       ((frameOf low entry f).returns = true →
         ∃ k, ret = some k ∧ (D_J I.code 0).contains k = true) →
-      Final' (D_J I.code 0) st
+      Final' K M (D_J I.code 0) st
         ((preIf (hint.name == entry) low eb b >>= fun _ =>
           runBlocks low.machine ic f env prev b.id).exec I w)
         (if (frameOf low entry f).exact b.id then ret else none) B f.rets.length := by
@@ -1392,13 +1394,13 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
   have hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
       (ret' : Option UInt256) (B' : List UInt256),
       (frameOf low entry f).callee cs.callee = some ce →
-      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree st' w' →
+      st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree M st' w' →
       ws.length = ce.params →
       st'.machineState.stack = ws ++ (match ret' with | some k => k :: B' | none => B') →
       (ce.returns = true → ∃ k, ret' = some k ∧ (D_J I.code 0).contains k = true) →
       (ce.returns = false → ret' = none) →
       st'.machineState.gasAvailable.toNat < st.machineState.gasAvailable.toNat →
-      Final' (D_J I.code 0) st'
+      Final' K M (D_J I.code 0) st'
         ((runFunc low.machine ic cs.callee (ws.map Fe.Sonatina.word)).exec I w') ret' B'
         ce.rets := by
     intro cs ce ws st' w' ret' B' hce hpc henv' hag hlen hstk hrk hnr hg'
@@ -1436,10 +1438,10 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
     -- The callee's words on its entry stack.
     have hvals : List.Forall₂ (SlotWord env0 ret') (f'.params.map (.value ·.1)) ws :=
       forall₂_slots hfa
-    have hat' : AtBlock low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' := by
+    have hat' : AtBlock M low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' := by
       have hmk : ∀ wsE, st'.machineState.stack = wsE ++ B' →
           List.Forall₂ (SlotWord env0 ret') ((frameOf low entry f').slots hbE) wsE →
-          AtBlock low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' :=
+          AtBlock M low hint' f' (frameOf low entry f') I eb' none env0 w' st' ret' B' :=
         fun wsE h1 h2 => ⟨hebm, hblk, henv', hag, hbE, ce.offset, env0, wsE, hfind,
           by rw [hname]; exact hpl, hpc, by simp [enter, hephi, Fe.Sonatina.bind], h1, h2,
           by simp [hephi]⟩
@@ -1475,7 +1477,7 @@ theorem func_run {code : CodeSection} {low : Lowering} {entry : String} {I : Exe
       hcallee with hfin | ⟨S, env', w', st', n, B', hreach, hlow, hat', hBB, hne, hIR⟩
   · exact hfin
   rw [hIR]
-  have key : Final' (D_J I.code 0) st'
+  have key : Final' K M (D_J I.code 0) st'
       ((preIf (hint.name == entry) low eb S >>= fun _ =>
         runBlocks low.machine ic f env' (some b.id) S.id).exec I w')
       (if (frameOf low entry f).exact S.id then ret else none) B' f.rets.length := by

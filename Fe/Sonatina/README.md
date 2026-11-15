@@ -188,9 +188,13 @@ payload. The hints are inputs to `check`, never hypotheses of `check_sound`.
 
 ```lean
 def Implements (model ir : ContractModel) (admits : ExecutionEnv → Prop) : Prop :=
-  ∀ I σ A feed, admits I → ∃ feed', EndsAs (model.runtime.exec I (World.init σ A feed'))
-    (ir.runtime.exec I (World.init σ A feed))
+  ∀ I σ A feed, OwnerExists σ I → admits I → ∃ feed',
+    EndsAs (model.runtime.exec I (World.init σ A feed')) (ir.runtime.exec I (World.init σ A feed))
 ```
+
+Like `RefinesOn`, it speaks only of frames whose account exists (`OwnerExists`), as in every
+frame the EVM runs: without the account a store is dropped, so a load after it reads 0, and the
+compiler's forwarding of a stored value to a later load would not be sound.
 
 `ImplementsDeploy` is the constructor's counterpart, on deployments whose code is the creation
 code followed by the arguments, which the init IR reads from its own code.
@@ -369,9 +373,10 @@ opcodes of the frame, as `callvalue` is. `selfbalance`, `balance` and `extcodesi
 accounts, `returndatasize` and `returndatacopy` the return data (a copy past its end is the model's
 `.oob`, the bytes' invalid memory access), and `gas` the gas left: each is an event, its result a
 fresh value. The model's `gas` reads its feed, so the proof builds the feed from the bytes' run:
-`Feeds s f` says `f` is what the run from `s` supplies, at each `GAS` the word it pushes, and
-`Agree` holds it of the world's feed. A run's feed exists because each step that goes on spends
-gas (`feeds_exists`). A `gas` on an empty feed is stuck (`Trace.stuck`), which the bytes match
+`Fut s f m` says `f` is what the run from `s` supplies, at each `GAS` the word it pushes, and `m`
+the calls and creations it makes, each as `XstepOk` reads it (`madeOf`); `Agree M` holds the
+first of the world's feed and says the world's recorded calls followed by `m` are `M`. A run's
+feed exists because each step that goes on spends gas (`fut_exists`). A `gas` on an empty feed is stuck (`Trace.stuck`), which the bytes match
 only by running out of gas or stack there. These raised the corpus count from 387 to 391:
 `eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
 `payable.PayableBox` (`selfbalance`).
@@ -445,7 +450,12 @@ Proved so far:
    through states whose instruction is no call nor creation (`Calm`).
 8. The checker is sound (`CheckCert.lean`): `check_sound : check s = true → Sound s`, the
    runtime and the constructor (its arguments after the code) at `P1`, and `check_xiOk`, `XiOk`
-   of both frames. They depend on `propext`, `Classical.choice` and `Quot.sound` only.
+   of both frames. `check_xiOk_callsAt` states the frames' calls without asking that there be
+   none: a frame that succeeds makes only calls satisfying `Q` when every successful run of the
+   machine IR from its account map and substate records only such calls
+   (`ContractModel.callsAt`), as `Fut.xOk` gives from the calls the bytes' run makes, which
+   `Agree` equates with the IR's. They depend on `propext`, `Classical.choice` and `Quot.sound`
+   only.
 
 The model half for FeScalarStore (`FeProofs/ScalarStore/SonatinaRun.lean`,
 `SonatinaCorrect.lean`): the interpreter's runs of the machine IR's runtime and init functions by

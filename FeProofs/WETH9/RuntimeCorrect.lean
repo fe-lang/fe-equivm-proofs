@@ -585,13 +585,13 @@ def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem feWETH9RefinesExported : RefinesOn .P0 feWETH9Bytecode contract CalldataFits := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hfits
+  intro σ σ₀ g A I hcode hown hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
   rcases feWETH9RefinesModel σ σ₀ g A I ByteArray.empty
-      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hown hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs (runtime_endsAs I (World.init σ A feed) rfl hfits) h⟩
 
@@ -599,8 +599,8 @@ theorem feWETH9RefinesExported : RefinesOn .P0 feWETH9Bytecode contract Calldata
     entry. -/
 theorem feWETH9DeployRefinesExported :
     RefinesDeploy .P0 feWETH9CreationBytecode feWETH9Bytecode contract (· = ByteArray.empty) := by
-  intro σ σ₀ g A I args hargs hcode hperm
-  rcases feWETH9DeployRefinesModel σ σ₀ g A I args hargs hcode hperm with h | ⟨feed, h⟩
+  intro σ σ₀ g A I args hargs hcode hown hperm
+  rcases feWETH9DeployRefinesModel σ σ₀ g A I args hargs hcode hown hperm with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (init_endsAs I (World.init σ A feed) args feWETH9Bytecode rfl hperm) h⟩

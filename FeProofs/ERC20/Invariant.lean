@@ -14,10 +14,10 @@ the calls a frame at the token makes (`callsAt := fun _ _ _ _ _ _ => True`).  Co
 not depend on how a frame is entered (`Enters := fun _ _ _ => True`).
 
 From deployment on: `deploy_conserves_token`, a successful creation of the creation bytecode by a
-holder establishes the invariant at the new address (the new account's storage starts empty, so
-every holder starts with no tokens), and `every_transaction_conserves`, every transaction keeps
-it, under the hypotheses of `Ethereum.EVM.Invariant.tx_holds`: the sender has no code, the data
-fits a word, and the outermost call is admitted.
+holder that has an account establishes the invariant at the new address (the new account's
+storage starts empty, so every holder starts with no tokens), and `every_transaction_conserves`,
+every transaction keeps it, under the hypotheses of `Ethereum.EVM.Invariant.tx_holds`: the sender
+has no code, the data fits a word, and the outermost call is admitted.
 
 The statements hold of any runtime and creation bytecode with `P0` certificates
 (`every_call_keeps`, `deploy_keeps_token`, `every_transaction_keeps`).  The capstones are their
@@ -152,11 +152,11 @@ theorem every_call_keeps (hR : RefinesOn .P0 runtime Exported.contract CalldataF
 theorem deploy_keeps_token (hD : RefinesDeploy .P0 creation runtime Exported.contract
       (fun args => ∃ v : UInt256, args = ctorTail v)) {S : List UInt256} (hS : CollisionFree S)
     {v : UInt256}
-    {L : LambdaCall} (hi : L.i = creation ++ v.toByteArray) (hw : L.w = true)
-    (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
+    {L : LambdaCall} (hi : L.i = creation ++ v.toByteArray) (hs : ∃ acc, L.σ[L.s]? = some acc)
+    (hw : L.w = true) (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (TokenAt runtime S) L.run.2.1 :=
   refinesDeploy_holds hD (args := ctorTail v) ⟨v, rfl⟩
-    (by rw [Exported.ctorTail_eq]; exact hi) hw
+    (by rw [Exported.ctorTail_eq]; exact hi) hs hw
     (fun I σ A feed out w hc hs _ hempty hrun =>
       deploy_model runtime hS v L.addr L.s hdeployer I σ A feed out w hc hs hempty hrun) hz
 
@@ -198,14 +198,17 @@ theorem every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : Colli
   every_call_keeps Exported.feERC20RefinesExported bytecode_size_ne_zero a hS e
 
 /-- **Deployment conserves.**  A creation of the ERC20 creation bytecode with argument `v` that
-    succeeds, made by a holder in `S` with write permission, ends with the new address running the
-    ERC20 bytecode and the holders' balances adding up to the supply.  The new address starts with
-    empty storage: `Lambda` creates only at an address without nonce, code or storage. -/
+    succeeds, made by a holder in `S` that has an account, with write permission, ends with the
+    new address running the ERC20 bytecode and the holders' balances adding up to the supply.  The
+    new address starts with empty storage: `Lambda` creates only at an address without nonce,
+    code or storage.  It adds the new account before it runs the init code when the creator has
+    an account, as every creator the EVM runs does. -/
 theorem deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UInt256}
-    {L : LambdaCall} (hi : L.i = feERC20CreationBytecode ++ v.toByteArray) (hw : L.w = true)
+    {L : LambdaCall} (hi : L.i = feERC20CreationBytecode ++ v.toByteArray)
+    (hs : ∃ acc, L.σ[L.s]? = some acc) (hw : L.w = true)
     (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (Token S) L.run.2.1 :=
-  deploy_keeps_token Exported.feERC20DeployRefinesExported hS hi hw hdeployer hz
+  deploy_keeps_token Exported.feERC20DeployRefinesExported hS hi hs hw hdeployer hz
 
 /-- **Every transaction conserves.**  A valid transaction that starts where the token at `a` runs
     the ERC20 bytecode with the holders' balances adding up to the supply, and the ether balances
@@ -244,10 +247,11 @@ theorem P1.every_call_conserves (a : AccountAddress) {S : List UInt256} (hS : Co
 
 /-- `deploy_conserves_token` for the bytecode of `P1/`. -/
 theorem P1.deploy_conserves_token {S : List UInt256} (hS : CollisionFree S) {v : UInt256}
-    {L : LambdaCall} (hi : L.i = feERC20P1CreationBytecode ++ v.toByteArray) (hw : L.w = true)
+    {L : LambdaCall} (hi : L.i = feERC20P1CreationBytecode ++ v.toByteArray)
+    (hs : ∃ acc, L.σ[L.s]? = some acc) (hw : L.w = true)
     (hdeployer : UInt256.ofNat L.s.val ∈ S) (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (P1.Token S) L.run.2.1 :=
-  deploy_keeps_token Sonatina.feERC20DeployRefinesExportedP1.toP0 hS hi hw hdeployer hz
+  deploy_keeps_token Sonatina.feERC20DeployRefinesExportedP1.toP0 hS hi hs hw hdeployer hz
 
 /-- `every_transaction_conserves` for the bytecode of `P1/`. -/
 theorem P1.every_transaction_conserves (a : AccountAddress) {S : List UInt256}

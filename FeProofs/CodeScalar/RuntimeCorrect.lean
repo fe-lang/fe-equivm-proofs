@@ -177,12 +177,12 @@ def contract : ContractModel :=
     below `2 ^ 64` bytes. -/
 theorem feCodeScalarRefinesExported :
     RefinesOn .P0 feCodeScalarBytecode contract CalldataFits := by
-  intro σ σ₀ g A I tail hcode htail hfits
+  intro σ σ₀ g A I tail hcode htail hown hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
-  rcases feCodeScalarRefinesModel σ σ₀ g A I tail hcode htail hsize with h | ⟨feed, h⟩
+  rcases feCodeScalarRefinesModel σ σ₀ g A I tail hcode htail hown hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -192,8 +192,8 @@ theorem feCodeScalarRefinesExported :
 theorem feCodeScalarDeployRefinesExported :
     RefinesDeploy .P0 feCodeScalarCreationBytecode feCodeScalarBytecode contract
       (fun args => ∃ v : UInt256, args = v.toByteArray) := by
-  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
-  rcases feCodeScalarDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hperm with h | ⟨feed, h⟩
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hown hperm
+  rcases feCodeScalarDeployRefinesModel σ σ₀ g A I _ ⟨v, rfl⟩ hcode hown hperm with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (init_endsAs v _ I (World.init σ A feed) (by simp [World.init, UInt256.size])) h⟩

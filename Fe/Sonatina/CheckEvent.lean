@@ -1,95 +1,361 @@
 import Fe.Sonatina.CheckStep
 import Fe.EVM.World
 import Reasoning.Memory
+import Fe.EVM.LogsAppend
+import Fe.EVM.Invariant
 
 /-!
 # One step of the bytes on state
 
-The bytes' steps on an event's opcode against the model's world.  `Agree s w`: the EVM state
-holds the world's memory, accounts, logs and return data, and the world's feed is the one the
-bytes' run supplies from `s` (`Feeds`: at each `GAS`, the word it pushes).  `evRun op args` is what the event does to the
-world, by the functions of `Fe.EVM` the interpreter's EVM instructions run.  `EvMoves`: one
-`Xstep` runs out of gas or stack, or fails under a static call where the world's operation
-does (`Fails`: a write under a static call, a copy past the return data), or does what it does
-and moves on with the word it reads on top, the states still agreeing.  `event_evMoves` gives it for every opcode of `readOps` and `writeOps` from
-EVMLean's `step_*` lemmas.  The logs agree too, so the proof reaches profile `P1`.
+The bytes' steps on an event's opcode against the model's world.  `Agree M s w`: the EVM state
+holds the world's memory, accounts, logs and return data, the world's feed is the one the bytes'
+run supplies from `s`, and the calls the world has made followed by those the bytes' run makes
+from `s` are `M` (`Fut`: at each step, the entry `supplyOf` gives, the word `GAS` pushes or the
+inputs a message call reads, and the call or creation `madeOf` gives, what `XstepOk` asks of the
+step).  `Fut.xOk`: a run whose calls and creations satisfy a condition satisfies `XOk`.
+`evRun op args` is what the event does to the world, by the functions of `Fe.EVM` the
+interpreter's EVM instructions run.  `EvMoves`: one `Xstep` runs out of gas or stack, or fails
+under a static call where the world's operation does (`Fails`: a write under a static call, a
+copy past the return data), or does what it does and moves on with the word it reads on top, the
+states still agreeing.  `event_evMoves` gives it for every opcode of `readOps` and `writeOps`
+from EVMLean's `step_*` lemmas.  The logs agree too, so the proof reaches profile `P1`.
 -/
 
 namespace Fe.Sonatina.Check
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
 
+/-- The opcodes that make a message call or a creation. -/
+def callOps : List Operation := [.CREATE, .CREATE2, .CALL, .CALLCODE, .DELEGATECALL, .STATICCALL]
+
+/-- The instruction at the state's pc, as `Xstep` decodes it, makes no message call or
+    creation. -/
+def Calm (s : State) : Prop :=
+  callOps.contains (decode s.executionEnv.code s.machineState.pc |>.getD (.STOP, .none)).1 = false
+
+theorem calm_of {s : State} {op : Operation} {a : Option (UInt256 × Nat)}
+    (h : decode s.executionEnv.code s.machineState.pc = some (op, a))
+    (hc : callOps.contains op = false) : Calm s := by
+  simp only [Calm, h, Option.getD_some]
+  exact hc
+
+/-- An opcode of a list without calls or creations is calm. -/
+theorem calm_of_mem {s : State} {op : Operation} {a : Option (UInt256 × Nat)}
+    {L : List Operation} (h : decode s.executionEnv.code s.machineState.pc = some (op, a))
+    (hL : L.all (!callOps.contains ·) = true) (hop : L.contains op = true) : Calm s := by
+  refine calm_of h ?_
+  have := List.all_eq_true.mp hL op (by simpa using hop)
+  simpa using this
+
+/-- The state `Z` hands an instruction's step: the memory it expands paid for. -/
+def zState (s : State) (op : Operation) : State :=
+  { s with machineState.gasAvailable :=
+      s.machineState.gasAvailable.subNat (memoryExpansionCost s op) }
+
+/-- The state a message call's inputs are read from, as `step` and `stepOk` read them. -/
+def callState (s : State) (op : Operation) : State :=
+  { zState s op with machineState.execLength := s.machineState.execLength + 1 }
+
+theorem Z_ok {D : Array UInt256} {op : Operation} {s s' : State} {c : Nat}
+    (h : Z D op s = .ok (s', c)) : s' = zState s op ∧ c = C' (zState s op) op :=
+  Z_ok_eq_charged_cost h
+
+/-- A step that goes on passed `Z`. -/
+theorem Z_of_Xstep {D : Array UInt256} {s : State}
+    {r : State × Option (HaltCause × ByteArray)} (h : Xstep D s = .ok r) :
+    ∃ c, Z D (decode s.executionEnv.code s.machineState.pc |>.getD (.STOP, .none)).1 s =
+      .ok (zState s (decode s.executionEnv.code s.machineState.pc |>.getD (.STOP, .none)).1, c) := by
+  cases hz : Z D (decode s.executionEnv.code s.machineState.pc |>.getD (.STOP, .none)).1 s with
+  | error e => simp [Xstep, hz] at h
+  | ok p =>
+    obtain ⟨s', c⟩ := p
+    obtain ⟨rfl, -⟩ := Z_ok hz
+    exact ⟨c, rfl⟩
+
+/-- The gas a message call forwards is the model's `forwardedGas` of the cap `Cgascap`. -/
+theorem forwardedGas_Cgascap (t r : AccountAddress) (value gasArg : UInt256) (σ : AccountMap)
+    (μ : MachineState) (A : Substate) :
+    forwardedGas (.ofNat (Cgascap t r value gasArg σ μ A)) gasArg value =
+      .ofNat (Ccallgas t r value gasArg σ μ A) := by
+  have hle := Cgascap_le t r value gasArg σ μ A
+  have hto : (UInt256.ofNat (Cgascap t r value gasArg σ μ A)).toNat =
+      Cgascap t r value gasArg σ μ A := by
+    show (Fin.ofNat _ _).val = _
+    simp only [Fin.ofNat]
+    exact Nat.mod_eq_of_lt (Nat.lt_of_le_of_lt hle gasArg.val.isLt)
+  unfold forwardedGas Ccallgas
+  rw [hto, Nat.min_eq_left hle]
+  by_cases hv : value = ⟨0⟩
+  · subst hv
+    rfl
+  · rw [if_neg hv]
+    split
+    · exact absurd rfl hv
+    · rfl
+
 /-- The entry of the feed a step of the bytes from `s` supplies: the word `GAS` pushes, which
-    the model's `gas` reads from its feed. -/
+    the model's `gas` reads, and for a message call the inputs the EVM hands the callee and the
+    model's `message` reads, made or not: the gas cap, the substate with the callee's address
+    accessed, and the transaction's original account map. -/
 def supplyOf (s : State) : List Supply :=
-  match decode s.executionEnv.code s.machineState.pc with
-  | some (.GAS, _) =>
+  let call (op : Operation) (gas t value : UInt256) (r : AccountAddress) : List Supply :=
+    [⟨.ofNat (Cgascap (.ofUInt256 t) r value gas s.accountMap (callState s op).machineState
+        s.substate), (s.addAccessedAccount (.ofUInt256 t)).substate, s.σ₀⟩]
+  match decode s.executionEnv.code s.machineState.pc, s.machineState.stack with
+  | some (.GAS, _), _ =>
     [{ gas := (s.machineState.gasAvailable.subNat GasConstants.Gbase).toUInt256
        substate := default, orig := default }]
+  | some (.CALL, _), gas :: t :: value :: _ => call .CALL gas t value (.ofUInt256 t)
+  | some (.STATICCALL, _), gas :: t :: _ => call .STATICCALL gas t ⟨0⟩ (.ofUInt256 t)
+  | some (.DELEGATECALL, _), gas :: t :: _ =>
+    call .DELEGATECALL gas t ⟨0⟩ (.ofUInt256 (.ofNat s.executionEnv.codeOwner))
+  | _, _ => []
+
+/-! ## The calls a step makes, as `stepOk` asks of them -/
+
+open Ethereum.EVM.Invariant in
+/-- The message call `call` makes, if it makes one: what `callOk` asks `Q` of. -/
+def callMade (gas source recipient t value value' inOffset inSize : UInt256) (permission : Bool)
+    (evmState : State) : List Made :=
+  if value ≤ (evmState.accountMap.get? evmState.executionEnv.codeOwner |>.option ⟨0⟩ (·.balance))
+      ∧ evmState.executionEnv.depth < 1024 then
+    [.theta (callArgs gas source recipient t value value' inOffset inSize permission evmState)]
+  else []
+
+/-- The creation `create` makes, if it makes one: what `createOk` asks `Q` of. -/
+def createMade (value offset size : UInt256) (salt : Option ByteArray) (evmState : State) :
+    List Made :=
+  let i := evmState.machineState.memory.readWithPadding offset.toNat size.toNat
+  let I := evmState.executionEnv
+  let σ := evmState.accountMap
+  let self : Account := σ.get? I.codeOwner |>.getD default
+  if ¬ self.nonce.toNat ≥ 2 ^ 64 - 1 then
+    if h : value ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
+        ∧ i.size ≤ 49152 then
+      [.lambda
+        { σ := σ.insert I.codeOwner {self with nonce := self.nonce + ⟨1⟩}
+          σ₀ := evmState.σ₀, A := evmState.substate, s := I.codeOwner, o := I.sender
+          g := .ofNat (L evmState.machineState.gasAvailable.toNat), p := .ofNat I.gasPrice
+          v := value, i := i, e := ⟨I.depth.val + 1, Nat.succ_lt_succ h.2.1⟩, ζ := salt
+          H := I.header, bvh := I.blobVersionedHashes, blocks := I.blocks, w := I.perm }]
+    else []
+  else []
+
+/-- The message call or creation one instruction makes, if any, as `stepOk` reads it. -/
+def madeAt (gasCost : ℕ) (instr : Operation × Option (UInt256 × Nat)) (state : State) :
+    List Made :=
+  let st : State := { state with machineState.execLength := state.machineState.execLength + 1 }
+  let charged : State :=
+    { st with machineState.gasAvailable := st.machineState.gasAvailable.subNat gasCost }
+  match instr.1 with
+  | .CREATE => match st.machineState.stack.pop3 with
+    | some (_, value, offset, size) => createMade value offset size none charged
+    | none => []
+  | .CREATE2 => match st.machineState.stack.pop4 with
+    | some (_, value, offset, size, salt) =>
+      createMade value offset size (some salt.toByteArray) charged
+    | none => []
+  | .CALL => match st.machineState.stack.pop7 with
+    | some (_, μ₀, μ₁, μ₂, μ₃, μ₄, _, _) =>
+      callMade μ₀ (.ofNat state.executionEnv.codeOwner) μ₁ μ₁ μ₂ μ₂ μ₃ μ₄
+        state.executionEnv.perm st
+    | none => []
+  | .CALLCODE => match st.machineState.stack.pop7 with
+    | some (_, μ₀, μ₁, μ₂, μ₃, μ₄, _, _) =>
+      callMade μ₀ (.ofNat state.executionEnv.codeOwner) (.ofNat state.executionEnv.codeOwner)
+        μ₁ μ₂ μ₂ μ₃ μ₄ state.executionEnv.perm st
+    | none => []
+  | .DELEGATECALL => match st.machineState.stack.pop6 with
+    | some (_, μ₀, μ₁, μ₃, μ₄, _, _) =>
+      callMade μ₀ (.ofNat state.executionEnv.source) (.ofNat state.executionEnv.codeOwner) μ₁
+        ⟨0⟩ state.executionEnv.weiValue μ₃ μ₄ state.executionEnv.perm st
+    | none => []
+  | .STATICCALL => match st.machineState.stack.pop6 with
+    | some (_, μ₀, μ₁, μ₃, μ₄, _, _) =>
+      callMade μ₀ (.ofNat state.executionEnv.codeOwner) μ₁ μ₁ ⟨0⟩ ⟨0⟩ μ₃ μ₄ false st
+    | none => []
   | _ => []
 
-/-- `f` is the feed the bytes' run from `s` supplies, step by step until it stops: the
-    model's run under it reads at each step what the bytes compute there. -/
-inductive Feeds : State → List Supply → Prop
-  | stop {s : State} (h : ∀ s', Xstep (D_J s.executionEnv.code 0) s ≠ .ok (s', none)) :
-      Feeds s []
-  | step {s s' : State} {f : List Supply}
-      (h : Xstep (D_J s.executionEnv.code 0) s = .ok (s', none)) (rest : Feeds s' f) :
-      Feeds s (supplyOf s ++ f)
+/-- The message call or creation the step from `s` makes, if any, as `XstepOk` reads it: none
+    where `Z` stops the step. -/
+def madeOf (s : State) : List Made :=
+  match Z (D_J s.executionEnv.code 0)
+      (decode s.executionEnv.code s.machineState.pc |>.getD (.STOP, .none)).1 s with
+  | .ok (sZ, cost) => madeAt cost (decode s.executionEnv.code s.machineState.pc |>.getD
+      (.STOP, .none)) { sZ with executionEnv.depth := s.executionEnv.depth }
+  | .error _ => []
 
-/-- A step that goes on supplies its entry and the rest of the run's. -/
-theorem Feeds.next {s s' : State} {f : List Supply} (h : Feeds s f)
+open Ethereum.EVM.Invariant in
+theorem callMade_ok {Q : CallPreds} {gas source recipient t value value' inOffset inSize : UInt256}
+    {permission : Bool} {evmState : State}
+    (h : ∀ c ∈ callMade gas source recipient t value value' inOffset inSize permission evmState,
+      c.Ok Q) :
+    callOk Q gas source recipient t value value' inOffset inSize permission evmState := by
+  intro hm
+  exact h _ (by simp only [callMade, if_pos hm]; exact List.mem_singleton_self _)
+
+open Ethereum.EVM.Invariant in
+theorem createMade_ok {Q : CallPreds} {value offset size : UInt256} {salt : Option ByteArray}
+    {evmState : State} (h : ∀ c ∈ createMade value offset size salt evmState, c.Ok Q) :
+    createOk Q value offset size salt evmState := by
+  intro hn hm
+  exact h _ (by simp only [createMade, if_pos hn, dif_pos hm]; exact List.mem_singleton_self _)
+
+open Ethereum.EVM.Invariant in
+/-- `stepOk` holds of a step whose call or creation satisfies `Q`. -/
+theorem madeAt_ok {Q : CallPreds} {gasCost : ℕ} {instr : Operation × Option (UInt256 × Nat)}
+    {state : State} (h : ∀ c ∈ madeAt gasCost instr state, c.Ok Q) :
+    stepOk Q gasCost instr state := by
+  unfold stepOk
+  unfold madeAt at h
+  dsimp only
+  dsimp only at h
+  split
+  next heq =>
+    intro _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact createMade_ok h
+  next heq =>
+    intro _ _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact createMade_ok h
+  next heq =>
+    intro _ _ _ _ _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact callMade_ok h
+  next heq =>
+    intro _ _ _ _ _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact callMade_ok h
+  next heq =>
+    intro _ _ _ _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact callMade_ok h
+  next heq =>
+    intro _ _ _ _ _ _ _ hp
+    simp only [heq, hp] at h
+    exact callMade_ok h
+  · trivial
+
+open Ethereum.EVM.Invariant in
+/-- `XstepOk` holds of a state whose step's call or creation satisfies `Q`. -/
+theorem madeOf_xstepOk {Q : CallPreds} {s : State} (h : ∀ c ∈ madeOf s, c.Ok Q) :
+    XstepOk Q (D_J s.executionEnv.code 0) s := by
+  intro sZ cost hZ
+  unfold madeOf at h
+  rw [hZ] at h
+  exact madeAt_ok h
+
+/-- A calm step makes no call nor creation. -/
+theorem Calm.madeOf {s : State} (h : Calm s) : madeOf s = [] := by
+  unfold Calm at h
+  unfold Fe.Sonatina.Check.madeOf
+  split
+  · unfold madeAt
+    generalize (decode s.executionEnv.code s.machineState.pc).getD (.STOP, .none) = instr at h ⊢
+    split <;> simp_all [callOps]
+  · rfl
+
+/-- `f` is the feed the bytes' run from `s` supplies and `m` the calls and creations it makes,
+    step by step until it stops: the model's run under `f` reads at each step what the bytes
+    compute there.  The step that stops counts what `XstepOk` asks of it too, which is nothing
+    where it halts. -/
+inductive Fut : State → List Supply → List Made → Prop
+  | stop {s : State} (h : ∀ s', Xstep (D_J s.executionEnv.code 0) s ≠ .ok (s', none)) :
+      Fut s [] (madeOf s)
+  | step {s s' : State} {f : List Supply} {m : List Made}
+      (h : Xstep (D_J s.executionEnv.code 0) s = .ok (s', none)) (rest : Fut s' f m) :
+      Fut s (supplyOf s ++ f) (madeOf s ++ m)
+
+/-- A step that goes on supplies its entry and makes its call, then the rest of the run's. -/
+theorem Fut.next {s s' : State} {f : List Supply} {m : List Made} (h : Fut s f m)
     (hx : Xstep (D_J s.executionEnv.code 0) s = .ok (s', none)) :
-    ∃ f', f = supplyOf s ++ f' ∧ Feeds s' f' := by
+    ∃ f' m', f = supplyOf s ++ f' ∧ m = madeOf s ++ m' ∧ Fut s' f' m' := by
   cases h with
   | stop h => exact absurd hx (h s')
   | step h rest =>
     rw [hx] at h
     cases h
-    exact ⟨_, rfl, rest⟩
+    exact ⟨_, _, rfl, rfl, rest⟩
 
 /-- Every run of the bytes supplies a feed: each step that goes on spends gas. -/
-theorem feeds_exists : ∀ (n : Nat) (s : State), s.machineState.gasAvailable.toNat < n →
-    ∃ f, Feeds s f
+theorem fut_exists : ∀ (n : Nat) (s : State), s.machineState.gasAvailable.toNat < n →
+    ∃ f m, Fut s f m
   | 0, _, h => absurd h (Nat.not_lt_zero _)
   | n + 1, s, h => by
     by_cases hx : ∃ s', Xstep (D_J s.executionEnv.code 0) s = .ok (s', none)
     · obtain ⟨s', hx⟩ := hx
       have := Xstep_gas_decreases_of_continues hx
-      obtain ⟨f, hf⟩ := feeds_exists n s' (by omega)
-      exact ⟨_, .step hx hf⟩
-    · exact ⟨[], .stop fun s' h => hx ⟨s', h⟩⟩
+      obtain ⟨f, m, hf⟩ := fut_exists n s' (by omega)
+      exact ⟨_, _, .step hx hf⟩
+    · exact ⟨[], _, .stop fun s' h => hx ⟨s', h⟩⟩
 
-/-- An opcode other than `GAS` supplies nothing. -/
+open Ethereum.EVM.Invariant in
+/-- A run whose calls and creations satisfy `Q` satisfies `XOk`. -/
+theorem Fut.xOk {Q : CallPreds} {s : State} {f : List Supply} {m : List Made} (h : Fut s f m)
+    (hQ : ∀ c ∈ m, c.Ok Q) : ∀ n, XOk Q n (D_J s.executionEnv.code 0) s := by
+  induction h with
+  | stop h =>
+    intro n
+    cases n with
+    | zero => trivial
+    | succ n => exact ⟨madeOf_xstepOk hQ, fun s' hs' => absurd hs' (h s')⟩
+  | @step s s' f m hx _ ih =>
+    intro n
+    cases n with
+    | zero => trivial
+    | succ n =>
+      refine ⟨madeOf_xstepOk fun c hc => hQ c (List.mem_append_left _ hc), fun t ht => ?_⟩
+      rw [hx] at ht
+      cases ht
+      have henv := Xstep_executionEnv_eq hx
+      have := ih (fun c hc => hQ c (List.mem_append_right _ hc)) n
+      rw [henv] at this
+      rw [show { s' with executionEnv.depth := s.executionEnv.depth } = s' by rw [← henv]]
+      exact this
+
+/-- An opcode other than `GAS` and the message calls supplies nothing. -/
 theorem supplyOf_eq {s : State} {op : Operation} {a : Option (UInt256 × Nat)}
-    (h : decode s.executionEnv.code s.machineState.pc = some (op, a)) (hop : op ≠ .GAS) :
-    supplyOf s = [] := by
+    (h : decode s.executionEnv.code s.machineState.pc = some (op, a)) (hop : op ≠ .GAS)
+    (hc : callOps.contains op = false) : supplyOf s = [] := by
   unfold supplyOf
   rw [h]
-  split
-  · next h' => cases h'; exact absurd rfl hop
-  · rfl
+  split <;> simp_all [callOps]
 
-/-- The EVM state holds the model's world: its memory, accounts, logs and return data, and the
-    world's feed is what the bytes' run supplies from there. -/
-structure Agree (s : State) (w : World) : Prop where
+/-- The EVM state holds the model's world: its memory, accounts, logs and return data; the
+    world's feed is what the bytes' run supplies from there, and the calls the world made and
+    those the bytes' run makes from there are `M`. -/
+structure Agree (M : List Made) (s : State) (w : World) : Prop where
   memory : s.machineState.memory = w.memory
   accounts : s.accountMap = w.accounts
   logs : s.substate.logSeries = w.logs
   returnData : s.machineState.returnData = w.returnData
-  feed : Feeds s w.feed
+  fut : ∃ m, Fut s w.feed m ∧ w.calls ++ m = M
 
-/-- A step that supplies nothing and keeps memory, accounts, logs and return data keeps the
-    world agreeing. -/
-theorem Agree.quiet {s s' : State} {w : World} (hw : Agree s w)
+/-- A calm step that supplies nothing and keeps memory, accounts, logs and return data keeps
+    the world agreeing. -/
+theorem Agree.quiet {M : List Made} {s s' : State} {w : World} (hw : Agree M s w)
     (hx : Xstep (D_J s.executionEnv.code 0) s = .ok (s', none)) (hq : supplyOf s = [])
+    (hc : Calm s)
     (hm : s'.machineState.memory = s.machineState.memory) (ha : s'.accountMap = s.accountMap)
     (hl : s'.substate.logSeries = s.substate.logSeries)
-    (hr : s'.machineState.returnData = s.machineState.returnData) : Agree s' w := by
-  obtain ⟨f', hf, hF⟩ := hw.feed.next hx
+    (hr : s'.machineState.returnData = s.machineState.returnData) : Agree M s' w := by
+  obtain ⟨m, hF, hM⟩ := hw.fut
+  obtain ⟨f', m', hf, hm', hF'⟩ := hF.next hx
   rw [hq, List.nil_append] at hf
+  rw [hc.madeOf, List.nil_append] at hm'
   exact ⟨hm.trans hw.memory, ha.trans hw.accounts, hl.trans hw.logs, hr.trans hw.returnData,
-    hf ▸ hF⟩
+    ⟨m', by rw [hf]; exact hF', by rw [← hm']; exact hM⟩⟩
+
+/-- Where the bytes stop at a calm state, the world has made the calls `M`. -/
+theorem Agree.calls_of_stop {M : List Made} {s : State} {w : World} (hw : Agree M s w)
+    (hc : Calm s) (hx : ∀ s', Xstep (D_J s.executionEnv.code 0) s ≠ .ok (s', none)) :
+    w.calls = M := by
+  obtain ⟨m, hF, hM⟩ := hw.fut
+  generalize w.feed = f at hF
+  cases hF with
+  | stop _ => rwa [hc.madeOf, List.append_nil] at hM
+  | step h _ => exact absurd h (hx _)
 
 /-- What an event does to the model's world, on its operands top first: for a read, the word. -/
 def evRun : Operation → List UInt256 → FeM (Option UInt256)
@@ -126,7 +392,7 @@ def Fails : Fe.Exit World → ExecutionException → Prop
     gas or stack, or fails as the world's operation does, or does what the world's operation
     does and moves on with the read word on top. -/
 def EvMoves (s : State) (op : Operation) (args t : List UInt256) : Prop :=
-  ∀ w, Agree s w →
+  ∀ M w, Agree M s w →
     Xstep (D_J s.executionEnv.code 0) s = .error .OutOfGass ∨
     Xstep (D_J s.executionEnv.code 0) s = .error .StackOverflow ∨
     (∃ f e, (evRun op args).exec s.executionEnv w = some (.error f) ∧
@@ -134,26 +400,29 @@ def EvMoves (s : State) (op : Operation) (args t : List UInt256) : Prop :=
     ∃ r w' s', (evRun op args).exec s.executionEnv w = some (.ok (r, w')) ∧
       Xstep (D_J s.executionEnv.code 0) s = .ok (s', none) ∧
       s'.machineState.pc = s.machineState.pc + ⟨1⟩ ∧ s'.machineState.stack = r.toList ++ t ∧
-      s'.executionEnv = s.executionEnv ∧ Agree s' w'
+      s'.executionEnv = s.executionEnv ∧ Agree M s' w'
 
-/-- An event's step that goes on, supplying nothing, with the world's operation doing to the
+/-- A calm event's step that goes on, supplying nothing, with the world's operation doing to the
     world what the step does to the state. -/
-theorem evMoves_ok {s s' : State} {op : Operation} {args t : List UInt256} {w w' : World}
-    {r : Option UInt256} (hw : Agree s w) (hq : supplyOf s = [])
+theorem evMoves_ok {M : List Made} {s s' : State} {op : Operation} {args t : List UInt256}
+    {w w' : World} {r : Option UInt256} (hw : Agree M s w) (hq : supplyOf s = []) (hc : Calm s)
     (hx : Xstep (D_J s.executionEnv.code 0) s = .ok (s', none))
     (he : (evRun op args).exec s.executionEnv w = some (.ok (r, w')))
     (hpc : s'.machineState.pc = s.machineState.pc + ⟨1⟩)
     (hst : s'.machineState.stack = r.toList ++ t) (henv : s'.executionEnv = s.executionEnv)
     (hm : s'.machineState.memory = w'.memory) (ha : s'.accountMap = w'.accounts)
     (hl : s'.substate.logSeries = w'.logs) (hr : s'.machineState.returnData = w'.returnData)
-    (hf : w'.feed = w.feed) :
+    (hf : w'.feed = w.feed) (hcl : w'.calls = w.calls) :
     ∃ r w' s', (evRun op args).exec s.executionEnv w = some (.ok (r, w')) ∧
       Xstep (D_J s.executionEnv.code 0) s = .ok (s', none) ∧
       s'.machineState.pc = s.machineState.pc + ⟨1⟩ ∧ s'.machineState.stack = r.toList ++ t ∧
-      s'.executionEnv = s.executionEnv ∧ Agree s' w' := by
-  obtain ⟨f', hf', hF⟩ := hw.feed.next hx
+      s'.executionEnv = s.executionEnv ∧ Agree M s' w' := by
+  obtain ⟨m, hF, hM⟩ := hw.fut
+  obtain ⟨f', m', hf', hm', hF'⟩ := hF.next hx
   rw [hq, List.nil_append] at hf'
-  exact ⟨r, w', s', he, hx, hpc, hst, henv, ⟨hm, ha, hl, hr, by rw [hf, hf']; exact hF⟩⟩
+  rw [hc.madeOf, List.nil_append] at hm'
+  exact ⟨r, w', s', he, hx, hpc, hst, henv, ⟨hm, ha, hl, hr, ⟨m', by rw [hf, hf']; exact hF',
+    by rw [hcl, ← hm']; exact hM⟩⟩⟩
 
 /-- The word `MLOAD` pushes is the model's `mload`. -/
 theorem mloadValue (mem : ByteArray) (a : UInt256) :
@@ -178,7 +447,7 @@ local macro "agree_field" : tactic => `(tactic| first
 set_option hygiene false in
 /-- `EvMoves` from the step lemma `l` of EVMLean. -/
 local macro "evmoves_from " l:ident : tactic => `(tactic| (
-    intro w hw
+    intro M w hw
     have h := $l s hdec
     simp only [hs, mloadValue, hw.memory, hw.accounts, hw.logs, hw.returnData] at h
     split_ifs at h <;> first
@@ -187,13 +456,15 @@ local macro "evmoves_from " l:ident : tactic => `(tactic| (
       | exact .inr (.inr (.inl ⟨.static, _, by simp_all [evRun, Fe.EVM.logData, Fe.EVM.emit],
           h, rfl⟩))
       | exact .inr (.inr (.inl ⟨.oob, _, by simp_all [evRun, Fe.EVM.returndatacopy], h, rfl⟩))
-      | exact .inr (.inr (.inr (evMoves_ok hw (supplyOf_eq hdec (by decide)) h rfl rfl
+      | exact .inr (.inr (.inr (evMoves_ok hw (supplyOf_eq hdec (by decide) (by decide))
+          (calm_of hdec (by decide)) h rfl rfl
           (by simp [Fe.EVM.slotWord]) rfl (by agree_field) (by agree_field) (by agree_field)
-          (by agree_field) (by rfl))))
-      | exact .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide)) h
+          (by agree_field) (by rfl) (by rfl))))
+      | exact .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide) (by decide))
+          (calm_of hdec (by decide)) h
           (by simp [evRun, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.returndatacopy, *]; rfl) rfl
           (by simp) rfl (by agree_field) (by agree_field) (by agree_field) (by agree_field)
-          (by rfl))))))
+          (by rfl) (by rfl))))))
 
 theorem sload_evMoves {s : State} {k : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.SLOAD, none))
@@ -291,24 +562,26 @@ theorem returndatacopy_evMoves {s : State} {d o l : UInt256} {t : List UInt256}
 theorem gas_evMoves {s : State} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.GAS, none))
     (hs : s.machineState.stack = t) : EvMoves s .GAS [] t := by
-  intro w hw
+  intro M w hw
   have h := step_gas s hdec
   split_ifs at h
   · exact .inl h
   · exact .inr (.inl h)
-  · obtain ⟨f', hf, hF⟩ := hw.feed.next h
+  · obtain ⟨m, hF, hM⟩ := hw.fut
+    obtain ⟨f', m', hf, hm', hF'⟩ := hF.next h
     have hq : supplyOf s =
         [⟨(s.machineState.gasAvailable.subNat GasConstants.Gbase).toUInt256, default, default⟩] := by
       unfold supplyOf; rw [hdec]
     rw [hq] at hf
+    rw [(calm_of hdec (by decide)).madeOf, List.nil_append] at hm'
     refine .inr (.inr (.inr ⟨_, { w with feed := f' }, _,
       by simp [evRun, Fe.EVM.gas, Fe.EVM.next, hf]; rfl, h, rfl, by simp [hs], rfl,
-      ⟨hw.memory, hw.accounts, hw.logs, hw.returnData, hF⟩⟩))
+      ⟨hw.memory, hw.accounts, hw.logs, hw.returnData, ⟨m', hF', by rw [← hm']; exact hM⟩⟩⟩))
 
 theorem sstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.SSTORE, none))
     (hs : s.machineState.stack = k :: v :: t) : EvMoves s .SSTORE [k, v] t := by
-  intro w hw
+  intro M w hw
   have h := step_sstore s hdec
   simp only [hs] at h
   by_cases h1 : s.machineState.gasAvailable.toNat < Csstore s
@@ -325,9 +598,11 @@ theorem sstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
   · rw [if_pos h4] at h; exact .inl h
   rw [if_neg h4] at h
   simp only [not_not] at h3
-  refine .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide)) h
+  refine .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide) (by decide))
+    (calm_of hdec (by decide)) h
     (w' := { w with accounts := Fe.EVM.storeWord s.executionEnv.codeOwner w.accounts k v })
-    (by simp [evRun, Fe.EVM.sstore, h3]) rfl (by simp) rfl hw.memory ?_ ?_ hw.returnData rfl)))
+    (by simp [evRun, Fe.EVM.sstore, h3]) rfl (by simp) rfl hw.memory ?_ ?_ hw.returnData rfl
+    rfl)))
   · simp only [Fe.EVM.storeWord, hw.accounts]
   · show Substate.logSeries (Option.option _ _ _) = _
     cases Std.ExtTreeMap.get? s.accountMap s.executionEnv.codeOwner <;> exact hw.logs

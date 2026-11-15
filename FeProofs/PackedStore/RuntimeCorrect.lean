@@ -343,13 +343,13 @@ def contract : ContractModel := { init := init_entry, runtime := entry runtime }
 theorem fePackedStoreRefinesExported :
     RefinesOn .P0 fePackedStoreBytecode contract CalldataFits := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hfits
+  intro σ σ₀ g A I hcode hown hfits
   have hsize : I.calldata.size < UInt256.size := by
     unfold CalldataFits at hfits
     unfold UInt256.size
     omega
   rcases fePackedStoreRefinesHandEntry σ σ₀ g A I ByteArray.empty
-      (by rw [ByteArray.append_empty]; exact hcode) rfl hsize with h | ⟨feed, h⟩
+      (by rw [ByteArray.append_empty]; exact hcode) rfl hown hsize with h | ⟨feed, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨feed, Agrees.of_endsAs
       (runtime_endsAs I (World.init σ A feed) (by simp [World.init, UInt256.size]) hfits) h⟩
@@ -362,8 +362,8 @@ theorem fePackedStoreDeployRefinesExported :
       (· = ByteArray.empty) := by
   have hinit : ∀ args, contract.init args = handContract.init args := fun args => by
     simp [contract, handContract, init_entry, initEntry]
-  intro σ σ₀ g A I args hargs hcode hperm
+  intro σ σ₀ g A I args hargs hcode hown hperm
   rw [hinit]
-  exact fePackedStoreDeployRefinesHandEntry σ σ₀ g A I args hargs hcode hperm
+  exact fePackedStoreDeployRefinesHandEntry σ σ₀ g A I args hargs hcode hown hperm
 
 end FeProofs.PackedStore.Exported

@@ -165,7 +165,7 @@ end Model
 
 theorem feScalarStoreRefinesModel : Refines .P0 feScalarStoreBytecode Model.contract := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hsize
+  intro σ σ₀ g A I hcode _ hsize
   refine RefinesFor.closed ?_
   by_cases hsz : 4 ≤ I.calldata.size
   swap
@@ -224,7 +224,7 @@ theorem feScalarStoreDeployRefinesModel :
     RefinesDeploy .P0 feScalarStoreCreationBytecode feScalarStoreBytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
   refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
-  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode _ hperm
   by_cases hwv : I.weiValue = ⟨0⟩
   · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feScalarStoreCtorRet v hcode hwv hperm)
       (init_ok v hwv hperm) rfl

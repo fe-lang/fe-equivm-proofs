@@ -21,6 +21,8 @@ namespace Fe.Sonatina.Check
 
 open Ethereum Ethereum.EVM Fe Fe.EVM
 
+variable {K : Bool} {M : List Made}
+
 /-- Steps that end in an error end the iterator with it. -/
 theorem XstepN_X_error {D : Array UInt256} {s : State} {e : ExecutionException} {n : Nat}
     (h : XstepN D s (.error e) n) (f : Nat) : X (f + n) D s = .error e := by
@@ -354,22 +356,22 @@ def XAgrees (x : Except ExecutionException (ExecutionResult State))
   | _ => False
 
 /-- The bytes end from `st` as the IR's run `r` ends, in steps. -/
-def Final (D : Array UInt256) (st : State)
+def Final (K : Bool) (M : List Made) (D : Array UInt256) (st : State)
     (r : Option (Except (Fe.Exit World) (List Val × World))) : Prop :=
-  (∃ n e, Steps D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
+  (∃ n e, Steps K D st (.error e) n ∧ (e = .OutOfGass ∨ e = .StackOverflow ∨
     (e = .StaticModeViolation ∧ r = some (.error .static)) ∨
     (e = .InvalidInstruction ∧ r = some (.error .trap)) ∨
     (e = .InvalidMemoryAccess ∧ r = some (.error .oob)))) ∨
-  (∃ n s' out w', Steps D st (.ok (s', some (.success, out))) n ∧
+  (∃ n s' out w', Steps K D st (.ok (s', some (.success, out))) n ∧
     r = some (.error (.stop out w')) ∧ s'.accountMap = w'.accounts ∧
-    s'.substate.logSeries = w'.logs) ∨
-  (∃ n s' data, Steps D st (.ok (s', some (.revert, data))) n ∧
+    s'.substate.logSeries = w'.logs ∧ w'.calls = M) ∨
+  (∃ n s' data, Steps K D st (.ok (s', some (.revert, data))) n ∧
     r = some (.error (.revert data)))
 
 theorem Final.agrees {D : Array UInt256} {st : State}
-    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final D st r) {fuel : Nat}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final K M D st r) {fuel : Nat}
     (hg : st.machineState.gasAvailable.toNat < fuel) : XAgrees (X fuel D st) r := by
-  rcases h with ⟨n, e, hx, he⟩ | ⟨n, s', out, w', hx, hr, ha, hl⟩ | ⟨n, s', data, hx, hr⟩ <;>
+  rcases h with ⟨n, e, hx, he⟩ | ⟨n, s', out, w', hx, hr, ha, hl, -⟩ | ⟨n, s', data, hx, hr⟩ <;>
     replace hx := hx.xstepN
   · have hn := XstepN_fuel hx hg
     have hX := XstepN_X_error hx (fuel - n)
@@ -392,6 +394,22 @@ theorem Final.agrees {D : Array UInt256} {st : State}
     subst hr
     exact .inr (.inr ⟨_, hX⟩)
 
+/-- Where the bytes' iterator succeeds, the IR's run stops, having made the calls `M`. -/
+theorem Final.success {D : Array UInt256} {st : State}
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final K M D st r) {fuel : Nat}
+    (hg : st.machineState.gasAvailable.toNat < fuel) {s' : State} {o : ByteArray}
+    (hX : X fuel D st = .ok (.success s' o)) :
+    ∃ out w', r = some (.error (.stop out w')) ∧ w'.calls = M := by
+  rcases h with ⟨n, e, hx, -⟩ | ⟨n, s₁, out, w', hx, hr, -, -, hc⟩ | ⟨n, s₁, data, hx, -⟩ <;>
+    replace hx := hx.xstepN
+  · have hX' := XstepN_X_error hx (fuel - n)
+    rw [Nat.sub_add_cancel (XstepN_fuel hx hg), hX] at hX'
+    cases hX'
+  · exact ⟨out, w', hr, hc⟩
+  · have hX' := XstepN_X_halt_revert (f := fuel - n) D hx
+    rw [Nat.sub_add_cancel (XstepN_fuel hx hg), hX] at hX'
+    cases hX'
+
 /-- A calm state's step makes no call nor creation, so any condition on them holds of it. -/
 theorem Calm.xstepOk {Q : Invariant.CallPreds} {D : Array UInt256} {s : State} (h : Calm s) :
     Invariant.XstepOk Q D s := by
@@ -409,19 +427,19 @@ theorem keep_depth {s s' : State} (h : s'.executionEnv = s.executionEnv) :
 /-- Calm steps that stop the iterator make no call nor creation. -/
 theorem Steps.xOk_stop {Q : Invariant.CallPreds} {D : Array UInt256} {s : State}
     {r : Except ExecutionException (State × Option (HaltCause × ByteArray))} {n : Nat}
-    (h : Steps D s r n) (hr : ∀ t, r ≠ .ok (t, none)) : ∀ f, Invariant.XOk Q f D s := by
+    (h : Steps false D s r n) (hr : ∀ t, r ≠ .ok (t, none)) : ∀ f, Invariant.XOk Q f D s := by
   induction h with
   | step hc hx _ =>
     intro f
     cases f with
     | zero => trivial
-    | succ f => exact ⟨hc.xstepOk, fun t ht => absurd (hx ▸ ht) (hr t)⟩
+    | succ f => exact ⟨(hc.resolve_right Bool.false_ne_true).xstepOk, fun t ht => absurd (hx ▸ ht) (hr t)⟩
   | trans hc hx henv _ ih =>
     intro f
     cases f with
     | zero => trivial
     | succ f =>
-      refine ⟨hc.xstepOk, fun t ht => ?_⟩
+      refine ⟨(hc.resolve_right Bool.false_ne_true).xstepOk, fun t ht => ?_⟩
       rw [hx] at ht
       cases ht
       rw [keep_depth henv]
@@ -429,26 +447,26 @@ theorem Steps.xOk_stop {Q : Invariant.CallPreds} {D : Array UInt256} {s : State}
 
 /-- Calm steps to a state the iterator goes on from add to its `XOk`. -/
 theorem Steps.xOk_cont {Q : Invariant.CallPreds} {D : Array UInt256} {s t : State} {n f : Nat}
-    (h : Steps D s (.ok (t, none)) n) (ht : Invariant.XOk Q f D t) :
+    (h : Steps false D s (.ok (t, none)) n) (ht : Invariant.XOk Q f D t) :
     Invariant.XOk Q (f + n) D s := by
   generalize hr : (Except.ok (t, none) : Except ExecutionException _) = r at h
   induction h generalizing f with
   | step hc hx henv =>
-    refine ⟨hc.xstepOk, fun t' ht' => ?_⟩
+    refine ⟨(hc.resolve_right Bool.false_ne_true).xstepOk, fun t' ht' => ?_⟩
     subst hr
     rw [hx] at ht'
     cases ht'
     rw [keep_depth (henv _ rfl)]
     exact ht
   | trans hc hx henv _ ih =>
-    refine ⟨hc.xstepOk, fun t' ht' => ?_⟩
+    refine ⟨(hc.resolve_right Bool.false_ne_true).xstepOk, fun t' ht' => ?_⟩
     rw [hx] at ht'
     cases ht'
     rw [keep_depth henv]
     exact ih ht hr
 
 theorem Final.xOk {Q : Invariant.CallPreds} {D : Array UInt256} {st : State}
-    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final D st r) (f : Nat) :
+    {r : Option (Except (Fe.Exit World) (List Val × World))} (h : Final false M D st r) (f : Nat) :
     Invariant.XOk Q f D st := by
   rcases h with ⟨n, e, hx, -⟩ | ⟨n, s', out, w', hx, -⟩ | ⟨n, s', data, hx, -⟩ <;>
     exact hx.xOk_stop (by simp) f
@@ -575,10 +593,10 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
 /-- The bytes are at the start of block `b`, entered from `prev` with the run's values `env`:
     the code, the pc at `b`'s offset, the world agreeing, and the planned entry stack's words on
     top of the EVM stack, as the values are once `b` is entered. -/
-def AtBlock (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame) (I : ExecutionEnv)
+def AtBlock (M : List Made) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame) (I : ExecutionEnv)
     (b : Block) (prev : Option Nat) (env : Env) (w : World) (st : State) (ret : Option UInt256)
     (B : List UInt256) : Prop :=
-  b ∈ f.blocks ∧ f.block? b.id = some b ∧ st.executionEnv = I ∧ Agree st w ∧
+  b ∈ f.blocks ∧ f.block? b.id = some b ∧ st.executionEnv = I ∧ Agree M st w ∧
   ∃ hb pc envB ws, hint.blocks.find? (·.block == b.id) = some hb ∧
     placeIn low hint.name b.id = some pc ∧ st.machineState.pc.toNat = pc ∧
     enter env prev b = pure envB ∧ st.machineState.stack = ws ++ B ∧

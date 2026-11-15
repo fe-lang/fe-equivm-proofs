@@ -87,6 +87,9 @@ functions those reach, as definitions in a monad over EVMLean's state.
 runs out of gas or of stack, or does what the model does, as far as profile `p` observes.
 Profile `P0` compares the outcome, return data and accounts, as EquiVM's relation does; `P1`
 adds event logs and revert payloads. `RefinesDeploy` is the same for the creation bytecode.
+Both speak only of frames whose account, `I.codeOwner`, exists (`OwnerExists`), as in every frame
+the EVM runs. Without the account EVMLean's `SSTORE` drops the write, so a load after a store
+reads 0, while the compiler forwards a stored value to a later load of the same slot.
 
 | Module | Hand-written model | Exported model |
 | --- | --- | --- |
@@ -107,7 +110,7 @@ models assume calldata shorter than 2^64 bytes (`CalldataFits`), as Fe's std doe
 `call_conserves` and `deploy_conserves` (`FeProofs/ERC20/ConservationBytecode.lean`) are
 properties of the ERC20 bytecode proved through the exported certificates: every successful call
 keeps the balances of a list of holders equal to the supply, and a successful deployment makes
-them so, under conditions on the holders (`Covers`, `CollisionFree`). They hold of any bytecode
+them so, in a frame whose account exists, under conditions on the holders (`Covers`, `CollisionFree`). They hold of any bytecode
 with `P0` certificates of the exported model (`call_keeps`, `deploy_keeps`); `P1.call_conserves`
 and `P1.deploy_conserves` are the instances at `FeProofs/ERC20/P1/`, through
 `RefinesOn.toP0` and `RefinesDeploy.toP0`.
@@ -140,7 +143,7 @@ erased as self-destructed: the same walk proves that no call or creation lists i
 accounts the transaction created, which `SELFDESTRUCT` requires.
 
 For the ERC20 token (`FeProofs/ERC20/Invariant.lean`): `deploy_conserves_token`, a successful
-deployment by a holder makes the holders' balances add up to the supply at the new address (its
+deployment by a holder that has an account makes the holders' balances add up to the supply at the new address (its
 storage starts empty, as `Lambda` guarantees); `every_call_conserves` and
 `every_transaction_conserves`, every message call, creation and transaction keeps that, where
 every successful frame at the token has calldata shorter than 2^64 bytes and is covered by the
@@ -170,8 +173,10 @@ calldata shorter than 2^64 bytes and writes no allowance slot that is a balance 
 (`Admission`), and the balances of all accounts add up to less than 2^256. Admission speaks of
 the calls the exported model makes under every feed, since EquiVM's traces do not record the
 bytecode's path; the model's one call is `withdraw`'s, to the caller. The two models end alike
-with the same recorded calls (`EndsAs` and `Alike` relate the records). `feWETH9DeploySolvent`: a successful deployment establishes it, if no
-balance slot is the slot of `name`, `symbol` or `decimals`.
+with the same recorded calls (`EndsAs` and `Alike` relate the records). `feWETH9DeploySolvent`: a successful deployment by an account that exists establishes it, if no
+balance slot is the slot of `name`, `symbol` or `decimals`. `Lambda` adds the new account before
+it runs the init code only when the creator has an account, which every creator the EVM runs has,
+so the deployment statements assume it.
 
 The files of an exported contract:
 
