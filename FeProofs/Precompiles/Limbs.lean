@@ -260,4 +260,53 @@ theorem limbsAt_zeros (mem : ByteArray) (n : ℕ) :
   rw [this]
   simp [beAt, byteAt_zeros]
 
+/-! ## Limbs written into fresh memory -/
+
+/-- The bytes of limbs in memory: eight big-endian bytes each, in order. -/
+def limbBytes : List Limb → ByteArray
+  | [] => .empty
+  | x :: xs => enc8 x ++ limbBytes xs
+
+@[simp] theorem limbBytes_size : ∀ ls : List Limb, (limbBytes ls).size = 8 * ls.length
+  | [] => rfl
+  | x :: xs => by
+    rw [limbBytes, ByteArray.size_append, enc8_size, limbBytes_size xs, List.length_cons]; ring
+
+/-- **Memory followed by the bytes of limbs** holds them. -/
+theorem limbsAt_limbBytes : ∀ (A : ByteArray) (ls : List Limb), LimbsAt (A ++ limbBytes ls) A.size ls
+  | A, [] => ⟨by simp [ByteArray.size_append], fun i h => absurd h (by simp)⟩
+  | A, x :: xs => by
+    have ih := limbsAt_limbBytes (A ++ enc8 x) xs
+    rw [ByteArray.size_append, enc8_size, ByteArray.append_assoc, ← limbBytes] at ih
+    refine ⟨by simp only [ByteArray.size_append, limbBytes_size, List.length_cons]; omega,
+      fun i hi => ?_⟩
+    rcases i with _ | i
+    · rw [List.getElem_cons_zero, ← beAt_enc8 x]
+      apply beAt_congr
+      intro k hk
+      rw [limbBytes, byteAt_append, if_neg (by omega), byteAt_append, if_pos (by simp; omega),
+        show A.size + 8 * 0 + k - A.size = 0 + k by omega]
+    · rw [List.getElem_cons_succ, ← ih.2 i (by simpa using hi), show A.size + 8 * (i + 1) =
+        A.size + 8 + 8 * i by ring]
+
+/-- A limb stored at the start of fresh zeros: its bytes, then the rest of the zeros. -/
+theorem store8_zeros (A : ByteArray) (x : Limb) (k q : ℕ) (hq : q = A.size) :
+    store8 (A ++ zeros (k + 8)) q x = A ++ enc8 x ++ zeros k := by
+  subst hq
+  have hs : A.size + 8 ≤ (A ++ zeros (k + 8)).size := by
+    rw [ByteArray.size_append, zeros_size]; omega
+  have hsz : (store8 (A ++ zeros (k + 8)) A.size x).size = (A ++ enc8 x ++ zeros k).size := by
+    rw [store8_size x hs]; simp only [ByteArray.size_append, zeros_size, enc8_size]; omega
+  apply ext_byteAt hsz
+  intro j _
+  rw [byteAt_store8 x hs, byteAt_append, byteAt_append, byteAt_append, ByteArray.size_append,
+    enc8_size, byteAt_zeros, byteAt_zeros]
+  by_cases hj : j < A.size
+  · rw [if_neg (by omega), if_pos hj, if_pos (by omega), if_pos hj]
+  · by_cases hk : j < A.size + 8
+    · rw [if_pos ⟨(by omega), hk⟩, if_pos hk, if_neg hj]
+    · rw [if_neg (by omega), if_neg hj, if_neg hk]
+
+theorem zeros_zero : zeros 0 = ByteArray.empty := rfl
+
 end FeProofs.Precompiles
