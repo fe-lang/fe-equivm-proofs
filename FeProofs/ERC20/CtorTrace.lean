@@ -1,4 +1,5 @@
 import FeProofs.ERC20.Common
+import FeProofs.ERC20.Model
 import FeProofs.ERC20.CreationBlocks_001
 import FeProofs.ERC20.CreationBlocks_002
 import FeProofs.Common.CtorUInt256
@@ -18,9 +19,6 @@ the 863-byte runtime.
 open Stele ABI Ethereum Ethereum.EVM Reasoning.Theory Reasoning.Reach Reasoning.VyperCalls
 
 namespace FeProofs.ERC20
-
-/-- The ABI-encoded constructor argument. -/
-abbrev ctorTail (w : UInt256) : ByteArray := (EVM.Word.toBytesBE w).toByteArray
 
 theorem feERC20Creation_size : feERC20CreationBytecode.size = 987 := by native_decide
 
