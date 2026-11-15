@@ -215,7 +215,7 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
   unfold evRun at h
   split at h
   -- A message call's word.
-  case h_9 =>
+  case h_9 | h_10 | h_11 =>
     simp only [Fe.M.exec_map] at h
     split at h <;> simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq,
       reduceCtorEq] at h

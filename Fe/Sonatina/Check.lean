@@ -79,7 +79,8 @@ def pureOps : List Operation :=
 /-- The opcodes that read state: their result is an event's.  `GAS` reads the gas left, which
     the model takes from its feed; a message call's result is its success word. -/
 def readOps : List Operation :=
-  [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL]
+  [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL,
+   .STATICCALL, .DELEGATECALL]
 
 /-- The message calls the checker matches: an event each, its result the success word. -/
 def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
@@ -206,7 +207,7 @@ def evmEventOpcode : EvmOp → Option Operation
   | .selfBalance => some .SELFBALANCE | .balance => some .BALANCE
   | .extCodeSize => some .EXTCODESIZE | .returnDataSize => some .RETURNDATASIZE
   | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
-  | .call => some .CALL
+  | .call => some .CALL | .staticCall => some .STATICCALL | .delegateCall => some .DELEGATECALL
   | _ => none
 
 /-- The instruction makes a message call the checker matches. -/

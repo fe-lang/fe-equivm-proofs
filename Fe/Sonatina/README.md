@@ -347,11 +347,11 @@ with the results' words on top of the caller's stack.
 
 `Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
 no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
-the pure, read, write and halting instructions `Check.lean` translates (`call` among them, but no
-`staticcall`, `delegatecall`, `create` or transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
+the pure, read, write and halting instructions `Check.lean` translates (message calls among them,
+but no `create` or transient storage), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
-state reads below, 31 of them with internal calls, and 391 with them; with `CALL` it accepts 399
-and rejects 30 for an instruction outside the class (other calls, creations, transient storage,
+state reads below, 31 of them with internal calls, and 391 with them; with message calls it accepts
+405 and rejects 24 for an instruction outside the class (creations, transient storage,
 `blockhash`, `clz`) and one for a dynamic frame. It matches
 the bytes of every section in its class: the
 mismatches were all patterns it lacked, none a wrong hint. Operands of commutative operations
@@ -377,15 +377,17 @@ only by running out of gas or stack there. These raised the corpus count from 38
 `eip712_domain.Signer` (both sections, `chainid`), `time_units.Vesting` (`timestamp`) and
 `payable.PayableBox` (`selfbalance`).
 
-**Message calls.** `call` is an event on its seven operands, its result the success word
-(`call_evMoves`): the bytes' `CALL` runs out of gas or stack, fails under a static call with value
-where the model's `call` fails `.static`, or is the model's call on the feed's next entry, the
-gas cap, the substate with the callee accessed and the original account map, which `supplyOf`
-gives. A call made is `Θ` on the inputs `callArgs` reads (`messageCall` equals them), the logs
+**Message calls.** `call`, `staticcall` and `delegatecall` are events on their seven or six
+operands, their result the success word (`call_evMoves`, `staticcall_evMoves`,
+`delegatecall_evMoves`): the bytes' step runs out of gas or stack, fails under a static call
+with value (`CALL` only) where the model's `call` fails `.static`, or is the model's call on the
+feed's next entry, the gas cap, the substate with the callee accessed and the original account
+map, which `supplyOf` gives. A call made is `Θ` on the inputs `callArgs` reads (`messageCall` equals them), the logs
 the callee appended by `theta_logs_extract`; one not made, for want of funds or at depth 1024,
 returns zero with empty return data. A section whose machine IR makes message calls is checked
 with `K` set, so its steps need not be calm; `check_xiOk` asks that neither section make one.
-`CALL` raised the corpus count from 391 to 399, WETH9's runtime among them.
+`CALL` raised the corpus count from 391 to 399, WETH9's runtime among them; `STATICCALL` and
+`DELEGATECALL` to 405, both sections of the deposit contract among them.
 
 The verdict evaluates by the kernel (`decide +kernel`): 0.34 s of type checking for both
 FeScalarStore sections and 2.6 s for FeERC20's (from 1.8 s and 259 s; 2.4 s before internal
