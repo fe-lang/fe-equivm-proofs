@@ -6,9 +6,8 @@ import Fe.EVM.Diff
 
 Runs the exported model of the contract `Modexp` of `FeProofs/Precompiles` (fevm's `modexp::run`
 behind a fallback arm) on go-ethereum's `modexp` and `modexp_eip2565` vectors, and compares what
-it returns with the vectors' expected outputs.  The vectors have bases of up to 1,024 bytes, where
-EVMLean's MODEXP, which reduces the base modulo `2 ^ 256`, cannot serve as the reference
-(`scripts/ModexpDiff.lean` compares with it where it can).
+it returns with the vectors' expected outputs: a reference independent of EVMLean, with bases
+and moduli of up to 1,024 bytes (`scripts/ModexpDiff.lean` compares with EVMLean's `Ξ_EXPMOD`).
 
 `lake env lean scripts/ModexpVectors.lean` prints a line per disagreement and a total.
 -/

@@ -235,8 +235,9 @@ with the exported model of fevm's secp256k1 code.
 F compression, RIPEMD-160, ECRECOVER in the precompile's format, IDENTITY copy and MODEXP the call
 data in memory and return what the precompile does, or revert without data where it fails. The other
 files of `src/` are copied verbatim from `ingots/precompiles/src` of
-[fevm](https://github.com/fe-lang/fevm) at `a631a777b`, as are the definitions of `lib.fe` it names,
-and `keccak/` (for `ByteSource` and `Keccak256`) from [keccak](https://github.com/fe-lang/keccak) at
+[fevm](https://github.com/fe-lang/fevm) at `a631a777b` (`modexp.fe` at `0f5a423d5`, branch
+`fix/modexp-byte-order`, not yet on fevm's main), as are the definitions of `lib.fe` it names, and
+`keccak/` (for `ByteSource` and `Keccak256`) from [keccak](https://github.com/fe-lang/keccak) at
 `345d5088d`. The ingot is exported as one: `Exported/Shared.lean` has the definitions more than one
 contract reaches, once, and `Exported/<Contract>.lean` each contract's own.
 `FeProofs/Precompiles/Secp256k1` proves the exported `Ecrecover` against `Secp256k1.Spec.recover`
@@ -245,12 +246,10 @@ and the safegcd inversion of `FeProofs/Precompiles/Inverse`. `scripts/<Contract>
 exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BLAKE2_F`, `Ξ_RIP160`,
 `Ξ_ECREC`, `Ξ_ID`, `Ξ_EXPMOD`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on
 generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
-on go-ethereum's MODEXP vectors against their outputs, since EVMLean's MODEXP reduces the base
-modulo `2 ^ 256`. Two disagreements are known: `Identity` reverts on empty call data, because the
-model's first allocation is at address 0, which `try_alloc_bytes` takes for a failure; and `Modexp`
-returns each whole eight-byte limb of its output with its bytes reversed, in the model and the
-bytecode alike, because `modexp.fe` writes the limb as `swap_bytes` of it through a `*u64`, which
-gives big-endian bytes only where memory is little-endian.
+on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
+(EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it. One
+disagreement is known: `Identity` reverts on empty call data, because the model's first allocation
+is at address 0, which `try_alloc_bytes` takes for a failure.
 
 ### Sonatina IR
 
