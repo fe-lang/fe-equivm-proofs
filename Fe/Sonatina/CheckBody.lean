@@ -221,7 +221,7 @@ theorem runBody_cons {m : Module} {ic : Fe.Sonatina.Ctx} {env : Env} {s : Stmt}
     runBody m ic env (s :: rest) =
       runInst ic env s.inst >>= fun vals => Fe.Sonatina.bind env s.dsts vals >>= fun env' =>
         runBody m ic env' rest := by
-  rw [runBody.eq_2]
+  rw [runBody_cons_eq]
   split
   · next callee args hc => exact absurd hc (h callee args)
   · rfl
@@ -400,7 +400,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
     simp only [definedAfter, Option.some.injEq] at hd
     simp only [List.filterMapM_nil, Option.pure_def, Option.some.injEq] at he
     subst hd he
-    refine ⟨some (.ok (env, w)), by rw [runBody.eq_1]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
+    refine ⟨some (.ok (env, w)), by rw [runBody_nil_eq]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
       ⟨hc ρ hρ, .nil w⟩⟩
   | s :: rest, pre, D, D', env, w, evs, post, hdefs, hpre, hd, he, hbits, ⟨ρ₁, hw₁⟩, hc => by
     simp only [definedAfter] at hd

@@ -387,7 +387,7 @@ theorem runFunc_entry {m : Module} {c : Ctx} {name : String} {f : Func} {eb : Bl
     {args : List Val} (hf : m.func? name = some f) (he : f.blocks.head? = some eb) :
     runFunc m c name args =
       (Fe.Sonatina.bind {} f.params args >>= fun env => runBlocks m c f env none eb.id) := by
-  rw [runFunc.eq_1]
+  rw [runFunc_eq]
   simp only [hf, he]
 
 /-- Unfold `runBlocks` once and simplify the block the run is at, with the interpreter's
@@ -399,8 +399,8 @@ syntax "ir_step" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 macro_rules
   | `(tactic| ir_step) => `(tactic| ir_step [])
-  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks.eq_1]; simp [enter,
-      Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
+  | `(tactic| ir_step [$ls,*]) => `(tactic| (rw [runBlocks_eq]; simp [enter,
+      Fe.Sonatina.bind, runBody_cons_eq, runBody_nil_eq, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
       Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
       Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
@@ -423,7 +423,7 @@ syntax "ir_simp" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 macro_rules
   | `(tactic| ir_simp) => `(tactic| ir_simp [])
   | `(tactic| ir_simp [$ls,*]) => `(tactic| (simp [enter,
-      Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
+      Fe.Sonatina.bind, runBody_cons_eq, runBody_nil_eq, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, BinOp.eval,
       Sonatina.bool, Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
       Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
@@ -519,8 +519,8 @@ syntax "ir_step_nat" (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 macro_rules
   | `(tactic| ir_step_nat) => `(tactic| ir_step_nat [])
-  | `(tactic| ir_step_nat [$ls,*]) => `(tactic| ((rw [runBlocks.eq_1]; simp [enter,
-      Fe.Sonatina.bind, runBody.eq_2, runBody.eq_1, runInst, EvmOp.run, evalPair, evalInt,
+  | `(tactic| ir_step_nat [$ls,*]) => `(tactic| ((rw [runBlocks_eq]; simp [enter,
+      Fe.Sonatina.bind, runBody_cons_eq, runBody_nil_eq, runInst, EvmOp.run, evalPair, evalInt,
       evalOperand, evalWord, Fe.Sonatina.word, Val.as, Ty.bits, CmpOp.eval, eval_add, eval_mul,
       eval_shl, eval_shr, eval_and, eval_or, eval_xor, eval_udiv, eval_umod, Sonatina.bool,
       Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
