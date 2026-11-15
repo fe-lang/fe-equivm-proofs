@@ -2,11 +2,11 @@ name = "FeEquiVMProofs"
 version = "0.1.0"
 defaultTargets = ["FeProofs"]
 
-# EquiVM's `fe-stack` branch, with EVMLean's (`clz` and `precompiles`).
+# EquiVM's `lean-4.35` branch: Lean 4.35, with EVMLean's `lean-4.35` (and EthLib).
 [[require]]
 name = "EquiVM"
 git = "https://github.com/sbillig/EquiVM"
-rev = "ed1615cc2702fb24613ec1e9f5f807bbfe4378b2"
+rev = "23cea3ab6ac1e5f0b4e3c880893b5c24a724aec8"
 
 [[lean_lib]]
 name = "Fe"
