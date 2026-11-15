@@ -81,6 +81,12 @@ theorem multiply_g1_k1_spec {a b : L4} {x y : Fq} (ha : RepBn a x) (hb : RepBn b
     omega
   generalize (((c1 * BN254.GLV_B1 : ℕ) - (c2 * BN254.GLV_B2 : ℕ) : ℤ)).natAbs = n2 at hA2 hn2 ⊢
   generalize decide (((c1 * BN254.GLV_B1 : ℕ) - (c2 * BN254.GLV_B2 : ℕ) : ℤ) < 0) = s2 at hA2 ⊢
+  -- `generalize` leaves no binder in the proof term, so the kernel would see the magnitude and the
+  -- sign where `n2` and `s2` stand, and unfold the sign's `decide` down to `c2 * BN254.GLV_B2`
+  -- when it reduces `(_, s2).2`.  Through `id` the rest is checked with `n2` and `s2` opaque.
+  revert n2 s2
+  refine id ?_
+  intro n2 hn2 s2 hA2
   have hlz := leadingZeros_bound (UInt256.ofNat (n1 ||| n2))
   rw [toNat_lit (Nat.or_lt_two_pow (n := 256) hn1 hn2)] at hlz
   have hm1 : n1 / 2 ^ (256 - (IntTy.leadingZeros (.u 256) (UInt256.ofNat (n1 ||| n2))).toNat) = 0 :=
@@ -110,7 +116,7 @@ theorem multiply_g1_k1_spec {a b : L4} {x y : Fq} (ha : RepBn a x) (hb : RepBn b
     · right
       obtain ⟨R, hR, eR⟩ := ladder n1 n2 hn1 hn2 hA1 hA2 hA3 _ (by omega) _ hinf
       rw [e3]
-      exact ⟨R, by dsimp only; rw [eR, Fe.M.exec_pure], hR⟩
+      exact ⟨R, by simp only [eR, Fe.M.exec_pure], hR⟩
 
 /-- Integer multiples congruent modulo `r` are equal. -/
 theorem zsmul_congr (P : BN254.Spec.Point) {u v : ℤ} (h : u ≡ v [ZMOD BN254.r]) :
