@@ -55,7 +55,7 @@ theorem tz_spec (a : Limb) :
     a.tz.val ≤ 64 ∧ (∀ j < a.tz.val, a.val.testBit j = false) ∧
       (a.tz.val < 64 → a.val.testBit a.tz.val = true) := by
   obtain ⟨h1, h2, h3⟩ := takeWhile_range (fun n => !a.val.testBit n) 64
-  refine ⟨h1, fun j hj => by simpa using h2 j hj, fun h => by simpa using h3 h⟩
+  refine ⟨h1, fun j hj => by simpa using h2 j hj, fun h => by simpa using! h3 h⟩
 
 theorem sentinel_testBit (left j : ℕ) (hl : left ≤ 64) :
     (Limb.shl 18446744073709551615 left).val.testBit j = (decide (left ≤ j) && decide (j < 64)) := by

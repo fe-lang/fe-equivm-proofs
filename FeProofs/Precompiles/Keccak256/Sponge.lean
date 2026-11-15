@@ -149,7 +149,7 @@ def wordOf (st : Vector UInt64 25) : ℕ :=
 theorem sw_lt (L : UInt64) : sw L < 2 ^ 64 := by
   have := foldl_digits_lt (fun n => L.toNat / 256 ^ n % 256) (fun n => Nat.mod_lt _ (by decide))
     (List.range 8) 0 0 (by decide)
-  simpa using this
+  simpa using! this
 
 theorem swap_lw (L : UInt64) : IntTy.swapBytes (.u 64) (lw L) = UInt256.ofNat (sw L) := by
   apply word_eq_of_toNat
