@@ -262,6 +262,9 @@ exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BL
 generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
 on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
 (EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it.
+`FeProofs/Precompiles/Identity` proves the exported `Identity` against `Ξ_ID`
+(`feIdentityContractCorrect`, `precompile_eq`): it stops with the call data, empty call data
+included.
 
 ### Sonatina IR
 
