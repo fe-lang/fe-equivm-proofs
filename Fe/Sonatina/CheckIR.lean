@@ -7,7 +7,8 @@ import Fe.Sonatina.Interp
 The IR side of the checker's soundness proof, instruction by instruction.  `instWord` is the word
 a pure instruction computes from its operands' words; `pureWith_eval` and `expand_eval` say the
 checker's expression of a value has that word, when the block's values are as `ρ` says
-(`Cons`); `pure_run` says the interpreter runs the instruction to it; `evm_run` says an
+(`Cons`), and `Canon.Valid.step` and `expand_new` that value numbering keeps every expression's
+word; `pure_run` says the interpreter runs the instruction to it; `evm_run` says an
 event's EVM instruction runs as the event's operation on the world (`evRun`).
 -/
 
@@ -140,32 +141,195 @@ theorem pureWith_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat �
     simp [Expr.eval, instWord, hs]
   | _ => cases h
 
-/-- The values `D` the block has defined are as `ρ` says: each one the block defines purely
-    reads values of `D` and has the word its instruction computes. -/
+/-- The word the definition of value `id` gives it under `ρ`, if the definition is pure. -/
+def Eqn (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat)) (id : Nat)
+    (inst : Inst) : Prop :=
+  ∀ (ex : Nat → Option Expr) e, pureWith ex symbols inst = some e →
+    instWord ee ρ symbols inst = some (ρ id)
+
+/-- The values `D` the block has defined are as `ρ` says: the block's expressions are numbered
+    from its definitions, each value of `D` the block defines purely reads values of `D` and
+    has the word its instruction computes, and the expression of each value of `D` has its
+    word. -/
 def Cons (ee : ExecutionEnv) (ρ : Nat → UInt256) (c : Ctx) (D : List Nat) : Prop :=
-  ∀ id ∈ D, ∀ inst, c.defs.lookup id = some inst → reads D inst.operands = true ∧
-    ∀ d e, pureWith (c.expand d) c.symbols inst = some e →
-      instWord ee ρ c.symbols inst = some (ρ id)
+  c.canon = Canon.ofDefs c.symbols c.defs ∧
+  (∀ id ∈ D, ∀ inst, c.defs.lookup id = some inst → reads D inst.operands = true ∧
+    Eqn ee ρ c.symbols id inst) ∧
+  ∀ id ∈ D, ∀ e, c.expand id = some e → e.eval ee ρ = some (ρ id)
 
 /-- The expression of a defined value has the word `ρ` gives it. -/
 theorem expand_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : List Nat}
-    (hc : Cons ee ρ c D) : ∀ d id e, id ∈ D → c.expand d id = some e → e.eval ee ρ = some (ρ id)
-  | 0, _, _, _, h => by simp [Ctx.expand] at h
-  | d + 1, id, e, hid, h => by
-    unfold Ctx.expand at h
-    split at h
-    · next inst hl =>
-      obtain ⟨hr, hp⟩ := hc id hid inst hl
-      split at h
-      · next e' he =>
-        cases h
-        rw [pureWith_eval (fun id' e'' hid' => expand_eval hc d id' e'' hid') hr he]
-        exact hp d _ he
-      · split_ifs at h
-        cases h
-        rfl
-    · cases h
-      rfl
+    (hc : Cons ee ρ c D) : ∀ id e, id ∈ D → c.expand id = some e → e.eval ee ρ = some (ρ id) :=
+  fun id e hid he => hc.2.2 id hid e he
+
+/-! ## Value numbering -/
+
+theorem lookup_append {α β : Type} [BEq α] {a : α} {b : β} {l₂ : List (α × β)} :
+    ∀ {l₁ : List (α × β)}, l₁.lookup a = some b → (l₁ ++ l₂).lookup a = some b
+  | [], h => by simp [List.lookup] at h
+  | (k, v) :: l, h => by
+    cases hk : a == k
+    · simp only [List.lookup, hk, List.cons_append] at h ⊢; exact lookup_append h
+    · simpa [List.lookup, hk] using h
+
+theorem ne_of_lookup_none {α β : Type} [BEq α] [LawfulBEq α] {a : α} :
+    ∀ {l : List (α × β)} {p : α × β}, l.lookup a = none → p ∈ l → p.1 ≠ a
+  | [], _, _, hp => by simp at hp
+  | (k, v) :: l, p, h, hp => by
+    cases hk : a == k
+    · simp only [List.lookup, hk] at h
+      rcases List.mem_cons.mp hp with rfl | hp
+      · exact fun he => (by simpa using hk : ¬a = k) he.symm
+      · exact ne_of_lookup_none h hp
+    · simp [List.lookup, hk] at h
+
+theorem lookup_eq_none {β : Type} {o : Option β} (h : ¬o.isSome = true) : o = none := by
+  cases o <;> simp_all
+
+theorem reads_self (ops : List Operand) : reads (ops.filterMap Operand.var?) ops = true := by
+  simp only [reads, List.all_eq_true]
+  intro o ho
+  cases hv : o.var? with
+  | none => rfl
+  | some id => simpa [List.contains_iff_mem] using List.mem_filterMap.mpr ⟨o, ho, hv⟩
+
+/-- Numbering a definition keeps the expressions valid, given its word if it is pure and new. -/
+theorem Canon.Valid.step {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
+    {symbols : List (String × Nat × Nat)} {d : Nat × Inst} (hv : k.Valid ee ρ)
+    (he : k.vals.lookup d.1 = none → Eqn ee ρ symbols d.1 d.2) :
+    (Canon.step symbols k d).Valid ee ρ := by
+  unfold Canon.step
+  split
+  · exact hv
+  · next hn =>
+    have he := he (lookup_eq_none hn)
+    split
+    · refine ⟨fun p hp => ?_, hv.2⟩
+      rcases List.mem_cons.mp hp with rfl | hp
+      · rfl
+      · exact hv.1 p hp
+    · next e hpe =>
+      have hev : e.eval ee ρ = some (ρ d.1) := by
+        rw [pureWith_eval (S := d.2.operands.filterMap Operand.var?) (fun _ _ _ h => hv.expand h)
+          (reads_self _) hpe]
+        exact he _ _ hpe
+      split
+      · next w hw =>
+        have hw' := hv.2 _ (mem_of_lookup hw)
+        simp only at hw'
+        refine ⟨fun p hp => ?_, hv.2⟩
+        rcases List.mem_cons.mp hp with rfl | hp
+        · simp only [Expr.eval]; rw [← hw', hev]
+        · exact hv.1 p hp
+      · split
+        · refine ⟨fun p hp => ?_, fun p hp => ?_⟩
+          · rcases List.mem_cons.mp hp with rfl | hp
+            · rfl
+            · exact hv.1 p hp
+          · rcases List.mem_cons.mp hp with rfl | hp
+            · exact hev
+            · exact hv.2 p hp
+        · refine ⟨fun p hp => ?_, hv.2⟩
+          rcases List.mem_cons.mp hp with rfl | hp
+          · exact hev
+          · exact hv.1 p hp
+
+/-- Numbering a definition keeps every value numbered before, and every other value but its
+    own unnumbered. -/
+theorem Canon.step_lookup {symbols : List (String × Nat × Nat)} {k : Canon} {d : Nat × Inst}
+    {id : Nat} (h : k.vals.lookup id ≠ none ∨ id ≠ d.1) :
+    (Canon.step symbols k d).vals.lookup id = k.vals.lookup id := by
+  have hne : k.vals.lookup d.1 = none → id ≠ d.1 := fun hd he => by
+    subst he; rcases h with h | h
+    · exact h hd
+    · exact h rfl
+  have hb : ∀ x, k.vals.lookup d.1 = none → ((d.1, x) :: k.vals).lookup id = k.vals.lookup id :=
+    fun x hd => by
+      simp [List.lookup, beq_false_of_ne (hne hd)]
+  unfold Canon.step
+  split
+  · rfl
+  · next hn =>
+    have hd : k.vals.lookup d.1 = none := lookup_eq_none hn
+    split
+    · exact hb _ hd
+    · split
+      · exact hb _ hd
+      · split
+        · exact hb _ hd
+        · exact hb _ hd
+
+theorem Canon.step_lookup_self {symbols : List (String × Nat × Nat)} {k : Canon}
+    {d : Nat × Inst} : (Canon.step symbols k d).vals.lookup d.1 ≠ none := by
+  unfold Canon.step
+  split
+  · next h => simpa using h
+  · split
+    · simp [List.lookup]
+    · split
+      · simp [List.lookup]
+      · split <;> simp [List.lookup]
+
+theorem Canon.foldl_lookup {symbols : List (String × Nat × Nat)} {id : Nat} :
+    ∀ (xs : List (Nat × Inst)) (k : Canon), (k.vals.lookup id ≠ none ∨ ∀ p ∈ xs, p.1 ≠ id) →
+      (xs.foldl (Canon.step symbols) k).vals.lookup id = k.vals.lookup id
+  | [], _, _ => rfl
+  | d :: xs, k, h => by
+    rw [List.foldl_cons]
+    have h1 : (Canon.step symbols k d).vals.lookup id = k.vals.lookup id :=
+      Canon.step_lookup (h.imp (fun h => h) fun h he => h d (by simp) he.symm)
+    rw [Canon.foldl_lookup xs _ (by
+      rcases h with h | h
+      · exact .inl (by rw [h1]; exact h)
+      · exact .inr fun p hp => h p (List.mem_cons_of_mem _ hp)), h1]
+
+theorem Canon.Valid.foldl {ee : ExecutionEnv} {ρ : Nat → UInt256}
+    {symbols : List (String × Nat × Nat)} :
+    ∀ (xs : List (Nat × Inst)) {k : Canon}, k.Valid ee ρ →
+      (∀ id inst, k.vals.lookup id = none → xs.lookup id = some inst → Eqn ee ρ symbols id inst) →
+      (xs.foldl (Canon.step symbols) k).Valid ee ρ
+  | [], _, hv, _ => hv
+  | (a, b) :: xs, k, hv, he => by
+    rw [List.foldl_cons]
+    refine Canon.Valid.foldl xs (hv.step fun hn => he a b hn (by simp [List.lookup])) ?_
+    intro id inst hn hl
+    have hne : id ≠ a := fun h => by subst h; exact Canon.step_lookup_self (d := (id, b)) hn
+    rw [Canon.step_lookup (.inr hne)] at hn
+    exact he id inst hn (by unfold List.lookup; simp [beq_false_of_ne hne, hl])
+
+/-- The expressions of a prefix of the definitions are valid when its values have their words. -/
+theorem Canon.valid_ofDefs {ee : ExecutionEnv} {ρ : Nat → UInt256}
+    {symbols : List (String × Nat × Nat)} {xs : List (Nat × Inst)}
+    (he : ∀ id inst, xs.lookup id = some inst → Eqn ee ρ symbols id inst) :
+    (Canon.ofDefs symbols xs).Valid ee ρ :=
+  Canon.Valid.foldl xs (Canon.valid_empty ee ρ) fun id inst _ hl => he id inst hl
+
+/-- A value no definition defines is itself. -/
+theorem expand_atom {c : Ctx} (hk : c.canon = Canon.ofDefs c.symbols c.defs) {id : Nat}
+    (h : c.defs.lookup id = none) : c.expand id = some (.atom id) := by
+  simp only [Ctx.expand, Canon.expand, hk, Canon.ofDefs]
+  rw [Canon.foldl_lookup _ _ (.inr fun p hp => ne_of_lookup_none h hp)]
+  rfl
+
+/-- The expression of the value a definition defines first has its word, when the definitions
+    before it have theirs and it has its own. -/
+theorem expand_new {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx}
+    (hk : c.canon = Canon.ofDefs c.symbols c.defs) {xs ys : List (Nat × Inst)} {id : Nat}
+    {inst : Inst} (hdefs : c.defs = xs ++ (id, inst) :: ys) (hx : xs.lookup id = none)
+    (hv : (Canon.ofDefs c.symbols xs).Valid ee ρ) (he : Eqn ee ρ c.symbols id inst) :
+    ∀ e, c.expand id = some e → e.eval ee ρ = some (ρ id) := by
+  intro e hce
+  set k := Canon.step c.symbols (Canon.ofDefs c.symbols xs) (id, inst)
+  have hx' : (Canon.ofDefs c.symbols xs).vals.lookup id = none := by
+    simp only [Canon.ofDefs]
+    rw [Canon.foldl_lookup _ _ (.inr fun p hp => ne_of_lookup_none hx hp)]
+    rfl
+  have hvk : k.Valid ee ρ := hv.step fun _ => he
+  have hK : c.canon.vals.lookup id = k.vals.lookup id := by
+    rw [hk, hdefs, Canon.ofDefs, List.foldl_append, List.foldl_cons]
+    exact Canon.foldl_lookup _ _ (.inl (Canon.step_lookup_self (d := (id, inst))))
+  apply hvk.expand
+  simpa [Ctx.expand, Canon.expand, hK] using hce
 
 /-- The run's values `D` are words, `ρ` gives them. -/
 def WordsOf (env : Env) (ρ : Nat → UInt256) (D : List Nat) : Prop :=

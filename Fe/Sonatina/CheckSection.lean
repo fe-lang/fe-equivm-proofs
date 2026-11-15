@@ -280,32 +280,6 @@ theorem definedAfter_fresh : ∀ {stmts : List Stmt} {D D' : List Nat},
     · intro hm; simpa [List.contains_iff_mem, hm] using hok.2 d hd
     · exact fun hm => definedAfter_fresh h s hs d hd (List.mem_append_left _ hm)
 
-/-- A value no statement defines is not expanded. -/
-theorem lookup_none {stmts : List Stmt} {id : Nat}
-    (h : ∀ s ∈ stmts, ∀ d ∈ s.dsts, d.1 ≠ id) :
-    (stmts.filterMap Stmt.local?).lookup id = none := by
-  induction stmts with
-  | nil => rfl
-  | cons t rest ih =>
-    have ih' := ih fun s hs => h s (List.mem_cons_of_mem _ hs)
-    cases ht : t.local? with
-    | none => simpa [List.filterMap_cons, ht] using ih'
-    | some p =>
-      have hp : p.1 ≠ id := by
-        have ht := local_def ht
-        unfold Stmt.def? at ht
-        split at ht
-        · next id' ty' hd => cases ht; exact h t (by simp) (id', ty') (by simp [hd])
-        · cases ht
-      have hb : (id == p.1) = false := by simpa using Ne.symm hp
-      rw [List.filterMap_cons, ht]
-      simp only [List.lookup, hb]
-      exact ih'
-
-theorem expand_atom {c : Ctx} {id : Nat} (h : c.defs.lookup id = none) (d : Nat) :
-    c.expand (d + 1) id = some (.atom id) := by
-  simp [Ctx.expand, h]
-
 theorem mapM_forall {α β : Type} {f : α → Option β} {P : β → Prop} {l : List α} {l' : List β}
     (h : l.mapM f = some l') (hf : ∀ x y, f x = some y → P y) : ∀ y ∈ l', P y := by
   have h2 := mapM_some_iff.mp h
@@ -541,7 +515,8 @@ theorem slotValues_slots (fr : Frame) (h : BlockHint) :
 /-- The planned entry stack's expressions have the EVM stack's words, its values not the
     block's own. -/
 theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {envB : Env}
-    {ret : Option UInt256} (hR : ∀ v, ret = some v → ρ c.frame.retId = v) :
+    {ret : Option UInt256} (hR : ∀ v, ret = some v → ρ c.frame.retId = v)
+    (hk : c.canon = Canon.ofDefs c.symbols c.defs) :
     ∀ {slots : List Slot} {ws : List UInt256} {es : List Expr},
       (∀ id ∈ slotValues slots, c.defs.lookup id = none) →
       (∀ id ∈ slotValues slots, envB[id]? = some (.int 256 (ρ id).toNat)) →
@@ -558,8 +533,8 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
     cases sl with
     | value id =>
       have hid : id ∈ slotValues (.value id :: slots) := by simp [slotValues]
-      have he := expand_atom (hl id hid) 63
-      simp only [Ctx.slotExpr, show depth = 63 + 1 from rfl, he, Option.bind_eq_bind,
+      have he := expand_atom hk (hl id hid)
+      simp only [Ctx.slotExpr, he, Option.bind_eq_bind,
         Option.bind_some] at h
       cases hs : slots.mapM c.slotExpr with
       | none => simp [hs] at h
@@ -567,7 +542,7 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
         simp only [hs, Option.bind_some, Option.pure_def, Option.some.injEq] at h
         subst h
         have hw' : w = ρ id := word_inj (Option.some.inj (hw.symm.trans (hρ id hid)))
-        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hl' hρ' hrest hs, hw']
+        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hk hl' hρ' hrest hs, hw']
     | imm k =>
       simp only [Ctx.slotExpr, Option.bind_eq_bind, Option.bind_some] at h
       cases hs : slots.mapM c.slotExpr with
@@ -576,7 +551,7 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
         simp only [hs, Option.bind_some, Option.pure_def, Option.some.injEq] at h
         subst h
         have hw' : w = .ofNat k := hw
-        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hl' hρ' hrest hs, hw']
+        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hk hl' hρ' hrest hs, hw']
     | funcReturn =>
       by_cases hr : c.frame.returns = true
       swap
@@ -587,7 +562,7 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
       | some es' =>
         simp only [hs, Option.bind_some, Option.pure_def, Option.some.injEq] at h
         subst h
-        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hl' hρ' hrest hs, hR w hw]
+        simp [List.mapM_cons, Expr.eval, entryStack_rel hR hk hl' hρ' hrest hs, hR w hw]
     | callReturn => cases hw
 
 /-- The bytes are at the start of block `b`, entered from `prev` with the run's values `env`:
@@ -655,10 +630,10 @@ theorem wordsOf_words {env : Env} {D : List Nat}
 
 theorem operand_words {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : List Nat}
     {env : Env} {o : Operand} {e : Expr} (hc : Cons ee ρ c D) (hw : WordsOf env ρ D)
-    (hr : reads D [o] = true) (h : c.operand depth o = some e) :
+    (hr : reads D [o] = true) (h : c.operand o = some e) :
     ∃ v, e.eval ee ρ = some v ∧ opWord ρ o = some v ∧
       evalOperand env o = pure (.int 256 v.toNat) := by
-  have he := operand_eval (ee := ee) (ρ := ρ) (fun id e' ho he' => expand_eval hc depth id e'
+  have he := operand_eval (ee := ee) (ρ := ρ) (fun id e' ho he' => expand_eval hc id e'
     (by subst ho; simpa [reads, Operand.var?] using hr) he') h
   obtain ⟨v, hv⟩ := opWord_some (ρ := ρ) h
   exact ⟨v, he.trans hv, hv, evalOperand_word hw hr hv⟩
@@ -719,9 +694,9 @@ theorem exitOf_succ {c : Ctx} {t : Term} {e : Exit} {ee : ExecutionEnv} {ρ : Na
 theorem exitOf_halt {c : Ctx} {t : Term} {op : Operation} {args : List Expr}
     (h : c.exitOf t = some (.halt op args)) :
     (∃ a l ea el, t = .evmReturn a l ∧ op = .RETURN ∧ args = [ea, el] ∧
-      c.operand depth a = some ea ∧ c.operand depth l = some el) ∨
+      c.operand a = some ea ∧ c.operand l = some el) ∨
     (∃ a l ea el, t = .evmRevert a l ∧ op = .REVERT ∧ args = [ea, el] ∧
-      c.operand depth a = some ea ∧ c.operand depth l = some el) ∨
+      c.operand a = some ea ∧ c.operand l = some el) ∨
     (t = .evmStop ∧ op = .STOP ∧ args = []) ∨ (t = .evmInvalid ∧ op = .INVALID ∧ args = []) := by
   cases t with
   | evmReturn a l =>
@@ -893,7 +868,7 @@ theorem arrival_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : Li
           rcases h with h | ⟨phi, hp, hd⟩
           · exact h
           · exact absurd (List.mem_map.mpr ⟨phi, hp, hd⟩) hnot
-        rw [expand_eval hc depth id e hid he] at hv
+        rw [expand_eval hc id e hid he] at hv
         cases hv
         show envS[id]? = _
         rw [hkeep id hnot]

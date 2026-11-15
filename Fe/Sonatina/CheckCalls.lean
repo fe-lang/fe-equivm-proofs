@@ -67,7 +67,7 @@ theorem segments_call {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event} {cs
     {more : List CallSeg}, c.segments stmts = some (evs, cs :: more) →
     ∃ pre s q args ce, stmts = pre ++ s :: q ∧ (∀ t ∈ pre, ∀ g a, t.inst ≠ .call g a) ∧
       pre.filterMapM c.eventOfStmt = some evs ∧ s.inst = .call cs.callee args ∧
-      args.mapM (c.operand depth) = some cs.args ∧ cs.dsts = s.dsts.map (·.1) ∧
+      args.mapM (c.operand) = some cs.args ∧ cs.dsts = s.dsts.map (·.1) ∧
       c.frame.callee cs.callee = some ce ∧ cs.args.length = ce.params ∧
       s.dsts.length = (if ce.returns then ce.rets else 0) ∧ c.segments q = some (cs.events, more)
   | [], evs, cs, more, h => by simp [Ctx.segments] at h
@@ -83,7 +83,7 @@ theorem segments_call {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event} {cs
         cases hce : c.frame.callee g with
         | none => simp [hce] at h
         | some ce =>
-          cases hes : args.mapM (c.operand depth) with
+          cases hes : args.mapM (c.operand) with
           | none => simp [hce, hes] at h
           | some es =>
             simp only [hce, hes, Option.bind_some] at h
@@ -133,7 +133,7 @@ theorem segments_last {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event},
         cases hce : c.frame.callee g with
         | none => simp [hce] at h
         | some ce =>
-          cases hes : args.mapM (c.operand depth) with
+          cases hes : args.mapM (c.operand) with
           | none => simp [hce, hes] at h
           | some es =>
             simp only [hce, hes, Option.bind_some] at h
@@ -164,7 +164,7 @@ theorem eventOfStmt_messages {c : Ctx} {s : Stmt} {e : Event}
   split at h
   · split at h <;> simp at h
   · next op args _ hev =>
-    obtain ⟨op', os, hi, ho, -⟩ := eventWith_evm (expand := c.expand depth) hev
+    obtain ⟨op', os, hi, ho, -⟩ := eventWith_evm (expand := c.expand) hev
     have he : e.op = op := by
       split_ifs at h
       split at h <;> first | (simp only [Option.some.injEq] at h; rw [← h]) | cases h
@@ -206,7 +206,7 @@ theorem segments_messages {c : Ctx} : ∀ {stmts : List Stmt} {evs : List Event}
         cases hce : c.frame.callee g with
         | none => simp [hce] at h
         | some ce =>
-          cases hes : args.mapM (c.operand depth) with
+          cases hes : args.mapM (c.operand) with
           | none => simp [hce, hes] at h
           | some es =>
             simp only [hce, hes, Option.bind_some] at h
@@ -286,7 +286,7 @@ theorem lookup_none_calls {stmts : List Stmt} {id : Nat}
 theorem args_words {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : List Nat}
     {env : Env} (hc : Cons ee ρ c D) (hw : WordsOf env ρ D) :
     ∀ {args : List Operand} {es : List Expr}, reads D args = true →
-      args.mapM (c.operand depth) = some es →
+      args.mapM (c.operand) = some es →
       ∃ ws, es.mapM (·.eval ee ρ) = some ws ∧
         args.mapM (evalOperand env) = pure (ws.map Fe.Sonatina.word)
   | [], es, _, h => by
@@ -294,10 +294,10 @@ theorem args_words {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : Lis
   | a :: args, es, hr, h => by
     simp only [reads, List.all_cons, Bool.and_eq_true] at hr
     rw [List.mapM_cons] at h
-    cases he : c.operand depth a with
+    cases he : c.operand a with
     | none => simp [he] at h
     | some e =>
-    cases hes : args.mapM (c.operand depth) with
+    cases hes : args.mapM (c.operand) with
     | none => simp [he, hes] at h
     | some es' =>
     simp only [he, hes, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
@@ -516,12 +516,15 @@ theorem body_calls {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : 
       · exact definedAfter_fresh hd t ht d hdt (hdi ▸ List.mem_append_right _
           (List.mem_map_of_mem hd0))
     have hc2 : ∀ ρ, WordsOf env2 ρ (D1 ++ s.dsts.map (·.1)) →
-        Cons ee ρ c (D1 ++ s.dsts.map (·.1)) := fun ρ hρ =>
-      ((h3 ρ fun id h => (hagree2 id h).symm.trans (hρ id (List.mem_append_left _ h))).1).mono
-        (fun x hx => List.mem_append_left _ hx) fun id hid hn inst hl => by
-          rcases List.mem_append.mp hid with h | h
-          · exact absurd h hn
-          · rw [hnone id h] at hl; cases hl
+        Cons ee ρ c (D1 ++ s.dsts.map (·.1)) := fun ρ hρ => by
+      have hc1 := (h3 ρ fun id h => (hagree2 id h).symm.trans (hρ id (List.mem_append_left _ h))).1
+      refine hc1.mono (fun x hx => List.mem_append_left _ hx) fun id hid hn => ?_
+      rcases List.mem_append.mp hid with h | h
+      · exact absurd h hn
+      · refine ⟨fun inst hl => (by rw [hnone id h] at hl; cases hl), fun e he => ?_⟩
+        rw [expand_atom hc1.1 (hnone id h)] at he
+        cases he
+        rfl
     obtain ⟨x, hx2, envf, Df, g1, g2, g3, g4, g5⟩ := body_calls hsym more q (pre ++ p0 ++ [s])
       (D1 ++ s.dsts.map (·.1)) D' env2 w2 cs.events hdefs2 hpre2 hd hq
       (fun t ht => hbits t (by simp [ht])) (fun t ht => hndd t (by simp [ht])) ⟨_, hw2⟩ hc2
@@ -695,6 +698,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
     {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {e0 : Exit} {m : Module}
     {ic : Fe.Sonatina.Ctx} {G : Nat} (hsize : code.size < UInt256.size)
     (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true)
+    (hcanon : c.canon.Valid I ρ)
     (hcallee : ∀ (cs : CallSeg) (ce : Callee) (ws : List UInt256) (st' : State) (w' : World)
       (ret' : Option UInt256) (B' : List UInt256), c.frame.callee cs.callee = some ce →
       st'.machineState.pc.toNat = ce.offset → st'.executionEnv = I → Agree M st' w' →
@@ -716,7 +720,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
   | calls, fuel, p, s, w, r, B, hcl, hK, har, hrun, hp, hw, hseg, hg => by
     -- The bytes up to the segment's end, as `run_ends` gives them.
     have hends := fun r' (htr : Trace I ρ p.events w r') =>
-      run_ends (K := K) (tail := tail) (e0 := e0) hsize hretj fuel p s w r' B
+      run_ends (K := K) (tail := tail) (e0 := e0) hsize hretj hcanon fuel p s w r' B
         (fun ev h => hK ev (List.mem_append_left _ h)) hrun hp hw htr
     -- A path whose next call is `cs`, its events done: the bytes end as the callee's IR run,
     -- or the callee returns its words to the code the run goes on at.
@@ -819,7 +823,7 @@ theorem segs_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt2
         have hK' : ∀ ev ∈ cs.events ++ more.flatMap (·.events), messageOps.contains ev.op = true →
             K = true := fun ev hev => hK ev (by
           simp only [List.flatMap_cons, List.mem_append] at hev ⊢; exact .inr hev)
-        rcases segs_ends hsize hretj hcallee more fuel' _ s₂ w₂ r B rfl hK' har' hrun' hp' hag
+        rcases segs_ends hsize hretj hcanon hcallee more fuel' _ s₂ w₂ r B rfl hK' har' hrun' hp' hag
             hrest
             (by have := hx.gas_lt; omega) with h | ⟨w', hr, h⟩
         · exact .inl (h.prepend hx)
@@ -888,7 +892,7 @@ theorem definedAfter_sub : ∀ {stmts : List Stmt} {D D' : List Nat},
 /-- A block whose exit is a return ends in `ret`. -/
 theorem exitOf_ret_eq {c : Ctx} {t : Term} {vals : List Expr}
     (h : c.exitOf t = some (.ret vals)) :
-    ∃ vs, t = .ret vs ∧ vs.mapM (c.operand depth) = some vals := by
+    ∃ vs, t = .ret vs ∧ vs.mapM (c.operand) = some vals := by
   cases t with
   | ret vs =>
     unfold Ctx.exitOf at h
@@ -907,6 +911,125 @@ theorem exitOf_ret_eq {c : Ctx} {t : Term} {vals : List Expr}
       obtain ⟨_, _, _, _, h⟩ := h
       cases h
   | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
+
+/-- The valuation `ρ` with each value the statements define, if `keep` lacks it and its
+    instruction computes a word, set to that word, in order. -/
+def complete (ee : ExecutionEnv) (symbols : List (String × Nat × Nat)) (keep : List Nat) :
+    List Stmt → (Nat → UInt256) → Nat → UInt256
+  | [], ρ => ρ
+  | s :: rest, ρ => complete ee symbols keep rest (match s.local? with
+    | some (id, inst) => if id ∈ keep then ρ else
+      ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+    | none => ρ)
+
+/-- A value no statement sets keeps its word. -/
+theorem complete_same {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
+    {keep : List Nat} {id : Nat} : ∀ (stmts : List Stmt) (ρ : Nat → UInt256),
+      (∀ s ∈ stmts, ∀ p, s.local? = some p → p.1 = id → id ∈ keep) →
+      complete ee symbols keep stmts ρ id = ρ id
+  | [], _, _ => rfl
+  | s :: rest, ρ, h => by
+    unfold complete
+    rw [complete_same rest _ fun t ht => h t (List.mem_cons_of_mem _ ht)]
+    cases hj : s.local? with
+    | none => rfl
+    | some p =>
+      obtain ⟨j, inst⟩ := p
+      dsimp only
+      split_ifs with hk
+      · rfl
+      · cases hw : instWord ee ρ symbols inst with
+        | none => rfl
+        | some v =>
+          have hne : id ≠ j := fun he => hk (by subst he; exact h s (by simp) _ hj rfl)
+          simp [Function.update_of_ne hne]
+
+theorem local_inst {t : Stmt} {p : Nat × Inst} (h : t.local? = some p) : p.2 = t.inst := by
+  have ht := local_def h
+  unfold Stmt.def? at ht
+  split at ht
+  · cases ht; rfl
+  · cases ht
+
+/-- Each value the statements set has the word its instruction computes. -/
+theorem complete_eqn {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
+    {keep : List Nat} : ∀ (stmts : List Stmt) (D D' : List Nat) (ρ : Nat → UInt256),
+      definedAfter D stmts = some D' →
+      (∀ s ∈ stmts, ∀ op args, s.inst = .evm op args →
+        (evmPureOpcode op).all fun o => δ o == some args.length) →
+      ∀ s ∈ stmts, ∀ id inst, s.local? = some (id, inst) → id ∉ keep →
+        Eqn ee (complete ee symbols keep stmts ρ) symbols id inst
+  | [], _, _, _, _, _, s, hs, _, _, _, _ => by cases hs
+  | s0 :: rest, D, D', ρ, hd, har, s, hs, id, inst, hl, hk => by
+    simp only [definedAfter] at hd
+    split_ifs at hd with hok
+    simp only [Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at hok
+    unfold complete
+    rcases List.mem_cons.mp hs with rfl | hs
+    · set ρ1 := (match s.local? with
+        | some (id, inst) => if id ∈ keep then ρ else
+          ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+        | none => ρ) with hρ1
+      have hinst := local_inst hl
+      simp only at hinst
+      subst hinst
+      obtain ⟨ty, hty⟩ := local_dst hl
+      simp only at hty
+      have hidD : id ∉ D := fun h => by
+        simpa [List.contains_iff_mem, h] using hok.2 (id, ty) hty
+      -- The later statements set no value of `D` nor `s`'s.
+      have hkeep : ∀ x ∈ D ++ s.dsts.map (·.1),
+          complete ee symbols keep rest ρ1 x = ρ1 x := fun x hx =>
+        complete_same rest ρ1 fun t ht p hp he => by
+          obtain ⟨ty', hty'⟩ := local_dst hp
+          exact absurd (he ▸ hx) (definedAfter_fresh hd t ht _ hty')
+      intro ex e he
+      obtain ⟨v, hv⟩ := instWord_some (ee := ee) (ρ := ρ) he fun op args h => har s (by simp) op args h
+      have hρ1 : ρ1 = Function.update ρ id v := by simp [hρ1, hl, hk, hv]
+      have hsame : ∀ x ∈ D, complete ee symbols keep rest ρ1 x = ρ x := fun x hx => by
+        rw [hkeep x (List.mem_append_left _ hx), hρ1,
+          Function.update_of_ne (fun h : x = id => hidD (by rw [← h]; exact hx))]
+      have hr : reads D s.inst.operands = true := hok.1
+      rw [instWord_congr (ρ' := ρ) hsame hr, hv,
+        hkeep id (List.mem_append_right _ (List.mem_map_of_mem hty)), hρ1]
+      simp
+    · exact complete_eqn rest _ D' _ hd (fun t ht => har t (List.mem_cons_of_mem _ ht)) s hs id
+        inst hl hk
+
+/-- Every statement of segments the checker accepts that is an EVM instruction with a word of
+    its own has as many operands as its opcode pops. -/
+theorem segments_arity {c : Ctx} : ∀ {stmts : List Stmt} {r : List Event × List CallSeg},
+    c.segments stmts = some r → ∀ s ∈ stmts, ∀ op args, s.inst = .evm op args →
+      (evmPureOpcode op).all fun o => δ o == some args.length
+  | [], _, _, s, hs, _, _, _ => by cases hs
+  | t :: rest, r, h, s, hs, op, args, hi => by
+    unfold Ctx.segments at h
+    cases hr : c.segments rest with
+    | none => simp [hr] at h
+    | some r' =>
+    rcases List.mem_cons.mp hs with rfl | hs
+    · rw [hi] at h
+      simp only [hr, Option.bind_eq_bind, Option.bind_some] at h
+      cases he : c.eventOfStmt s with
+      | none => simp [he] at h
+      | some o =>
+        unfold Ctx.eventOfStmt at he
+        rw [hi] at he
+        cases hpe : c.pureExpr (.evm op args) with
+        | some e =>
+          simp only [hpe] at he
+          split_ifs at he with hk
+          simp only [Bool.and_eq_true] at hk
+          exact hk.2
+        | none =>
+          cases hev : c.eventOf (.evm op args) with
+          | none => simp [hpe, hev] at he
+          | some q =>
+            obtain ⟨opc, es⟩ := q
+            obtain ⟨op', os, hi', hopc, -⟩ := eventWith_evm hev
+            cases hi'
+            simp [evmEvent_not_pure hopc]
+    · exact segments_arity hr s hs op args hi
 
 set_option maxHeartbeats 2000000 in
 /-- One block of a checked function: the bytes end as the IR's run does, return as it does,
@@ -1001,13 +1124,29 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   obtain ⟨x, hx, envf, Df, hagr, hsub, hDf, ⟨ρ0, hρ0⟩, hcase⟩ :=
     body_calls (ee := I) (m := low.machine) (c := c) hsym calls b.body [] D D' envB w₀ events
       (by simp [c, Ctx.ofBlock]) (by simp) hDA hseg hbitsb hndb ⟨_, hwB⟩
-      fun ρ _ id hid inst hl => by rw [hnone id hid] at hl; cases hl
-  -- The valuation, its return address the function's.
-  set ρ := Function.update ρ0 fr.retId (ret.getD ⟨0⟩) with hρdef
-  have hρR : ρ fr.retId = ret.getD ⟨0⟩ := by simp [hρdef]
+      fun ρ _ => ⟨rfl, fun id hid inst hl => (by rw [hnone id hid] at hl; cases hl),
+        fun id hid e he => by rw [expand_atom rfl (hnone id hid)] at he; cases he; rfl⟩
+  -- The valuation: the return address the function's, and each value of the block the word
+  -- its instruction computes, those after where the run stops included.
+  have hlocal : ∀ s ∈ b.body, ∀ p, s.local? = some p → p.1 ∈ D' := fun s hs p hp => by
+    obtain ⟨ty, hty⟩ := local_dst hp
+    exact definedAfter_dsts hDA s hs _ hty
+  obtain ⟨ρ, hρdef⟩ : ∃ ρ, ρ = complete I c.symbols Df b.body
+      (Function.update ρ0 fr.retId (ret.getD ⟨0⟩)) := ⟨_, rfl⟩
+  have hρR : ρ fr.retId = ret.getD ⟨0⟩ := by
+    rw [hρdef, complete_same _ _ fun s hs p hp he => absurd he (hRD' _ (hlocal s hs p hp))]
+    simp
   have hρ : WordsOf envf ρ Df := fun id h => by
-    rw [hρdef, Function.update_of_ne (hRD' id (hDf id h))]
+    rw [hρdef, complete_same _ _ fun _ _ _ _ _ => h, Function.update_of_ne (hRD' id (hDf id h))]
     exact hρ0 id h
+  have hcanon : c.canon.Valid I ρ :=
+    Canon.valid_ofDefs (symbols := c.symbols) (xs := c.defs) fun j inst hl => by
+      by_cases hj : j ∈ Df
+      · rcases hcase with ⟨-, hall⟩ | hall <;> exact ((hall ρ hρ).1.2.1 j hj inst hl).2
+      · obtain ⟨t, ht, htl⟩ := List.mem_filterMap.mp
+          (show (j, inst) ∈ b.body.filterMap Stmt.local? from mem_of_lookup hl)
+        rw [hρdef]
+        exact complete_eqn b.body D D' _ hDA (segments_arity hseg) t ht j inst htl hj
   have hR : (preIf isRoot low eb b >>= fun _ => runBlocks low.machine ic f env prev b.id).exec I w =
       (runBlocks low.machine ic f env prev b.id).exec I w₀ := by
     rw [Fe.M.exec_bind, hpre]
@@ -1016,7 +1155,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   have hpath : PathRel code.bytecode tail I ρ B exit
       ⟨pc, stack, prologue low (isRoot && b.id == eb.id) events, exit, calls⟩ st :=
     ⟨henv, hI, hstpc, ⟨ws,
-      entryStack_rel (fun v h => by show ρ fr.retId = v; rw [hρR, h]; rfl)
+      entryStack_rel (fun v h => by show ρ fr.retId = v; rw [hρR, h]; rfl) rfl
         (fun id hid => hnone id (List.mem_append_left _ (by rwa [slotValues_slots] at hid)))
         (fun id hid => hρD id (List.mem_append_left _ (by rwa [slotValues_slots] at hid))) hslots
         hst, hstk⟩,
@@ -1046,12 +1185,12 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
   swap
   · left; left
     rcases segs_ends (m := low.machine) (ic := ic) (G := st.machineState.gasAvailable.toNat)
-        hsize hretj hcallee calls _ _ st w none B rfl hKp har hrun hpath hw
+        hsize hretj hcanon hcallee calls _ _ st w none B rfl hKp har hrun hpath hw
         (Segs.pre (htrace ρ _) (hall ρ hρ).2) (le_refl _) with h | ⟨_, h, -⟩
     · exact Final.of_none h
     · cases h
   have hE := segs_ends (m := low.machine) (ic := ic) (G := st.machineState.gasAvailable.toNat)
-    hsize hretj hcallee calls _ _ st w _ B rfl hKp har hrun hpath hw
+    hsize hretj hcanon hcallee calls _ _ st w _ B rfl hKp har hrun hpath hw
     (Segs.pre (htrace ρ _) (hall ρ hρ).2) (le_refl _)
   rw [runBlocks.eq_1, hblk]
   simp only [henter, pure_bind, Fe.M.exec_bind, hx]
@@ -1248,7 +1387,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
     left; left
     subst hex0
     have hw2 : ∀ {a l : Operand} {ea el : Expr}, reads D' [a, l] = true →
-        c.operand depth a = some ea → c.operand depth l = some el →
+        c.operand a = some ea → c.operand l = some el →
         [ea, el].mapM (·.eval I ρ) = some hws → ∃ va vl, hws = [va, vl] ∧
           evalWord env' a = pure va ∧ evalWord env' l = pure vl := by
       intro a l ea el hr ha hl hm

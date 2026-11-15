@@ -30,11 +30,13 @@ may go to a successor whose code starts at its own offset, which the bytes reach
 only down a chain that ends (`zeroRank`).
 
 For each machine block `B`, it runs two symbolic executions into one language of words:
-- the machine IR's instructions of `B`, as expressions over the values `B` does not compute
-  purely (those of other blocks, its phis and its reads), each pure value of `B` expanded to
-  its definition;
+- the machine IR's instructions of `B`, as expressions over its values by value numbering
+  (`Canon`): a pure value of `B` is the first value of `B` with the same operation on the same
+  expressions, or a constant, and every other value is itself, so an expression is an
+  operation on values and constants, however long the chain of operations it stands for;
 - the bytes from `B`'s offset, starting from `B`'s planned entry stack: `PUSH`, `DUP`, `SWAP`,
-  `POP` and `JUMPDEST` move expressions, a pure opcode builds one, every read or write of state
+  `POP` and `JUMPDEST` move expressions, a pure opcode builds one, named by the value of `B`
+  with that operation if there is one (`Canon.intern`), every read or write of state
   must be the IR's next event with equal operands, and every jump either leaves for the
   successor the IR's terminator selects, with that successor's entry stack on top (its phis
   replaced by their operands from `B`), or continues in other code (an outlined unit).
@@ -259,23 +261,25 @@ structure Frame where
 def Frame.slots (fr : Frame) (hint : BlockHint) : List Slot :=
   if fr.exact hint.block then hint.entryStack else hint.entryStack.filter (· != .funcReturn)
 
+/-- The expressions of a block's values by value numbering (`Canon.ofDefs`): `vals` the
+    expression of each value the block defines, `nodes` the value each operation names. -/
+structure Canon where
+  vals : List (Nat × Expr)
+  nodes : List (Expr × Nat)
+
 /-- What the checker knows of a machine block: its function, the statement defining each
-    value of the block, the section's symbols, and the function's frame. -/
+    value of the block, the section's symbols, the function's frame, and the expressions of
+    the block's values, `Canon.ofDefs symbols defs`. -/
 structure Ctx where
   func : Func
   defs : List (Nat × Inst)
   symbols : List (String × Nat × Nat)
   frame : Frame
+  canon : Canon
 
 /-- The value a statement defines purely or by an event, if one: a call's results are atoms. -/
 def _root_.Fe.Sonatina.Stmt.local? (s : Stmt) : Option (Nat × Inst) :=
   if s.inst matches .call _ _ then none else s.def?
-
-/-- The context of block `b`: only its own values are expanded, so a value of another block is
-    the word the run of the IR holds for it when `b` runs. -/
-def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) (fr : Frame) :
-    Ctx :=
-  ⟨f, b.body.filterMap Stmt.local?, symbols, fr⟩
 
 /-- The expression of an operand, given that of a value; an immediate must be a word. -/
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
@@ -300,31 +304,53 @@ def eventWith (expand : Nat → Option Expr) : Inst → Option (Operation × Lis
   | .evm op args => do return (← evmEventOpcode op, ← args.mapM (operandWith expand))
   | _ => none
 
-/-- The expression of a value: its definition, if pure, expanded at most `depth` deep, else
-    itself. -/
-def Ctx.expand (c : Ctx) : Nat → Nat → Option Expr
-  | 0, _ => none
-  | depth + 1, id =>
-    match c.defs.lookup id with
-    | some inst => match pureWith (c.expand depth) c.symbols inst with
-      | some e => some e
-      | none => if (eventWith (c.expand depth) inst).isSome then some (.atom id) else none
-    | none => some (.atom id)
+/-- The expression of a value: the block's for one the block defines, else the value itself. -/
+def Canon.expand (k : Canon) (id : Nat) : Option Expr := some ((k.vals.lookup id).getD (.atom id))
 
-def Ctx.operand (c : Ctx) (depth : Nat) : Operand → Option Expr := operandWith (c.expand depth)
+/-- An operation, as the value of the block it names if there is one. -/
+def Canon.intern (k : Canon) (e : Expr) : Expr := ((k.nodes.lookup e).map .atom).getD e
 
-def Ctx.pureExpr (c : Ctx) (depth : Nat) : Inst → Option Expr :=
-  pureWith (c.expand depth) c.symbols
+/-- An expression a value is numbered by: an operation, but not `ISZERO`, whose operand stays
+    in sight, as the bytes write the IR's `is_zero` of a boolean as three (`unary`). -/
+def Expr.isOp : Expr → Bool
+  | .atom _ | .const _ | .op1 .ISZERO _ => false
+  | _ => true
 
-def Ctx.eventOf (c : Ctx) (depth : Nat) : Inst → Option (Operation × List Expr) :=
-  eventWith (c.expand depth)
+/-- Number one more definition: a pure value is the first value with its operation on the
+    same expressions (its node), or the constant the operation folds to; any other value is
+    itself.  A value numbered already keeps its expression, as `List.lookup` finds a value's
+    first definition. -/
+def Canon.step (symbols : List (String × Nat × Nat)) (k : Canon) (d : Nat × Inst) : Canon :=
+  if (k.vals.lookup d.1).isSome then k else
+  match pureWith k.expand symbols d.2 with
+  | none => ⟨(d.1, .atom d.1) :: k.vals, k.nodes⟩
+  | some e => match k.nodes.lookup e with
+    | some w => ⟨(d.1, .atom w) :: k.vals, k.nodes⟩
+    | none => if e.isOp then ⟨(d.1, .atom d.1) :: k.vals, (e, d.1) :: k.nodes⟩
+      else ⟨(d.1, e) :: k.vals, k.nodes⟩
 
-/-- The bound on the depth of an expression. -/
-def depth : Nat := 64
+/-- The expressions of the values of definitions, numbered in order. -/
+def Canon.ofDefs (symbols : List (String × Nat × Nat)) (defs : List (Nat × Inst)) : Canon :=
+  defs.foldl (Canon.step symbols) ⟨[], []⟩
+
+/-- The context of block `b`: only its own values have expressions, so a value of another
+    block is the word the run of the IR holds for it when `b` runs. -/
+def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) (fr : Frame) :
+    Ctx :=
+  let defs := b.body.filterMap Stmt.local?
+  ⟨f, defs, symbols, fr, Canon.ofDefs symbols defs⟩
+
+def Ctx.expand (c : Ctx) : Nat → Option Expr := c.canon.expand
+
+def Ctx.operand (c : Ctx) : Operand → Option Expr := operandWith c.expand
+
+def Ctx.pureExpr (c : Ctx) : Inst → Option Expr := pureWith c.expand c.symbols
+
+def Ctx.eventOf (c : Ctx) : Inst → Option (Operation × List Expr) := eventWith c.expand
 
 /-- The event of a statement: none if it is pure, `none` itself if it is outside the class. -/
 def Ctx.eventOfStmt (c : Ctx) (s : Stmt) : Option (Option Event) :=
-  match c.pureExpr depth s.inst, c.eventOf depth s.inst with
+  match c.pureExpr s.inst, c.eventOf s.inst with
   | some _, _ =>
     -- A pure instruction defines one value, an EVM one on as many operands as it pops.
     let arity := match s.inst with
@@ -365,7 +391,7 @@ def Ctx.segments (c : Ctx) : List Stmt → Option (List Event × List CallSeg)
     match s.inst with
     | .call g args =>
       let ce ← c.frame.callee g
-      let es ← args.mapM (c.operand depth)
+      let es ← args.mapM (c.operand)
       if es.length == ce.params && s.dsts.length == (if ce.returns then ce.rets else 0) then
         return ([], ⟨g, es, s.dsts.map (·.1), evs⟩ :: calls)
       else none
@@ -393,24 +419,24 @@ inductive Exit where
 
 def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .jump dest => some (.goto dest)
-  | .br cond nz z => do return .br (← c.operand depth cond) nz z
+  | .br cond nz z => do return .br (← c.operand cond) nz z
   | .brTable s (some default) cases => do
     let cases ← cases.mapM fun (o, dest) => match o with
       | .imm 256 v => if v < UInt256.size then some (v, dest) else none
       | _ => none
-    return .table (← c.operand depth s) default cases []
-  | .evmReturn a l => do return .halt .RETURN [← c.operand depth a, ← c.operand depth l]
-  | .evmRevert a l => do return .halt .REVERT [← c.operand depth a, ← c.operand depth l]
+    return .table (← c.operand s) default cases []
+  | .evmReturn a l => do return .halt .RETURN [← c.operand a, ← c.operand l]
+  | .evmRevert a l => do return .halt .REVERT [← c.operand a, ← c.operand l]
   | .evmStop => some (.halt .STOP [])
   | .evmInvalid => some (.halt .INVALID [])
   | .ret vals =>
-    if c.frame.returns then do return .ret (← vals.mapM (c.operand depth)) else none
+    if c.frame.returns then do return .ret (← vals.mapM (c.operand)) else none
   | .unreachable => some .unreach
   | _ => none
 
 /-- The expression of an entry slot. -/
 def Ctx.slotExpr (c : Ctx) : Slot → Option Expr
-  | .value id => c.expand depth id
+  | .value id => c.expand id
   | .imm v => some (.const v)
   | .funcReturn => if c.frame.returns then some (.atom c.frame.retId) else none
   | .callReturn => none
@@ -424,8 +450,8 @@ def Ctx.entryStack (c : Ctx) (hint : BlockHint) : Option (List Expr) :=
 def Ctx.arrivalSlot (c : Ctx) (b : Block) (pred : Nat) : Slot → Option Expr
   | .value id =>
     match b.phis.find? (·.dst == id) with
-    | some phi => do c.operand depth (← phi.incoming.find? (·.2 == pred)).1
-    | none => c.expand depth id
+    | some phi => do c.operand (← phi.incoming.find? (·.2 == pred)).1
+    | none => c.expand id
   | .imm v => some (.const v)
   | .funcReturn => if c.frame.returns then some (.atom c.frame.retId) else none
   | .callReturn => none
@@ -553,7 +579,8 @@ def run (code : ByteArray) (c : Ctx) (hints : List BlockHint) (place : Nat → O
         match δ op with
         | some k =>
           match mkOp op (p.stack.take k) with
-          | some e => if p.stack.length < k then false else go (e :: p.stack.drop k) p.events
+          | some e =>
+            if p.stack.length < k then false else go (c.canon.intern e :: p.stack.drop k) p.events
           | none => false
         | none => false
       else if readOps.contains op || writeOps.contains op then

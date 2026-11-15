@@ -398,7 +398,23 @@ Of its 258 sidecars, all read, it accepts 499 of 516 sections and rejects 17: 13
 sections and the identity contract's runtime are accepted. Of the 109 functions of their nine
 runtimes, 26 have memory spills; of the others, 8 use `clz`, and 8 hold straight-line blocks of
 hundreds of pure instructions (four-limb multiplication) whose expressions, expanded without
-sharing, have millions of nodes and depths above 64, which the checker does not finish.
+sharing, have millions of nodes and depths above 64. The checker did not finish them until it
+numbered values (below); it now accepts all eight, in 19 to 60 s each as `lake env lean`
+interprets it, nearly all of it decoding: `opAt` builds the code's tree at each step outside the
+kernel, about 10 ms for 9 KB of code.
+
+**Value numbering.** The checker expanded each pure value of a block into a tree of its
+definitions, at most 64 deep, without sharing: a value read twice was two copies. It now numbers
+the block's values (`Canon`, `Canon.ofDefs`). Each pure value is the first value of the block
+with the same operation on the same expressions (its node), or the constant the operation
+folds to. Every other value is itself. The bytes' pure opcodes give the value with that node if
+there is one (`Canon.intern`), so an expression is one operation on values and constants however
+long the chain it stands for, and no depth bound is needed. `ISZERO` is not numbered, so that
+three of them stay one (`unary`). An operation the bytes compute that no value of the block
+names stays nested, its depth bounded by the run's fuel: requiring every pure opcode to give a
+value, a constant or an `ISZERO` of one would reject 239 of the 499 sections of corpus-v4
+accepted, the dispatchers' first comparison among them. On corpus-v4 and the fixtures every
+verdict is the same as with expansion.
 
 **The environment, balances, return data and gas.** The block header's and the chain's words
 (`chainid`, `timestamp`, `number`, `gaslimit`, `basefee`, `coinbase`, `prevrandao`,
@@ -508,7 +524,10 @@ Proved so far:
 6. The IR's run of a block's statements (`CheckIR.lean`, `CheckBody.lean`): `body_run` says the
    interpreter runs a checked block's statements without diverging, returning or failing at an
    event, and under any valuation of the values it defined the events trace the world (`Trace`)
-   and the checker's expressions have their words (`Cons`, `expand_eval`).
+   and the checker's expressions have their words (`Cons`, `expand_eval`). Numbering keeps
+   every expression's word (`Canon.Valid.step`, `expand_new`); a block's run takes the valuation
+   in which each value the IR does not reach before it stops has the word its instruction
+   computes (`complete`), so every node of the block names a value with its word.
 
 7. The section (`CheckSection.lean`): `block_step` joins `run_ends` and `body_run` with the IR's
    `enter` and terminator for one block; `section_run`, by induction on `X`'s fuel and
@@ -550,8 +569,8 @@ Checker changes the proof needed, none changing a verdict except the third:
   the entry stack and phis, a block's statements defining nothing they read at entry, successor
   phis with an operand from the block, an event's operand count its opcode's, a read defining its
   word, the entry function without parameters and its entry block without phis or predecessors;
-- each pure value of a block is expanded in that block only (another block's is the word the run
-  holds), and a block whose successor's code starts at its own offset is reached in no step only
+- each pure value of a block has an expression in that block only (another block's is the word
+  the run holds), and a block whose successor's code starts at its own offset is reached in no step only
   down a chain that ends (`zeroRank`);
 - decoded instructions lie in the code, jump targets are in the code, and the code fits a word.
 
