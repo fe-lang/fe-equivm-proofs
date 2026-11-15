@@ -56,6 +56,20 @@ def sbbLo (a b c : Limb) : Limb :=
   ⟨(a.val + 2 ^ 128 - b.val - c.val) % 2 ^ 64, Nat.mod_lt _ (by decide)⟩
 def sbbHi (a b c : Limb) : Limb := if a.val < b.val + c.val then 1 else 0
 
+/-- `a * b + c + d` as (low, high) limbs. -/
+def macLo (a b c d : Limb) : Limb :=
+  ⟨(a.val * b.val + c.val + d.val) % 2 ^ 64, Nat.mod_lt _ (by decide)⟩
+def macHi (a b c d : Limb) : Limb :=
+  ⟨(a.val * b.val + c.val + d.val) / 2 ^ 64, by
+    have := Nat.mul_le_mul (Nat.le_pred_of_lt a.isLt) (Nat.le_pred_of_lt b.isLt)
+    have := c.isLt; have := d.isLt
+    rw [Nat.div_lt_iff_lt_mul (by decide)]
+    simp only [Nat.pred_eq_sub_one] at *; omega⟩
+
+theorem macLo_add_macHi (a b c d : Limb) :
+    (macLo a b c d).val + 2 ^ 64 * (macHi a b c d).val = a.val * b.val + c.val + d.val := by
+  simp only [macLo, macHi]; omega
+
 theorem mulLo_add_mulHi (a b : Limb) :
     (mulLo a b).val + 2 ^ 64 * (mulHi a b).val = a.val * b.val := by
   simp only [mulLo, mulHi]; omega

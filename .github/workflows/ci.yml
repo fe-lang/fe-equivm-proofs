@@ -113,6 +113,17 @@ jobs:
           cache-on-failure: true
       - name: Check the exported text
         run: scripts/check_sync.sh .lake/fe
+      # The `fe` binary parses with tree-sitter-fe, whose build runs the tree-sitter CLI pinned
+      # in its `package-lock.json`; the exporter's tests above do not need it.
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 20
+      - name: Install the tree-sitter CLI
+        working-directory: .lake/fe/crates/tree-sitter-fe
+        run: |
+          npm ci --ignore-scripts
+          npm rebuild tree-sitter-cli
       - name: Check the pinned bytecode
         run: scripts/check_bytecode.sh .lake/fe
       # The audit builds the program `ecrecover` too, which EVMLean's ECRECOVER runs: a native
