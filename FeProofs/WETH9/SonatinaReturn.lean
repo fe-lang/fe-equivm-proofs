@@ -27,7 +27,7 @@ set_option maxHeartbeats 4000000 in
 theorem returnValue_run (hf : m.func? "return_value__g7f54" = some returnValueFunc)
     (ptr S : Nat) (M : ByteArray)
     (hfp : uInt256OfByteArray (M.readWithPadding 64 32) = UInt256.ofNat M.size)
-    (hin : ptr + S ≤ M.size) (hS : 0 < S) (hM : M.size < 2 ^ 64) (hS64 : S < 2 ^ 64)
+    (hin : ptr + S ≤ M.size) (hS : 0 < S) (hM : M.size < 2 ^ 128) (hS64 : S < 2 ^ 64)
     (hcd : I.calldata.size < 2 ^ 64) :
     (runFunc m ic "return_value__g7f54" [Val.int 256 ptr, Val.int 256 S]).exec I
         { w with memory := M } =
