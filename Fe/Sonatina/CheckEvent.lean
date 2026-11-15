@@ -57,6 +57,12 @@ def zState (s : State) (op : Operation) : State :=
 def callState (s : State) (op : Operation) : State :=
   { zState s op with machineState.execLength := s.machineState.execLength + 1 }
 
+/-- The state a creation's inputs are read from, as `madeAt` builds it and `step` hands `Lambda`:
+    the call state with the creation's charge paid. -/
+def chargedState (s : State) (op : Operation) : State :=
+  { callState s op with machineState.gasAvailable :=
+      (callState s op).machineState.gasAvailable.subNat (C' (zState s op) op) }
+
 theorem Z_ok {D : Array UInt256} {op : Operation} {s s' : State} {c : Nat}
     (h : Z D op s = .ok (s', c)) : s' = zState s op ∧ c = C' (zState s op) op :=
   Z_ok_eq_charged_cost h
@@ -97,11 +103,15 @@ theorem forwardedGas_Cgascap (t r : AccountAddress) (value gasArg : UInt256) (σ
 /-- The entry of the feed a step of the bytes from `s` supplies: the word `GAS` pushes, which
     the model's `gas` reads, and for a message call the inputs the EVM hands the callee and the
     model's `message` reads, made or not: the gas cap, the substate with the callee's address
-    accessed, and the transaction's original account map. -/
+    accessed, and the transaction's original account map.  For a creation, what the EVM hands
+    `Lambda` and the model's `createWith` reads: all but one 64th of the gas left once the
+    creation is paid for, the substate and the original account map. -/
 def supplyOf (s : State) : List Supply :=
   let call (op : Operation) (gas t value : UInt256) (r : AccountAddress) : List Supply :=
     [⟨.ofNat (Cgascap (.ofUInt256 t) r value gas s.accountMap (callState s op).machineState
         s.substate), (s.addAccessedAccount (.ofUInt256 t)).substate, s.σ₀⟩]
+  let create (op : Operation) : List Supply :=
+    [⟨.ofNat (L (chargedState s op).machineState.gasAvailable.toNat), s.substate, s.σ₀⟩]
   match decode s.executionEnv.code s.machineState.pc, s.machineState.stack with
   | some (.GAS, _), _ =>
     [{ gas := (s.machineState.gasAvailable.subNat GasConstants.Gbase).toUInt256
@@ -110,6 +120,8 @@ def supplyOf (s : State) : List Supply :=
   | some (.STATICCALL, _), gas :: t :: _ => call .STATICCALL gas t ⟨0⟩ (.ofUInt256 t)
   | some (.DELEGATECALL, _), gas :: t :: _ =>
     call .DELEGATECALL gas t ⟨0⟩ (.ofUInt256 (.ofNat s.executionEnv.codeOwner))
+  | some (.CREATE, _), _ => create .CREATE
+  | some (.CREATE2, _), _ => create .CREATE2
   | _, _ => []
 
 /-! ## The calls a step makes, as `stepOk` asks of them -/
