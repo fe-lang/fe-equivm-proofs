@@ -125,11 +125,12 @@ variable (I : ExecutionEnv) (w : World)
 
 theorem get0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((entry recv0_arm0_entry).exec I w) (get0Arm.exec I w) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size := reserveMemory_room hmem (by decide)
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
       simp [recv0_arm0_entry, exec_nonPayable, hwv, decodeGet0_exec,
-        get0_exec I w (by omega),
-        returnU256_exec _ _ _ (show (afterLookup w).memory.size + 32 < UInt256.size by
+        get0_exec I w.reserved (by omega),
+        returnU256_exec _ _ _ (show (afterLookup w.reserved).memory.size + 32 < UInt256.size by
           rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
     simp [get0Arm, exec_nonPayable, hwv, get0_exec I w (by omega)]
@@ -141,11 +142,12 @@ theorem get0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
 
 theorem get1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
     EndsAs ((entry recv0_arm1_entry).exec I w) (get1Arm.exec I w) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size := reserveMemory_room hmem (by decide)
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [entry_exec (f := .stop _ _) (by
       simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeGet1_exec,
-        get1_exec I w (by omega),
-        returnU256_exec _ _ _ (show (afterLookup w).memory.size + 32 < UInt256.size by
+        get1_exec I w.reserved (by omega),
+        returnU256_exec _ _ _ (show (afterLookup w.reserved).memory.size + 32 < UInt256.size by
           rw [afterLookup_size]; omega)]
       exact ⟨rfl, rfl⟩)]
     simp [get1Arm, exec_nonPayable, hwv, get1_exec I w (by omega)]
@@ -158,6 +160,7 @@ theorem get1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) :
 theorem set0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm2_entry).exec I w) ((set0Arm I.calldata).exec I w) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size := reserveMemory_room hmem (by decide)
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -167,26 +170,28 @@ theorem set0_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.
     exact .exit _
   by_cases hshort : I.calldata.size < 36
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort])]
+      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w.reserved hlo hfits,
+        hshort])]
     simp [set0Arm, exec_nonPayable, hwv, hbad.mpr (by omega)]
     exact .exit _
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { afterLookup w with accounts := setLane I w.accounts 0 (word I.calldata 4) }) (by
-      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
-        set0_exec I w _ (by omega), hperm, returnNone_exec])]
+        { afterLookup w.reserved with accounts := setLane I w.accounts 0 (word I.calldata 4) }) (by
+      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w.reserved hlo hfits, hshort,
+        set0_exec I w.reserved _ (by omega), hperm, returnNone_exec])]
     simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec I w _ (by omega), hperm]
     exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
-      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w hlo hfits, hshort,
-        set0_exec I w _ (by omega), hperm])]
+      simp [recv0_arm2_entry, exec_nonPayable, hwv, decodeSet0_exec I w.reserved hlo hfits, hshort,
+        set0_exec I w.reserved _ (by omega), hperm])]
     simp [set0Arm, exec_nonPayable, hwv, hgood, set0_exec I w _ (by omega), hperm]
     exact .exit _
 
 theorem set1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm3_entry).exec I w) ((set1Arm I.calldata).exec I w) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size := reserveMemory_room hmem (by decide)
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -196,26 +201,28 @@ theorem set1_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.
     exact .exit _
   by_cases hshort : I.calldata.size < 36
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort])]
+      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w.reserved hlo hfits,
+        hshort])]
     simp [set1Arm, exec_nonPayable, hwv, hbad.mpr (by omega)]
     exact .exit _
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { afterLookup w with accounts := setLane I w.accounts 1 (word I.calldata 4) }) (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
-        set1_exec I w _ (by omega), hperm, returnNone_exec])]
+        { afterLookup w.reserved with accounts := setLane I w.accounts 1 (word I.calldata 4) }) (by
+      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w.reserved hlo hfits, hshort,
+        set1_exec I w.reserved _ (by omega), hperm, returnNone_exec])]
     simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec I w _ (by omega), hperm]
     exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w hlo hfits, hshort,
-        set1_exec I w _ (by omega), hperm])]
+      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeSet1_exec I w.reserved hlo hfits, hshort,
+        set1_exec I w.reserved _ (by omega), hperm])]
     simp [set1Arm, exec_nonPayable, hwv, hgood, set1_exec I w _ (by omega), hperm]
     exact .exit _
 
 theorem setBoth_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
     EndsAs ((entry recv0_arm4_entry).exec I w) ((setBothArm I.calldata).exec I w) := by
+  have hr : w.reserved.memory.size + 1024 < UInt256.size := reserveMemory_room hmem (by decide)
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
@@ -225,22 +232,25 @@ theorem setBoth_endsAs (hmem : w.memory.size + 1024 < UInt256.size) (hlo : 4 ≤
     exact .exit _
   by_cases hshort : I.calldata.size < 68
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort])]
+      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w.reserved hlo hfits,
+        hshort])]
     simp [setBothArm, exec_nonPayable, hwv, hbad.mpr (by omega)]
     exact .exit _
   have hgood : ¬ BadHead I.calldata 2 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases hperm : I.perm = true
   · rw [entry_exec (f := .stop ByteArray.empty
-        { afterLookup (afterLookup w) with
+        { afterLookup (afterLookup w.reserved) with
           accounts :=
             setLane I (setLane I w.accounts 0 (word I.calldata 4)) 1 (word I.calldata 36) }) (by
-      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
-        setBoth_exec I w _ _ (by omega), hperm, returnNone_exec])]
+      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w.reserved hlo hfits,
+        hshort,
+        setBoth_exec I w.reserved _ _ (by omega), hperm, returnNone_exec])]
     simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec I w _ _ (by omega), hperm]
-    exact .stop_ok rfl rfl rfl
+    exact .stop_ok rfl (by simp [afterLookup]) (by simp [afterLookup])
   · rw [entry_exec (f := .static) (by
-      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w hlo hfits, hshort,
-        setBoth_exec I w _ _ (by omega), hperm])]
+      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeSetBoth_exec I w.reserved hlo hfits,
+        hshort,
+        setBoth_exec I w.reserved _ _ (by omega), hperm])]
     simp [setBothArm, exec_nonPayable, hwv, hgood, setBoth_exec I w _ _ (by omega), hperm]
     exact .exit _
 
@@ -337,7 +347,7 @@ end Entries
 /-! ## The certificate -/
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
+def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
 
 /-- The runtime bytecode refines the exported contract, on calldata below `2 ^ 64` bytes. -/
 theorem fePackedStoreRefinesExported :
@@ -356,14 +366,20 @@ theorem fePackedStoreRefinesExported :
 
 /-- Deployment: the creation bytecode does what the exported deployment entry does and returns
     the runtime bytecode.  The contract takes no arguments, so that entry is the hand-written
-    one: the call-value check, then `init`. -/
+    one, the call-value check, then `init`, on reserved memory, which neither reads. -/
 theorem fePackedStoreDeployRefinesExported :
     RefinesDeploy .P0 fePackedStoreCreationBytecode fePackedStoreBytecode contract
       (· = ByteArray.empty) := by
-  have hinit : ∀ args, contract.init args = handContract.init args := fun args => by
-    simp [contract, handContract, init_entry, initEntry]
+  have hinit : ∀ args, init_entry args = handContract.init args := fun args => by
+    simp [handContract, init_entry, initEntry]
+  have hign : ∀ args out, IgnoresMemory (handContract.init args >>= fun tail =>
+      pure (out ++ tail)) := fun args out => by
+    simp only [handContract, initEntry, init]
+    ignores_memory
   intro σ σ₀ g A I args hargs hcode hown hperm
-  rw [hinit]
-  exact fePackedStoreDeployRefinesHandEntry σ σ₀ g A I args hargs hcode hown hperm
+  refine (fePackedStoreDeployRefinesHandEntry σ σ₀ g A I args hargs hcode hown hperm).imp id
+    fun ⟨feed, h⟩ => ⟨feed, Agrees.of_endsAs ?_ h⟩
+  rw [show contract.init args = deploy init_entry args from rfl, deploy_bind_eq, hinit]
+  exact (hign args _).endsAs I _ _
 
 end FeProofs.PackedStore.Exported

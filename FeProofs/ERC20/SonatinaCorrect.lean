@@ -176,7 +176,7 @@ set_option maxHeartbeats 16000000 in
     word after `creation.hex`. -/
 theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 256 < UInt256.size)
     (hcode : I.code = feERC20CreationBytecode ++ ctorTail v) (hperm : I.perm = true) :
-    EndsAs ((Exported.init_entry (ctorTail v) >>= fun tail =>
+    EndsAs ((deploy Exported.init_entry (ctorTail v) >>= fun tail =>
         pure (feERC20Bytecode ++ tail)).exec I w)
       (((sidecar.model .machine).init (ctorTail v) >>= fun tail =>
         pure (ByteArray.empty ++ tail)).exec I w) := by
@@ -202,10 +202,11 @@ theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 256 < UInt256.size)
     fun M u => le_trans (by decide)
       (Reasoning.Theory.toByteArray_write_size_ge_off_add32 u M 160 (hgap M 160 (by decide)))
   clear hcode
-  rw [init_bind_eq]
+  have hr : w.reserved.memory.size + 256 < UInt256.size := reserveMemory_room hroom (by decide)
+  rw [deploy_bind_eq, init_bind_eq]
   apply ir_init_endsAs
   intro m ic hs0 hs1
-  rw [Fe.M.exec_bind, initEntry_exec I w v (by omega)]
+  rw [Fe.M.exec_bind, initEntry_exec I w.reserved v (by omega)]
   by_cases hwv : I.weiValue = ⟨0⟩
   · have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
     simp (disch := room) [hwv, Exported.init, Exported.Evm_caller, Exported.Address_zero,

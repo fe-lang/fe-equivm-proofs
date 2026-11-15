@@ -83,6 +83,6 @@ theorem initEntry_exec (args : ByteArray) :
   by_cases hwv : I.weiValue = ⟨0⟩ <;> simp [init_entry, init, exec_nonPayable, hwv]
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
+def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
 
 end FeProofs.Case44Bank.Exported

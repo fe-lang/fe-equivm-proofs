@@ -2,7 +2,7 @@ contracts: 257, exported: 257, files skipped: [], not compiled: []
 blocked: 0
 lean failures: 0
 differential: 181 files, 752 tests, 2998 calls agree, 0 disagree, 0 out of gas, 0 out of stack; 237 of 248 contracts with tests compared
-generated: 257 contracts, 1026 of 1028 sequences deployed, 33788 creations and calls agree (19986 calls returned), 16 disagree, 43 out of gas, 31 out of stack
+generated: 257 contracts, 1026 of 1028 sequences deployed, 33804 creations and calls agree (19986 calls returned), 0 disagree, 43 out of gas, 31 out of stack
 
 GEN Case44Bank Case44Bank sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=69
 GEN FeCodeScalar FeCodeScalar sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=98
@@ -30,23 +30,7 @@ GEN Precompiles Blake2F sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 s
 GEN Precompiles Ripemd160 sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=120
 GEN Precompiles Bn254Mul sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=16
 GEN Precompiles EcrecoverPrecompile sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=120
-DISAGREE Precompiles::generated0 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated0 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated0 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated1 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated1 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated1 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated2 Identity static  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated2 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated2 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated2 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated2 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated3 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated3 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated3 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated3 Identity  value 0: EVM returns , model reverts with 
-DISAGREE Precompiles::generated3 Identity static  value 0: EVM returns , model reverts with 
-GEN Precompiles Identity sequences=4 deployed=4 agree=116 disagree=16 outOfGas=0 stackOverflow=0 returned=120
+GEN Precompiles Identity sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=120
 GEN Precompiles Modexp sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=16
 TEST WETH9::short_string_layout returns ; 0 compared
 TEST WETH9::long_string_layout_and_shrink returns ; 0 compared

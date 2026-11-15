@@ -229,6 +229,6 @@ theorem allowancesField : Field.store.field Layout.TokenStore 1 = .storage (UInt
 theorem supplyField : Field.store.field Layout.TokenStore 2 = .storage (UInt256.ofNat 2) := rfl
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
-def contract : ContractModel := { init := init_entry, runtime := entry runtime }
+def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }
 
 end FeProofs.ERC20.Exported

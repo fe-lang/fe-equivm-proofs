@@ -99,11 +99,10 @@ section Entries
 
 variable (I : ExecutionEnv) (w : World)
 
-/-- Reading the immutable word leaves memory alone. -/
-theorem keepsMemory_get : KeepsMemory Model.get := by
-  intro I w a w' h
-  simp [Model.get, cload, immutableAt] at h
-  rw [← h.2]
+/-- Reading the immutable word ignores memory. -/
+theorem ignoresMemory_get : IgnoresMemory Model.get := by
+  unfold Model.get
+  ignores_memory
 
 /-- The `Get` entry ends as the model's entry does on calldata with the selector of `get()`. -/
 theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
@@ -121,7 +120,7 @@ theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.cal
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.runtime, exec_nonPayable, hwv, hn4, sel0 h0]
   rw [eg, eh]
-  exact endsAs_arm (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) keepsMemory_get hmem
+  exact endsAs_arm (fun r w' hm => ⟨_, returnU256_exec I w' r hm⟩) ignoresMemory_get hmem
 
 /-- The exported runtime entry ends as the hand-written model's does, on calldata below
     `2 ^ 64` bytes. -/
@@ -157,9 +156,9 @@ end Entries
     both return the word, the bytes of the immutable field. -/
 theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : World)
     (hmem : w.memory.size + 64 < UInt256.size) :
-    EndsAs ((init_entry v.toByteArray >>= fun tail => pure (out ++ tail)).exec I w)
+    EndsAs ((deploy init_entry v.toByteArray >>= fun tail => pure (out ++ tail)).exec I w)
       ((Model.init v.toByteArray >>= fun tail => pure (out ++ tail)).exec I w) := by
-  rw [M.exec_bind, initEntry_exec I w v hmem]
+  rw [deploy_bind_eq, M.exec_bind, initEntry_exec I _ v (reserveMemory_room hmem (by decide))]
   by_cases hwv : I.weiValue = ⟨0⟩
   · rw [if_pos hwv, init_ok out v hwv]
     exact .ok_ok rfl rfl rfl
@@ -171,7 +170,7 @@ theorem init_endsAs (v : UInt256) (out : ByteArray) (I : ExecutionEnv) (w : Worl
 /-- The contract as exported: the deployment entry, the runtime entry, and the 32 bytes of its
     immutable field. -/
 def contract : ContractModel :=
-  { init := init_entry, runtime := entry runtime, immutables := 32 }
+  { init := deploy init_entry, runtime := entry runtime, immutables := 32 }
 
 /-- The runtime bytecode followed by any 32 bytes refines the exported contract, on calldata
     below `2 ^ 64` bytes. -/
@@ -204,8 +203,10 @@ theorem deployed_tail_size {I : ExecutionEnv} {w w' : World} {v : UInt256} {tail
     (hmem : w.memory.size + 64 < UInt256.size)
     (h : (contract.init v.toByteArray).exec I w = some (.ok (tail, w'))) :
     tail.size = contract.immutables := by
-  have h' : (init_entry v.toByteArray).exec I w = some (.ok (tail, w')) := h
-  rw [initEntry_exec I w v hmem] at h'
+  have h' : (init_entry v.toByteArray).exec I { w with memory := reserveMemory w.memory } =
+      some (.ok (tail, w')) := by
+    simpa [contract, deploy] using h
+  rw [initEntry_exec I _ v (reserveMemory_room hmem (by decide))] at h'
   split at h'
   · injection h' with h'
     injection h' with h'
