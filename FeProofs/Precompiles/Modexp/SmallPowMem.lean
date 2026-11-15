@@ -136,6 +136,69 @@ theorem mrep_base (L : ℕ) (hL : 1 ≤ L ∧ L ≤ 4) (m bw r : L4) (inv : Limb
   exact Nat.ModEq.cancel_right_of_coprime (by
     rw [Nat.coprime_comm] at hcop; exact Nat.Coprime.gcd_eq_one hcop) h1
 
+theorem has05_eq (r : Lib.Range_Known_0_Known_5) {k : ℕ} (hk : k < 2 ^ 256) :
+    Lib.Range_has_0_5 r (UInt256.ofNat k) = pure (decide (0 ≤ k ∧ k < 5)) := by
+  simp only [Lib.Range_has_0_5, range_has_eq (lo := 0) (hi := 5) hk (by norm_num) (by norm_num),
+    bind_pure]
+
+theorem has1_eq (N : ℕ) (hN : N < 2 ^ 256) {k : ℕ} (hk : k < 2 ^ 256) :
+    Lib.Range_has_1 ⟨(), UInt256.ofNat N⟩ (UInt256.ofNat k) = pure (decide (1 ≤ k ∧ k < N)) := by
+  simp only [Lib.Range_has_1, range_has_eq (lo := 1) hk (by norm_num) hN, bind_pure]
+
+theorem two_w : UInt256.ofNat 2 = Limb.w ⟨2, by norm_num⟩ := rfl
+
+/-! ## The table as a vector, the walk invariant -/
+
+/-- An empty entry. -/
+def W0 : Wide := ⟨UInt256.ofNat 0, UInt256.ofNat 0, UInt256.ofNat 0, UInt256.ofNat 0⟩
+
+/-- The table with its first `c` entries filled. -/
+def tabV (t : ℕ → L4) (c : ℕ) : Vector Wide 64 :=
+  Vector.ofFn fun j => if j.val < c then toW (t j.val) else W0
+
+theorem tabV_get (t : ℕ → L4) {c k : ℕ} (hk : k < c) (h64 : k < 64) : (tabV t c)[k]! = toW (t k) := by
+  simp [tabV, getElem!_pos, h64, hk]
+
+theorem tabV_set (t : ℕ → L4) (c : ℕ) : (tabV t c).set! c (toW (t c)) = tabV t (c + 1) := by
+  rw [tabV, set!_ofFn', tabV]
+  congr 1
+  funext j
+  by_cases h : j.val = c
+  · simp [h]
+  · by_cases h' : j.val < c
+    · simp [h, h', show j.val < c + 1 by omega]
+    · simp [h, h', show ¬ j.val < c + 1 by omega]
+
+theorem tabV_zero (t : ℕ → L4) : Vector.replicate 64 W0 = tabV t 0 := by
+  apply Vector.ext; intro j hj; simp [tabV]
+
+/-- The walk's invariant at bit `i`: once started, the power stands for `b` to the prefix up to
+    `i`; before, that prefix is zero. -/
+def WInv (L : ℕ) (m : L4) (e total b i : ℕ) : Bool → L4 → Prop
+  | true, p => MRep (2 ^ (64 * L)) m p (b ^ prefixOf e total i)
+  | false, _ => prefixOf e total i = 0
+
+theorem entry_lt {e total i width : ℕ} (hi : i < total) (hw : 1 ≤ width)
+    (hb : bitOf e total i = 1) :
+    (digitOf e total i (winEnd e total i width) - 1) / 2 < 2 ^ (width - 1) := by
+  obtain ⟨h1, h2, h3, h4⟩ := winEnd_bounds e total i width hi hw hb
+  have hd := digit_lt e total i (winEnd e total i width)
+  have hp : 2 ^ (winEnd e total i width - i) ≤ 2 ^ width := Nat.pow_le_pow_right (by norm_num) (by omega)
+  have h2w : 2 ^ width = 2 * 2 ^ (width - 1) := by
+    rw [← pow_succ', Nat.sub_add_cancel hw]
+  omega
+
+theorem entry_digit {e total i width : ℕ} (hi : i < total) (hw : 1 ≤ width)
+    (hb : bitOf e total i = 1) :
+    2 * ((digitOf e total i (winEnd e total i width) - 1) / 2) + 1 =
+      digitOf e total i (winEnd e total i width) := by
+  obtain ⟨h1, h2, h3, h4⟩ := winEnd_bounds e total i width hi hw hb
+  have := digit_odd e total i _ h1 h2 h4
+  omega
+
+theorem one4_w : (Wide.mk (UInt256.ofNat 1) (UInt256.ofNat 0) (UInt256.ofNat 0)
+    (UInt256.ofNat 0)) = toW one4 := rfl
+
 /-! ## The result -/
 
 /-- A limb stored past the old end of memory changes only the new part. -/
@@ -152,5 +215,70 @@ theorem store8_append (A B : ByteArray) (q : ℕ) (x : Limb) (h : q + 8 ≤ B.si
     by_cases hk : A.size + q ≤ j ∧ j < A.size + q + 8
     · rw [if_pos hk, if_pos (by omega), show j - (A.size + q) = j - A.size - q by omega]
     · rw [if_neg hk, if_neg (by omega)]
+
+/-! ## The result, `L` limbs in a fresh array -/
+
+/-- The first `L` limbs of `x`. -/
+def limbsL (L : ℕ) (x : L4) : List Limb := [x.l0, x.l1, x.l2, x.l3].take L
+
+theorem limbsL_length {L : ℕ} (hL : L ≤ 4) (x : L4) : (limbsL L x).length = L := by
+  simp [limbsL]; omega
+
+theorem val_limbsL {L : ℕ} (hL : 1 ≤ L ∧ L ≤ 4) (x : L4) (h : nat4 x < 2 ^ (64 * L)) :
+    val (limbsL L x) = nat4 x := by
+  have := x.l0.isLt; have := x.l1.isLt; have := x.l2.isLt; have := x.l3.isLt
+  obtain ⟨h1, h4⟩ := hL
+  interval_cases L <;> simp only [limbsL, List.take, val, nat4] at h ⊢ <;> omega
+
+theorem nat4_mod2 (m : L4) : nat4 m % 2 = m.l0.val % 2 := by
+  unfold nat4; omega
+
+theorem topLimb_pos {L : ℕ} (hL : 1 ≤ L ∧ L ≤ 4) (m : L4) (hm : nat4 m < 2 ^ (64 * L))
+    (h1 : 0 < nat4 m) (ht : 2 ^ (64 * (L - 1)) ≤ nat4 m) : 0 < (topLimb L m).val := by
+  have := m.l0.isLt; have := m.l1.isLt; have := m.l2.isLt; have := m.l3.isLt
+  obtain ⟨hl1, hl4⟩ := hL
+  interval_cases L <;> simp only [topLimb, nat4, if_true, if_false, Nat.reduceEqDiff] at hm h1 ht ⊢ <;> omega
+
+/-- The stores of `small_power<L>`'s exit: limb `k < L` of `x` at `q + 8 k`. -/
+def storeL (L : ℕ) (mem : ByteArray) (q : ℕ) (x : L4) : ByteArray :=
+  let m := store8 mem q x.l0
+  let m := if 1 < L then store8 m (q + 8) x.l1 else m
+  let m := if 2 < L then store8 m (q + 16) x.l2 else m
+  if 3 < L then store8 m (q + 24) x.l3 else m
+
+theorem storeL_eq (L : ℕ) (hL : 1 ≤ L ∧ L ≤ 4) (A : ByteArray) (x : L4) :
+    storeL L (A ++ zeros (8 * L)) A.size x = A ++ limbBytes (limbsL L x) := by
+  obtain ⟨h1, h4⟩ := hL
+  interval_cases L <;> simp only [storeL, limbsL, Nat.reduceLT, ↓reduceIte, Nat.reduceMul, List.take,
+    limbBytes, ByteArray.append_empty]
+  · rw [store8_zeros A _ 0 _ rfl, zeros_zero, ByteArray.append_empty]
+  · rw [store8_zeros A _ 8 _ rfl, store8_zeros _ _ 0 _ (by simp), zeros_zero, ByteArray.append_empty,
+      ByteArray.append_assoc]
+  · rw [store8_zeros A _ 16 _ rfl, store8_zeros _ _ 8 _ (by simp), store8_zeros _ _ 0 _ (by simp),
+      zeros_zero, ByteArray.append_empty, ByteArray.append_assoc, ByteArray.append_assoc]
+  · rw [store8_zeros A _ 24 _ rfl, store8_zeros _ _ 16 _ (by simp), store8_zeros _ _ 8 _ (by simp),
+      store8_zeros _ _ 0 _ (by simp), zeros_zero, ByteArray.append_empty, ByteArray.append_assoc,
+      ByteArray.append_assoc, ByteArray.append_assoc]
+
+/-- Element `k < L` of a fresh array of `L` limbs. -/
+theorem idx_fresh {sz L k : ℕ} (hk : k < L) (hroom : sz + 8 * L < UInt256.size) :
+    Lib.MemArray_index_mut_u64 ⟨UInt256.ofNat sz, UInt256.ofNat L⟩ (UInt256.ofNat k) =
+      pure (UInt256.ofNat (sz + 8 * k), fun _ => pure ⟨UInt256.ofNat sz, UInt256.ofNat L⟩) := by
+  have hs : UInt256.size = 2 ^ 256 := rfl
+  have h := index_mut_eq (a := ⟨UInt256.ofNat sz, UInt256.ofNat L⟩) (i := k)
+    (by rw [toNat_lit (by omega)]; exact hk) (by rw [toNat_lit (show sz < 2 ^ 256 by omega)]; omega)
+  rwa [toNat_lit (show sz < 2 ^ 256 by omega)] at h
+
+
+theorem sub0_minv (a : Limb) :
+    IntTy.subW (.u 64) (UInt256.ofNat 0) ((newton a)^[5] a).w = (minv a).w := subW64_eq 0 _
+
+theorem tabV_set0 (L : ℕ) (m : L4) (inv : Limb) (t0 : L4) :
+    (tabV (tbl L m inv t0) 0).set! 0 (toW t0) = tabV (tbl L m inv t0) 1 := tabV_set _ 0
+
+theorem tabV_get0 (L : ℕ) (m : L4) (inv : Limb) (t0 : L4) {c : ℕ} (hc : 0 < c) :
+    (tabV (tbl L m inv t0) c)[0]! = toW t0 := tabV_get _ hc (by omega)
+
+theorem w0_eq : Wide.mk (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0) = W0 := rfl
 
 end FeProofs.Modexp
