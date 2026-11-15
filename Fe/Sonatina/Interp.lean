@@ -288,8 +288,11 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
     return [.int bits (wrap bits (-(x : Int)))]
   | .clz a => do
     let (bits, x) ← evalInt env a
-    let top := (List.range bits).reverse.find? x.testBit
-    return [.int bits (top.elim bits fun i => bits - 1 - i)]
+    -- The EVM's `CLZ`, an Osaka opcode: before Osaka the instruction is invalid.
+    unless (← read).header.fork = .Osaka do
+      let e ← trap
+      nomatch e
+    return [.int bits (if x = 0 then bits else bits - 1 - x.log2)]
   | .ctz a => do
     let (bits, x) ← evalInt env a
     return [.int bits (((List.range bits).find? x.testBit).getD bits)]

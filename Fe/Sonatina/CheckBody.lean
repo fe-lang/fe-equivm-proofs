@@ -243,6 +243,10 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
     split at h <;> simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq,
       reduceCtorEq] at h
     rw [← h.1]; rfl
+  case h_15 =>
+    by_cases hf : ee.header.fork = .Osaka
+    · simp [clzRun, hf] at h; rw [← h.1]; rfl
+    · simp [clzRun, hf, trap] at h
   all_goals
     by_cases hp : ee.perm = true <;> cases hf : w.feed <;>
       simp [Fe.EVM.sstore, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.sload, Fe.EVM.mload,
@@ -251,22 +255,57 @@ theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256}
         Fe.EVM.returndatasize, Fe.EVM.gas, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.next, exec_returndatacopy, hp, hf] at h
   all_goals (try split_ifs at h) <;> (try simp at h); rw [← h.1]; rfl
 
-theorem eventWith_evm {expand : Nat → Option Expr} {inst : Inst} {opc : Operation}
+/-- An event of the class is an EVM instruction or `clz`. -/
+theorem eventWith_cases {expand : Nat → Option Expr} {inst : Inst} {opc : Operation}
     {es : List Expr} (h : eventWith expand inst = some (opc, es)) :
-    ∃ op os, inst = .evm op os ∧ evmEventOpcode op = some opc ∧
-      os.mapM (operandWith expand) = some es := by
+    (∃ op os, inst = .evm op os ∧ evmEventOpcode op = some opc ∧
+      os.mapM (operandWith expand) = some es) ∨
+    ∃ a e, inst = .clz a ∧ opc = .CLZ ∧ es = [e] ∧ operandWith expand a = some e := by
   cases inst with
   | evm op os =>
     simp only [eventWith, Option.bind_eq_bind] at h
     cases hc : evmEventOpcode op <;> cases hos : os.mapM (operandWith expand) <;>
       simp [hc, hos] at h
     obtain ⟨rfl, rfl⟩ := h
-    exact ⟨op, os, rfl, hc, hos⟩
+    exact .inl ⟨op, os, rfl, hc, hos⟩
+  | clz a =>
+    simp only [eventWith, Option.bind_eq_bind] at h
+    cases ha : operandWith expand a <;> simp [ha] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact .inr ⟨a, _, rfl, rfl, rfl, ha⟩
   | _ => simp [eventWith] at h
 
 theorem evmEvent_not_pure {op : EvmOp} {opc : Operation} (h : evmEventOpcode op = some opc) :
     evmPureOpcode op = none := by
   cases op <;> simp_all [evmEventOpcode, evmPureOpcode]
+
+/-- An event of the class reads its operands, is neither pure nor a call, and runs as the
+    event's operation on the world. -/
+theorem eventWith_run {expand : Nat → Option Expr} {inst : Inst} {opc : Operation}
+    {es : List Expr} (h : eventWith expand inst = some (opc, es)) :
+    (∀ callee args, inst ≠ .call callee args) ∧
+    (∀ ex symbols, pureWith ex symbols inst = none) ∧
+    inst.operands.mapM (operandWith expand) = some es ∧
+    ∀ {ee : ExecutionEnv} {ic : Fe.Sonatina.Ctx} {env : Env} {ρ : Nat → UInt256} {D : List Nat}
+      {args : List UInt256}, WordsOf env ρ D → reads D inst.operands = true →
+      inst.operands.mapM (opWord ρ) = some args → δ opc = some args.length → ∀ w,
+        RunAs ((runInst ic env inst).exec ee w) ((evRun opc args).exec ee w) := by
+  rcases eventWith_cases h with ⟨op, os, rfl, hopc, hos⟩ | ⟨a, e, rfl, rfl, rfl, ha⟩
+  · refine ⟨(fun _ _ h => by cases h), (fun ex symbols => by
+      simp [pureWith, evmEvent_not_pure hopc]), hos, fun {ee} {ic} {env} {ρ} {D} {args} hw hr
+        hargs hk w => ?_⟩
+    have hr' : reads D os = true := hr
+    have hargs' : os.mapM (opWord ρ) = some args := hargs
+    simp only [runInst, evalWords_word hw hr' hargs', pure_bind]
+    exact evm_run hopc hk w
+  · refine ⟨(fun _ _ h => by cases h), (fun _ _ => rfl), (by simp [Inst.operands, ha]),
+      fun {ee} {ic} {env} {ρ} {D} {args} hw hr hargs _ w => ?_⟩
+    cases hx : opWord ρ a with
+    | none => simp [Inst.operands, hx] at hargs
+    | some x =>
+      simp [Inst.operands, hx] at hargs
+      subst hargs
+      exact clz_run (evalOperand_word hw (by simpa [Inst.operands] using hr) hx) w
 
 /-- How a block's statements end from `env`, the values `D` defined before them and `D'` after:
     returning, `D` kept and `D'` words, the events tracing and the values consistent under any
@@ -453,19 +492,15 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
     · next opc es hpe hev =>
       split_ifs at hes with hk
       simp only [bne_iff_ne, ne_eq, not_not] at hk
-      obtain ⟨op, os, hinst, hopc, hos⟩ := eventWith_evm hev
-      have hnc : ∀ callee args, s.inst ≠ .call callee args := by
-        intro callee args h; rw [hinst] at h; cases h
+      obtain ⟨hnc, hnp, hos, hrunE⟩ := eventWith_run hev
       obtain ⟨args, hargs, hal⟩ := opWords_some (ρ := ρ₁) hos
-      have hr' : reads D os = true := by simpa [hinst, Inst.operands] using hr
-      have hrunI : runInst ic env s.inst = op.run args := by
-        rw [hinst]; simp only [runInst, evalWords_word hw₁ hr' hargs, pure_bind]
+      have hr' : reads D s.inst.operands = true := hr
       have hk' : δ opc = some args.length := by rw [hk, hal]
       -- The event's operands under any valuation of the values defined before it.
       have hevargs : ∀ ρ, WordsOf env ρ D → es.mapM (·.eval ee ρ) = some args := fun ρ hρ => by
         rw [operands_eval (fun id' e' h' he' => expand_eval (hc ρ hρ) id' e' h' he') hr' hos,
           opWords_congr (WordsOf.same hρ hw₁) hr', hargs]
-      have hrun := evm_run (ee := ee) hopc hk' w
+      have hrun := hrunE (ee := ee) (ic := ic) hw₁ hr' hargs hk' w
       obtain ⟨res, rfl, hres⟩ : ∃ res, o = some ⟨opc, es, res⟩ ∧
           ((s.dsts = [] ∧ res = none ∧ readOps.contains opc = false) ∨
             ∃ id ty, s.dsts = [(id, ty)] ∧ res = some id ∧ readOps.contains opc = true) := by
@@ -482,7 +517,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
         rw [hE] at hrun
         refine ⟨none, ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
           fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
-        · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+        · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
         · exact definedAfter_mono hd id (List.mem_append_left _ h')
         · exact .stuck (hevargs ρ hρ) hE
       | some x =>
@@ -491,14 +526,13 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
         rw [hE] at hrun
         refine ⟨some (.error e), ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
           fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
-        · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+        · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
         · exact definedAfter_mono hd id (List.mem_append_left _ h')
         · exact .fail (hevargs ρ hρ) hE
       | ok p =>
         obtain ⟨r, w₁⟩ := p
         rw [hE] at hrun
         have hrs := evRun_result hE
-        have hnp : evmPureOpcode op = none := evmEvent_not_pure hopc
         rcases hres with ⟨hds, rfl, hrd⟩ | ⟨id, ty, hds, rfl, hrd⟩
         · obtain rfl : r = none := by cases r <;> simp_all
           have hD : D ++ s.dsts.map (·.1) = D ++ [] := by simp [hds]
@@ -508,7 +542,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
             hdefs' hpre' hd hrest hbits' ⟨ρ₁, by simpa using hw₁⟩ fun ρ hρ =>
               (hc ρ (by simpa using hρ)).mono hsub fun id' h' hn => by simp_all
           refine ⟨x, ?_, ?_⟩
-          · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+          · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
             simp only [hds, Option.toList_none, List.map_nil, bind_nil, Fe.M.exec_bind,
               Fe.M.exec_pure]
             exact hx
@@ -548,9 +582,9 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           have hc' : ∀ ρ, WordsOf env₁ ρ (D ++ [id]) → Cons ee ρ c (D ++ [id]) := by
             intro ρ hρ
             have hc0 := hc ρ (WordsOf.agree hagree fun id' h' => hρ id' (hsub id' h'))
-            have heqn : Eqn ee ρ c.symbols id s.inst := fun _ e he' => by
-              rw [hinst] at he'
-              simp [pureWith, hnp] at he'
+            have heqn : Eqn ee ρ c.symbols id s.inst := fun ex e he' => by
+              rw [hnp] at he'
+              cases he'
             refine hc0.mono hsub fun id' h' hn => ?_
             have : id' = id := by simpa [hn] using h'
             subst this
@@ -567,7 +601,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
             (word_inj (Option.some.inj ((show env₁[id]? = some (Val.int 256 v.toNat) by
               simp [env₁]).symm.trans (he'.symm.trans (hρ id (by simp)))))).symm
           refine ⟨x, ?_, ?_⟩
-          · rw [runBody_cons hnc, Fe.M.exec_bind, hrunI, hrun]
+          · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
             simp only [hds, Option.toList_some, List.map_cons, List.map_nil, bind_one,
               word, as_word _ hty, Reasoning.Theory.u256_ofNat_toNat, Fe.M.exec_bind,
               Fe.M.exec_pure]

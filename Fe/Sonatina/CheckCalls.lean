@@ -164,12 +164,15 @@ theorem eventOfStmt_messages {c : Ctx} {s : Stmt} {e : Event}
   split at h
   · split at h <;> simp at h
   · next op args _ hev =>
-    obtain ⟨op', os, hi, ho, -⟩ := eventWith_evm (expand := c.expand) hev
     have he : e.op = op := by
       split_ifs at h
       split at h <;> first | (simp only [Option.some.injEq] at h; rw [← h]) | cases h
-    rw [hi]
     rw [he] at hm
+    rcases eventWith_cases (expand := c.expand) hev with ⟨op', os, hi, ho, -⟩ |
+      ⟨a, e', hi, rfl, -, -⟩
+    swap
+    · simp [messageOps] at hm
+    rw [hi]
     cases op'
     case log n =>
       rcases n with _ | _ | _ | _ | _ | n <;> simp only [evmEventOpcode, reduceCtorEq,
@@ -1026,9 +1029,10 @@ theorem segments_arity {c : Ctx} : ∀ {stmts : List Stmt} {r : List Event × Li
           | none => simp [hpe, hev] at he
           | some q =>
             obtain ⟨opc, es⟩ := q
-            obtain ⟨op', os, hi', hopc, -⟩ := eventWith_evm hev
-            cases hi'
-            simp [evmEvent_not_pure hopc]
+            rcases eventWith_cases hev with ⟨op', os, hi', hopc, -⟩ | ⟨a, e, hi', -⟩
+            · cases hi'
+              simp [evmEvent_not_pure hopc]
+            · cases hi'
     · exact segments_arity hr s hs op args hi
 
 set_option maxHeartbeats 2000000 in

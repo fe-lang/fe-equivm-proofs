@@ -83,7 +83,7 @@ def pureOps : List Operation :=
     new contract's address or zero. -/
 def readOps : List Operation :=
   [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL,
-   .STATICCALL, .DELEGATECALL, .CREATE, .CREATE2, .TLOAD]
+   .STATICCALL, .DELEGATECALL, .CREATE, .CREATE2, .TLOAD, .CLZ]
 
 /-- The message calls and creations the checker matches: an event each, its result the success
     word or the new address. -/
@@ -302,6 +302,7 @@ def pureWith (expand : Nat → Option Expr) (symbols : List (String × Nat × Na
 /-- The event of an instruction that reads or writes state. -/
 def eventWith (expand : Nat → Option Expr) : Inst → Option (Operation × List Expr)
   | .evm op args => do return (← evmEventOpcode op, ← args.mapM (operandWith expand))
+  | .clz a => do return (.CLZ, [← operandWith expand a])
   | _ => none
 
 /-- The expression of a value: the block's for one the block defines, else the value itself. -/
@@ -661,7 +662,7 @@ def _root_.Fe.Sonatina.Operand.var? : Operand → Option Nat
 /-- The operands of an instruction of the class. -/
 def _root_.Fe.Sonatina.Inst.operands : Inst → List Operand
   | .bin _ a b | .cmp _ a b => [a, b]
-  | .isZero a | .not a => [a]
+  | .isZero a | .not a | .clz a => [a]
   | .evm _ args | .call _ args => args
   | _ => []
 

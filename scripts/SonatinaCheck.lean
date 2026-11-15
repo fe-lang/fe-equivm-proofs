@@ -5,10 +5,10 @@ import Fe.Sonatina.Parse
 Runs the checker of bytes against machine IR (`Fe/Sonatina/Check.lean`): on the fixtures, which
 it must accept where they are in its class, on mutations of their hints, which it must reject
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
-fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage
-and of a factory's creation, which it must reject, and on every sidecar of a directory, as
-`SONATINA_CHECK_DIR` names, with a line per section and per sidecar the reader rejects, counting
-the sections it accepts and why it rejects the others.
+fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage,
+of a factory's creation and of a leading-zeros probe's `CLZ`, which it must reject, and on every
+sidecar of a directory, as `SONATINA_CHECK_DIR` names, with a line per section and per sidecar
+the reader rejects, counting the sections it accepts and why it rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
 
@@ -134,9 +134,28 @@ def createMutations : List (String × (CodeSection → CodeSection)) :=
       | args => .evm .create2 args),
    ("create for create2", mapCreate fun args => .evm .create (args.take 3))]
 
+/-- The section with every `CLZ` of its code (opcode `0x1e`) the opcode `op`. -/
+def clzBytes (op : UInt8) (c : CodeSection) : CodeSection :=
+  let bytes := (Check.codeInstrs c.bytecode).foldl
+    (fun b (pc, o, _) => if o == .CLZ then b.set! pc op else b) c.bytecode
+  { c with bytecode := bytes }
+
+/-- The section with every `clz` of its machine IR the instruction `g`. -/
+def clzInsts (g : Operand → Inst) (c : CodeSection) : CodeSection :=
+  { c with lowering := c.lowering.map fun l => { l with machine := { l.machine with
+      funcs := l.machine.funcs.map fun f => { f with blocks := f.blocks.map fun b =>
+        { b with body := b.body.map fun s => match s.inst with
+          | .clz a => { s with inst := g a }
+          | _ => s } } } } }
+
+/-- Mutations of a leading-zeros probe's `CLZ`, each of which the bytes contradict. -/
+def clzMutations : List (String × (CodeSection → CodeSection)) :=
+  [("NOT for CLZ in the bytes", clzBytes 0x19), ("ISZERO for CLZ in the bytes", clzBytes 0x15),
+   ("not for clz in the IR", clzInsts .not), ("is_zero for clz in the IR", clzInsts .isZero)]
+
 #eval show IO Unit from do
   for f in ["FeConstant", "FeScalarStore", "FeERC20", "DepositContract", "Case44Bank",
-      "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory"] do
+      "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory", "BitsProbe"] do
     let s ← IO.ofExcept
       (Parse.parseSidecar (← IO.FS.readFile s!"Fe/Sonatina/Fixtures/{f}.sidecar.json"))
     for (name, entry) in Check.entries s do
@@ -173,6 +192,15 @@ def createMutations : List (String × (CodeSection → CodeSection)) :=
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  TRANSIENT MUTANT {what}: {verdict}"
+        if f == "BitsProbe" && name == "runtime" then
+          for (what, m) in clzMutations do
+            let changed := m code
+            let verdict := if changed.lowering == code.lowering && changed.bytecode == code.bytecode
+              then "UNCHANGED"
+              else match Check.checkSection changed entry with
+                | .ok () => "ACCEPTED"
+                | .error e => s!"rejected: {e}"
+            IO.println s!"  CLZ MUTANT {what}: {verdict}"
         if f == "Factory" && name == "runtime" then
           for (what, m) in createMutations do
             let changed := m code

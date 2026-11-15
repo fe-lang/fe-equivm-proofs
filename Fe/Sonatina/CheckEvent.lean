@@ -371,6 +371,13 @@ theorem Agree.calls_of_stop {M : List Made} {s : State} {w : World} (hw : Agree 
   | stop _ => rwa [hc.madeOf, List.append_nil] at hM
   | step h _ => exact absurd h (hx _)
 
+/-- The model's `CLZ`: an Osaka opcode, before which it is an invalid instruction. -/
+def clzRun (a : UInt256) : FeM (Option UInt256) := do
+  if (← read).header.fork = .Osaka then return some (UInt256.clz a)
+  else
+    let e ← trap
+    nomatch e
+
 /-- What an event does to the model's world, on its operands top first: for a read, the word. -/
 def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .SLOAD, [k] => some <$> sload k
@@ -387,6 +394,7 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .CREATE, [v, p, l] => some <$> create v p l
   | .CREATE2, [v, p, l, z] => some <$> create2 v p l z
   | .TLOAD, [k] => some <$> tload k
+  | .CLZ, [a] => clzRun a
   | .SSTORE, [k, v] => do sstore k v; return none
   | .TSTORE, [k, v] => do tstore k v; return none
   | .MSTORE, [a, v] => do mstore a v; return none
@@ -407,6 +415,7 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
 def Fails : Fe.Exit World → ExecutionException → Prop
   | .static, e => e = .StaticModeViolation
   | .oob, e => e = .InvalidMemoryAccess
+  | .trap, e => e = .InvalidInstruction
   | _, _ => False
 
 /-- One step of the bytes on an event's opcode, its operands `args` on top of `t`: it runs out of
@@ -1280,6 +1289,53 @@ theorem tload_evMoves {s : State} {k : UInt256} {t : List UInt256}
     (hs : s.machineState.stack = k :: t) : EvMoves s .TLOAD [k] t := by
   evmoves_from step_tload
 
+/-- Before Osaka, `CLZ` runs out of gas or stack, or is an invalid instruction. -/
+theorem step_clz_invalid (s : State) {a : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.CLZ, none))
+    (hs : s.machineState.stack = a :: t) (hf : s.executionEnv.header.fork ≠ .Osaka) :
+    Xstep (D_J s.executionEnv.code 0) s = .error .OutOfGass ∨
+      Xstep (D_J s.executionEnv.code 0) s = .error .StackOverflow ∨
+      Xstep (D_J s.executionEnv.code 0) s = .error .InvalidInstruction := by
+  simp only [Xstep, Z, δ, hdec]
+  simp [hs, memoryExpansionCost, memoryExpansionCost.μᵢ', C'
+    , InstructionGasGroups.Wcopy, InstructionGasGroups.Wextaccount
+    , InstructionGasGroups.Wzero, InstructionGasGroups.Wbase
+    , InstructionGasGroups.Wverylow
+    , InstructionGasGroups.Wverylow.pushInstrsWithoutZero
+    , InstructionGasGroups.Wverylow.dupInstrs
+    , InstructionGasGroups.Wverylow.swapInstrs
+    , InstructionGasGroups.Wlow ]
+  by_cases hgas : s.machineState.gasAvailable.toNat < GasConstants.Glow
+  · simp [hgas]
+  · simp only [hgas, α, Operation.isCreate]
+    by_cases hoverflow : 1024 < t.length + 1
+    · simp [hoverflow]
+    · simp [hoverflow, bind, Except.bind]
+      unfold step
+      simp only [hf, if_false]
+      exact .inr (.inr rfl)
+
+/-- `CLZ` pushes the count of leading zeros from Osaka on, as the model's `clzRun` does, and
+    before it is an invalid instruction, as the model traps. -/
+theorem clz_evMoves {s : State} {a : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.CLZ, none))
+    (hs : s.machineState.stack = a :: t) : EvMoves s .CLZ [a] t := by
+  intro M w hw
+  by_cases hf : s.executionEnv.header.fork = .Osaka
+  · have h := step_clz s hdec hf
+    simp only [hs] at h
+    split_ifs at h
+    · exact .inl h
+    · exact .inr (.inl h)
+    · exact .inr (.inr (.inr (evMoves_ok (r := some (UInt256.clz a)) (w' := w) hw
+        (supplyOf_eq hdec (by decide) (by decide)) (calm_of hdec (by decide)) h
+        (by simp [evRun, clzRun, hf]) rfl (by simp) rfl (by agree_field) (by agree_field)
+        (by agree_field) (by agree_field) (by rfl) (by rfl))))
+  · rcases step_clz_invalid s hdec hs hf with h | h | h
+    · exact .inl h
+    · exact .inr (.inl h)
+    · exact .inr (.inr (.inl ⟨.trap, _, by simp [evRun, clzRun, hf, trap], h, rfl⟩))
+
 /-- `TSTORE` writes the current contract's transient storage, in the account map, as the model's
     `tstore` does, and fails under a static call as it does. -/
 theorem tstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
@@ -1316,7 +1372,8 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
     EvMoves s op args t := by
   simp only [readOps, writeOps, List.contains_cons, List.contains_nil, Bool.or_false,
     Bool.or_eq_true, beq_iff_eq] at hp
-  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl)
+  rcases hp with (rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    | rfl)
     | rfl | rfl
     | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
@@ -1338,6 +1395,7 @@ theorem event_evMoves {s : State} {op : Operation} {args t : List UInt256}
   · exact create_evMoves hdec hs
   · exact create2_evMoves hdec hs
   · exact tload_evMoves hdec hs
+  · exact clz_evMoves hdec hs
   · exact sstore_evMoves hdec hs
   · exact mstore_evMoves hdec hs
   · exact mstore8_evMoves hdec hs
