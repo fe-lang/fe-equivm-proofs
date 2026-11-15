@@ -439,6 +439,7 @@ theorem section_sound_machine {s : Sidecar} (h : checkWith (fun _ => []) s = tru
     whose calldata fits and the constructor on every deployment, at profile `P1`. -/
 theorem checkSpills_sound {s : Sidecar} (h : checkSpills s = true) (hf : FrameSafe s) :
     Sound s := by
+  replace h := ((Bool.and_eq_true _ _).mp h).1
   obtain ⟨-, hinit, hrt⟩ := checkWith_ok h
   refine ⟨fun σ σ₀ g A I tail hI _ hown hcf => ?_, fun σ σ₀ g A I args _ hI hown hperm => ?_⟩
   · rcases (section_sound h hrt hI (FrameSafe.runtime_noPanic hf hown hcf)).1 with hx | ⟨feed, hx⟩
@@ -467,6 +468,7 @@ theorem checkSpills_xiOk {s : Sidecar} (h : checkSpills s = true) (hf : FrameSaf
       OwnerExists σ I → CalldataFits I → Invariant.XiOk Q σ σ₀ g A I) ∧
     ∀ Q σ σ₀ g A (I : ExecutionEnv) args, I.code = s.code "init" ++ args → OwnerExists σ I →
       I.perm = true → Invariant.XiOk Q σ σ₀ g A I := by
+  replace h := ((Bool.and_eq_true _ _).mp h).1
   obtain ⟨-, hinit, hrt⟩ := checkWith_ok h
   exact ⟨fun Q _ _ _ _ _ _ hI hown hcf =>
       (section_sound h hrt hI (FrameSafe.runtime_noPanic hf hown hcf)).2.1 hrc Q,
@@ -522,6 +524,7 @@ theorem checkSpills_xiOk_callsAt {s : Sidecar} (h : checkSpills s = true) (hf : 
       (∀ feed out w, Succeeds (((s.model .machine).init args).exec I (World.init σ A feed)) out w →
         ∀ c ∈ w.calls, c.Ok Q) → (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) →
       Invariant.XiOk Q σ σ₀ g A I := by
+  replace h := ((Bool.and_eq_true _ _).mp h).1
   obtain ⟨-, hinit, hrt⟩ := checkWith_ok h
   refine ⟨fun Q σ σ₀ g A I tail hI hown hcf hc hx =>
       (section_sound h hrt hI (FrameSafe.runtime_noPanic hf hown hcf)).2.2 Q (fun feed out w hs => ?_) hx,

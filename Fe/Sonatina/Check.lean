@@ -5,11 +5,19 @@ import Fe.Sonatina.Plan
 /-!
 # Checking bytes against the machine IR
 
-`check s` decides that each section of the sidecar `s` is emitted from its machine IR, for the
-class of sections the checker covers: no memory spills, no dynamic frames, no dynamic stack
-pointer, no call preserves, every value and immediate a word (as the EVM computes on words),
-and only the instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.
-The hints are inputs: a wrong one makes `check` false.
+`checkWith plan s` decides that each section of the sidecar `s` is emitted from its machine IR
+with the stores of the spill plan (`Func.instrument`), for the class of sections the checker
+covers: memory spills but no frame spills, no dynamic frames, no dynamic stack pointer, no call
+preserves, every value and immediate a word (as the EVM computes on words), and only the
+instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.  `check` and
+`checkSpills` (`FrameSafe.lean`) are its instances for no plan and the walked plan.  The hints
+and the plan are inputs: a wrong one makes the checker reject.
+
+Memory spills: the spill stores are events like any other; the path knows words of memory
+(`Path.held`), which a constant `MSTORE` writes and each statement keeps where its guard
+protects them or the store does not meet them; a bytes `MLOAD` of a known word that is not the
+IR's next event is a reload, of a value the plan has reload-live there; a block starts knowing the
+words of its spilled values reload-live at its entry, and every arrival must know them.
 
 A section may have several functions; each is checked block by block.  A function returns if
 its entry block reaches a `ret` (`returning`).  Its return address is a value no value of the

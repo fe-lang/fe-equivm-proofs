@@ -6,9 +6,12 @@ Runs the checker of bytes against machine IR (`Fe/Sonatina/Check.lean`): on the 
 it must accept where they are in its class, on mutations of their hints, which it must reject
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
 fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage,
-of a factory's creation and of a leading-zeros probe's `CLZ`, which it must reject, and on every
-sidecar of a directory, as `SONATINA_CHECK_DIR` names, with a line per section and per sidecar
-the reader rejects, counting the sections it accepts and why it rejects the others.
+of a factory's creation, of a leading-zeros probe's `CLZ` and of the memory spills of
+`NestedArrayCaller`, which it must reject, and on every sidecar of a directory, as
+`SONATINA_CHECK_DIR` names, with a line per section (its verdict under `check` and under
+`checkSpills`, each section under its walked spill plan), per sidecar with spills (the fixed-slot
+check) and per sidecar the reader rejects, counting the sections each accepts and why
+`checkSpills` rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
 
@@ -321,13 +324,17 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
       unparsed := unparsed + 1
       IO.println s!"UNPARSED {entry.fileName}: {e}"
     | .ok s =>
+      let plans := (Check.entries s).map fun (n, _) => (n, s.spillPlan n)
+      let plan := fun n => (plans.lookup n).getD []
+      unless plans.all (·.2.isEmpty) do
+        IO.println s!"FIXEDSLOTS {entry.fileName} {if fixedSlotsSafe s plan then "safe" else "REJECTED"}"
       for (name, fn) in Check.entries s do
         let some code := s.section? name | continue
         let spills := !(code.lowering.map (·.funcs.all (·.spills.isEmpty))).getD true
         let plain := match Check.checkSection code fn [] with
           | .ok () => if spills then .error "memory spills" else .ok ()
           | e => e
-        let withSpills := if spills then Check.checkSection code fn (code.spillPlan fn) else plain
+        let withSpills := if spills then Check.checkSection code fn (plan name) else plain
         let say := fun (r : Except String Unit) => match r with
           | .ok () => "accepted"
           | .error e => s!"rejected: {e}"
