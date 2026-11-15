@@ -205,7 +205,7 @@ theorem deployed_tail_size {I : ExecutionEnv} {w w' : World} {v : UInt256} {tail
     tail.size = contract.immutables := by
   have h' : (init_entry v.toByteArray).exec I { w with memory := reserveMemory w.memory } =
       some (.ok (tail, w')) := by
-    simpa [contract, deploy] using h
+    simpa [contract, deploy] using! h
   rw [initEntry_exec I _ v (reserveMemory_room hmem (by decide))] at h'
   split at h'
   · injection h' with h'
