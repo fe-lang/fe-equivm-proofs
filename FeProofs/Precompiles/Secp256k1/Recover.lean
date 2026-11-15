@@ -197,6 +197,10 @@ theorem recover_spec (e v r s : UInt256) (hv : v.toNat ≤ 1) (hr0 : 0 < r.toNat
   unfold Secp256k1.Spec.recover
   rw [ite_eq_left (show 0 < r.toNat ∧ r.toNat < Secp256k1.n ∧ 0 < s.toNat ∧ s.toNat < Secp256k1.n ∧
     v.toNat < 2 from ⟨hr0, hr, hs0, hs, by omega⟩)]
+  -- The specification's cast is at `ZMod Secp256k1.p`; left so, `generalize` abstracts it too and
+  -- the kernel does not finish comparing the two goals.
+  rw [show Secp256k1.Spec.liftX ((r.toNat : ℕ) : ZMod Secp256k1.p) v.toNat =
+    Secp256k1.Spec.liftX ((r.toNat : ℕ) : Fp) v.toNat from rfl]
   generalize hxdef : ((r.toNat : ℕ) : Fp) = x at hx ha hb ⊢
   generalize hαdef : x * x * x + ((7 : ℕ) : Fp) = α at ha hb ⊢
   generalize hβdef : α ^ ((Secp256k1.p + 1) / 4) = β at hb ⊢
