@@ -1927,38 +1927,6 @@ theorem precompile_substate_PointEval (σ : AccountMap) (g : UInt256) (A : Subst
 /-- What a precompile returns. -/
 abbrev PreResult := AccountMap × UInt256 × Substate × ByteArray
 
-/-- A property of each precompile's result holds of the one `Θ` picks.  `Θ.match_3` is the
-    matcher of `Θ`'s choice among the precompiles; going through its `dite` chain avoids
-    generating a splitter for the literal patterns. -/
-theorem match3_prop {P : PreResult → Prop} (pc : AccountAddress)
-    (a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 : Unit → PreResult) (a11 : AccountAddress → PreResult)
-    (h1 : P (a1 ())) (h2 : P (a2 ())) (h3 : P (a3 ())) (h4 : P (a4 ())) (h5 : P (a5 ()))
-    (h6 : P (a6 ())) (h7 : P (a7 ())) (h8 : P (a8 ())) (h9 : P (a9 ())) (h10 : P (a10 ()))
-    (h11 : ∀ x, P (a11 x)) :
-    P (Θ.match_3 (fun _ => PreResult) pc a1 a2 a3 a4 a5 a6 a7 a8 a9 a10 a11) := by
-  delta Θ.match_3
-  split
-  · rename_i h; subst h; exact h1
-  split
-  · rename_i h; subst h; exact h2
-  split
-  · rename_i h; subst h; exact h3
-  split
-  · rename_i h; subst h; exact h4
-  split
-  · rename_i h; subst h; exact h5
-  split
-  · rename_i h; subst h; exact h6
-  split
-  · rename_i h; subst h; exact h7
-  split
-  · rename_i h; subst h; exact h8
-  split
-  · rename_i h; subst h; exact h9
-  split
-  · rename_i h; subst h; exact h10
-  exact h11 _
-
 /-- Stated over the results as variables: with the precompiles' results in place of the variables,
     the kernel check of the same proof recurses too deep. -/
 theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
@@ -1975,9 +1943,9 @@ theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
     rcases h with h | h
     · split <;> [rfl; exact h]
     · rw [ite_eq_left (by rw [h]; exact accountMap_empty_beq_empty)]
-  exact key _ <| match3_prop (P := fun R => R.2.2.1 = A ∨ R.1 = ∅) pc _ _ _ _ _ _ _ _ _ _ _
-    (Or.inl h1) (Or.inl h2) (Or.inl h3) (Or.inl h4) (Or.inl h5) (Or.inl h6) (Or.inl h7)
-    (Or.inl h8) (Or.inl h9) (Or.inl h10) (fun _ => Or.inr rfl)
+  dsimp only
+  apply key
+  split <;> first | exact Or.inl ‹_› | exact Or.inr rfl
 
 /-- A precompile returns the substate it was given. -/
 theorem precompiled_Theta_substate (σ σ₀ : AccountMap) (A : Substate) (s o r pc : AccountAddress)
