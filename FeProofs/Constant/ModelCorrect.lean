@@ -51,21 +51,21 @@ theorem runtime_noMatch {I : ExecutionEnv} {w : World} (hsz : 4 ≤ I.calldata.s
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
   have hsel : (Model.answerSelector == I.calldata.extract 0 4) = false := by
     simpa [selIs, Model.answerSelector, feConstantSelBytes] using h
-  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, hsel]
+  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, ne_of_beq_false hsel]
 
 theorem runtime_answer_value {I : ExecutionEnv} {w : World}
     (hsel : selIs I (feConstantSelBytes 0)) (hwv : I.weiValue ≠ ⟨0⟩) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feConstantSelBytes 0) rfl hsel
   have hsel' : (Model.answerSelector == I.calldata.extract 0 4) = true := hsel
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, hsel', hwv]
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, eq_of_beq hsel', hwv]
 
 theorem runtime_answer {I : ExecutionEnv} {w : World}
     (hsel : selIs I (feConstantSelBytes 0)) (hwv : I.weiValue = ⟨0⟩) :
     Model.runtime.exec I w = some (.ok (UInt256.toByteArray ⟨42⟩, w)) := by
   have hsz : 4 ≤ I.calldata.size := calldata_size_ge_of_selIs I (feConstantSelBytes 0) rfl hsel
   have hsel' : (Model.answerSelector == I.calldata.extract 0 4) = true := hsel
-  simp [Model.runtime, calldata, nonPayable, Model.answer, Nat.not_lt.mpr hsz, hsel', hwv]
+  simp [Model.runtime, calldata, nonPayable, Model.answer, Nat.not_lt.mpr hsz, eq_of_beq hsel', hwv]
 
 /-! ## Refinement -/
 

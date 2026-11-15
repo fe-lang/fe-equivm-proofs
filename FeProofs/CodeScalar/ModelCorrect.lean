@@ -35,12 +35,12 @@ theorem runtime_short (h : I.calldata.size < 4) :
 
 theorem runtime_noMatch (hsz : 4 ≤ I.calldata.size) (h0 : ¬ selIs I (feCodeScalarSelBytes 0)) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, sel0_not h0]
+  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, ne_of_beq_false (sel0_not h0)]
 
 theorem runtime_get_value (hsz : 4 ≤ I.calldata.size) (hsel : selIs I (feCodeScalarSelBytes 0))
     (hwv : I.weiValue ≠ ⟨0⟩) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, sel0 hsel, hwv]
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel), hwv]
 
 /-- The word the model reads: the last 32 bytes of the running code. -/
 theorem immutable_read (v : UInt256) (hcode : I.code = feCodeScalarBytecode ++ v.toByteArray) :
@@ -57,7 +57,7 @@ theorem runtime_get (v : UInt256) (hcode : I.code = feCodeScalarBytecode ++ v.to
     (hsz : 4 ≤ I.calldata.size) (hsel : selIs I (feCodeScalarSelBytes 0))
     (hwv : I.weiValue = ⟨0⟩) :
     Model.runtime.exec I w = some (.ok (v.toByteArray, w)) := by
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, sel0 hsel, hwv,
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel), hwv,
     immutable_read v hcode]
 
 end Model

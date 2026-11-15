@@ -711,59 +711,59 @@ theorem feWETH9RefinesModel : Refines .P0 feWETH9Bytecode Model.contract := by
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h0 : selIs I (feWETH9SelBytes 0)
   · exact route (fun _ => by simp [Model.runtime, hn4,
-      show (Model.nameSelector == I.calldata.extract 0 4) = true from h0])
+      eq_of_beq (show (Model.nameSelector == I.calldata.extract 0 4) = true from h0)])
       (nameArm_refines hcode hsize h0).feed
-  have n0 : (Model.nameSelector == I.calldata.extract 0 4) = false := sel 0 h0
+  have n0 : Model.nameSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 0 h0)
   by_cases h1 : selIs I (feWETH9SelBytes 1)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0,
-      show (Model.approveSelector == I.calldata.extract 0 4) = true from h1])
+      eq_of_beq (show (Model.approveSelector == I.calldata.extract 0 4) = true from h1)])
       (approveArm_refines hcode hsize h1).feed
-  have n1 : (Model.approveSelector == I.calldata.extract 0 4) = false := sel 1 h1
+  have n1 : Model.approveSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 1 h1)
   by_cases h2 : selIs I (feWETH9SelBytes 2)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1,
-      show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h2])
+      eq_of_beq (show (Model.totalSupplySelector == I.calldata.extract 0 4) = true from h2)])
       (totalSupplyArm_refines hcode hsize h2).feed
-  have n2 : (Model.totalSupplySelector == I.calldata.extract 0 4) = false := sel 2 h2
+  have n2 : Model.totalSupplySelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 2 h2)
   by_cases h3 : selIs I (feWETH9SelBytes 3)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2,
-      show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h3])
+      eq_of_beq (show (Model.transferFromSelector == I.calldata.extract 0 4) = true from h3)])
       (transferFromArm_refines hcode hsize h3).feed
-  have n3 : (Model.transferFromSelector == I.calldata.extract 0 4) = false := sel 3 h3
+  have n3 : Model.transferFromSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 3 h3)
   by_cases h4 : selIs I (feWETH9SelBytes 4)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3,
-      show (Model.withdrawSelector == I.calldata.extract 0 4) = true from h4])
+      eq_of_beq (show (Model.withdrawSelector == I.calldata.extract 0 4) = true from h4)])
       (withdrawArm_refines hcode hsize h4)
-  have n4 : (Model.withdrawSelector == I.calldata.extract 0 4) = false := sel 4 h4
+  have n4 : Model.withdrawSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 4 h4)
   by_cases h5 : selIs I (feWETH9SelBytes 5)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4,
-      show (Model.decimalsSelector == I.calldata.extract 0 4) = true from h5])
+      eq_of_beq (show (Model.decimalsSelector == I.calldata.extract 0 4) = true from h5)])
       (decimalsArm_refines hcode hsize h5).feed
-  have n5 : (Model.decimalsSelector == I.calldata.extract 0 4) = false := sel 5 h5
+  have n5 : Model.decimalsSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 5 h5)
   by_cases h6 : selIs I (feWETH9SelBytes 6)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5,
-      show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h6])
+      eq_of_beq (show (Model.balanceOfSelector == I.calldata.extract 0 4) = true from h6)])
       (balanceOfArm_refines hcode hsize h6).feed
-  have n6 : (Model.balanceOfSelector == I.calldata.extract 0 4) = false := sel 6 h6
+  have n6 : Model.balanceOfSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 6 h6)
   by_cases h7 : selIs I (feWETH9SelBytes 7)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6,
-      show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7])
+      eq_of_beq (show (Model.symbolSelector == I.calldata.extract 0 4) = true from h7)])
       (symbolArm_refines hcode hsize h7).feed
-  have n7 : (Model.symbolSelector == I.calldata.extract 0 4) = false := sel 7 h7
+  have n7 : Model.symbolSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 7 h7)
   by_cases h8 : selIs I (feWETH9SelBytes 8)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7,
-      show (Model.transferSelector == I.calldata.extract 0 4) = true from h8])
+      eq_of_beq (show (Model.transferSelector == I.calldata.extract 0 4) = true from h8)])
       (transferArm_refines hcode hsize h8).feed
-  have n8 : (Model.transferSelector == I.calldata.extract 0 4) = false := sel 8 h8
+  have n8 : Model.transferSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 8 h8)
   by_cases h9 : selIs I (feWETH9SelBytes 9)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8,
-      show (Model.depositSelector == I.calldata.extract 0 4) = true from h9])
+      eq_of_beq (show (Model.depositSelector == I.calldata.extract 0 4) = true from h9)])
       (depositArm_refines hcode hsize h9).feed
-  have n9 : (Model.depositSelector == I.calldata.extract 0 4) = false := sel 9 h9
+  have n9 : Model.depositSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 9 h9)
   by_cases h10 : selIs I (feWETH9SelBytes 10)
   · exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8, n9,
-      show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h10])
+      eq_of_beq (show (Model.allowanceSelector == I.calldata.extract 0 4) = true from h10)])
       (allowanceArm_refines hcode hsize h10).feed
-  have n10 : (Model.allowanceSelector == I.calldata.extract 0 4) = false := sel 10 h10
+  have n10 : Model.allowanceSelector ≠ I.calldata.extract 0 4 := ne_of_beq_false (sel 10 h10)
   exact route (fun _ => by simp [Model.runtime, hn4, n0, n1, n2, n3, n4, n5, n6, n7, n8, n9, n10])
     (fallback_refines hcode hsize
       fun _ => feWETH9NoSelectorMatches h0 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10).feed

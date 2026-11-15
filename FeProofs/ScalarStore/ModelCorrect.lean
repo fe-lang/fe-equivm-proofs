@@ -117,18 +117,18 @@ theorem runtime_short (h : I.calldata.size < 4) :
 theorem runtime_noMatch (hsz : 4 ≤ I.calldata.size)
     (h0 : ¬ selIs I (feScalarStoreSelBytes 0)) (h1 : ¬ selIs I (feScalarStoreSelBytes 1)) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, sel0_not h0, sel1_not h1]
+  simp [Model.runtime, calldata, Nat.not_lt.mpr hsz, ne_of_beq_false (sel0_not h0), ne_of_beq_false (sel1_not h1)]
 
 theorem runtime_set_value (hsz : 4 ≤ I.calldata.size)
     (hsel : selIs I (feScalarStoreSelBytes 0)) (hwv : I.weiValue ≠ ⟨0⟩) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, sel0 hsel, hwv]
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel), hwv]
 
 theorem runtime_set_head (hsz : 4 ≤ I.calldata.size)
     (hsel : selIs I (feScalarStoreSelBytes 0)) (hwv : I.weiValue = ⟨0⟩)
     (hbad : BadHead I.calldata 1) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, sel0 hsel, hwv, hbad]
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel), hwv, hbad]
 
 theorem runtime_set (hsz : 4 ≤ I.calldata.size)
     (hsel : selIs I (feScalarStoreSelBytes 0)) (hwv : I.weiValue = ⟨0⟩)
@@ -136,20 +136,20 @@ theorem runtime_set (hsz : 4 ≤ I.calldata.size)
     Model.runtime.exec I w = some (.ok (ByteArray.empty,
       { w with accounts := storeWord I.codeOwner w.accounts ⟨0⟩ (calldataWord I.calldata 4) })) := by
   simp [Model.runtime, Model.set, Model.storedSlot, calldata, nonPayable, sstore,
-    Nat.not_lt.mpr hsz, sel0 hsel, hwv, hok, hperm]
+    Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel), hwv, hok, hperm]
 
 theorem runtime_set_static (hsz : 4 ≤ I.calldata.size)
     (hsel : selIs I (feScalarStoreSelBytes 0)) (hwv : I.weiValue = ⟨0⟩)
     (hok : ¬ BadHead I.calldata 1) (hperm : I.perm = false) :
     Model.runtime.exec I w = some (.error .static) := by
-  simp [Model.runtime, Model.set, calldata, nonPayable, sstore, Nat.not_lt.mpr hsz, sel0 hsel,
+  simp [Model.runtime, Model.set, calldata, nonPayable, sstore, Nat.not_lt.mpr hsz, eq_of_beq (sel0 hsel),
     hwv, hok, hperm]
 
 theorem runtime_get_value (hsz : 4 ≤ I.calldata.size)
     (h0 : ¬ selIs I (feScalarStoreSelBytes 0)) (hsel : selIs I (feScalarStoreSelBytes 1))
     (hwv : I.weiValue ≠ ⟨0⟩) :
     Model.runtime.exec I w = some (.error (.revert ByteArray.empty)) := by
-  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, sel0_not h0, sel1 hsel, hwv]
+  simp [Model.runtime, calldata, nonPayable, Nat.not_lt.mpr hsz, ne_of_beq_false (sel0_not h0), eq_of_beq (sel1 hsel), hwv]
 
 theorem runtime_get (hsz : 4 ≤ I.calldata.size)
     (h0 : ¬ selIs I (feScalarStoreSelBytes 0)) (hsel : selIs I (feScalarStoreSelBytes 1))
@@ -157,7 +157,7 @@ theorem runtime_get (hsz : 4 ≤ I.calldata.size)
     Model.runtime.exec I w
       = some (.ok (UInt256.toByteArray (solcSlotWordAt ⟨0⟩ w.accounts I), w)) := by
   simp [Model.runtime, Model.get, Model.storedSlot, calldata, nonPayable, slotWord,
-    Nat.not_lt.mpr hsz, sel0_not h0, sel1 hsel, hwv, solcSlotWordAt, solcSlotWord]
+    Nat.not_lt.mpr hsz, ne_of_beq_false (sel0_not h0), eq_of_beq (sel1 hsel), hwv, solcSlotWordAt, solcSlotWord]
 
 end Model
 
