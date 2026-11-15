@@ -216,15 +216,73 @@ theorem reads_mono {D D₂ : List Nat} (h : ∀ x ∈ D, x ∈ D₂) {os : List 
   have := hr o ho
   cases hv : o.var? <;> simp_all
 
-theorem runBody_cons {m : Module} {ic : Fe.Sonatina.Ctx} {env : Env} {s : Stmt}
-    {rest : List Stmt} (h : ∀ callee args, s.inst ≠ .call callee args) :
-    runBody m ic env (s :: rest) =
-      runInst ic env s.inst >>= fun vals => Fe.Sonatina.bind env s.dsts vals >>= fun env' =>
-        runBody m ic env' rest := by
-  rw [runBody_cons_eq]
-  split
-  · next callee args hc => exact absurd hc (h callee args)
-  · rfl
+/-- The run does not end in a panic. -/
+def NoPanicAt {α : Type} (r : Option (Except (Fe.Exit World) α)) : Prop :=
+  ∀ c, r ≠ some (.error (.panic c))
+
+/-- A bind that does not panic: neither does its first part, nor what follows a result. -/
+theorem NoPanicAt.of_bind {α β : Type} {x : FeM α} {k : α → FeM β} {I : ExecutionEnv}
+    {w : World} (h : NoPanicAt ((x >>= k).exec I w)) :
+    NoPanicAt (x.exec I w) ∧
+      ∀ a w', x.exec I w = some (.ok (a, w')) → NoPanicAt ((k a).exec I w') := by
+  rw [Fe.M.exec_bind] at h
+  refine ⟨fun c hc => h c (by rw [hc]), fun a w' hx c hc => h c (by rw [hx]; exact hc)⟩
+
+/-- A guarded computation that does not panic runs as the computation, and one that returns
+    leaves the guarded words as they were. -/
+theorem guarded_exec {α : Type} {ws : List Nat} {x : FeM α} {I : ExecutionEnv} {w : World}
+    (h : NoPanicAt ((guarded ws x).exec I w)) :
+    (guarded ws x).exec I w = x.exec I w ∧ ∀ a w', x.exec I w = some (.ok (a, w')) →
+      ∀ p ∈ ws, w'.memory.readWithPadding p 32 = w.memory.readWithPadding p 32 := by
+  have heq : (guarded ws x).exec I w = x.exec I w := by
+    cases ws with
+    | nil => rfl
+    | cons q qs =>
+      unfold guarded at h ⊢
+      simp only [Fe.M.exec_bind, Fe.M.exec_get] at h ⊢
+      cases hx : x.exec I w with
+      | none => rfl
+      | some r =>
+        cases r with
+        | error e => rfl
+        | ok p =>
+          rw [hx] at h
+          simp only at h ⊢
+          split
+          · rfl
+          · exfalso; apply h spillClobbered; simp [*]
+  refine ⟨heq, fun a w' hx => guarded_kept (heq.trans hx)⟩
+
+/-- A statement other than a call, run under a guard that does not panic: it runs as the
+    instruction, and one that returns leaves the words of the guard as they were, the rest of
+    the statements not panicking. -/
+theorem runBodyG_step {g : Guard} {m : Module} {ic : Fe.Sonatina.Ctx} {inh : List Nat}
+    {ps : List (List Nat)} {env : Env} {s : Stmt} {rest : List Stmt} {ee : ExecutionEnv}
+    {w : World} (hnc : ∀ callee args, s.inst ≠ .call callee args)
+    (hnp : NoPanicAt ((runBodyG g m ic inh ps env (s :: rest)).exec ee w)) :
+    (runBodyG g m ic inh ps env (s :: rest)).exec ee w =
+      (runInst ic env s.inst >>= fun vals => Fe.Sonatina.bind env s.dsts vals >>= fun env' =>
+        runBodyG g m ic inh ps.tail env' rest).exec ee w ∧
+    ∀ vals w', (runInst ic env s.inst).exec ee w = some (.ok (vals, w')) →
+      (∀ p ∈ ps.headD [], w'.memory.readWithPadding p 32 = w.memory.readWithPadding p 32) ∧
+      NoPanicAt ((Fe.Sonatina.bind env s.dsts vals >>= fun env' =>
+        runBodyG g m ic inh ps.tail env' rest).exec ee w') := by
+  have hrun : runBodyG g m ic inh ps env (s :: rest) =
+      guarded (inh ++ ps.headD []) (runInst ic env s.inst) >>= fun vals =>
+        Fe.Sonatina.bind env s.dsts vals >>= fun env' => runBodyG g m ic inh ps.tail env' rest := by
+    rw [runBodyG.eq_2]
+    split
+    · next callee args hc => exact absurd hc (hnc callee args)
+    · rfl
+  rw [hrun] at hnp ⊢
+  obtain ⟨hg, hk⟩ := NoPanicAt.of_bind hnp
+  obtain ⟨he, hkept⟩ := guarded_exec hg
+  refine ⟨by rw [Fe.M.exec_bind, Fe.M.exec_bind, he], fun vals w' hx =>
+    ⟨fun p hp => hkept vals w' hx p (List.mem_append_right _ hp), hk vals w' (he.trans hx)⟩⟩
+
+theorem runBodyG_nil (g : Guard) (m : Module) (ic : Fe.Sonatina.Ctx) (inh : List Nat)
+    (ps : List (List Nat)) (env : Env) : runBodyG g m ic inh ps env [] = pure env := by
+  rw [runBodyG.eq_1]
 
 theorem bind_one (env : Env) (id : Nat) (ty : Ty) (v : Val) :
     Fe.Sonatina.bind env [(id, ty)] [v] = pure (env.insert id (v.as ty)) := rfl
@@ -385,35 +443,41 @@ theorem definedAfter_mono : ∀ {stmts : List Stmt} {D D' : List Nat},
     exact definedAfter_mono h x (List.mem_append_left _ hx)
 
 /-- The IR runs a block's statements of the class as the events say. -/
-theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ctx}
-    (hsym : ic.symbol = (c.symbols.lookup ·)) :
-    ∀ (stmts pre : List Stmt) (D D' : List Nat) (env : Env) (w : World) (evs : List Event)
-      (post : List Stmt),
+theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ctx} {g : Guard}
+    {inh : List Nat} (hsym : ic.symbol = (c.symbols.lookup ·)) :
+    ∀ (stmts pre : List Stmt) (ps : List (List Nat)) (k : Nat) (D D' : List Nat) (env : Env)
+      (w : World) (evs : List Event) (post : List Stmt),
       c.defs = (pre ++ stmts ++ post).filterMap Stmt.local? →
       (∀ t ∈ pre, ∀ d ∈ t.dsts, d.1 ∈ D) →
       definedAfter D stmts = some D' →
-      stmts.filterMapM c.eventOfStmt = some evs →
+      c.events ps k stmts = some evs →
       (∀ s ∈ stmts, ∀ d ∈ s.dsts, d.2.bits = 256) →
       (∃ ρ, WordsOf env ρ D) → (∀ ρ, WordsOf env ρ D → Cons ee ρ c D) →
-      ∃ x, (runBody m ic env stmts).exec ee w = x ∧ BodyEnds ee c env D D' evs w x
-  | [], pre, D, D', env, w, evs, _, _, _, hd, he, _, hw, hc => by
+      NoPanicAt ((runBodyG g m ic inh ps env stmts).exec ee w) →
+      ∃ x, (runBodyG g m ic inh ps env stmts).exec ee w = x ∧ BodyEnds ee c env D D' evs w x
+  | [], pre, ps, k, D, D', env, w, evs, _, _, _, hd, he, _, hw, hc, _ => by
     simp only [definedAfter, Option.some.injEq] at hd
-    simp only [List.filterMapM_nil, Option.pure_def, Option.some.injEq] at he
+    simp only [Ctx.events, Option.some.injEq] at he
     subst hd he
-    refine ⟨some (.ok (env, w)), by rw [runBody_nil_eq]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
+    refine ⟨some (.ok (env, w)), by rw [runBodyG_nil]; rfl, fun _ _ => rfl, hw, fun ρ hρ =>
       ⟨hc ρ hρ, .nil w⟩⟩
-  | s :: rest, pre, D, D', env, w, evs, post, hdefs, hpre, hd, he, hbits, ⟨ρ₁, hw₁⟩, hc => by
+  | s :: rest, pre, ps, k, D, D', env, w, evs, post, hdefs, hpre, hd, he, hbits, ⟨ρ₁, hw₁⟩, hc,
+      hnpb => by
     simp only [definedAfter] at hd
     split_ifs at hd with hok
     simp only [Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true'] at hok
     obtain ⟨hr, hfresh⟩ := hok
     have hfresh' : ∀ d ∈ s.dsts, d.1 ∉ D := fun d hd' h =>
       by simpa [List.contains_iff_mem, h] using hfresh d hd'
-    rw [List.filterMapM_cons] at he
+    simp only [Ctx.events] at he
+    cases hrest : c.events ps.tail (k + 1) rest with
+    | none => simp [hrest] at he
+    | some evs' =>
+    simp only [hrest, Option.bind_eq_bind, Option.bind_some] at he
     cases hes : c.eventOfStmt s with
     | none => simp [hes] at he
     | some o =>
-    simp only [hes, Option.bind_eq_bind, Option.bind_some] at he
+    simp only [hes, Option.bind_some] at he
     have hdefs' : c.defs = ((pre ++ [s]) ++ rest ++ post).filterMap Stmt.local? := by
       rw [hdefs]; simp
     have hpre' : ∀ t ∈ pre ++ [s], ∀ d ∈ t.dsts, d.1 ∈ D ++ s.dsts.map (·.1) := by
@@ -430,6 +494,8 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
       simp only at hes
       split_ifs at hes with hk
       cases hes
+      simp only [Option.pure_def, Option.some.injEq] at he
+      subst he
       simp only [Bool.and_eq_true, beq_iff_eq] at hk
       obtain ⟨hlen, harity⟩ := hk
       obtain ⟨⟨id, ty⟩, hds⟩ : ∃ d, s.dsts = [d] := by
@@ -475,10 +541,13 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
         cases hl
         exact ⟨reads_mono (fun x hx => List.mem_append_left _ hx) hr, heqn⟩
-      obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w evs post
-        hdefs' hpre' hd he hbits' ⟨_, hw₁'⟩ hc'
+      have hstep := runBodyG_step hnc hnpb
+      obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) ps.tail (k + 1) (D ++ [id]) D'
+        env₁ w evs' post hdefs' hpre' hd hrest hbits' ⟨_, hw₁'⟩ hc' (by
+          simpa only [hds, bind_one, has ty hty, Fe.M.exec_bind, Fe.M.exec_pure] using
+            (hstep.2 _ _ (hrun w)).2)
       refine ⟨x, ?_, ?_⟩
-      · rw [runBody_cons hnc, Fe.M.exec_bind, hrun w]
+      · rw [hstep.1, Fe.M.exec_bind, hrun w]
         simp only [hds, bind_one, has ty hty, Fe.M.exec_bind, Fe.M.exec_pure]
         exact hx
       · rcases x with _ | _ | ⟨env', w'⟩
@@ -501,23 +570,21 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
         rw [operands_eval (fun id' e' h' he' => expand_eval (hc ρ hρ) id' e' h' he') hr' hos,
           opWords_congr (WordsOf.same hρ hw₁) hr', hargs]
       have hrun := hrunE (ee := ee) (ic := ic) hw₁ hr' hargs hk' w
-      obtain ⟨res, rfl, hres⟩ : ∃ res, o = some ⟨opc, es, res⟩ ∧
+      obtain ⟨res, rfl, hres⟩ : ∃ res, o = some { op := opc, args := es, result := res } ∧
           ((s.dsts = [] ∧ res = none ∧ readOps.contains opc = false) ∨
             ∃ id ty, s.dsts = [(id, ty)] ∧ res = some id ∧ readOps.contains opc = true) := by
         split at hes <;> simp only [Option.some.injEq, reduceCtorEq] at hes
         · next h1 h2 => exact ⟨none, hes.symm, .inl ⟨h1, rfl, h2⟩⟩
         · next id ty h1 h2 => exact ⟨some id, hes.symm, .inr ⟨id, ty, h1, rfl, h2⟩⟩
-      cases hrest : rest.filterMapM c.eventOfStmt with
-      | none => simp [hrest] at he
-      | some evs' =>
-      simp only [hrest, Option.bind_some, Option.pure_def, Option.some.injEq] at he
+      simp only [Option.pure_def, Option.some.injEq] at he
       subst he
+      have hstep := runBodyG_step hnc hnpb
       cases hE : (evRun opc args).exec ee w with
       | none =>
         rw [hE] at hrun
         refine ⟨none, ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
           fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
-        · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
+        · rw [hstep.1, Fe.M.exec_bind, hrun]
         · exact definedAfter_mono hd id (List.mem_append_left _ h')
         · exact .stuck (hevargs ρ hρ) hE
       | some x =>
@@ -526,7 +593,7 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
         rw [hE] at hrun
         refine ⟨some (.error e), ?_, env, D, fun _ _ => rfl, fun _ h => h, fun id h' => ?_, ⟨ρ₁, hw₁⟩,
           fun ρ hρ => ⟨hc ρ hρ, ?_⟩⟩
-        · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
+        · rw [hstep.1, Fe.M.exec_bind, hrun]
         · exact definedAfter_mono hd id (List.mem_append_left _ h')
         · exact .fail (hevargs ρ hρ) hE
       | ok p =>
@@ -538,11 +605,14 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           have hD : D ++ s.dsts.map (·.1) = D ++ [] := by simp [hds]
           rw [hD] at hd hpre'
           have hsub : ∀ x ∈ D, x ∈ D ++ [] := fun x hx => List.mem_append_left _ hx
-          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ []) D' env w₁ evs' post
-            hdefs' hpre' hd hrest hbits' ⟨ρ₁, by simpa using hw₁⟩ fun ρ hρ =>
-              (hc ρ (by simpa using hρ)).mono hsub fun id' h' hn => by simp_all
+          have hst2 := hstep.2 _ _ hrun
+          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) ps.tail (k + 1) (D ++ []) D'
+            env w₁ evs' post hdefs' hpre' hd hrest hbits' ⟨ρ₁, by simpa using hw₁⟩
+            (fun ρ hρ => (hc ρ (by simpa using hρ)).mono hsub fun id' h' hn => by simp_all)
+            (by simpa only [hds, Option.toList_none, List.map_nil, bind_nil, Fe.M.exec_bind,
+              Fe.M.exec_pure] using hst2.2)
           refine ⟨x, ?_, ?_⟩
-          · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
+          · rw [hstep.1, Fe.M.exec_bind, hrun]
             simp only [hds, Option.toList_none, List.map_nil, bind_nil, Fe.M.exec_bind,
               Fe.M.exec_pure]
             exact hx
@@ -552,14 +622,14 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               refine ⟨fun id' h' => h1 id' (hsub id' h'), h2, fun ρ hρ => ⟨(h3 ρ hρ).1, ?_⟩⟩
               have hρD : WordsOf env ρ D := fun id' h' =>
                 (h1 id' (hsub id' h')).symm.trans (hρ id' (definedAfter_mono hd id' (hsub id' h')))
-              exact .ok (hevargs ρ hρD) hE (h3 ρ hρ).2
+              exact .ok (hevargs ρ hρD) hE hst2.1 (h3 ρ hρ).2
             all_goals
               obtain ⟨envf, Df, h1, h2, h2', h3, h4⟩ := hends
               refine ⟨envf, Df, fun id' h' => h1 id' (hsub id' h'),
                 fun id' h' => h2 id' (hsub id' h'), h2',
                 h3, fun ρ hρ => ⟨(h4 ρ hρ).1, .ok (hevargs ρ fun id' h' =>
                   (h1 id' (hsub id' h')).symm.trans (hρ id' (h2 id' (hsub id' h')))) hE
-                  (h4 ρ hρ).2⟩⟩
+                  hst2.1 (h4 ρ hρ).2⟩⟩
         · obtain ⟨v, rfl⟩ : ∃ v, r = some v := by cases r <;> simp_all
           have hty : ty.bits = 256 := hbits s (by simp) (id, ty) (by simp [hds])
           have hid : id ∉ D := hfresh' (id, ty) (by simp [hds])
@@ -593,15 +663,19 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           lookup_def hds hnc (fun t ht d hdt h => hid (h ▸ hpre t ht d hdt))] at hl
             cases hl
             exact ⟨reads_mono hsub hr, heqn⟩
-          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) (D ++ [id]) D' env₁ w₁ evs' post
-            hdefs' hpre' hd hrest hbits' ⟨_, hw₁'⟩ hc'
+          have hst2 := hstep.2 _ _ hrun
+          obtain ⟨x, hx, hends⟩ := body_run hsym rest (pre ++ [s]) ps.tail (k + 1) (D ++ [id]) D'
+            env₁ w₁ evs' post hdefs' hpre' hd hrest hbits' ⟨_, hw₁'⟩ hc' (by
+              simpa only [hds, Option.toList_some, List.map_cons, List.map_nil, bind_one,
+                word, as_word _ hty, Reasoning.Theory.u256_ofNat_toNat, Fe.M.exec_bind,
+                Fe.M.exec_pure] using hst2.2)
           -- The word the read gives is the valuation's.
           have hval : ∀ (env' : Env) ρ, env'[id]? = env₁[id]? → WordsOf env' ρ (D ++ [id]) →
               ρ id = v := fun env' ρ he' hρ =>
             (word_inj (Option.some.inj ((show env₁[id]? = some (Val.int 256 v.toNat) by
               simp [env₁]).symm.trans (he'.symm.trans (hρ id (by simp)))))).symm
           refine ⟨x, ?_, ?_⟩
-          · rw [runBody_cons hnc, Fe.M.exec_bind, hrun]
+          · rw [hstep.1, Fe.M.exec_bind, hrun]
             simp only [hds, Option.toList_some, List.map_cons, List.map_nil, bind_one,
               word, as_word _ hty, Reasoning.Theory.u256_ofNat_toNat, Fe.M.exec_bind,
               Fe.M.exec_pure]
@@ -615,7 +689,8 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
                 hρ id' (definedAfter_mono hd id' h')
               have hρD : WordsOf env ρ D := fun id' h' =>
                 ((h1 id' (hsub id' h')).trans (hagree id' h')).symm.trans (hρ₁ id' (hsub id' h'))
-              refine .ok (hevargs ρ hρD) ?_ (h3 ρ hρ).2
+              refine .ok (hevargs ρ hρD) ?_ hst2.1 (h3 ρ hρ).2
+              simp only [Ctx.annotate]
               rw [hE]
               simp only [Option.map_some, hval env' ρ (h1 id (by simp)) hρ₁]
             all_goals
@@ -625,7 +700,8 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
               have hρ₁ : WordsOf envf ρ (D ++ [id]) := fun id' h' => hρ id' (h2 id' h')
               have hρD : WordsOf env ρ D := fun id' h' =>
                 ((h1 id' (hsub id' h')).trans (hagree id' h')).symm.trans (hρ₁ id' (hsub id' h'))
-              refine .ok (hevargs ρ hρD) ?_ (h4 ρ hρ).2
+              refine .ok (hevargs ρ hρD) ?_ hst2.1 (h4 ρ hρ).2
+              simp only [Ctx.annotate]
               rw [hE]
               simp only [Option.map_some, hval envf ρ (h1 id (by simp)) hρ₁]
     · cases hes

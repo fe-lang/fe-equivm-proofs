@@ -27,21 +27,20 @@ open Ethereum Ethereum.EVM Fe Fe.EVM Check
 /-! ## The walk -/
 
 /-- What the walk knows of a block: the checker's context, the block's hints and places, its
-    id, the positions of its statements with an event or a call, in order, the number of its
-    statements, and the word and value each statement stores, if it is a spill store. -/
+    id, and the number of its statements. -/
 structure WalkBlock where
   c : Check.Ctx
   hints : List BlockHint
   place : Nat → Option Nat
   b : Nat
-  items : List Nat
   len : Nat
-  storeOf : Nat → Option (Nat × Nat)
 
 /-- The position of the IR's next event or call in the block, or the terminator's. -/
 def WalkBlock.gap (k : WalkBlock) (p : Path) : Nat :=
-  let r := p.events.length + p.calls.foldl (fun n cs => n + 1 + cs.events.length) 0
-  if r == 0 then k.len else (k.items[k.items.length - r]?).getD k.len
+  match p.events, p.calls with
+  | ev :: _, _ => ev.pos
+  | [], cs :: _ => cs.pos
+  | [], [] => k.len
 
 /-- Walk the bytes of a block from `p` for at most `fuel` steps, as `Check.run` does, but on
     every path and to the end of what matches: each reload found, its value and point, added to
@@ -103,9 +102,7 @@ def walkBlock (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)
             match ev.result, readOps.contains op with
             | some id, true => go (.atom id :: p.stack.drop n) events
             | none, false => go (p.stack.drop n) events (match op, ev.args with
-              | .MSTORE, [.const w, e] =>
-                (w, e, (k.storeOf (k.gap p)).bind fun (w', v) => if w' == w then some v else none)
-                  :: slots
+              | .MSTORE, [.const w, e] => (w, e, ev.stores) :: slots
               | _, _ => slots)
             | _, _ => acc
           else acc
@@ -123,7 +120,7 @@ def walkBlock (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)
                 match rest.drop cs.args.length with
                 | .const r :: rest' =>
                   walkBlock code tree dests k fuel
-                    ⟨r, cs.dsts.map .atom ++ rest', cs.events, p.exit, more⟩ slots acc
+                    ⟨r, cs.dsts.map .atom ++ rest', cs.events, p.exit, more, []⟩ slots acc
                 | _ => acc
               else acc
             | none => acc
@@ -169,24 +166,6 @@ where
     | 0, L => L
     | n + 1, L => let L' := step L; if L' == L then L else go step n L'
 
-/-- The value a statement of instrumented block `b` stores at its word, if it is a spill
-    store: of a spilled value, or of a spilled phi of the block `b` jumps to. -/
-def storedValue (f : Func) (words : List (Nat × Nat)) (b : Block) (s : Stmt) :
-    Option (Nat × Nat) :=
-  match s.inst with
-  | .evm .mstore [.imm _ w, o] =>
-    (match o with
-      | .var v => if words.contains (v, w) then some v else phiAt w o
-      | _ => phiAt w o).map (w, ·)
-  | _ => none
-where
-  phiAt (w : Nat) (o : Operand) : Option Nat :=
-    match b.term with
-    | .jump d => (f.block? d).bind fun sb => (sb.phis.find? fun phi =>
-        words.contains (phi.dst, w) &&
-          (phi.incoming.find? (·.2 == b.id)).any (·.1 == o)).map (·.dst)
-    | _ => none
-
 /-- The reloads the bytes make in function `hint` of the section, found by walking each block
     of its instrumented machine IR: each value and point. -/
 def walkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : FuncHint)
@@ -201,25 +180,21 @@ def walkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : Func
   let isRoot := hint.name == entry
   let entryId := (fi.blocks.head?.map (·.id)).getD 0
   fi.blocks.flatMap fun b =>
-    let c := Ctx.ofBlock fi b code.symbols fr
+    let c := Ctx.ofBlock fi b code.symbols fr ⟨words, [], fun _ => [], entryId⟩
     match hint.blocks.find? (·.block == b.id), place b.id with
     | some h, some pc =>
-      match c.entryStack h, c.segments b.body, c.exitOf b.term with
+      match c.entryStack h, c.segments [] 0 b.body, c.exitOf b.term with
       | some stack, some (events, calls), some exit =>
         let events := match low.entryFreePtr, isRoot && b.id == entryId with
-          | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
+          | some ptr, true =>
+            { op := .MSTORE, args := [.const 0x40, .const ptr], result := none } :: events
           | _, _ => events
-        let items := (b.body.zipIdx.filter fun (s, _) =>
-          (s.inst matches .call _ _) || (c.eventOfStmt s matches some (some _))).map (·.2)
-        let items := if isRoot && b.id == entryId && low.entryFreePtr.isSome then 0 :: items
-          else items
-        let wb : WalkBlock := ⟨c, hint.blocks, place, b.id, items, b.body.length,
-          fun k => (b.body[k]?).bind (storedValue fi words b)⟩
+        let wb : WalkBlock := ⟨c, hint.blocks, place, b.id, b.body.length⟩
         let liveIn := ((live.lookup b.id).getD []).filter (words.lookup · |>.isSome)
         let slots := (liveIn ++ b.phis.map (·.dst)).filterMap fun v =>
           (words.lookup v).bind fun w => (c.expand v).map fun e => (w, e, some v)
         (walkBlock code.bytecode tree dests wb (2 * low.codeSize + 2)
-          ⟨pc, stack, events, exit, calls⟩ slots []).map fun (v, k) => (v, b.id, k)
+          ⟨pc, stack, events, exit, calls, []⟩ slots []).map fun (v, k) => (v, b.id, k)
       | _, _, _ => []
     | _, _ => []
 
@@ -301,5 +276,115 @@ theorem frameSafe_of_noSpills {s : Sidecar} (h : s.noSpills = true) : FrameSafe 
   rw [FrameSafe, hm]
   exact ⟨fun I σ A feed _ _ => ⟨feed, EndsAs.refl _⟩,
     fun I σ A feed args _ _ _ _ => ⟨feed, EndsAs.refl _⟩⟩
+
+/-! ## Fixed-slot spills (a convenience check)
+
+Sonatina may spill to the scratch words at `0x00` and `0x20`, which the IR uses too.  A spill
+store over IR data that the IR reads later makes the bytes read the spilled value where the
+machine IR reads its data: a miscompile, which `FrameSafe` excludes, since the two models then
+end differently wherever that read shows.  `fixedSlotsSafe` rejects such a section outright, as
+cheaply as it can be seen: from a spill store at `0x00` or `0x20`, no read of the IR at a
+constant address may meet a byte of that word before the IR writes the byte, along the
+function's blocks.  Soundness does not rest on it: `checkSpills_sound` needs `FrameSafe`, which
+is false for such a section. -/
+
+/-- The bytes `[a, a + len)` meets of the word at `w`, as a mask of its 32 bytes. -/
+def wordMask (w a len : Nat) : Nat :=
+  (List.range 32).foldl (fun m i => if a ≤ w + i && w + i < a + len then m ||| (1 <<< i) else m)
+    0
+
+/-- The constant-address reads and writes of an instruction, each as an address and a length. -/
+def Inst.constAccesses : Inst → List (Nat × Nat) × List (Nat × Nat)
+  | .mload (.imm _ a) _ => ([(a, 32)], [])
+  | .mstore (.imm _ a) _ _ => ([], [(a, 32)])
+  | .evm op args =>
+    match op, args with
+    | .mload, [.imm _ a] => ([(a, 32)], [])
+    | .mstore, [.imm _ a, _] => ([], [(a, 32)])
+    | .mstore8, [.imm _ a, _] => ([], [(a, 1)])
+    | .keccak256, [.imm _ p, .imm _ l] => ([(p, l)], [])
+    | .log _, .imm _ p :: .imm _ l :: _ => ([(p, l)], [])
+    | .calldataCopy, [.imm _ d, _, .imm _ l] | .codeCopy, [.imm _ d, _, .imm _ l]
+    | .returnDataCopy, [.imm _ d, _, .imm _ l] | .extCodeCopy, [_, .imm _ d, _, .imm _ l] =>
+      ([], [(d, l)])
+    | .mcopy, [.imm _ d, .imm _ s, .imm _ l] => ([(s, l)], [(d, l)])
+    | .mcopy, [_, .imm _ s, .imm _ l] => ([(s, l)], [])
+    | .create, [_, .imm _ p, .imm _ l] | .create2, [_, .imm _ p, .imm _ l, _] => ([(p, l)], [])
+    | .call, [_, _, _, ap, al, rp, rl] | .staticCall, [_, _, ap, al, rp, rl]
+    | .delegateCall, [_, _, ap, al, rp, rl] =>
+      ((match ap, al with | .imm _ a, .imm _ l => [(a, l)] | _, _ => []),
+        (match rp, rl with | .imm _ a, .imm _ l => [(a, l)] | _, _ => []))
+    | _, _ => ([], [])
+  | _ => ([], [])
+
+/-- The constant-address reads of a terminator. -/
+def Term.constReads : Term → List (Nat × Nat)
+  | .evmReturn (.imm _ a) (.imm _ l) | .evmRevert (.imm _ a) (.imm _ l) => [(a, l)]
+  | _ => []
+
+/-- From statement `k` of block `b` of `f`, the bytes `mask` of the word at `w` still holding a
+    spilled value: does no constant-address read of the IR meet one before the IR writes it?
+    Each block is entered at most `fuel` times with bytes it was not entered with. -/
+def fixedSlotFrom (f : Func) (words : List (Nat × Nat)) (w : Nat) :
+    Nat → List (Nat × Nat × Nat) → List (Nat × Nat) → Bool
+  | 0, _, _ => true
+  | _, [], _ => true
+  | fuel + 1, (b, k, mask) :: work, seen =>
+    match f.block? b with
+    | none => fixedSlotFrom f words w fuel work seen
+    | some blk =>
+      -- Run the block's statements from `k`.
+      let step := (blk.body.drop k).foldl (fun (acc : Option Nat) s => acc.bind fun m =>
+        if (storedValue f words blk s).isSome then some m else
+        let (rs, ws) := s.inst.constAccesses
+        if rs.any (fun (a, l) => m &&& wordMask w a l != 0) then none
+        else some (ws.foldl (fun m (a, l) => m - (m &&& wordMask w a l)) m)) (some mask)
+      match step with
+      | none => false
+      | some m =>
+        if m == 0 then fixedSlotFrom f words w fuel work seen
+        else if blk.term.constReads.any (fun (a, l) => m &&& wordMask w a l != 0) then false
+        else
+          let new := blk.term.succs.filter fun S =>
+            ((seen.lookup S).getD 0) &&& m != m
+          let seen := new.foldl (fun sn S => (S, ((sn.lookup S).getD 0) ||| m) :: sn) seen
+          fixedSlotFrom f words w fuel (work ++ new.map (·, 0, m)) seen
+
+/-- No spill store at `0x00` or `0x20` in a function of the plan is followed by a
+    constant-address read of the IR of a byte of that word before the IR writes the byte. -/
+def fixedSlotsSafe (s : Sidecar) (plan : String → SpillPlan) : Bool :=
+  (entries s).all fun (name, _) =>
+    ((s.section? name).bind (·.lowering)).all fun low =>
+      (plan name).all fun (fname, p) =>
+        match low.machine.func? fname with
+        | none => true
+        | some f =>
+          let f := f.instrument p.words
+          f.blocks.all fun b => b.body.zipIdx.all fun (s, k) =>
+            match storedValue f p.words b s with
+            | some (w, _) => !(w == 0 || w == 32) ||
+                fixedSlotFrom f p.words w (33 * f.blocks.length + 1) [(b.id, k + 1, 2 ^ 32 - 1)] []
+            | none => true
+
+/-! ## The checkers -/
+
+/-- The spill-aware checker: each section of the sidecar checked against its machine IR with
+    the stores of its spill plan (`Sidecar.spillPlan`), under the guard the instrumented model
+    runs it under, and no fixed-slot spill over IR data (`fixedSlotsSafe`, a convenience).
+    `checkSpills_sound` (`CheckCert.lean`) needs `FrameSafe s` besides. -/
+def Check.checkSpills (s : Sidecar) : Bool :=
+  Check.checkWith s.spillPlan s && fixedSlotsSafe s s.spillPlan
+
+/-- The checker of sidecars without memory spills, whose spill plans are empty; it reads no
+    plan, so the kernel never runs the walk. -/
+def Check.check (s : Sidecar) : Bool := Check.checkWith (fun _ => []) s && s.noSpills
+
+/-- `check` is `checkSpills` of a sidecar without memory spills. -/
+theorem Check.check_eq (s : Sidecar) : Check.check s = (Check.checkSpills s && s.noSpills) := by
+  unfold Check.check Check.checkSpills
+  cases hn : s.noSpills
+  · simp
+  · rw [show s.spillPlan = fun _ => [] from funext (spillPlan_eq_nil hn)]
+    simp [fixedSlotsSafe]
 
 end Fe.Sonatina

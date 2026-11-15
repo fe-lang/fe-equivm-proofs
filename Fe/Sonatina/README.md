@@ -13,8 +13,10 @@ fail, not pass.
 | `Hints.lean` | cheap checks of the lowering record against the bytes |
 | `Refine.lean` | `Implements`, and the composition `RefinesOn.of_implements` |
 | `Diff.lean` | IR against bytecode, with `Fe/EVM/Diff.lean` and `Generate.lean` |
-| `Spill.lean` | spill plans, the machine IR with its memory spills (`Sidecar.spilledModel`), reload-liveness |
-| `FrameSafe.lean` | the spill plan of a sidecar (`Sidecar.spillPlan`, untrusted), `FrameSafe`, `frameSafe_of_noSpills` |
+| `Plan.lean` | spill plans, the instrumented machine IR (`Func.instrument`), reload-liveness, the guard |
+| `Spill.lean` | the machine IR with its memory spills (`Sidecar.spilledModel`), `machine_not_panic`, `protected_kept` |
+| `FrameSafe.lean` | the spill plan of a sidecar (`Sidecar.spillPlan`, untrusted), `FrameSafe`, `frameSafe_of_noSpills`, `checkSpills`, `check`, `fixedSlotsSafe` |
+| `Check*.lean` | the checker and its soundness: `check_sound`, `checkSpills_sound` (`CheckCert.lean`) |
 | `SpillDiff.lean` | `FrameSafe` tested: the two models side by side (`scripts/frame_safe_diff.sh`) |
 | `Fixtures/` | sidecars of FeConstant, FeScalarStore, FeERC20, the deposit contract, WETH9, a factory and others |
 
@@ -362,8 +364,9 @@ handing the callee's entry state to the function theorem at lower gas; `block_ru
 `Final'`: the bytes end as the IR's run of the function does, or return to the return address
 with the results' words on top of the caller's stack.
 
-`Check.lean` is the first checker. `check s` covers sections of any number of functions, each with
-no memory spill, dynamic frame, dynamic stack pointer or call preserve, whose machine IR uses only
+`Check.lean` is the checker. `check s` covers sections of any number of functions, each with
+no memory spill (`checkSpills` admits them, below), dynamic frame, dynamic stack pointer or call
+preserve, whose machine IR uses only
 the pure, read, write and halting instructions `Check.lean` translates (message calls, creations
 and transient storage among them), and internal calls. It accepts both sections of FeConstant, FeScalarStore and
 FeERC20. On the corpus (`corpus-v3`) it accepted 387 of 430 sections without the environment and
@@ -609,44 +612,121 @@ Checker changes the proof needed, none changing a verdict except the third:
 
 Sonatina keeps some values in memory as well as on the stack (`funcs[].spills[]`, `memory`
 locations): it stores such a value at its word after defining it and reloads it later. The machine
-IR does not say so, and `Sound s` is about the machine IR; the plan (not built yet) is a checker
-`checkSpills` with `checkSpills s → FrameSafe s → Sound s`, the existing theorems its instances
-for sidecars without spills. What is built is the part that speaks of the IR alone:
+IR does not say so, and `Sound s` is about the machine IR. The spill-aware checker checks the bytes
+against the machine IR with its spill stores, and its theorem asks, besides, that the stores change
+nothing the contract shows:
 
-- `SpillPlan`, data: per function, each spilled value, its word and its reload points (a block
-  and a position in the instrumented block). `Sidecar.spillPlan` finds the reload points by
-  walking the bytes as the checker does (an `MLOAD` of a word the path's own stores hold that is
-  not the IR's next event); it is untrusted, and a wrong plan only makes the instrumented model
-  differ from the machine IR.
-- `Func.instrument` adds the stores the bytes make, as `evm_mstore` statements: after the
-  definition of a spilled value, of spilled parameters at entry, and at the end of a block that
-  jumps to a block with spilled phis (the phi's operand from the block, unless it is the phi
-  itself; an `undef` operand is stored nowhere, so the model never takes `undef` for a word).
-- `Func.reloadLive`: a value is reload-live at a point if one of its reloads is reachable before
-  the value is defined or stored again. Protecting the words of IR-live values instead is too
-  strong: Sonatina shares a word between values one of which is IR-live but never reloaded
-  (Bn254Mul, both ECRECOVER runtimes). `Func.liveClosed` tests that sets satisfy the equations,
-  and `Func.live_mono` is what it gives along a path.
-- The runner checks a guard (`Interp.lean`): each statement must leave the words of the values
-  reload-live after it that it neither defines nor stores, and its callers' such words, as they
-  were; a function returns only if it left its callers' words. Otherwise the run panics with
-  `spillClobbered` (2^256, no Fe panic's). `protected_kept`: a guarded run that returns kept them.
-- `Sidecar.spilledModel s plan`, the machine IR with its spills, is the machine IR's model under
-  the empty plan (`spilledModel_nil`). `FrameSafe s`: it `Implements`-ends as the machine IR, on
-  calls (`CalldataFits`) and deployments. The machine IR never panics (`machine_not_panic`), so
-  `FrameSafe` excludes a clobber. `frameSafe_of_noSpills`.
-- A spill store over IR data that the IR reads later (Sonatina's fixed-slot miscompile at
-  0x00/0x20) is no panic: the instrumented run reads the spilled value where the machine run reads
-  the IR's data, and `FrameSafe` is false wherever that read shows.
+```lean
+def checkSpills (s : Sidecar) : Bool :=
+  Check.checkWith s.spillPlan s && fixedSlotsSafe s s.spillPlan
 
-`scripts/frame_safe_diff.sh <sidecars>` tests `FrameSafe` where it is not proved: the two models
-on the inputs of the precompile generators (`scripts/<P>Diff.lean`, reused as they are) and on
-corpus drivers. The plans of the precompile runtimes with spills and of `erc4337.EntryPoint` and
-`msg_nested_array_arg.Caller` satisfy their liveness equations. Runs so far (2026-11-15), every
-one agreeing, with no clobber: Bn254Add 416 (all), Ripemd160 208 (all), Ecrecover 35 (its vectors
-and 20 generated), and, cut short by the interpreter's speed, EcrecoverPrecompile 20, Bn254Mul 4,
-Blake2F 4 (a run takes minutes there); the corpus drivers' Fe tests and generated calls (EntryPoint
-and Caller among their targets) show no disagreement of the two models.
+def check (s : Sidecar) : Bool := Check.checkWith (fun _ => []) s && s.noSpills
+
+theorem check_eq (s : Sidecar) : check s = (checkSpills s && s.noSpills)
+
+theorem checkSpills_sound {s : Sidecar} (h : checkSpills s = true) (hf : FrameSafe s) : Sound s
+```
+
+`check_sound`, `check_xiOk` and `check_xiOk_callsAt` keep their statements; `check_sound` is
+`checkSpills_sound` with `frameSafe_of_noSpills`. `checkSpills_xiOk` and `checkSpills_xiOk_callsAt`
+are `check_xiOk` and `check_xiOk_callsAt` with `FrameSafe s` and, for each frame, the account's
+existence and fitting calldata (deployments: `I.perm`) besides, as `FrameSafe` speaks only of those
+frames. The certificates evaluate `check`, which reads no spill plan; its kernel time is unchanged
+(FeERC20 2.5 s, WETH9 6.0 to 6.4 s, the checker before and after alternating in one process).
+
+**The class.** Functions may spill to memory words; frame spills, dynamic and lazy frames, the
+dynamic stack pointer and call preserves stay outside. `undef` operands are rejected as before (the
+instrumented model never takes `undef` for a word).
+
+**The instrumented model** (`Spill.lean`, `Plan.lean`). A `SpillPlan` gives per function each
+spilled value, its word and its reload points; `Func.instrument` adds the stores the bytes make as
+`evm_mstore` statements (after a definition, of parameters at entry, of a successor's phis at the
+end of a jumping block, unless the operand is the phi itself or `undef`). A value is reload-live
+at a point if one of its reloads is reachable before it is defined or stored again; a phi whose
+operand from a predecessor is the phi itself stays live across that edge, its word holding it from
+the last iteration (both ECRECOVER runtimes reload such a loop phi after the back edge). The guard
+of each statement is the words of the values reload-live after it that it does not kill, and the
+callers'; the runner (`runFuncG`) panics with `spillClobbered` where a statement changed one.
+`Sidecar.spillPlan` (`FrameSafe.lean`, untrusted, the only place the plan's source appears) finds
+the reload points by walking the bytes.
+
+**The checker** (`Check.lean`). Each function is checked against its instrumented machine IR
+(`checkSection code entry plan`, on `Module.instrument plan`), under the guard the model runs it
+under:
+- the spill stores are ordinary `MSTORE` events; each event and call carries the words its
+  statement's guard keeps (`keep`), its position and the spilled value it stores, if any;
+- the path knows words of memory (`Path.held`: word, expression, value). An `MSTORE` at a constant
+  address below `2 ^ 32` adds its word and keeps the known words its guard protects or it does not
+  meet; any other event or call keeps the words its guard protects (`Event.held`, `keepHeld`);
+- a bytes `MLOAD` of a constant word that is not the IR's next event is a reload: the path must
+  know the word, holding a value reload-live there (`Path.gap`), and the reload pushes its
+  expression;
+- a block starts knowing the words of its spilled values reload-live at its entry (none at the
+  function's entry), which count as defined for its statements (`FuncSpill.spillIn`, `defined`);
+  every arrival must know them, with the expression of the phi's operand from the block or of the
+  value (`arrivesHeld`), and a successor's such value that is no phi must be defined by the block;
+- the plan's values are values of the function and its sets satisfy the liveness equations
+  (`liveClosed`).
+
+**The proof.** The checker's lemmas run the guarded runner throughout (`runBodyG`, `runBlocksG`,
+`runFuncG`), carrying that the run does not panic (`NoPanicAt`): then each statement runs as
+itself and leaves its guard's words as they were (`guarded_exec`, `guarded_kept`), which
+`Trace.ok` and `Segs.callOk` record. `PathRel` holds that each known word holds its expression's
+word (`HeldRel`), kept by events (`HeldRel.event`: the read-back of a word store, and a store
+leaves a word it does not meet as it was, `mstore_read_disjoint`) and by calls (`HeldRel.keep`);
+`AtBlock` holds the words a block starts with. At the top, `FrameSafe` excludes the panic: a run
+that ends as the machine IR's never panics, as the machine IR never does (`machine_not_panic`), so
+the section's instrumented run never panics under any feed (`FrameSafe.runtime_noPanic`,
+`FrameSafe.init_noPanic`); `section_sound` gives the bytes' agreement with the instrumented run,
+and `FrameSafe`'s `EndsAs` takes it to the machine IR's. Soundness does not rest on the plan: a
+wrong plan makes the checker reject or `FrameSafe` false.
+
+**Relying on `FrameSafe`.** `FrameSafe s` is a statement about the machine IR and the plan alone:
+on every message call `CalldataFits` admits and every deployment, the instrumented model ends as
+the machine IR does. It fails where a statement writes a word whose value the bytes still reload
+(a clobber, the instrumented run's panic) or where a spill store overwrites IR data that the IR
+reads later (the fixed-slot miscompile). A certificate through `checkSpills_sound` owes a proof of
+it; until then, the dynamic test below is the evidence. The reload-liveness change above protects
+more words than the rule the dynamic test ran under (a loop phi whose operand is itself, across the
+latch), so for the ECRECOVER runtimes the test covered a weaker guard.
+
+**Fixed slots** (`fixedSlotsSafe`, a convenience). From a spill store at `0x00` or `0x20`, no
+constant-address read of the IR may meet a byte of that word before the IR writes the byte, along
+the function's blocks (calls not followed). It rejects Sonatina's fixed-slot spill over IR data
+cheaply; soundness does not rest on it: `FrameSafe` is false for such a section. No section of
+corpus-v5 with spills trips it (the 13 sidecars with a spill plan, the precompiles among them).
+
+**Figures.** `corpus-v5` is the corpus emitted again at the current pin (Fe `bdbe390ce9`, 257
+sidecars, 514 sections; corpus-v4's separate `FeProofs/Ecrecover` ingot is gone, its contract now
+among `FeProofs/Precompiles`). `check` accepts 499 sections, as before the spill-aware checker,
+section for section, and rejects 15; `checkSpills` accepts those 499 and the 8 runtimes with memory
+spills (Blake2F, Bn254Add, Bn254Mul, Ecrecover, EcrecoverPrecompile, Ripemd160,
+`erc4337.EntryPoint`, `msg_nested_array_arg.Caller`), 507, and rejects 7: Modexp,
+`erc4337.Account`, `mem_replace_take.C` and `signature.Wallet`, whose lowering record spills
+values the machine IR does not define (the values it gives `undef` operands, which the machine IR
+keeps as `undef`), 2 `br_table`s without a default and 1 dynamic frame. Of the 27 functions with
+memory spills of the precompile runtimes, 17 are accepted; the other 10 are Modexp's with `undef`
+operands. The corpus run of `scripts/SonatinaCheck.lean`, plans and fixed-slot check included,
+takes 2 min 14 s. The fixtures' verdicts are unchanged; `NestedArrayCaller`
+(`msg_nested_array_arg.Caller`) is a fixture with spills, accepted by `checkSpills` only, and its
+runtime takes the spill mutations, each rejected: two reload words swapped in the bytes, a spill
+store dropped from the bytes, a store to the wrong word, a spill word changed in the record only,
+a value reloaded after its word was reused (another value stored there, in the record and the
+bytes), and a value reloaded where the plan does not have it live (its reload points dropped).
+
+`scripts/frame_safe_diff.sh <sidecars>` tests `FrameSafe` where it is not proved: the two models on
+the inputs of the precompile generators (`scripts/<P>Diff.lean`) and on corpus drivers. Final
+counts (stopped 2026-11-15; the three slowest take minutes a run): Bn254Add 416 runs (all),
+Ripemd160 208 (all), Ecrecover 35, EcrecoverPrecompile 21, Bn254Mul 4, Blake2F 4, and the corpus
+drivers of `erc4337.EntryPoint` and `msg_nested_array_arg.Caller` (their Fe tests and generated
+calls): no clobber panic and no disagreement in any.
+
+Reading a failure: a `CLOBBER` line means a statement changed a word whose value the bytes reload
+later, on code that is correct by every other test; the plan (a reload point missing or at the
+wrong place) or the protection rule is wrong, or the bytes reuse a word too early. A `DIFFER` line
+(or a harness `DISAGREE` whose model reverts with the bytes of `SPILL DIFFER`) means the spill
+stores change what the machine IR shows: if the bytes match the instrumented model, they differ
+from the machine IR, a Sonatina miscompile, as the fixed-slot spill over IR data at 0x00/0x20 is.
 
 ## What is hard
 

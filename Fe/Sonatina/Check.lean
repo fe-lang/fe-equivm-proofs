@@ -1,14 +1,23 @@
 import Fe.Sonatina.Hints
 import Fe.Sonatina.Decode
+import Fe.Sonatina.Plan
 
 /-!
 # Checking bytes against the machine IR
 
-`check s` decides that each section of the sidecar `s` is emitted from its machine IR, for the
-class of sections the checker covers: no memory spills, no dynamic frames, no dynamic stack
-pointer, no call preserves, every value and immediate a word (as the EVM computes on words),
-and only the instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.
-The hints are inputs: a wrong one makes `check` false.
+`checkWith plan s` decides that each section of the sidecar `s` is emitted from its machine IR
+with the stores of the spill plan (`Func.instrument`), for the class of sections the checker
+covers: memory spills but no frame spills, no dynamic frames, no dynamic stack pointer, no call
+preserves, every value and immediate a word (as the EVM computes on words), and only the
+instructions `pureWith`, `eventWith` and `exitOf` translate, and internal calls.  `check` and
+`checkSpills` (`FrameSafe.lean`) are its instances for no plan and the walked plan.  The hints
+and the plan are inputs: a wrong one makes the checker reject.
+
+Memory spills: the spill stores are events like any other; the path knows words of memory
+(`Path.held`), which a constant `MSTORE` writes and each statement keeps where its guard
+protects them or the store does not meet them; a bytes `MLOAD` of a known word that is not the
+IR's next event is a reload, of a value the plan has reload-live there; a block starts knowing the
+words of its spilled values reload-live at its entry, and every arrival must know them.
 
 A section may have several functions; each is checked block by block.  A function returns if
 its entry block reaches a `ret` (`returning`).  Its return address is a value no value of the
@@ -69,6 +78,13 @@ structure Event where
   op : Operation
   args : List Expr
   result : Option Nat
+  /-- The words its statement must leave as they were: the statement's own words of the guard
+      the instrumented model runs it under (`SpillPlan.guard`). -/
+  keep : List Nat := []
+  /-- Where its statement is in the block. -/
+  pos : Nat := 0
+  /-- The spilled value it stores at its word, if it is a spill store (`storedValue`). -/
+  stores : Option Nat := none
   deriving DecidableEq, Repr
 
 /-- The pure opcodes, which compute a word from their operands and the frame's environment. -/
@@ -267,6 +283,22 @@ structure Canon where
   vals : List (Nat × Expr)
   nodes : List (Expr × Nat)
 
+/-- What the checker knows of a function's memory spills: the plan's spilled values and their
+    words, the values reload-live at each point (`Func.reloadLive`), the words each statement of
+    each block must leave as they were (the instrumented model's guard, `SpillPlan.guard`), and
+    the function's entry block. -/
+structure FuncSpill where
+  words : List (Nat × Nat)
+  live : Live
+  guard : Nat → List (List Nat)
+  entry : Nat
+
+/-- The spilled values block `S` starts with in memory, each with its word: those reload-live at
+    its entry, at a word below `2 ^ 32`; none at the function's entry. -/
+def FuncSpill.spillIn (sp : FuncSpill) (S : Nat) : List (Nat × Nat) :=
+  if S == sp.entry then [] else (sp.live.at S 0).filterMap fun v =>
+    (sp.words.lookup v).bind fun a => if a < 2 ^ 32 then some (v, a) else none
+
 /-- What the checker knows of a machine block: its function, the statement defining each
     value of the block, the section's symbols, the function's frame, and the expressions of
     the block's values, `Canon.ofDefs symbols defs`. -/
@@ -276,6 +308,9 @@ structure Ctx where
   symbols : List (String × Nat × Nat)
   frame : Frame
   canon : Canon
+  /-- The block, and what the checker knows of its function's spills. -/
+  block : Block
+  spill : FuncSpill
 
 /-- The value a statement defines purely or by an event, if one: a call's results are atoms. -/
 def _root_.Fe.Sonatina.Stmt.local? (s : Stmt) : Option (Nat × Inst) :=
@@ -336,10 +371,10 @@ def Canon.ofDefs (symbols : List (String × Nat × Nat)) (defs : List (Nat × In
 
 /-- The context of block `b`: only its own values have expressions, so a value of another
     block is the word the run of the IR holds for it when `b` runs. -/
-def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) (fr : Frame) :
-    Ctx :=
+def Ctx.ofBlock (f : Func) (b : Block) (symbols : List (String × Nat × Nat)) (fr : Frame)
+    (sp : FuncSpill) : Ctx :=
   let defs := b.body.filterMap Stmt.local?
-  ⟨f, defs, symbols, fr, Canon.ofDefs symbols defs⟩
+  ⟨f, defs, symbols, fr, Canon.ofDefs symbols defs, b, sp⟩
 
 def Ctx.expand (c : Ctx) : Nat → Option Expr := c.canon.expand
 
@@ -362,15 +397,29 @@ def Ctx.eventOfStmt (c : Ctx) (s : Stmt) : Option (Option Event) :=
     -- An event pops as many operands as the IR gives it, and a read defines its word.
     if δ op != some args.length then none else
     match s.dsts, readOps.contains op with
-    | [], false => some (some ⟨op, args, none⟩)
-    | [(id, _)], true => some (some ⟨op, args, some id⟩)
+    | [], false => some (some { op, args, result := none })
+    | [(id, _)], true => some (some { op, args, result := some id })
     | _, _ => none
   | none, none => none
 
-/-- The events of a block's statements, in order, or `none` if a statement is outside the class:
-    each is pure, or an event that defines at most one value. -/
-def Ctx.events (c : Ctx) (b : Block) : Option (List Event) :=
-  b.body.filterMapM c.eventOfStmt
+/-- The spilled value statement `s` of the block stores at its word, if it is a spill store. -/
+def Ctx.storeOf (c : Ctx) (s : Stmt) : Option Nat :=
+  (storedValue c.func c.spill.words c.block s).map (·.2)
+
+/-- An event of statement `s` at position `k`, the guard's words `ps.headD []` its own. -/
+def Ctx.annotate (c : Ctx) (ps : List (List Nat)) (k : Nat) (s : Stmt) (e : Event) : Event :=
+  { e with keep := ps.headD [], pos := k, stores := c.storeOf s }
+
+/-- The events of statements from position `k`, the guard's words of each the head of `ps`,
+    in order, or `none` if a statement is outside the class: each is pure, or an event that
+    defines at most one value. -/
+def Ctx.events (c : Ctx) : List (List Nat) → Nat → List Stmt → Option (List Event)
+  | _, _, [] => some []
+  | ps, k, s :: rest => do
+    let evs ← c.events ps.tail (k + 1) rest
+    match ← c.eventOfStmt s with
+    | some e => return c.annotate ps k s e :: evs
+    | none => return evs
 
 /-- A call of a block: the callee, its arguments' expressions, top first, the values it
     defines, and the block's events after it up to the next call. -/
@@ -379,26 +428,30 @@ structure CallSeg where
   args : List Expr
   dsts : List Nat
   events : List Event
+  /-- The words the call must leave as they were, and where it is in the block. -/
+  keep : List Nat
+  pos : Nat
   deriving Repr
 
 /-- The events of statements up to the first call, and each call with the events after it up to
     the next, or `none` if a statement is outside the class.  A call names a function of the
     section with as many arguments as it takes, and defines as many values as it returns, none
     if it does not return. -/
-def Ctx.segments (c : Ctx) : List Stmt → Option (List Event × List CallSeg)
-  | [] => some ([], [])
-  | s :: rest => do
-    let (evs, calls) ← c.segments rest
+def Ctx.segments (c : Ctx) :
+    List (List Nat) → Nat → List Stmt → Option (List Event × List CallSeg)
+  | _, _, [] => some ([], [])
+  | ps, k, s :: rest => do
+    let (evs, calls) ← c.segments ps.tail (k + 1) rest
     match s.inst with
     | .call g args =>
       let ce ← c.frame.callee g
       let es ← args.mapM (c.operand)
       if es.length == ce.params && s.dsts.length == (if ce.returns then ce.rets else 0) then
-        return ([], ⟨g, es, s.dsts.map (·.1), evs⟩ :: calls)
+        return ([], ⟨g, es, s.dsts.map (·.1), evs, ps.headD [], k⟩ :: calls)
       else none
     | _ =>
       match ← c.eventOfStmt s with
-      | some e => return (e :: evs, calls)
+      | some e => return (c.annotate ps k s e :: evs, calls)
       | none => return (evs, calls)
 
 /-- How a block ends, as the bytes must end it. -/
@@ -464,6 +517,13 @@ def Ctx.arrival (c : Ctx) (hints : List BlockHint) (pred succ : Nat) : Option (L
   let b ← c.func.block? succ
   (c.frame.slots hint).mapM (c.arrivalSlot b pred)
 
+/-- A word of memory a path knows: its address, the expression of the word it holds, and the
+    spilled value it holds if a spill store wrote it. -/
+structure Held where
+  word : Nat
+  expr : Expr
+  value : Option Nat
+
 /-- A run of the bytes for one block, at `pc`: the events up to the next call, and the calls
     after them. -/
 structure Path where
@@ -472,6 +532,50 @@ structure Path where
   events : List Event
   exit : Exit
   calls : List CallSeg
+  /-- The words of memory the path knows. -/
+  held : List Held
+
+/-- The position of the IR's next event or call in the block, or the terminator's. -/
+def Path.gap (c : Ctx) (p : Path) : Nat :=
+  match p.events, p.calls with
+  | ev :: _, _ => ev.pos
+  | [], cs :: _ => cs.pos
+  | [], [] => c.block.body.length
+
+/-- A bytes `MLOAD` from `p` is a reload: of a constant word, and not the IR's next event. -/
+def Path.reloads (p : Path) : Bool :=
+  match p.stack with
+  | .const a :: _ => !(p.events.head?.any fun ev => ev.op == .MLOAD && ev.args == [.const a])
+  | _ => false
+
+/-- The words of `hs` a statement keeps: those among the words `keep` its guard protects. -/
+def keepHeld (keep : List Nat) (hs : List Held) : List Held := hs.filter (keep.contains ·.word)
+
+/-- The words the path knows after an event: those its statement keeps, and, for an `MSTORE` at
+    a constant address below `2 ^ 32`, the word it writes and those it does not meet. -/
+def Event.held (ev : Event) (hs : List Held) : List Held :=
+  match ev.op, ev.args with
+  | .MSTORE, [.const a, e] =>
+    if a < 2 ^ 32 then
+      ⟨a, e, ev.stores⟩ :: hs.filter fun h =>
+        ev.keep.contains h.word || a + 32 ≤ h.word || h.word + 32 ≤ a
+    else keepHeld ev.keep hs
+  | _, _ => keepHeld ev.keep hs
+
+/-- What the words of the spilled values `succ` starts with must hold when `pred` jumps to it:
+    a phi its operand from `pred`, another value itself. -/
+def Ctx.arrivalHeld (c : Ctx) (pred succ : Nat) : Option (List (Nat × Expr)) := do
+  let sb ← c.func.block? succ
+  (c.spill.spillIn succ).mapM fun (v, a) =>
+    match sb.phis.find? (·.dst == v) with
+    | some phi => do return (a, ← c.operand (← phi.incoming.find? (·.2 == pred)).1)
+    | none => do return (a, ← c.expand v)
+
+/-- The path knows, when `pred` jumps to `succ`, the words `succ` starts with. -/
+def arrivesHeld (c : Ctx) (pred succ : Nat) (hs : List Held) : Bool :=
+  match c.arrivalHeld pred succ with
+  | some req => req.all fun (a, e) => hs.any fun h => h.word == a && h.expr == e
+  | none => false
 
 /-- The bytes' opcode at `pc`, its immediate, and the next pc, if the instruction lies in the
     code: what follows the code (a constructor's arguments) does not change it.  `tree` is the
@@ -556,7 +660,7 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
     -- Arrival at the selected successor, if the IR has selected one and its code starts here.
     if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some p.pc then
       match p.exit.selected with
-      | some s => arrives c hints b s p.stack
+      | some s => arrives c hints b s p.stack && arrivesHeld c b s p.held
       | none => false
     else
     match opAt code tree p.pc with
@@ -588,13 +692,26 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
             if p.stack.length < k then false else go (c.canon.intern e :: p.stack.drop k) p.events
           | none => false
         | none => false
+      else if op == .MLOAD && p.reloads then
+        -- A reload: the word a spill store wrote, of a value reload-live here.
+        match p.stack with
+        | .const a :: rest =>
+          match p.held.find? (·.word == a) with
+          | some h => (h.value.any fun v => (c.spill.live.at b (p.gap c)).contains v) &&
+              go (h.expr :: rest) p.events
+          | none => false
+        | _ => false
       else if readOps.contains op || writeOps.contains op then
         match δ op, p.events with
         | some k, ev :: events =>
           if ev.op == op && p.stack.length ≥ k && p.stack.take k == ev.args then
             match ev.result, readOps.contains op with
-            | some id, true => go (.atom id :: p.stack.drop k) events
-            | none, false => go (p.stack.drop k) events
+            | some id, true =>
+              run code tree dests c hints place b fuel
+                ⟨next, .atom id :: p.stack.drop k, events, p.exit, p.calls, ev.held p.held⟩
+            | none, false =>
+              run code tree dests c hints place b fuel
+                ⟨next, p.stack.drop k, events, p.exit, p.calls, ev.held p.held⟩
             | _, _ => false
           else false
         | _, _ => false
@@ -621,14 +738,15 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
                 (match rest.drop cs.args.length with
                   | .const k :: rest' => validJump code dests k &&
                     run code tree dests c hints place b fuel
-                      ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more⟩
+                      ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more,
+                        keepHeld cs.keep p.held⟩
                   | _ => false)
               else more.isEmpty && cs.events.isEmpty && (p.exit matches .unreach)
             | none => false
           | _, _ =>
             if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some t then
               match p.exit.selected with
-              | some s => arrives c hints b s rest
+              | some s => arrives c hints b s rest && arrivesHeld c b s p.held
               | none => false
             -- Into code that is no block's: an outlined unit, which the run continues in.
             else if (hints.any (place ·.block == some t)) then false
@@ -645,7 +763,8 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
         | .const t :: cond :: rest =>
           p.events.isEmpty && p.calls.isEmpty && validJump code dests t &&
           (match p.exit.way cond true with
-            | some (.succ s) => place s == some t && arrives c hints b s rest
+            | some (.succ s) => place s == some t && arrives c hints b s rest &&
+              arrivesHeld c b s p.held
             | some .never => true
             | _ => false) &&
           (match p.exit.way cond false with
@@ -680,13 +799,6 @@ def _root_.Fe.Sonatina.Term.operands : Term → List Operand
   | .ret vals => vals
   | _ => []
 
-/-- The successors of a terminator. -/
-def _root_.Fe.Sonatina.Term.succs : Term → List Nat
-  | .jump d => [d]
-  | .br _ nz z => [nz, z]
-  | .brTable _ d cases => d.toList ++ cases.map (·.2)
-  | _ => []
-
 /-- Every operand reads a value of `defs`. -/
 def reads (defs : List Nat) (ops : List Operand) : Bool :=
   ops.all fun o => o.var?.all defs.contains
@@ -711,8 +823,9 @@ def slotDefined (defs : List Nat) (sb : Block) : Slot → Bool
     from `b`, so defined and not `undef`, and each value of its entry stack is a phi or defined
     by `b`.  The
     machine IR runs a read of an undefined value nowhere. -/
-def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) : Bool :=
-  match definedAfter (entry ++ b.phis.map (·.dst)) b.body with
+def defined (f : Func) (hints : List BlockHint) (sp : FuncSpill) (b : Block)
+    (entry : List Nat) : Bool :=
+  match definedAfter (entry ++ b.phis.map (·.dst) ++ (sp.spillIn b.id).map (·.1)) b.body with
   | none => false
   | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
     match f.block? succ with
@@ -720,7 +833,9 @@ def defined (f : Func) (hints : List BlockHint) (b : Block) (entry : List Nat) :
       | some (.undef _, _) | none => false
       | some (o, _) => reads defs [o]) &&
       -- A value of the successor's entry stack not its phi is one `b` has defined.
-      (hints.find? (·.block == succ)).all fun h => h.entryStack.all (slotDefined defs sb)
+      (hints.find? (·.block == succ)).all (fun h => h.entryStack.all (slotDefined defs sb)) &&
+      -- So is a spilled value it starts with in memory.
+      (sp.spillIn succ).all fun va => sb.phis.any (·.dst == va.1) || defs.contains va.1
     | none => false
 
 /-- The successor a terminator goes to whatever the values, if any. -/
@@ -743,8 +858,8 @@ def nodup : List Nat → Bool
 
 /-- Whether the function's code does nothing to memory beyond its machine IR. -/
 def inClass (f : FuncHint) : Bool :=
-  f.spills.isEmpty && !f.frame.dynamicFrame && !f.frame.lazyFrame && !f.frame.dynSpInit &&
-    f.frame.callPreserves == 0
+  f.spills.all (fun (_, l) => !(l matches .frame _)) && !f.frame.dynamicFrame &&
+    !f.frame.lazyFrame && !f.frame.dynSpInit && f.frame.callPreserves == 0
 
 /-- The blocks from which the function may return: those that end in `ret`, and those with a
     successor among them, found in as many rounds as the function has blocks. -/
@@ -787,30 +902,31 @@ def frameOf (low : Lowering) (entry : String) (f : Func) : Frame :=
 /-- Block `b` of function `f` matches its bytes, from its offset and planned entry stack, the
     section entry's block's events led by the free pointer's store. -/
 def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame)
-    (isRoot : Bool) (entryBlock : Block) (place : Nat → Option Nat) (rank : Nat → Nat)
+    (sp : FuncSpill) (isRoot : Bool) (entryBlock : Block) (place : Nat → Option Nat) (rank : Nat → Nat)
     (b : Block) : Except String Unit := do
-  let c := Ctx.ofBlock f b code.symbols fr
+  let c := Ctx.ofBlock f b code.symbols fr sp
   let some h := hint.blocks.find? (·.block == b.id) | throw s!"block{b.id} has no hint"
   let some pc := place b.id | throw s!"block{b.id} has no place"
   let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
-  let some (events, calls) := c.segments b.body
+  let some (events, calls) := c.segments (sp.guard b.id) 0 b.body
     | throw s!"block{b.id}: an instruction outside the class"
   let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
   if isRoot && b.id == entryBlock.id then
     unless stack.isEmpty do throw "the entry block's entry stack is not empty"
   let entryValues := h.entryStack.filterMap fun | .value id => some id | _ => none
-  unless defined f hint.blocks b entryValues do
+  unless defined f hint.blocks sp b entryValues do
     throw s!"block{b.id} reads a value not defined before"
   -- A successor whose code starts where `b`'s does may be reached in no step: it is lower.
   unless b.term.only.all fun s => place s != some pc || rank s < rank b.id do
     throw s!"block{b.id} reaches a successor at its own offset and no lower"
   -- The section entry's code stores the initial free pointer first.
   let events := match low.entryFreePtr, isRoot && b.id == entryBlock.id with
-    | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
+    | some ptr, true => { op := .MSTORE, args := [.const 0x40, .const ptr], result := none } :: events
     | _, _ => events
+  let held := (sp.spillIn b.id).map fun (v, a) => ⟨a, .atom v, some v⟩
   unless run code.bytecode (codeTree code.bytecode) (jumpdests code.bytecode) c hint.blocks place
       b.id (2 * low.codeSize + 2)
-      ⟨pc, stack, events, exit, calls⟩ do
+      ⟨pc, stack, events, exit, calls, held⟩ do
     throw s!"block{b.id} at {pc} does not match its bytes"
 
 /-- What function `hint` of the section must be, each with what its failure says: its values
@@ -820,9 +936,11 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
     `ret` and their predecessors, with the return address at the bottom of their entry stacks,
     and none in a function that does not return; each `ret` with as many values as it returns. -/
 def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
-    (entryBlock : Block) : List (Bool × String) :=
+    (entryBlock : Block) (p : FuncPlan) (L : Live) : List (Bool × String) :=
   let fr := frameOf low entry f
   [(inClass hint, s!"{hint.name} is outside the class"),
+   (p.words.all (·.1 < f.fresh) && (p.isEmpty || f.liveClosed p L),
+    s!"the spill plan of {hint.name} does not fit its machine IR"),
    (f.blocks.all (fun b =>
       b.phis.all (·.ty.bits == 256) && b.body.all (·.dsts.all (·.2.bits == 256))) &&
       f.params.all (·.2.bits == 256) && f.rets.all (·.bits == 256),
@@ -850,23 +968,36 @@ def funcChecks (low : Lowering) (entry : String) (hint : FuncHint) (f : Func)
       some (f.params.map (.value ·.1) ++ if fr.returns then [.funcReturn] else []),
     s!"the entry block of {hint.name} is not entered with its arguments")]
 
+/-- What the checker knows of the spills of function `f` named `name`, entered at `eb`, under the
+    plan and its guard `G`. -/
+def funcSpill (plan : SpillPlan) (G : Guard) (name : String) (f : Func) (eb : Block) :
+    FuncSpill :=
+  let p := (plan.lookup name).getD []
+  ⟨p.words, if p.isEmpty then [] else f.reloadLive p, G.at name, eb.id⟩
+
 /-- Function `hint` of the section is as `funcChecks` says and matches its bytes, block by
     block. -/
-def checkFunc (code : CodeSection) (low : Lowering) (entry : String) (hint : FuncHint) :
-    Except String Unit := do
+def checkFunc (code : CodeSection) (low : Lowering) (plan : SpillPlan) (G : Guard)
+    (entry : String) (hint : FuncHint) : Except String Unit := do
   let some f := low.machine.func? hint.name | throw s!"no machine IR of {hint.name}"
   let some entryBlock := f.blocks.head? | throw s!"{hint.name} has no entry block"
-  (funcChecks low entry hint f entryBlock).forM fun (ok, msg) => unless ok do throw msg
+  let sp := funcSpill plan G hint.name f entryBlock
+  (funcChecks low entry hint f entryBlock ((plan.lookup hint.name).getD []) sp.live).forM
+    fun (ok, msg) => unless ok do throw msg
   let place := placeIn low hint.name
-  f.blocks.forM (checkBlock code low hint f (frameOf low entry f) (hint.name == entry)
+  f.blocks.forM (checkBlock code low hint f (frameOf low entry f) sp (hint.name == entry)
     entryBlock place (zeroRank f place f.blocks.length))
 
-/-- Every function of the section matches its bytes, the section's entry among them. -/
-def checkSection (code : CodeSection) (entry : String) : Except String Unit := do
+/-- Every function of the section matches its bytes, the section's entry among them: its
+    machine IR with the stores of the spill plan `plan` (`Module.instrument`), under the guard
+    the instrumented model runs it under. -/
+def checkSection (code : CodeSection) (entry : String) (plan : SpillPlan) :
+    Except String Unit := do
   let some low := code.lowering | throw "no lowering record"
   unless code.bytecode.size < UInt256.size do throw "the code does not fit a word"
   unless low.funcs.any (·.name == entry) do throw "no hint of the entry function"
-  low.funcs.forM (checkFunc code low entry)
+  let low := { low with machine := low.machine.instrument plan }
+  low.funcs.forM (checkFunc code low plan (plan.guard low.machine) entry)
 
 /-- The entry function of each section of the sidecar's object. -/
 def entries (s : Sidecar) : List (String × String) :=
@@ -874,19 +1005,22 @@ def entries (s : Sidecar) : List (String × String) :=
     fun sec => (sec.name, sec.entry)
 
 /-- The section `name` of the sidecar is checked against its entry function `entry`. -/
-def checkEntry (s : Sidecar) (name entry : String) : Except String Unit := do
+def checkEntry (s : Sidecar) (plan : String → SpillPlan) (name entry : String) :
+    Except String Unit := do
   let some code := s.section? name | throw s!"no section {name}"
-  match checkSection code entry with
+  match checkSection code entry (plan name) with
   | .ok () => pure ()
   | .error e => throw s!"{name}: {e}"
 
-/-- Each of the sidecar's sections is checked, and it has an `init` and a `runtime`. -/
-def checkAll (s : Sidecar) : Except String Unit := do
-  (entries s).forM fun (name, entry) => checkEntry s name entry
+/-- Each of the sidecar's sections is checked under its spill plan, and it has an `init` and a
+    `runtime`. -/
+def checkAll (plan : String → SpillPlan) (s : Sidecar) : Except String Unit := do
+  (entries s).forM fun (name, entry) => checkEntry s plan name entry
   unless (s.section? "init").isSome && (s.section? "runtime").isSome &&
       ((entries s).lookup "init").isSome && ((entries s).lookup "runtime").isSome do
     throw "no init or runtime section"
 
-def check (s : Sidecar) : Bool := (checkAll s).isOk
+/-- The sidecar's sections are checked under the spill plans `plan`. -/
+def checkWith (plan : String → SpillPlan) (s : Sidecar) : Bool := (checkAll plan s).isOk
 
 end Fe.Sonatina.Check

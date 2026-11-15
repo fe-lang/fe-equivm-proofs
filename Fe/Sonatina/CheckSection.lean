@@ -49,27 +49,27 @@ theorem XstepN_fuel {D : Array UInt256} {s : State} {x : Except ExecutionExcepti
 /-- The entry block's events lead with the free pointer's store. -/
 def prologue (low : Lowering) (isEntry : Bool) (events : List Event) : List Event :=
   match low.entryFreePtr, isEntry with
-  | some ptr, true => ⟨.MSTORE, [.const 0x40, .const ptr], none⟩ :: events
+  | some ptr, true => { op := .MSTORE, args := [.const 0x40, .const ptr], result := none } :: events
   | _, _ => events
 
 theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : Func}
-    {fr : Frame} {isRoot : Bool} {entryBlock : Block} {place : Nat → Option Nat}
+    {fr : Frame} {sp : FuncSpill} {isRoot : Bool} {entryBlock : Block} {place : Nat → Option Nat}
     {rank : Nat → Nat} {b : Block}
-    (h : checkBlock code low hint f fr isRoot entryBlock place rank b = .ok ()) :
+    (h : checkBlock code low hint f fr sp isRoot entryBlock place rank b = .ok ()) :
     ∃ hb pc stack events calls exit,
       hint.blocks.find? (·.block == b.id) = some hb ∧ place b.id = some pc ∧
-      (Ctx.ofBlock f b code.symbols fr).entryStack hb = some stack ∧
-      (Ctx.ofBlock f b code.symbols fr).segments b.body = some (events, calls) ∧
-      (Ctx.ofBlock f b code.symbols fr).exitOf b.term = some exit ∧
+      (Ctx.ofBlock f b code.symbols fr sp).entryStack hb = some stack ∧
+      (Ctx.ofBlock f b code.symbols fr sp).segments (sp.guard b.id) 0 b.body = some (events, calls) ∧
+      (Ctx.ofBlock f b code.symbols fr sp).exitOf b.term = some exit ∧
       ((isRoot && b.id == entryBlock.id) = true → stack = []) ∧
-      defined f hint.blocks b (hb.entryStack.filterMap fun | .value id => some id | _ => none) =
-        true ∧
+      defined f hint.blocks sp b
+        (hb.entryStack.filterMap fun | .value id => some id | _ => none) = true ∧
       (b.term.only.all fun s => place s != some pc || rank s < rank b.id) = true ∧
       run code.bytecode (codeTree code.bytecode) (jumpdests code.bytecode)
-        (Ctx.ofBlock f b code.symbols fr) hint.blocks place b.id
+        (Ctx.ofBlock f b code.symbols fr sp) hint.blocks place b.id
         (2 * low.codeSize + 2)
-        ⟨pc, stack, prologue low (isRoot && b.id == entryBlock.id) events, exit, calls⟩ =
-          true := by
+        ⟨pc, stack, prologue low (isRoot && b.id == entryBlock.id) events, exit, calls,
+          (sp.spillIn b.id).map fun (v, a) => ⟨a, .atom v, some v⟩⟩ = true := by
   unfold checkBlock at h
   cases hhb : hint.blocks.find? (·.block == b.id) with
   | none => simp [hhb] at h
@@ -79,16 +79,16 @@ theorem checkBlock_ok {code : CodeSection} {low : Lowering} {hint : FuncHint} {f
   | none => simp [hpc] at h
   | some pc =>
   simp only [hpc] at h
-  cases hst : (Ctx.ofBlock f b code.symbols fr).entryStack hb with
+  cases hst : (Ctx.ofBlock f b code.symbols fr sp).entryStack hb with
   | none => simp [hst] at h
   | some stack =>
   simp only [hst] at h
-  cases hev : (Ctx.ofBlock f b code.symbols fr).segments b.body with
+  cases hev : (Ctx.ofBlock f b code.symbols fr sp).segments (sp.guard b.id) 0 b.body with
   | none => simp [hev] at h
   | some ec =>
   obtain ⟨events, calls⟩ := ec
   simp only [hev] at h
-  cases hex : (Ctx.ofBlock f b code.symbols fr).exitOf b.term with
+  cases hex : (Ctx.ofBlock f b code.symbols fr sp).exitOf b.term with
   | none => simp [hex] at h
   | some exit =>
   simp only [hex] at h
@@ -130,11 +130,13 @@ theorem forM_bind_ok {α ε : Type} {g : α → Except ε Unit} {l : List α} {k
   | ok u => rw [hl] at h; exact ⟨rfl, h⟩
 
 /-- What a function the checker accepts is. -/
-theorem checkFunc_ok {code : CodeSection} {low : Lowering} {entry : String} {hint : FuncHint}
-    (h : checkFunc code low entry hint = .ok ()) :
+theorem checkFunc_ok {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G : Guard}
+    {entry : String} {hint : FuncHint} (h : checkFunc code low plan G entry hint = .ok ()) :
     ∃ f entryBlock, low.machine.func? hint.name = some f ∧ f.blocks.head? = some entryBlock ∧
-      (∀ x ∈ funcChecks low entry hint f entryBlock, x.1 = true) ∧
-      ∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f) (hint.name == entry)
+      (∀ x ∈ funcChecks low entry hint f entryBlock ((plan.lookup hint.name).getD [])
+        (funcSpill plan G hint.name f entryBlock).live, x.1 = true) ∧
+      ∀ b ∈ f.blocks, checkBlock code low hint f (frameOf low entry f)
+        (funcSpill plan G hint.name f entryBlock) (hint.name == entry)
         entryBlock (placeIn low hint.name) (zeroRank f (placeIn low hint.name) f.blocks.length)
           b = .ok () := by
   unfold checkFunc at h
@@ -155,11 +157,12 @@ theorem checkFunc_ok {code : CodeSection} {low : Lowering} {entry : String} {hin
   · rfl
 
 /-- What a section the checker accepts is. -/
-theorem checkSection_ok {code : CodeSection} {entry : String}
-    (h : checkSection code entry = .ok ()) :
+theorem checkSection_ok {code : CodeSection} {entry : String} {plan : SpillPlan}
+    (h : checkSection code entry plan = .ok ()) :
     ∃ low, code.lowering = some low ∧ code.bytecode.size < UInt256.size ∧
       low.funcs.any (·.name == entry) = true ∧
-      ∀ hint ∈ low.funcs, checkFunc code low entry hint = .ok () := by
+      ∀ hint ∈ low.funcs, checkFunc code { low with machine := low.machine.instrument plan } plan
+        (plan.guard (low.machine.instrument plan)) entry hint = .ok () := by
   unfold checkSection at h
   cases hlow : code.lowering with
   | none => simp [hlow] at h
@@ -569,15 +572,17 @@ theorem entryStack_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {env
 /-- The bytes are at the start of block `b`, entered from `prev` with the run's values `env`:
     the code, the pc at `b`'s offset, the world agreeing, and the planned entry stack's words on
     top of the EVM stack, as the values are once `b` is entered. -/
-def AtBlock (M : List Made) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame) (I : ExecutionEnv)
-    (b : Block) (prev : Option Nat) (env : Env) (w : World) (st : State) (ret : Option UInt256)
-    (B : List UInt256) : Prop :=
+def AtBlock (M : List Made) (low : Lowering) (hint : FuncHint) (f : Func) (fr : Frame)
+    (sp : FuncSpill) (I : ExecutionEnv) (b : Block) (prev : Option Nat) (env : Env) (w : World)
+    (st : State) (ret : Option UInt256) (B : List UInt256) : Prop :=
   b ∈ f.blocks ∧ f.block? b.id = some b ∧ st.executionEnv = I ∧ Agree M st w ∧
   ∃ hb pc envB ws, hint.blocks.find? (·.block == b.id) = some hb ∧
     placeIn low hint.name b.id = some pc ∧ st.machineState.pc.toNat = pc ∧
     enter env prev b = pure envB ∧ st.machineState.stack = ws ++ B ∧
     List.Forall₂ (SlotWord envB ret) (fr.slots hb) ws ∧
-    ∀ phi ∈ b.phis, ∃ n, envB[phi.dst]? = some (.int 256 n) ∧ n < UInt256.size
+    (∀ phi ∈ b.phis, ∃ n, envB[phi.dst]? = some (.int 256 n) ∧ n < UInt256.size) ∧
+    ∀ va ∈ sp.spillIn b.id, ∃ v : UInt256, envB[va.1]? = some (.int 256 v.toNat) ∧
+      w.memory.readWithPadding va.2 32 = v.toByteArray
 
 /-- What the section entry's code does before the entry block: it stores the initial free
     pointer. -/
@@ -599,7 +604,7 @@ theorem pre_trace (low : Lowering) (eb b : Block) (I : ExecutionEnv) (w : World)
     | some ptr =>
       refine ⟨_, by simp [he]; rfl, fun ρ evs r h => ?_⟩
       simp only [he, beq_self_eq_true]
-      exact .ok (args := [.ofNat 0x40, .ofNat ptr]) rfl rfl h
+      exact .ok (args := [.ofNat 0x40, .ofNat ptr]) rfl rfl (fun _ h => nomatch h) h
   · refine ⟨w, by simp [he], fun ρ evs r h => ?_⟩
     have : (b.id == eb.id) = false := by simpa using he
     cases low.entryFreePtr <;> simpa [this] using h
@@ -887,41 +892,6 @@ theorem arrival_rel {ee : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {D : Li
       subst hv
       exact hR hr
     | callReturn => simp [Ctx.arrivalSlot] at he
-
-/-- Without a function to call, a block's statements have no calls, and its events are its
-    statements'. -/
-theorem segments_nocall {c : Ctx} (hc : ∀ g, c.frame.callee g = none) :
-    ∀ {stmts : List Stmt} {evs : List Event} {calls : List CallSeg},
-      c.segments stmts = some (evs, calls) →
-        calls = [] ∧ stmts.filterMapM c.eventOfStmt = some evs
-  | [], evs, calls, h => by
-    simp only [Ctx.segments, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    simp
-  | s :: rest, evs, calls, h => by
-    unfold Ctx.segments at h
-    cases hr : c.segments rest with
-    | none => simp [hr] at h
-    | some ec =>
-      obtain ⟨evs', calls'⟩ := ec
-      obtain ⟨h1, h2⟩ := segments_nocall hc hr
-      simp only [hr, Option.bind_eq_bind, Option.bind_some] at h
-      split at h
-      · next g args hg => simp [hc g] at h
-      · cases he : c.eventOfStmt s with
-        | none => simp [he] at h
-        | some o =>
-          cases o with
-          | none =>
-            simp only [he, Option.bind_some, Option.pure_def, Option.some.injEq,
-              Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
-            simp [List.filterMapM_cons, he, h2, h1]
-          | some e =>
-            simp only [he, Option.bind_some, Option.pure_def, Option.some.injEq,
-              Prod.mk.injEq] at h
-            obtain ⟨rfl, rfl⟩ := h
-            simp [List.filterMapM_cons, he, h2, h1]
 
 theorem XstepN_pos {D : Array UInt256} {s : State} {x : Except ExecutionException
     (State × Option (HaltCause × ByteArray))} {n : Nat} (h : XstepN D s x n) : 0 < n := by
