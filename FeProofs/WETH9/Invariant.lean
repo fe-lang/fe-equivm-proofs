@@ -1,4 +1,5 @@
 import FeProofs.WETH9.RuntimeCorrect
+import FeProofs.WETH9.SonatinaCorrect
 import FeProofs.WETH9.Solvency
 import Fe.EVM.RefineInvariant
 
@@ -90,19 +91,29 @@ theorem deploy_model {c : AccountAddress} {I : Env} {σ : AccountMap} {A : Subst
     2.  Through the certificate of the exported deployment entry, which speaks of frames whose
     account exists: `Lambda` adds the new account before it runs the init code when the creator
     has an account, as every creator the EVM runs does. -/
-theorem feWETH9DeploySolvent {L : LambdaCall}
+theorem deploy_solvent (hD : RefinesDeploy .P0 feWETH9CreationBytecode feWETH9Bytecode
+      Exported.contract (· = ByteArray.empty)) {L : LambdaCall}
     (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hs : ∃ acc, L.σ[L.s]? = some acc)
     (hw : L.w = true)
     (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
       decimalsSlot ≠ balanceSlot k)
     (hz : L.run.2.2.2.2.1 = true) :
     L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 := by
-  refine refinesDeploy_holds Exported.feWETH9DeployRefinesExported (args := ByteArray.empty) rfl
+  refine refinesDeploy_holds hD (args := ByteArray.empty) rfl
     hi hs hw (fun I σ A feed out w hown _ hperm hempty hrun => ?_) hz
   obtain ⟨w', hrun', hacc⟩ := (Exported.init_endsAs I (World.init σ A feed) ByteArray.empty
     feWETH9Bytecode rfl hperm).succeeds hrun
   rw [← hacc]
   exact deploy_model hown hempty hslots hrun'
+
+theorem feWETH9DeploySolvent {L : LambdaCall}
+    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hs : ∃ acc, L.σ[L.s]? = some acc)
+    (hw : L.w = true)
+    (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
+      decimalsSlot ≠ balanceSlot k)
+    (hz : L.run.2.2.2.2.1 = true) :
+    L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 :=
+  deploy_solvent Exported.feWETH9DeployRefinesExported hi hs hw hslots hz
 
 /-! ## The invariant through every call -/
 
@@ -164,11 +175,12 @@ theorem model_keeps (a : AccountAddress) :
     the calls the exported model makes under every feed), ends where the same holds, with no more
     ether in total, if it is entered with value its payer has and the balances add up to less
     than `2 ^ 256`. -/
-theorem feWETH9KeepsSolvent (a : AccountAddress) (e : Fin 1025) :
+theorem keeps_solvent (hR : RefinesOn .P0 feWETH9Bytecode Exported.contract CalldataFits)
+    (a : AccountAddress) (e : Fin 1025) :
     ThetaGood a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) Admission
         Exported.contract.callsAt e
       ∧ LambdaGood a (Weth feWETH9Bytecode) Admission Exported.contract.callsAt e :=
-  refinesOn_keeps_calls Exported.feWETH9RefinesExported weth_admissible (fromOthers a)
+  refinesOn_keeps_calls hR weth_admissible (fromOthers a)
     (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (fun _ _ _ h => h.1)
     (model_keeps a) e
 
@@ -177,7 +189,8 @@ theorem feWETH9KeepsSolvent (a : AccountAddress) (e : Fin 1025) :
     than `2 ^ 256`, whose sender has no code (EIP-3607), whose data fits a word, and whose
     execution admits every successful frame at `a`, ends where the same holds, with no more
     ether in total. -/
-theorem feWETH9TxKeepsSolvent (a : AccountAddress) {σ σ' : AccountMap} {H_f : ℕ}
+theorem tx_keeps_solvent (hR : RefinesOn .P0 feWETH9Bytecode Exported.contract CalldataFits)
+    (a : AccountAddress) {σ σ' : AccountMap} {H_f : ℕ}
     {H : BlockHeader} {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress}
     {A : Substate} {z : Bool} {gu : UInt256} (hH : Holds a (Weth feWETH9Bytecode) σ)
     (hT : total σ < UInt256.size)
@@ -191,9 +204,72 @@ theorem feWETH9TxKeepsSolvent (a : AccountAddress) {σ σ' : AccountMap} {H_f : 
     (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
     Holds a (Weth feWETH9Bytecode) σ' ∧ total σ' ≤ total σ :=
   tx_holds weth_admissible (fromOthers a)
-    (frameHyp_of_refinesOn_calls Exported.feWETH9RefinesExported
+    (frameHyp_of_refinesOn_calls hR
       (fun _ h => ⟨ByteArray.empty, by rw [h, ByteArray.append_empty], rfl⟩) (fun _ _ _ h => h.1)
       (model_keeps a))
     (fun _ h => h) hH hT hsender hdata hpay hfee hnonce hadmit hΥ
+
+/-- **Every message call and creation keeps WETH9 solvent** (`feWETH9KeepsSolvent`). -/
+theorem feWETH9KeepsSolvent (a : AccountAddress) (e : Fin 1025) :
+    ThetaGood a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) Admission
+        Exported.contract.callsAt e
+      ∧ LambdaGood a (Weth feWETH9Bytecode) Admission Exported.contract.callsAt e :=
+  keeps_solvent Exported.feWETH9RefinesExported a e
+
+/-- **Every transaction keeps WETH9 solvent** (`feWETH9TxKeepsSolvent`). -/
+theorem feWETH9TxKeepsSolvent (a : AccountAddress) {σ σ' : AccountMap} {H_f : ℕ}
+    {H : BlockHeader} {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress}
+    {A : Substate} {z : Bool} {gu : UInt256} (hH : Holds a (Weth feWETH9Bytecode) σ)
+    (hT : total σ < UInt256.size)
+    (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
+    (hdata : T.base.data.size < UInt256.size)
+    (hpay : T.base.gasLimit.toNat * (txPrice T H_f).toNat + calcBlobFee H T + T.base.value.toNat
+      ≤ (balOf σ S_T).toNat)
+    (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
+    (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
+    (hadmit : TxAdmitted a Admission Exported.contract.callsAt σ H_f H blocks T S_T)
+    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
+    Holds a (Weth feWETH9Bytecode) σ' ∧ total σ' ≤ total σ :=
+  tx_keeps_solvent Exported.feWETH9RefinesExported a hH hT hsender hdata hpay hfee hnonce hadmit hΥ
+
+/-! ## Through the `P1` certificates
+
+The same three theorems, resting on the certificates through the Sonatina checker
+(`SonatinaCorrect.lean`), which use no `native_decide`, weakened to `P0` (`RefinesOn.toP0`,
+`RefinesDeploy.toP0`). -/
+
+/-- `feWETH9KeepsSolvent` through the `P1` certificate. -/
+theorem feWETH9KeepsSolventP1 (a : AccountAddress) (e : Fin 1025) :
+    ThetaGood a (Weth feWETH9Bytecode) (· = feWETH9Bytecode) (Enters a) Admission
+        Exported.contract.callsAt e
+      ∧ LambdaGood a (Weth feWETH9Bytecode) Admission Exported.contract.callsAt e :=
+  keeps_solvent Sonatina.feWETH9RefinesExportedP1.toP0 a e
+
+/-- `feWETH9TxKeepsSolvent` through the `P1` certificate. -/
+theorem feWETH9TxKeepsSolventP1 (a : AccountAddress) {σ σ' : AccountMap} {H_f : ℕ}
+    {H : BlockHeader} {blocks : ProcessedBlocks} {T : Transaction} {S_T : AccountAddress}
+    {A : Substate} {z : Bool} {gu : UInt256} (hH : Holds a (Weth feWETH9Bytecode) σ)
+    (hT : total σ < UInt256.size)
+    (hsender : ∀ acc, σ[S_T]? = some acc → acc.code = .empty)
+    (hdata : T.base.data.size < UInt256.size)
+    (hpay : T.base.gasLimit.toNat * (txPrice T H_f).toNat + calcBlobFee H T + T.base.value.toNat
+      ≤ (balOf σ S_T).toNat)
+    (hfee : (txFee T H_f).toNat ≤ (txPrice T H_f).toNat)
+    (hnonce : (σ.getD S_T default).nonce.toNat < 2 ^ 64 - 1)
+    (hadmit : TxAdmitted a Admission Exported.contract.callsAt σ H_f H blocks T S_T)
+    (hΥ : Υ σ H_f H blocks T S_T = .ok (σ', A, z, gu)) :
+    Holds a (Weth feWETH9Bytecode) σ' ∧ total σ' ≤ total σ :=
+  tx_keeps_solvent Sonatina.feWETH9RefinesExportedP1.toP0 a hH hT hsender hdata hpay hfee hnonce
+    hadmit hΥ
+
+/-- `feWETH9DeploySolvent` through the `P1` certificate. -/
+theorem feWETH9DeploySolventP1 {L : LambdaCall}
+    (hi : L.i = feWETH9CreationBytecode ++ ByteArray.empty) (hs : ∃ acc, L.σ[L.s]? = some acc)
+    (hw : L.w = true)
+    (hslots : ∀ k, nameSlot ≠ balanceSlot k ∧ symbolSlot ≠ balanceSlot k ∧
+      decimalsSlot ≠ balanceSlot k)
+    (hz : L.run.2.2.2.2.1 = true) :
+    L.run.1 = L.addr ∧ Holds L.addr (Weth feWETH9Bytecode) L.run.2.1 :=
+  deploy_solvent Sonatina.feWETH9DeployRefinesExportedP1.toP0 hi hs hw hslots hz
 
 end FeProofs.WETH9
