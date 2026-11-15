@@ -28,7 +28,7 @@ theorem leadingZeros_bound (v : UInt256) :
   have hL : L.length ≤ 256 := by
     have := List.IsPrefix.length_le (List.takeWhile_prefix
       (p := fun n => !(v.toNat % 2 ^ 256).testBit (256 - 1 - n)) (l := List.range 256))
-    simpa using this
+    simpa using! this
   have hv : v.toNat < 2 ^ 256 := v.val.isLt
   rw [toNat_lit (by omega)]
   refine ⟨hL, Nat.lt_pow_two_of_testBit _ fun i hi => ?_⟩
