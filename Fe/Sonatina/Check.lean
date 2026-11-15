@@ -74,12 +74,13 @@ def pureOps : List Operation :=
   [.ADD, .MUL, .SUB, .DIV, .SDIV, .MOD, .SMOD, .ADDMOD, .MULMOD, .EXP, .SIGNEXTEND, .LT, .GT,
    .SLT, .SGT, .EQ, .ISZERO, .AND, .OR, .XOR, .NOT, .BYTE, .SHL, .SHR, .SAR, .ADDRESS, .ORIGIN,
    .CALLER, .CALLVALUE, .CALLDATALOAD, .CALLDATASIZE, .CODESIZE, .CHAINID, .TIMESTAMP, .NUMBER,
-   .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO]
+   .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO, .BLOCKHASH]
 
 /-- The opcodes that read state: their result is an event's.  `GAS` reads the gas left, which
-    the model takes from its feed. -/
+    the model takes from its feed; a message call's result is its success word. -/
 def readOps : List Operation :=
-  [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS]
+  [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL,
+   .STATICCALL, .DELEGATECALL]
 
 /-- The message calls the checker matches: an event each, its result the success word. -/
 def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
@@ -192,7 +193,7 @@ def evmPureOpcode : EvmOp → Option Operation
   | .calldataSize => some .CALLDATASIZE | .codeSize => some .CODESIZE
   | .chainId => some .CHAINID | .timestamp => some .TIMESTAMP | .number => some .NUMBER
   | .gasLimit => some .GASLIMIT | .baseFee => some .BASEFEE | .coinbase => some .COINBASE
-  | .prevRandao => some .PREVRANDAO
+  | .prevRandao => some .PREVRANDAO | .blockHash => some .BLOCKHASH
   | .addMod => some .ADDMOD | .mulMod => some .MULMOD
   | _ => none
 
@@ -206,6 +207,7 @@ def evmEventOpcode : EvmOp → Option Operation
   | .selfBalance => some .SELFBALANCE | .balance => some .BALANCE
   | .extCodeSize => some .EXTCODESIZE | .returnDataSize => some .RETURNDATASIZE
   | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
+  | .call => some .CALL | .staticCall => some .STATICCALL | .delegateCall => some .DELEGATECALL
   | _ => none
 
 /-- The instruction makes a message call the checker matches. -/
@@ -216,6 +218,12 @@ def _root_.Fe.Sonatina.Inst.messages : Inst → Bool
 /-- Some function of the module makes a message call. -/
 def _root_.Fe.Sonatina.Module.hasCalls (m : Module) : Bool :=
   m.funcs.any fun f => f.blocks.any fun b => b.body.any (·.inst.messages)
+
+/-- The machine IR of the sidecar's section `name` makes a message call. -/
+def _root_.Fe.Sonatina.Sidecar.hasCalls (s : Sidecar) (name : String) : Bool :=
+  match s.section? name with
+  | some code => code.lowering.any (·.machine.hasCalls)
+  | none => false
 
 /-- The value a statement defines, if one, with its instruction. -/
 def _root_.Fe.Sonatina.Stmt.def? (s : Stmt) : Option (Nat × Inst) :=

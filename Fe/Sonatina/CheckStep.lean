@@ -61,7 +61,7 @@ theorem pure_moves {s : State} {op : Operation} {args t : List UInt256} {r : UIn
   rcases args with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨d, rest⟩⟩⟩⟩ <;>
   rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
+    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl <;>
   simp [opEval, evalOp, envOp] at hr <;>
   subst hr <;>
   simp only [List.cons_append, List.nil_append] at hs <;>
@@ -105,6 +105,10 @@ theorem pure_moves {s : State} {op : Operation} {args t : List UInt256} {r : UIn
     | moves_from step_basefee
     | moves_from step_coinbase
     | moves_from step_prevrandao
+    | (have h := step_blockhash s hdec
+       simp only [hs, List.cons_append, List.nil_append, Bool.or_eq_true, decide_eq_true_eq,
+         Array.getD_eq_getD_getElem?, Array.getElem?_map] at h
+       exact moves_of h)
 
 theorem split_stack {l : List UInt256} {n : Nat} (h : n ≤ l.length) :
     ∃ pre t, l = pre ++ t ∧ pre.length = n :=

@@ -378,7 +378,8 @@ theorem Ends.event {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} 
     {cls : List CallSeg} {e0 ex ex₁ : Exit} {s : State}
     {r : Option (Except (Fe.Exit World) World)} {ev : Event} {evs : List Event} {w : World}
     {args t : List UInt256}
-    (henv : s.executionEnv = I) (hc : Calm s) (hm : EvMoves s ev.op args t) (hw : Agree M s w)
+    (henv : s.executionEnv = I) (hc : Calm s ∨ K = true) (hm : EvMoves s ev.op args t)
+    (hw : Agree M s w)
     (hargs : ev.args.mapM (·.eval I ρ) = some args) (htr : Trace I ρ (ev :: evs) w r)
     (h : ∀ s' w', s'.machineState.pc = s.machineState.pc + ⟨1⟩ →
       s'.machineState.stack = (ev.result.map ρ).toList ++ t → s'.executionEnv = I → Agree M s' w' →
@@ -386,18 +387,18 @@ theorem Ends.event {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} 
     Ends K M code I ρ c hints place b B e0 ex cls s r := by
   subst henv
   rcases hm M w hw with hx | hx | ⟨f, e, he, hx, hf⟩ | ⟨r', w', s', he, hx, hpc, hst, henv', hw'⟩
-  · exact .inl ⟨1, _, .last hc hx (by simp), .inl rfl⟩
-  · exact .inl ⟨1, _, .last hc hx (by simp), .inr rfl⟩
+  · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inl rfl⟩
+  · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inr rfl⟩
   · cases htr with
     | ok ha hr _ => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
     | fail ha hr =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
-      exact .inr (.inl ⟨f, e, 1, rfl, hf, .last hc hx (by simp)⟩)
+      exact .inr (.inl ⟨f, e, 1, rfl, hf, .step hc hx fun t ht => by simp at ht⟩)
     | stuck ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
   · cases htr with
     | ok ha hr hrest =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
-      exact Ends.cons (.inl hc) hx henv' (h s' w' hpc hst henv' hw' hrest)
+      exact Ends.cons hc hx henv' (h s' w' hpc hst henv' hw' hrest)
     | fail ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
     | stuck ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
 
@@ -498,7 +499,7 @@ theorem opEval_total {ee : ExecutionEnv} {op : Operation} {ws : List UInt256}
     beq_iff_eq] at hp
   rcases hp with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
     | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
-    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+    | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   all_goals
     rcases ws with _ | ⟨a, _ | ⟨b, _ | ⟨c, _ | ⟨_, _⟩⟩⟩⟩ <;> simp [δ] at hk
     simp [opEval, evalOp, envOp]
@@ -652,10 +653,11 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     {hints : List BlockHint} {place : Nat → Option Nat} {b : Nat} {e0 : Exit}
     (hsize : code.size < UInt256.size)
     (hretj : c.frame.returns = true → (D_J I.code 0).contains (ρ c.frame.retId) = true) :
-    ∀ fuel p s w r B, run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s →
+    ∀ fuel p s w r B, (∀ ev ∈ p.events, messageOps.contains ev.op = true → K = true) →
+      run code c hints place b fuel p = true → PathRel code tail I ρ B e0 p s →
       Agree M s w → Trace I ρ p.events w r → Ends K M code I ρ c hints place b B e0 p.exit p.calls s r
-  | 0, p, s, w, r, B, h, _, _, _ => by simp [run] at h
-  | fuel + 1, p, s, w, r, B, h, hp, hw, htr => by
+  | 0, p, s, w, r, B, _, h, _, _, _ => by simp [run] at h
+  | fuel + 1, p, s, w, r, B, hK, h, hp, hw, htr => by
     unfold run at h
     by_cases harr : (p.events.isEmpty && p.calls.isEmpty &&
         (p.exit.selected.bind place) == some p.pc) = true
@@ -698,7 +700,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         Ends K M code I ρ c hints place b B e0 p.exit p.calls s r :=
       fun pc' stk es hc hg hm hn hst hrun =>
       Ends.moves hp.env hc hm fun g hx => ⟨_, run_ends hsize hretj fuel
-        { p with pc := next, stack := es } _ w r B
+        { p with pc := next, stack := es } _ w r B hK
         hrun ⟨hp.env, hp.code, hn, hst, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet hg (by simpa [Calm, hdec] using hc)) hx) htr⟩
     have hone : next = p.pc + 1 → (s.machineState.pc + ⟨1⟩).toNat = next := fun hn => by
       rw [pc_one _ (by rw [hp.pc]; omega), hp.pc, hn]
@@ -819,23 +821,32 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         have hargs : ev.args.mapM (·.eval I ρ) = some ws := htake ▸ hm
         have hem := event_evMoves h4 hdec hs (by rw [hk, hl])
         rw [hevs] at htr
-        refine Ends.event (ex₁ := p.exit) hp.env
-          (calm_of_mem hdec (L := readOps ++ writeOps) (by decide)
-            (by simpa [List.contains_append] using h4)) (hop ▸ hem) hw hargs htr
+        -- A message call is calm only if the section makes none.
+        have hcK : Calm s ∨ K = true := by
+          by_cases hco : callOps.contains op = true
+          · refine .inr (hK ev (by rw [hevs]; exact .head _) ?_)
+            have hall := List.all_eq_true.mp (by decide : (readOps ++ writeOps).all
+              (fun o => !callOps.contains o || messageOps.contains o) = true) op
+              (by simpa [List.contains_append] using h4)
+            rw [hop]
+            simp only [hco, Bool.not_true, Bool.false_or] at hall
+            exact hall
+          · exact .inl (calm_of hdec (by simpa using hco))
+        refine Ends.event (ex₁ := p.exit) hp.env hcK (hop ▸ hem) hw hargs htr
           fun s' w' hpc hst henv hw2 htr' => ?_
         have hpc' : s'.machineState.pc.toNat = next := by rw [hpc]; exact hone'
         split at h
         · next _ _ id hr _ =>
           rw [hr] at hst
           exact run_ends hsize hretj fuel ⟨next, .atom id :: p.stack.drop k, events, p.exit,
-            p.calls⟩ _ w' r B h
+            p.calls⟩ _ w' r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h
             ⟨henv, hp.code, hpc', by
               simpa [hst] using hrest.cons (e := .atom id) (v := ρ id) rfl, hp.valid, hp.exit⟩
             hw2 htr'
         · next _ _ hr _ =>
           rw [hr] at hst
           exact run_ends hsize hretj fuel ⟨next, p.stack.drop k, events, p.exit, p.calls⟩ _ w'
-            r B h ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit⟩ hw2 htr'
+            r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit⟩ hw2 htr'
         · cases h
       · cases h
     rw [if_neg h4] at h
@@ -961,7 +972,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
                 (fun d hd => selected_sound hS hp.valid (hp.next ▸ hd)) hrest h
                 (e0_not_halt hp hS) (isJump_of_selected hp hS)⟩
             · cases h
-          · exact ⟨_, run_ends hsize hretj fuel { p with pc := t, stack := rest } _ w r B h
+          · exact ⟨_, run_ends hsize hretj fuel { p with pc := t, stack := rest } _ w r B hK h
               ⟨hp.env, hp.code, htn, hrest, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet (by decide) (by decide)) hx)
               htr⟩
       · -- A return.
@@ -1036,7 +1047,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           · next S hS =>
             have hn := way_sound hS hcv ht hp.valid
             exact ⟨_, run_ends hsize hretj fuel
-              { p with pc := next, stack := rest, exit := .goto S } _ w r B hnt
+              { p with pc := next, stack := rest, exit := .goto S } _ w r B hK hnt
               ⟨hp.env, hp.code, hone', hrest, trivial,
               .inr ⟨by rw [← hp.next, hn]; rfl, fun op args =>
                 ⟨nohalt hS op args, by simp⟩, trivial, isJump_of_way hp hS⟩⟩ hw₁ htr⟩
@@ -1044,7 +1055,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           · next e' hS =>
             have hn := way_sound hS hcv ht hp.valid
             exact ⟨_, run_ends hsize hretj fuel { p with pc := next, stack := rest, exit := e' } _
-              w r B hnt ⟨hp.env, hp.code, hone', hrest, hn.2,
+              w r B hK hnt ⟨hp.env, hp.code, hone', hrest, hn.2,
               .inr ⟨by rw [hn.1, hp.next], fun op args =>
                 ⟨nohalt hS op args, way_exit_not_halt hS op args⟩, way_exit_isJump hS,
                 isJump_of_way hp hS⟩⟩
