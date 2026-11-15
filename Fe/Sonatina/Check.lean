@@ -77,13 +77,15 @@ def pureOps : List Operation :=
    .GASLIMIT, .BASEFEE, .COINBASE, .PREVRANDAO, .BLOCKHASH]
 
 /-- The opcodes that read state: their result is an event's.  `GAS` reads the gas left, which
-    the model takes from its feed; a message call's result is its success word. -/
+    the model takes from its feed; a message call's result is its success word, a creation's the
+    new contract's address or zero. -/
 def readOps : List Operation :=
   [.SLOAD, .MLOAD, .KECCAK256, .SELFBALANCE, .BALANCE, .EXTCODESIZE, .RETURNDATASIZE, .GAS, .CALL,
-   .STATICCALL, .DELEGATECALL, .TLOAD]
+   .STATICCALL, .DELEGATECALL, .CREATE, .CREATE2, .TLOAD]
 
-/-- The message calls the checker matches: an event each, its result the success word. -/
-def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL]
+/-- The message calls and creations the checker matches: an event each, its result the success
+    word or the new address. -/
+def messageOps : List Operation := [.CALL, .STATICCALL, .DELEGATECALL, .CREATE, .CREATE2]
 
 /-- The opcodes that write state. -/
 def writeOps : List Operation :=
@@ -209,18 +211,20 @@ def evmEventOpcode : EvmOp → Option Operation
   | .returnDataCopy => some .RETURNDATACOPY | .gas => some .GAS
   | .tload => some .TLOAD | .tstore => some .TSTORE
   | .call => some .CALL | .staticCall => some .STATICCALL | .delegateCall => some .DELEGATECALL
+  | .create => some .CREATE | .create2 => some .CREATE2
   | _ => none
 
-/-- The instruction makes a message call the checker matches. -/
+/-- The instruction makes a message call or a creation the checker matches. -/
 def _root_.Fe.Sonatina.Inst.messages : Inst → Bool
-  | .evm .call _ | .evm .staticCall _ | .evm .delegateCall _ => true
+  | .evm .call _ | .evm .staticCall _ | .evm .delegateCall _ | .evm .create _
+  | .evm .create2 _ => true
   | _ => false
 
-/-- Some function of the module makes a message call. -/
+/-- Some function of the module makes a message call or a creation. -/
 def _root_.Fe.Sonatina.Module.hasCalls (m : Module) : Bool :=
   m.funcs.any fun f => f.blocks.any fun b => b.body.any (·.inst.messages)
 
-/-- The machine IR of the sidecar's section `name` makes a message call. -/
+/-- The machine IR of the sidecar's section `name` makes a message call or a creation. -/
 def _root_.Fe.Sonatina.Sidecar.hasCalls (s : Sidecar) (name : String) : Bool :=
   match s.section? name with
   | some code => code.lowering.any (·.machine.hasCalls)
