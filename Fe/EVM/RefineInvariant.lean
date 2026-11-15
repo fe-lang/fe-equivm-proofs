@@ -49,6 +49,9 @@ is below depth 1024) gives `GoodTheta` of it from the premises `ModelKeeps` hand
   `RefinesFor.accounts` covers those.
 - On a successful run, `Agrees` at profile `P0` equates the bytecode's account map with the
   model's.  The invariant is a property of the account map.
+- The certificate speaks only of frames whose account exists (`OwnerExists`).  A frame at `a`
+  starts where `Holds a P` holds, so `a` has an account.  A creation's frame has one when its
+  creator does (`LambdaCall.frame_owner`), which `refinesDeploy_holds` asks.
 - The certificate must cover every admitted frame: `frameHyp_of_refinesOn` asks that `admits`
   imply the certificate's own condition, so a `RefinesOn … CalldataFits` certificate is used with
   an `admits` that includes `CalldataFits`.
@@ -113,7 +116,7 @@ theorem frameHyp_of_refinesOn (hcert : RefinesOn p bytecode m admits')
   intro σpre v σ σ₀ g A I σ' g' A' o howner htr hcd hadm hdeep hcalls hσ hen hv hTpre hHpre hH hXi
     acc acc' hacc hacc' hcode
   obtain ⟨tail, hc, htail⟩ := htrusted I.code htr
-  exact (hcert σ σ₀ g A I tail hc htail (hadmits σ I hcd hadm)).accounts
+  exact (hcert σ σ₀ g A I tail hc htail ⟨acc, howner ▸ hacc⟩ (hadmits σ I hcd hadm)).accounts
     (P := fun τ => ∀ acc', τ[a]? = some acc' → acc'.code = acc.code → P acc')
     (fun feed out w hrun acc' => hmodel I σpre v σ σ₀ g A feed out w howner htr hcd hadm hdeep
       hcalls hσ hen hv hTpre hHpre hH hrun acc acc' hacc)
@@ -248,14 +251,17 @@ theorem Agrees.accounts_out {p : Profile} {evm : EvmResult}
       cases h
       exact hQ feed _ _ (Or.inl hm)
 
-/-- **Deployment from a certificate.**  A creation of `creation ++ args` that succeeds ends where
-    `Holds L.addr P` holds, if every successful run of the model's constructor, at the new
-    address, with write permission, from an account map where that address has empty storage,
-    leaves there an account that satisfies `P` with the code it returns. -/
+/-- **Deployment from a certificate.**  A creation of `creation ++ args` by an account that
+    exists that succeeds ends where `Holds L.addr P` holds, if every successful run of the model's
+    constructor, at the new address, with write permission, from an account map where that
+    address has empty storage, leaves there an account that satisfies `P` with the code it
+    returns.  `Lambda` adds the new account before it runs the init code only when the creator
+    has an account (`LambdaCall.frame_owner`), and the certificate speaks only of frames whose
+    account exists. -/
 theorem refinesDeploy_holds {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
     {validArgs : ByteArray → Prop} (hcert : RefinesDeploy p creation runtime m validArgs)
     {L : LambdaCall} {args : ByteArray} (hargs : validArgs args) (hi : L.i = creation ++ args)
-    (hw : L.w = true) {P : Account → Prop}
+    (hs : ∃ acc, L.σ[L.s]? = some acc) (hw : L.w = true) {P : Account → Prop}
     (hmodel : ∀ (I : Env) σ A feed out (w : World), I.codeOwner = L.addr → I.source = L.s →
       I.perm = true → (σ.getD L.addr default).storage = default →
       Succeeds ((m.init args >>= fun tail => pure (runtime ++ tail)).exec I
@@ -265,7 +271,8 @@ theorem refinesDeploy_holds {p : Profile} {creation runtime : ByteArray} {m : Co
   obtain ⟨hcode, hstor, -⟩ := lambda_success hz
   refine deploy_holds (fun σSS gSS ASS o hXi => ?_) hz
   exact Agrees.accounts_out
-    (hcert L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 args hargs (hcode.trans hi) hw)
+    (hcert L.frame.1 L.σ₀ L.g L.frame.2.1 L.frame.2.2 args hargs (hcode.trans hi)
+      (L.frame_owner hs) hw)
     (Q := fun τ out => P {τ.getD L.addr default with code := out})
     (fun feed out w hrun => hmodel _ _ _ feed out w rfl rfl hw hstor hrun) hXi
 

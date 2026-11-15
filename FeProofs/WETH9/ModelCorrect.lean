@@ -694,7 +694,7 @@ theorem symbolArm_refines {g : UInt256}
 /-- The bytecode refines the model on every message call. -/
 theorem feWETH9RefinesModel : Refines .P0 feWETH9Bytecode Model.contract := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hsize
+  intro σ σ₀ g A I hcode _ hsize
   refine RefinesFor.of_gas ?_
   show ArmAgreesFeed σ σ₀ g A I Model.runtime
   have sel : ∀ i, (¬ selIs I (feWETH9SelBytes i)) →
@@ -777,7 +777,7 @@ theorem feWETH9DeployRefinesModel :
     RefinesDeploy .P0 feWETH9CreationBytecode feWETH9Bytecode Model.contract
       (· = ByteArray.empty) := by
   refine RefinesDeploy.of_unit_closed (init := fun _ => Model.init) (fun _ => rfl) ?_
-  rintro σ σ₀ g A I args rfl hcode hperm
+  rintro σ σ₀ g A I args rfl hcode _ hperm
   have hcode' : I.code = ctorCode := hcode
   by_cases hwv : I.weiValue = ⟨0⟩
   swap

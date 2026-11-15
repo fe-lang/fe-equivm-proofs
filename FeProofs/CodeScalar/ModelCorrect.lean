@@ -66,7 +66,7 @@ end Model
 
 /-- The runtime bytecode followed by any word refines the model. -/
 theorem feCodeScalarRefinesModel : Refines .P0 feCodeScalarBytecode Model.contract := by
-  intro σ σ₀ g A I tail hcode htail hsize
+  intro σ σ₀ g A I tail hcode htail _ hsize
   have htail : tail.size = 32 := htail
   rw [← toByteArray_uInt256OfByteArray_of_size32 htail] at hcode
   generalize uInt256OfByteArray tail = v at hcode
@@ -111,7 +111,7 @@ theorem feCodeScalarDeployRefinesModel :
     RefinesDeploy .P0 feCodeScalarCreationBytecode feCodeScalarBytecode Model.contract
       (fun args => ∃ v : UInt256, args = v.toByteArray) := by
   refine RefinesDeploy.closed ?_
-  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode _
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode _ _
   by_cases hwv : I.weiValue = ⟨0⟩
   · exact agrees_of_ret (g := Sat256.ofUInt256 g) hcode (feCodeScalarCtorRet v hcode hwv)
       (init_ok _ v hwv) rfl

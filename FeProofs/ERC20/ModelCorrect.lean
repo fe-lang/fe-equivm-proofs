@@ -375,7 +375,7 @@ theorem transferFromArm_refines {g : UInt256}
 
 theorem feERC20RefinesModel : Refines .P0 feERC20Bytecode Model.contract := by
   refine RefinesOn.of_code rfl ?_
-  intro σ σ₀ g A I hcode hsize
+  intro σ σ₀ g A I hcode _ hsize
   refine RefinesFor.closed ?_
   show ArmAgrees σ σ₀ g A I Model.runtime
   have sel : ∀ i, (¬ selIs I (feERC20SelBytes i)) →
@@ -438,7 +438,7 @@ theorem feERC20DeployRefinesModel :
     RefinesDeploy .P0 feERC20CreationBytecode feERC20Bytecode Model.contract
       (fun args => ∃ v : UInt256, args = ctorTail v) := by
   refine RefinesDeploy.of_unit_closed (init := Model.init) (fun _ => rfl) ?_
-  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode hperm
+  rintro σ σ₀ g A I args ⟨v, rfl⟩ hcode _ hperm
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · exact agrees_of_rev (g := Sat256.ofUInt256 g) hcode (feERC20CtorRev hcode hwv)
