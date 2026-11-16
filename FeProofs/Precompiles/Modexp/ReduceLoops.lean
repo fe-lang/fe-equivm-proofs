@@ -56,7 +56,6 @@ theorem zero_loop9 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toN
       decide_false, Bool.false_eq_true, ite_false, pure_bind, Fe.M.exec_pure]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
-    dsimp only
     rw [ite_eq_right (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
@@ -98,7 +97,6 @@ theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.to
       decide_false, Bool.false_eq_true, ite_false, pure_bind, Fe.M.exec_pure]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
-    dsimp only
     rw [ite_eq_right (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl

@@ -101,10 +101,14 @@ theorem sha256_toExecute (σ : AccountMap) :
   rw [ite_eq_left (by decide +kernel)]
 
 /-- `Θ`'s dispatch on a precompile's address, at address 2. -/
-theorem theta_match_two {β : AccountAddress → Sort u} (f1 : Unit → β 1) (f2 : Unit → β 2)
-    (f3 : Unit → β 3) (f4 : Unit → β 4) (f5 : Unit → β 5) (f6 : Unit → β 6) (f7 : Unit → β 7)
-    (f8 : Unit → β 8) (f9 : Unit → β 9) (f10 : Unit → β 10) (fd : (x : AccountAddress) → β x) :
-    Θ.match_3 β 2 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 fd = f2 () := rfl
+theorem theta_match_two {β : AccountAddress → Sort u}
+    (f1 : (h : 1 < AccountAddress.size) → β ⟨1, h⟩) (f2 : (h : 2 < AccountAddress.size) → β ⟨2, h⟩)
+    (f3 : (h : 3 < AccountAddress.size) → β ⟨3, h⟩) (f4 : (h : 4 < AccountAddress.size) → β ⟨4, h⟩)
+    (f5 : (h : 5 < AccountAddress.size) → β ⟨5, h⟩) (f6 : (h : 6 < AccountAddress.size) → β ⟨6, h⟩)
+    (f7 : (h : 7 < AccountAddress.size) → β ⟨7, h⟩) (f8 : (h : 8 < AccountAddress.size) → β ⟨8, h⟩)
+    (f9 : (h : 9 < AccountAddress.size) → β ⟨9, h⟩)
+    (f10 : (h : 10 < AccountAddress.size) → β ⟨10, h⟩) (fd : (x : AccountAddress) → β x) :
+    Θ.match_3 β 2 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 fd = f2 (by decide) := rfl
 
 set_option maxHeartbeats 1000000 in
 /-- A call of the SHA-256 precompile that succeeds returns the digest of its input. -/
