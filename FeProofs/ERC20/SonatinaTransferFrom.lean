@@ -21,10 +21,10 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
-attribute [local simp] Exported.recv0_arm0_entry Exported.recv0_arm1_entry
-  Exported.recv0_arm2_entry Exported.recv0_arm3_entry Exported.recv0_arm4_entry
-  Exported.recv0_arm5_entry Exported.recv0_arm0 Exported.recv0_arm1 Exported.recv0_arm2
-  Exported.recv0_arm3 Exported.recv0_arm4 Exported.recv0_arm5 Exported.balancesField
+attribute [local simp] Exported.recv_Transfer_entry Exported.recv_Approve_entry
+  Exported.recv_TransferFrom_entry Exported.recv_BalanceOf_entry Exported.recv_Allowance_entry
+  Exported.recv_TotalSupply_entry Exported.recv_Transfer Exported.recv_Approve Exported.recv_TransferFrom
+  Exported.recv_BalanceOf Exported.recv_Allowance Exported.recv_TotalSupply Exported.balancesField
   Exported.allowancesField Exported.supplyField Place.storage store load sload entry
   exec_nonPayable exec_sstore ofNat_zero_eq
 
@@ -41,7 +41,7 @@ set_option maxHeartbeats 16000000 in
     allowance is written, so they agree even where the two slots coincide. -/
 theorem arm_transferFrom (hmem : w.memory.size + 1024 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm2_entry).exec I w)
+    EndsAs ((entry Exported.recv_TransferFrom_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 15).exec I w)) := by
   have hr : w.reserved.memory.size + 1024 < UInt256.size :=
     reserveMemory_room hmem (by decide)

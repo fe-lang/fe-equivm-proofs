@@ -29,12 +29,12 @@ theorem init_eq (initial : UInt256) : init initial = Model.initBody initial := b
   simp [init, Field.stored, Model.initBody, Model.storedSlot]
   rfl
 
-theorem recv0_arm0_eq : recv0_arm0 = Model.get := by
-  simp [recv0_arm0, Field.stored, Model.get, Model.storedSlot]
+theorem recv_Get_eq : recv_Get = Model.get := by
+  simp [recv_Get, Field.stored, Model.get, Model.storedSlot]
   rfl
 
-theorem recv0_arm1_eq (value : UInt256) : recv0_arm1 value = Model.set value := by
-  simp [recv0_arm1, Field.stored, Model.set, Model.storedSlot]
+theorem recv_Set_eq (value : UInt256) : recv_Set value = Model.set value := by
+  simp [recv_Set, Field.stored, Model.set, Model.storedSlot]
   rfl
 
 /-! The std code of the entries is `ExportedStd.lean`'s. -/
@@ -51,16 +51,16 @@ variable (I : ExecutionEnv) (w : World)
 /-- The `Get` entry ends as the model's entry does on calldata with the selector of `get()`. -/
 theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (h0 : ¬ selIs I (feScalarStoreSelBytes 0)) (h1 : selIs I (feScalarStoreSelBytes 1)) :
-    EndsAs ((entry recv0_arm0_entry).exec I w) (Model.runtime.exec I w) := by
+    EndsAs ((entry recv_Get_entry).exec I w) (Model.runtime.exec I w) := by
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hlo
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm0_entry, exec_nonPayable, hwv]), runtime_get_value hlo h0 h1 hwv]
+      simp [recv_Get_entry, exec_nonPayable, hwv]), runtime_get_value hlo h0 h1 hwv]
     exact .exit _
-  have eg : (entry recv0_arm0_entry).exec I w =
+  have eg : (entry recv_Get_entry).exec I w =
       (entry (Model.get >>= Evm_return_value_Sol_u256)).exec I w := by
-    simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeGet_exec, recv0_arm0_eq]
+    simp [entry, recv_Get_entry, exec_nonPayable, hwv, decodeGet_exec, recv_Get_eq]
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.runtime, exec_nonPayable, hwv, hn4, sel0_not h0, sel1 h1]
   rw [eg, eh]
@@ -70,16 +70,16 @@ theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.cal
     `set(uint256)`. -/
 theorem set_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64)
     (h0 : selIs I (feScalarStoreSelBytes 0)) :
-    EndsAs ((entry recv0_arm1_entry).exec I w) (Model.runtime.exec I w) := by
+    EndsAs ((entry recv_Set_entry).exec I w) (Model.runtime.exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv]), runtime_set_value hlo h0 hwv]
+      simp [recv_Set_entry, exec_nonPayable, hwv]), runtime_set_value hlo h0 hwv]
     exact .exit _
   by_cases hshort : I.calldata.size < 36
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort]),
+      simp [recv_Set_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort]),
       runtime_set_head hlo h0 hwv (hbad.mpr (by omega))]
     exact .exit _
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
@@ -87,13 +87,13 @@ theorem set_endsAs (hlo : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 
   · rw [entry_exec (f := .stop ByteArray.empty
         { w.reserved with
           accounts := storeWord I.codeOwner w.accounts ⟨0⟩ (word I.calldata 4) }) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
-        recv0_arm1_eq, Model.set, Model.storedSlot, exec_sstore, hperm, returnNone_exec]),
+      simp [recv_Set_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
+        recv_Set_eq, Model.set, Model.storedSlot, exec_sstore, hperm, returnNone_exec]),
       runtime_set hlo h0 hwv hgood hperm]
     exact .stop_ok rfl rfl rfl
   · rw [entry_exec (f := .static) (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
-        recv0_arm1_eq, Model.set, exec_sstore, hperm]),
+      simp [recv_Set_entry, exec_nonPayable, hwv, decodeSet_exec I _ hlo hfits, hshort,
+        recv_Set_eq, Model.set, exec_sstore, hperm]),
       runtime_set_static hlo h0 hwv hgood (by simpa using hperm)]
     exact .exit _
 
@@ -118,7 +118,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h0 : selIs I (feScalarStoreSelBytes 0)
   · have hw := selWord_hit (setEvmSelector hsz) h0
-    have eg : (entry runtime).exec I w = (entry recv0_arm1_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Set_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     rw [eg]
     exact set_endsAs I w hsz hfits h0
@@ -126,7 +126,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
     selWord_miss (setEvmSelector hsz) (miss 0 h0)
   by_cases h1 : selIs I (feScalarStoreSelBytes 1)
   · have hw := selWord_hit (getEvmSelector hsz) h1
-    have eg : (entry runtime).exec I w = (entry recv0_arm0_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Get_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     rw [eg]
     exact get_endsAs I w hmem hsz h0 h1

@@ -104,19 +104,19 @@ theorem wrap_neg : IntTy.wrap (.i 256) (-5) = UInt256.ofNat (2 ^ 256 - 5) := by 
 
 /-- `narrow(200, 100)`: the `u8` sum overflows. -/
 theorem narrow_overflow (I : ExecutionEnv) (w : World) :
-    (recv0_arm0 (UInt256.ofNat 200) (UInt256.ofNat 100)).exec I w =
+    (recv_Narrow (UInt256.ofNat 200) (UInt256.ofNat 100)).exec I w =
       some (.error (.panic 0x11)) := by
   have h200 : (UInt256.ofNat 200).toNat = 200 := rfl
   have h100 : (UInt256.ofNat 100).toNat = 100 := rfl
-  simp [recv0_arm0, IntTy.add, IntTy.checked, IntTy.Fits, IntTy.val, h200, h100]
+  simp [recv_Narrow, IntTy.add, IntTy.checked, IntTy.Fits, IntTy.val, h200, h100]
 
 /-- `signed(3, 7)` is `-3`. -/
 theorem signed_neg (I : ExecutionEnv) (w : World) :
-    (recv0_arm1 (UInt256.ofNat 3) (UInt256.ofNat 7)).exec I w =
+    (recv_Signed (UInt256.ofNat 3) (UInt256.ofNat 7)).exec I w =
       some (.ok (UInt256.ofNat (2 ^ 256 - 3), w)) := by
   have hlt : UInt256.sltBool (UInt256.ofNat 3) (UInt256.ofNat 7) = true := by decide
   have h3 : (UInt256.ofNat 3).toNat = 3 := rfl
   have hw : IntTy.wrap (.i 32) (-3) = UInt256.ofNat (2 ^ 256 - 3) := by native_decide
-  simp [recv0_arm1, hlt, IntTy.neg, IntTy.checked, IntTy.Fits, IntTy.val, h3, hw]
+  simp [recv_Signed, hlt, IntTy.neg, IntTy.checked, IntTy.Fits, IntTy.val, h3, hw]
 
 end FeProofs.Fixtures.Ints

@@ -23,11 +23,11 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 variable {m : Module} (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
-attribute [local simp] Exported.recv0_arm2_entry Exported.recv0_arm2 Exported.recv0_arm9_entry
-  Exported.recv0_arm9 Exported.recv1_arm0_entry Exported.recv1_arm0
-  Exported.deposit_Weth9Store_Evm_Evm Exported.recv0_arm5_entry Exported.recv0_arm6_entry
-  Exported.recv0_arm6 Exported.recv0_arm10_entry Exported.recv0_arm10 Exported.recv0_arm1_entry
-  Exported.recv0_arm1 Exported.balanceOfField Exported.allowanceField Place.storage store load
+attribute [local simp] Exported.recv_TotalSupply_entry Exported.recv_TotalSupply Exported.recv_Deposit_entry
+  Exported.recv_Deposit Exported.recv1_arm0_entry Exported.recv1_arm0
+  Exported.deposit_Weth9Store_Evm_Evm Exported.recv_Decimals_entry Exported.recv_BalanceOf_entry
+  Exported.recv_BalanceOf Exported.recv_Allowance_entry Exported.recv_Allowance Exported.recv_Approve_entry
+  Exported.recv_Approve Exported.balanceOfField Exported.allowanceField Place.storage store load
   sload entry exec_nonPayable exec_sstore
 
 /-- The room a step of an exported arm needs, from the room the arm has. -/
@@ -38,7 +38,7 @@ set_option maxHeartbeats 4000000 in
 /-- `totalSupply()`: the contract's own balance. -/
 theorem arm_totalSupply (hmem : w.memory.size + 32 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm2_entry).exec I w)
+    EndsAs ((entry Exported.recv_TotalSupply_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 15).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 32 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -58,7 +58,7 @@ set_option maxHeartbeats 4000000 in
 theorem arm_deposit (hdep : m.func? "deposit" = some depositFunc)
     (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm9_entry).exec I w)
+    EndsAs ((entry Exported.recv_Deposit_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 59).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 256 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -89,7 +89,7 @@ set_option maxHeartbeats 4000000 in
 /-- `decimals()`: the low byte of slot 2. -/
 theorem arm_decimals (hmem : w.memory.size + 32 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm5_entry).exec I w)
+    EndsAs ((entry Exported.recv_Decimals_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 39).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 32 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -115,7 +115,7 @@ set_option maxHeartbeats 4000000 in
 /-- `balanceOf(address)`. -/
 theorem arm_balanceOf (hmem : w.memory.size + 96 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm6_entry).exec I w)
+    EndsAs ((entry Exported.recv_BalanceOf_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 42).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 96 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -153,7 +153,7 @@ set_option maxHeartbeats 4000000 in
 /-- `allowance(address,address)`. -/
 theorem arm_allowance (hmem : w.memory.size + 160 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm10_entry).exec I w)
+    EndsAs ((entry Exported.recv_Allowance_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 60).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 160 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -200,7 +200,7 @@ set_option maxHeartbeats 8000000 in
 /-- `approve(address,uint256)`. -/
 theorem arm_approve (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm1_entry).exec I w)
+    EndsAs ((entry Exported.recv_Approve_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 8).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 256 < UInt256.size :=
     reserveMemory_room hmem (by decide)

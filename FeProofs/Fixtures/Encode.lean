@@ -24,7 +24,7 @@ theorem add_zero (a : UInt256) : a + UInt256.ofNat 0 = a := by
     memory held before, while there is room for the buffer. -/
 theorem revert_exec (value : UInt256) (I : ExecutionEnv) (w : World)
     (hmem : w.memory.size + 32 < UInt256.size) :
-    (recv0_arm0 value).exec I w = some (.error (.revert value.toByteArray)) := by
+    (recv_Probe value).exec I w = some (.error (.revert value.toByteArray)) := by
   have hmax : (~~~UInt256.ofNat 0).toNat = UInt256.size - 1 := by decide
   have h32 : (UInt256.ofNat 32).toNat = 32 := rfl
   have h0 : (UInt256.ofNat 0).toNat = 0 := rfl
@@ -34,7 +34,7 @@ theorem revert_exec (value : UInt256) (I : ExecutionEnv) (w : World)
     ulit_toNat' _ (by omega)
   have hroom := hmem
   simp only [UInt256.size] at hroom
-  simp [recv0_arm0, checkedAdd, checkedSub, alloc, mstore, zeroMem, revertData, panicCode,
+  simp [recv_Probe, checkedAdd, checkedSub, alloc, mstore, zeroMem, revertData, panicCode,
     hmax, h32, h0, h64, hsub, hsize, add_zero, UInt256.size, hroom]
   -- The buffer is the 32 zero bytes `alloc` appended; the word written there reads back.
   have hzeros : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl

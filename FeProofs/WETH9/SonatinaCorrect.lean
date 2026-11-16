@@ -137,17 +137,17 @@ theorem runtime_endsAs (hw : w.memory = ByteArray.empty) (hfits : I.calldata.siz
     rw [he, hr]
     exact harm E p
   have ex : ∀ k, selWord I.calldata = UInt256.ofNat k → (entry Exported.runtime).exec I w =
-      (entry (if UInt256.ofNat k = UInt256.ofNat 0x06fdde03 then Exported.recv0_arm0_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x095ea7b3 then Exported.recv0_arm1_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x18160ddd then Exported.recv0_arm2_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x23b872dd then Exported.recv0_arm3_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x2e1a7d4d then Exported.recv0_arm4_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x313ce567 then Exported.recv0_arm5_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x70a08231 then Exported.recv0_arm6_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0x95d89b41 then Exported.recv0_arm7_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0xa9059cbb then Exported.recv0_arm8_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0xd0e30db0 then Exported.recv0_arm9_entry
-        else if UInt256.ofNat k = UInt256.ofNat 0xdd62ed3e then Exported.recv0_arm10_entry
+      (entry (if UInt256.ofNat k = UInt256.ofNat 0x06fdde03 then Exported.recv_Name_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x095ea7b3 then Exported.recv_Approve_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x18160ddd then Exported.recv_TotalSupply_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x23b872dd then Exported.recv_TransferFrom_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x2e1a7d4d then Exported.recv_Withdraw_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x313ce567 then Exported.recv_Decimals_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x70a08231 then Exported.recv_BalanceOf_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0x95d89b41 then Exported.recv_Symbol_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0xa9059cbb then Exported.recv_Transfer_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0xd0e30db0 then Exported.recv_Deposit_entry
+        else if UInt256.ofNat k = UInt256.ofNat 0xdd62ed3e then Exported.recv_Allowance_entry
         else Exported.recv1_arm0_entry)).exec I w := by
     intro k hk
     simp only [Exported.runtime, entry, Fe.M.exec_bind]

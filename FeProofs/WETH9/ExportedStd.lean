@@ -296,13 +296,13 @@ theorem lowByte_eq (x : UInt256) :
     Nat.mod_mod, Nat.mod_mod, ulit_toNat' _ (by unfold UInt256.size; omega)]
 
 /-- `decimals()`'s arm: the low byte of slot 2. -/
-theorem decimalsLit_exec : recv0_arm5.exec I w =
+theorem decimalsLit_exec : recv_Decimals.exec I w =
     some (.ok (UInt256.land (slotWord I w.accounts (UInt256.ofNat 2)) (UInt256.ofNat 255), w)) := by
   have hmask : UInt256.ofNat 1 <<< UInt256.ofNat 8 = UInt256.ofNat 256 := by decide
   have hmul : UInt256.ofNat 0 * UInt256.ofNat 8 = UInt256.ofNat 0 := by decide
   have hsub : (UInt256.ofNat 256).sub (UInt256.ofNat 0) = UInt256.ofNat 256 := by decide
   have hsub1 : (UInt256.ofNat 256).sub (UInt256.ofNat 1) = UInt256.ofNat 255 := by decide
-  simp [decimalsField, recv0_arm5, SolSlot_read_u8, checkedMul, checkedSub,
+  simp [decimalsField, recv_Decimals, SolSlot_read_u8, checkedMul, checkedSub,
     toNat0, toNat32, hmask, hmul, hsub, hsub1, show UInt256.size ≠ 0 by decide,
     show (UInt256.ofNat 256).toNat = 256 from rfl, show (UInt256.ofNat 8).toNat = 8 from rfl,
     show (UInt256.ofNat 1).toNat = 1 from rfl, Layout.SolSlot, Layout.Payload, Fe.EVM.add_zero,

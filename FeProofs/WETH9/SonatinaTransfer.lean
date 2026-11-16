@@ -20,8 +20,8 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 
 variable {m : Module} (ic : Fe.Sonatina.Ctx) {I : ExecutionEnv} (w : World)
 
-attribute [local simp] Exported.recv0_arm3_entry Exported.recv0_arm3 Exported.recv0_arm8_entry
-  Exported.recv0_arm8 Exported.transfer_from_Weth9Store_Evm_Evm Exported.balanceOfField
+attribute [local simp] Exported.recv_TransferFrom_entry Exported.recv_TransferFrom Exported.recv_Transfer_entry
+  Exported.recv_Transfer Exported.transfer_from_Weth9Store_Evm_Evm Exported.balanceOfField
   Exported.allowanceField Exported.ne_Address_Address Exported.Address_eq Exported.u256_max
   Place.storage store load sload entry exec_nonPayable exec_sstore M.exec_ite
 
@@ -63,7 +63,7 @@ set_option maxHeartbeats 8000000 in
 theorem arm_transferFrom (htf : m.func? "transfer_from" = some transferFromFunc)
     (hmem : w.memory.size + 1024 < UInt256.size) (M : ByteArray) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm3_entry).exec I w)
+    EndsAs ((entry Exported.recv_TransferFrom_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 18).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 1024 < UInt256.size :=
     reserveMemory_room hmem (by decide)
@@ -140,7 +140,7 @@ set_option maxHeartbeats 8000000 in
 theorem arm_transfer (htf : m.func? "transfer_from" = some transferFromFunc)
     (hmem : w.memory.size + 1024 < UInt256.size) (M : ByteArray) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm8_entry).exec I w)
+    EndsAs ((entry Exported.recv_Transfer_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 52).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 1024 < UInt256.size :=
     reserveMemory_room hmem (by decide)

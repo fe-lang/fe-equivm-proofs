@@ -25,8 +25,8 @@ namespace FeProofs.CodeScalar.Exported
 Each exported arm is the hand-written model's. -/
 
 /-- The exported arm reads the immutable word as the model does. -/
-theorem recv0_arm0_eq : recv0_arm0 = Model.get := by
-  simp [recv0_arm0, Model.get]
+theorem recv_Get_eq : recv_Get = Model.get := by
+  simp [recv_Get, Model.get]
 
 /-- `init` sets the immutable field to its argument. -/
 theorem init_eq (initial unset : UInt256) : init initial unset = pure ((), initial) := by
@@ -107,16 +107,16 @@ theorem ignoresMemory_get : IgnoresMemory Model.get := by
 /-- The `Get` entry ends as the model's entry does on calldata with the selector of `get()`. -/
 theorem get_endsAs (hmem : w.memory.size + 32 < UInt256.size) (hlo : 4 ≤ I.calldata.size)
     (h0 : selIs I (feCodeScalarSelBytes 0)) :
-    EndsAs ((entry recv0_arm0_entry).exec I w) (Model.runtime.exec I w) := by
+    EndsAs ((entry recv_Get_entry).exec I w) (Model.runtime.exec I w) := by
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hlo
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · rw [entry_exec (f := .revert ByteArray.empty) (by
-      simp [recv0_arm0_entry, exec_nonPayable, hwv]), runtime_get_value hlo h0 hwv]
+      simp [recv_Get_entry, exec_nonPayable, hwv]), runtime_get_value hlo h0 hwv]
     exact .exit _
-  have eg : (entry recv0_arm0_entry).exec I w =
+  have eg : (entry recv_Get_entry).exec I w =
       (entry (Model.get >>= Evm_return_value_Sol_u256)).exec I w := by
-    simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeGet_exec, recv0_arm0_eq]
+    simp [entry, recv_Get_entry, exec_nonPayable, hwv, decodeGet_exec, recv_Get_eq]
   have eh : Model.runtime.exec I w = (Model.get >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.runtime, exec_nonPayable, hwv, hn4, sel0 h0]
   rw [eg, eh]
@@ -138,7 +138,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h0 : selIs I (feCodeScalarSelBytes 0)
   · have hw := selWord_hit (getEvmSelector hsz) h0
-    have eg : (entry runtime).exec I w = (entry recv0_arm0_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Get_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw]
     rw [eg]
     exact get_endsAs I w hmem hsz h0

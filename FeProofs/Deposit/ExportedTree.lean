@@ -108,7 +108,7 @@ theorem div2_exec (w : World) {q : Nat} (hq : q < 2 ^ 64) :
 theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L) :
     ∀ k h (r1 : UInt256) (w w' : World) (v : UInt256), h + k = 32 →
       SameStorage σ0 w.accounts → r1.toByteArray = subtree (leafAt L) h (L.length / 2 ^ h) →
-      (recv0_arm1.b1 r1 (UInt256.ofNat (L.length / 2 ^ h)) ⟨(), UInt256.ofNat 32⟩
+      (recv_GetDepositRoot.b1 r1 (UInt256.ofNat (L.length / 2 ^ h)) ⟨(), UInt256.ofNat 32⟩
           (UInt256.ofNat h)).exec I w = some (.ok (v, w')) →
       v.toByteArray = depositRoot L := by
   intro k
@@ -117,7 +117,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     intro h r1 w w' v hk hs hr hx
     obtain rfl : h = 32 := by omega
     have hl := hinv.len
-    rw [recv0_arm1.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
+    rw [recv_GetDepositRoot.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
       if_neg (by decide), countPlace, load_storage, Lib.exec_bind_ok I w (exec_sload _ I w),
       hs.slotWord, hinv.count, Lib.exec_bind_ok I w (truncate64_exec I w (by omega))] at hx
     simp only [bind_pure] at hx
@@ -129,7 +129,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     rfl
   | succ k ih =>
     intro h r1 w w' v hk hs hr hx
-    rw [recv0_arm1.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (by omega))] at hx
+    rw [recv_GetDepositRoot.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (by omega))] at hx
     simp only [show h < 32 by omega, decide_true, if_true] at hx
     have hl := hinv.len
     have hsz : UInt256.size = 2 ^ 256 := rfl
@@ -163,11 +163,11 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     returns, whatever the feed supplied, its word is the root of the leaves with their count
     mixed in.  A hash call that fails reverts; a feed too short, or memory full, does not end. -/
 theorem getDepositRoot_correct {L : List ByteArray} {w w' : World} {v : UInt256}
-    (hinv : TreeInv I w.accounts L) (hx : recv0_arm1.exec I w = some (.ok (v, w'))) :
+    (hinv : TreeInv I w.accounts L) (hx : recv_GetDepositRoot.exec I w = some (.ok (v, w'))) :
     v.toByteArray = depositRoot L := by
   have hl := hinv.len
   have hd : DEPOSIT_CONTRACT_TREE_DEPTH = pure (UInt256.ofNat 32) := rfl
-  simp only [recv0_arm1, hd, Range_start_0, pure_bind, countPlace, load_storage] at hx
+  simp only [recv_GetDepositRoot, hd, Range_start_0, pure_bind, countPlace, load_storage] at hx
   rw [Lib.exec_bind_ok I w (exec_sload _ I w), hinv.count] at hx
   refine rootLoop I hinv 32 0 _ w w' v rfl (SameStorage.refl _) ?_
     (by simpa only [pow_zero, Nat.div_one] using hx)

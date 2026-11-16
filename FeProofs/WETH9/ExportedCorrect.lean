@@ -193,39 +193,39 @@ macro "room" : tactic =>
 
 set_option maxHeartbeats 4000000 in
 theorem approve_exec (guy wad : UInt256) (hmem : w.memory.size + 160 < UInt256.size) :
-    (recv0_arm1 guy wad).exec I w =
+    (recv_Approve guy wad).exec I w =
       withMemory (returned (keyedAll w.memory [(sender I, Model.allowanceRoot),
           (guy, Fe.EVM.mapSlot (sender I) Model.allowanceRoot)]) wad)
         ((Model.approve guy wad).exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (disch := room) [allowancePlace, Evm_caller, recv0_arm1, Model.approve,
+    simp (disch := room) [allowancePlace, Evm_caller, recv_Approve, Model.approve,
       Model.allowanceSlot, Model.allowanceRoot, locateAddress_exec, locateAddressMap_exec,
       emitApproval_exec, hp, exec_sstore, exec_emit]
 
-theorem totalSupply_exec : recv0_arm2.exec I w = Model.totalSupply.exec I w := by
-  simp [recv0_arm2, Model.totalSupply]
+theorem totalSupply_exec : recv_TotalSupply.exec I w = Model.totalSupply.exec I w := by
+  simp [recv_TotalSupply, Model.totalSupply]
 
 theorem balanceOf_exec (owner : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
-    (recv0_arm6 owner).exec I w =
+    (recv_BalanceOf owner).exec I w =
       withMemory (keyedAll w.memory [(owner, Model.balanceOfRoot)])
         ((Model.balanceOf owner).exec I w) := by
-  simp (disch := room) [balanceOfPlace, recv0_arm6, Model.balanceOf, Model.balanceSlot,
+  simp (disch := room) [balanceOfPlace, recv_BalanceOf, Model.balanceOf, Model.balanceSlot,
     Model.balanceOfRoot, locateAddress_exec]
 
 theorem allowance_exec (owner guy : UInt256) (hmem : w.memory.size + 128 < UInt256.size) :
-    (recv0_arm10 owner guy).exec I w =
+    (recv_Allowance owner guy).exec I w =
       withMemory (keyedAll w.memory [(owner, Model.allowanceRoot),
           (guy, Fe.EVM.mapSlot owner Model.allowanceRoot)])
         ((Model.allowance owner guy).exec I w) := by
-  simp (disch := room) [allowancePlace, recv0_arm10, Model.allowance, Model.allowanceSlot,
+  simp (disch := room) [allowancePlace, recv_Allowance, Model.allowance, Model.allowanceSlot,
     Model.allowanceRoot, locateAddress_exec, locateAddressMap_exec]
 
-theorem decimals_exec : recv0_arm5.exec I w = Model.decimals.exec I w := by
+theorem decimals_exec : recv_Decimals.exec I w = Model.decimals.exec I w := by
   have hmask : UInt256.ofNat 1 <<< UInt256.ofNat 8 = UInt256.ofNat 256 := by decide
   have hmul : UInt256.ofNat 0 * UInt256.ofNat 8 = UInt256.ofNat 0 := by decide
   have hsub : (UInt256.ofNat 256).sub (UInt256.ofNat 0) = UInt256.ofNat 256 := by decide
   have hsub1 : (UInt256.ofNat 256).sub (UInt256.ofNat 1) = UInt256.ofNat 255 := by decide
-  simp [decimalsPlace, recv0_arm5, Model.decimals, SolSlot_read_u8, checkedMul, checkedSub,
+  simp [decimalsPlace, recv_Decimals, Model.decimals, SolSlot_read_u8, checkedMul, checkedSub,
     toNat0, toNat32, hmask, hmul, hsub, hsub1, show UInt256.size ≠ 0 by decide,
     show (UInt256.ofNat 256).toNat = 256 from rfl, show (UInt256.ofNat 8).toNat = 8 from rfl,
     show (UInt256.ofNat 1).toNat = 1 from rfl, Layout.SolSlot, Layout.Payload, Fe.EVM.add_zero,
@@ -286,7 +286,7 @@ end TransferFrom
 
 section Withdraw
 
-attribute [local simp] balanceOfPlace recv0_arm4 Model.withdraw Model.balanceSlot
+attribute [local simp] balanceOfPlace recv_Withdraw Model.withdraw Model.balanceSlot
   Model.balanceOfRoot locateAddress_exec emitWithdrawal_exec exec_sstore exec_emit M.exec_ite
   toNat0 toNatMax toNatU64
 
@@ -294,7 +294,7 @@ set_option maxHeartbeats 4000000 in
 /-- The model's arm, run on empty memory: its call, with no input and no output, is then the
     exported call made on empty memory (`call_noData`). -/
 theorem withdraw_alike (wad : UInt256) (hmem : w.memory.size + 224 < UInt256.size) :
-    Alike 224 w ((recv0_arm4 wad).exec I w)
+    Alike 224 w ((recv_Withdraw wad).exec I w)
       ((Model.withdraw wad).exec I { w with memory := ByteArray.empty }) := by
   by_cases hb : (slotWord I w.accounts (Fe.EVM.mapSlot (sender I) ⟨3⟩)).toNat < wad.toNat
   · simp (maxSteps := 4000000) (disch := room) [hb, Nat.not_le.mpr hb]

@@ -43,22 +43,22 @@ theorem arm_name (hl : m.func? "load" = some loadFunc)
     (hrv : m.func? "return_value__g7f54" = some returnValueFunc)
     (hw : w.memory = ByteArray.empty) (hcd : I.calldata.size < 2 ^ 64) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm0_entry).exec I w)
+    EndsAs ((entry Exported.recv_Name_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 5).exec I
         { w with memory := runtimeMem w.memory })) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
-    simp [entry, Exported.recv0_arm0_entry, exec_nonPayable, hwv]
+    simp [entry, Exported.recv_Name_entry, exec_nonPayable, hwv]
     repeat ir_step
     exact .exit _
   have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
   have hmr : w.reserved.memory.size + 2 ^ 66 < UInt256.size := by
     rw [World.reserved_size, hw]; decide
-  rw [show (entry Exported.recv0_arm0_entry).exec I w = (entry (Exported.SolString_load
+  rw [show (entry Exported.recv_Name_entry).exec I w = (entry (Exported.SolString_load
       (.storage (UInt256.ofNat 0)) >>= Exported.Evm_return_value_Sol_DynString)).exec I w by
-    simp [entry, Exported.recv0_arm0_entry, exec_nonPayable, hwv, Exported.decodeName_exec,
-      Exported.recv0_arm0, Exported.nameField]]
+    simp [entry, Exported.recv_Name_entry, exec_nonPayable, hwv, Exported.decodeName_exec,
+      Exported.recv_Name, Exported.nameField]]
   obtain ⟨A', hA', hfp', hrun⟩ := load_run ic I w hl hs hr (UInt256.ofNat 0) (runtimeMem w.memory) 224
     (runtimeMem_fp _) (by rw [hw]; exact runtimeMem_size) (by decide) (by decide)
   simp only [show (UInt256.ofNat 0).toNat = 0 from rfl] at hrun
@@ -140,22 +140,22 @@ theorem arm_symbol (hl : m.func? "load" = some loadFunc)
     (hrv : m.func? "return_value__g7f54" = some returnValueFunc)
     (hw : w.memory = ByteArray.empty) (hcd : I.calldata.size < 2 ^ 64) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm7_entry).exec I w)
+    EndsAs ((entry Exported.recv_Symbol_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 49).exec I
         { w with memory := runtimeMem w.memory })) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
   · have hv : I.weiValue.toNat ≠ 0 := fun h => hwv (Check.eq_of_toNat (by simpa using h))
-    simp [entry, Exported.recv0_arm7_entry, exec_nonPayable, hwv]
+    simp [entry, Exported.recv_Symbol_entry, exec_nonPayable, hwv]
     repeat ir_step
     exact .exit _
   have hv : I.weiValue.toNat = 0 := by rw [hwv]; rfl
   have hmr : w.reserved.memory.size + 2 ^ 66 < UInt256.size := by
     rw [World.reserved_size, hw]; decide
-  rw [show (entry Exported.recv0_arm7_entry).exec I w = (entry (Exported.SolString_load
+  rw [show (entry Exported.recv_Symbol_entry).exec I w = (entry (Exported.SolString_load
       (.storage (UInt256.ofNat 1)) >>= Exported.Evm_return_value_Sol_DynString)).exec I w by
-    simp [entry, Exported.recv0_arm7_entry, exec_nonPayable, hwv, Exported.decodeSymbol_exec,
-      Exported.recv0_arm7, Exported.symbolField]]
+    simp [entry, Exported.recv_Symbol_entry, exec_nonPayable, hwv, Exported.decodeSymbol_exec,
+      Exported.recv_Symbol, Exported.symbolField]]
   obtain ⟨A', hA', hfp', hrun⟩ := load_run ic I w hl hs hr (UInt256.ofNat 1) (runtimeMem w.memory) 224
     (runtimeMem_fp _) (by rw [hw]; exact runtimeMem_size) (by decide) (by decide)
   simp only [show (UInt256.ofNat 1).toNat = 1 from rfl] at hrun

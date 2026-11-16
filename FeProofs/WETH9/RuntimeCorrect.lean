@@ -25,34 +25,34 @@ section Alike
 variable (I : ExecutionEnv) (w : World)
 
 theorem alike_approve (guy wad : UInt256) (hmem : w.memory.size + 160 < UInt256.size) :
-    Alike 160 w ((recv0_arm1 guy wad).exec I w) ((Model.approve guy wad).exec I w) :=
+    Alike 160 w ((recv_Approve guy wad).exec I w) ((Model.approve guy wad).exec I w) :=
   alike_withMemory (approve_exec I w guy wad hmem) (by rw [returned_size, keyedAll_size]; simp)
 
-theorem alike_totalSupply : Alike 0 w (recv0_arm2.exec I w) (Model.totalSupply.exec I w) :=
+theorem alike_totalSupply : Alike 0 w (recv_TotalSupply.exec I w) (Model.totalSupply.exec I w) :=
   alike_of_eq (totalSupply_exec I w) fun a v h => by
     simp [Model.totalSupply, selfbalance] at h
     rw [← h.2]
 
 theorem alike_transferFrom (src dst wad : UInt256) (hmem : w.memory.size + 864 < UInt256.size) :
-    Alike 864 w ((recv0_arm3 src dst wad).exec I w) ((Model.transferFrom src dst wad).exec I w) :=
-  by simpa [recv0_arm3] using transferFrom_alike I w src dst wad hmem
+    Alike 864 w ((recv_TransferFrom src dst wad).exec I w) ((Model.transferFrom src dst wad).exec I w) :=
+  by simpa [recv_TransferFrom] using transferFrom_alike I w src dst wad hmem
 
 theorem alike_transfer (dst wad : UInt256) (hmem : w.memory.size + 864 < UInt256.size) :
-    Alike 864 w ((recv0_arm8 dst wad).exec I w)
+    Alike 864 w ((recv_Transfer dst wad).exec I w)
       ((caller >>= fun src => Model.transferFrom src dst wad).exec I w) := by
-  simpa [recv0_arm8] using transferFrom_alike I w (sender I) dst wad hmem
+  simpa [recv_Transfer] using transferFrom_alike I w (sender I) dst wad hmem
 
-theorem alike_decimals : Alike 0 w (recv0_arm5.exec I w) (Model.decimals.exec I w) :=
+theorem alike_decimals : Alike 0 w (recv_Decimals.exec I w) (Model.decimals.exec I w) :=
   alike_of_eq (decimals_exec I w) fun a v h => by
     simp [Model.decimals] at h
     rw [← h.2]
 
 theorem alike_balanceOf (owner : UInt256) (hmem : w.memory.size + 64 < UInt256.size) :
-    Alike 64 w ((recv0_arm6 owner).exec I w) ((Model.balanceOf owner).exec I w) :=
+    Alike 64 w ((recv_BalanceOf owner).exec I w) ((Model.balanceOf owner).exec I w) :=
   alike_withMemory (balanceOf_exec I w owner hmem) (by rw [keyedAll_size]; simp)
 
 theorem alike_allowance (owner guy : UInt256) (hmem : w.memory.size + 128 < UInt256.size) :
-    Alike 128 w ((recv0_arm10 owner guy).exec I w) ((Model.allowance owner guy).exec I w) :=
+    Alike 128 w ((recv_Allowance owner guy).exec I w) ((Model.allowance owner guy).exec I w) :=
   alike_withMemory (allowance_exec I w owner guy hmem) (by rw [keyedAll_size]; simp)
 
 theorem alike_deposit (hmem : w.memory.size + 160 < UInt256.size) :
@@ -111,30 +111,30 @@ theorem revert_endsAs {m : FeM Empty} {arm : FeM ByteArray}
   exact .exit _
 
 theorem name_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv0_arm0_entry).exec I w) (Model.nameArm.exec I w) := by
+    EndsAs ((entry recv_Name_entry).exec I w) (Model.nameArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm0_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Name_entry, exec_nonPayable, hwv])
       (by simp [Model.nameArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm0_entry).exec I w =
+  have eg : (entry recv_Name_entry).exec I w =
       (entry (SolString_load (.storage Model.nameSlot) >>= Evm_return_value_Sol_DynString)).exec
         I w := by
-    simp [entry, recv0_arm0_entry, exec_nonPayable, hwv, decodeName_exec, recv0_arm0, namePlace]
+    simp [entry, recv_Name_entry, exec_nonPayable, hwv, decodeName_exec, recv_Name, namePlace]
   have eh : Model.nameArm.exec I w = (Model.stringReturn Model.nameSlot).exec I w := by
     simp [Model.nameArm, exec_nonPayable, hwv]
   rw [eg, eh]
   exact stringReturn_endsAs I w _ hw
 
 theorem symbol_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv0_arm7_entry).exec I w) (Model.symbolArm.exec I w) := by
+    EndsAs ((entry recv_Symbol_entry).exec I w) (Model.symbolArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm7_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Symbol_entry, exec_nonPayable, hwv])
       (by simp [Model.symbolArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm7_entry).exec I w =
+  have eg : (entry recv_Symbol_entry).exec I w =
       (entry (SolString_load (.storage Model.symbolSlot) >>= Evm_return_value_Sol_DynString)).exec
         I w := by
-    simp [entry, recv0_arm7_entry, exec_nonPayable, hwv, decodeSymbol_exec, recv0_arm7, symbolPlace]
+    simp [entry, recv_Symbol_entry, exec_nonPayable, hwv, decodeSymbol_exec, recv_Symbol, symbolPlace]
   have eh : Model.symbolArm.exec I w = (Model.stringReturn Model.symbolSlot).exec I w := by
     simp [Model.symbolArm, exec_nonPayable, hwv]
   rw [eg, eh]
@@ -142,26 +142,26 @@ theorem symbol_endsAs (hw : w.memory = ByteArray.empty) :
 
 theorem approve_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm1_entry).exec I w) ((Model.approveArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_Approve_entry).exec I w) ((Model.approveArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm1_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Approve_entry, exec_nonPayable, hwv])
       (by simp [Model.approveArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
+      simp [recv_Approve_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.approveArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 2 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases ha0 : NotAddress (word I.calldata 4)
   · exact revert_endsAs I w (by
-      simp [recv0_arm1_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
+      simp [recv_Approve_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
         hshort, ha0])
       (by simp [Model.approveArm, exec_nonPayable, hwv, hgood, ha0])
-  have eg : (entry recv0_arm1_entry).exec I w = (entry (recv0_arm1 (word I.calldata 4)
+  have eg : (entry recv_Approve_entry).exec I w = (entry (recv_Approve (word I.calldata 4)
       (word I.calldata 36) >>= Evm_return_value_Sol_bool)).exec I w := by
-    simp [entry, recv0_arm1_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
+    simp [entry, recv_Approve_entry, exec_nonPayable, hwv, decodeApprove_exec I w.reserved hlo hfits,
       hshort,
       ha0]
   have eh : (Model.approveArm I.calldata).exec I w = (Model.approve (word I.calldata 4)
@@ -174,14 +174,14 @@ theorem approve_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata
     (by rw [World.reserved_size, hw]; decide)
 
 theorem totalSupply_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv0_arm2_entry).exec I w) (Model.totalSupplyArm.exec I w) := by
+    EndsAs ((entry recv_TotalSupply_entry).exec I w) (Model.totalSupplyArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm2_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_TotalSupply_entry, exec_nonPayable, hwv])
       (by simp [Model.totalSupplyArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm2_entry).exec I w =
-      (entry (recv0_arm2 >>= Evm_return_value_Sol_u256)).exec I w := by
-    simp [entry, recv0_arm2_entry, exec_nonPayable, hwv, decodeTotalSupply_exec]
+  have eg : (entry recv_TotalSupply_entry).exec I w =
+      (entry (recv_TotalSupply >>= Evm_return_value_Sol_u256)).exec I w := by
+    simp [entry, recv_TotalSupply_entry, exec_nonPayable, hwv, decodeTotalSupply_exec]
   have eh : Model.totalSupplyArm.exec I w =
       (Model.totalSupply >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.totalSupplyArm, exec_nonPayable, hwv]
@@ -193,31 +193,31 @@ theorem totalSupply_endsAs (hw : w.memory = ByteArray.empty) :
 
 theorem transferFrom_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm3_entry).exec I w) ((Model.transferFromArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_TransferFrom_entry).exec I w) ((Model.transferFromArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 3 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm3_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_TransferFrom_entry, exec_nonPayable, hwv])
       (by simp [Model.transferFromArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 100
   · exact revert_endsAs I w (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
+      simp [recv_TransferFrom_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.transferFromArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 3 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases ha0 : NotAddress (word I.calldata 4)
   · exact revert_endsAs I w (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
+      simp [recv_TransferFrom_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
         hshort, ha0])
       (by simp [Model.transferFromArm, exec_nonPayable, hwv, hgood, ha0])
   by_cases ha1 : NotAddress (word I.calldata 36)
   · exact revert_endsAs I w (by
-      simp [recv0_arm3_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
+      simp [recv_TransferFrom_entry, exec_nonPayable, hwv, decodeTransferFrom_exec I w.reserved hlo hfits,
         hshort, ha0, ha1])
       (by simp [Model.transferFromArm, exec_nonPayable, hwv, hgood, ha0, ha1])
-  have eg : (entry recv0_arm3_entry).exec I w = (entry (recv0_arm3 (word I.calldata 4)
+  have eg : (entry recv_TransferFrom_entry).exec I w = (entry (recv_TransferFrom (word I.calldata 4)
       (word I.calldata 36) (word I.calldata 68) >>= Evm_return_value_Sol_bool)).exec I w := by
-    simp [entry, recv0_arm3_entry, exec_nonPayable, hwv,
+    simp [entry, recv_TransferFrom_entry, exec_nonPayable, hwv,
       decodeTransferFrom_exec I w.reserved hlo hfits,
       hshort, ha0, ha1]
   have eh : (Model.transferFromArm I.calldata).exec I w = (Model.transferFrom (word I.calldata 4)
@@ -233,21 +233,21 @@ theorem transferFrom_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.cal
 
 theorem withdraw_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm4_entry).exec I w) ((Model.withdrawArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_Withdraw_entry).exec I w) ((Model.withdrawArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm4_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Withdraw_entry, exec_nonPayable, hwv])
       (by simp [Model.withdrawArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 36
   · exact revert_endsAs I w (by
-      simp [recv0_arm4_entry, exec_nonPayable, hwv, decodeWithdraw_exec I w.reserved hlo hfits,
+      simp [recv_Withdraw_entry, exec_nonPayable, hwv, decodeWithdraw_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.withdrawArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
-  have eg : (entry recv0_arm4_entry).exec I w = (entry (recv0_arm4 (word I.calldata 4) >>=
+  have eg : (entry recv_Withdraw_entry).exec I w = (entry (recv_Withdraw (word I.calldata 4) >>=
       fun _ => returnData (UInt256.ofNat 0) (UInt256.ofNat 0))).exec I w := by
-    simp [entry, recv0_arm4_entry, exec_nonPayable, hwv, decodeWithdraw_exec I w.reserved hlo hfits,
+    simp [entry, recv_Withdraw_entry, exec_nonPayable, hwv, decodeWithdraw_exec I w.reserved hlo hfits,
       hshort]
   have eh : (Model.withdrawArm I.calldata).exec I w = (Model.withdraw (word I.calldata 4) >>=
       fun _ => pure ByteArray.empty).exec I w := by
@@ -261,14 +261,14 @@ theorem withdraw_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldat
     (by rw [World.reserved_size, hw]; decide)
 
 theorem decimals_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv0_arm5_entry).exec I w) (Model.decimalsArm.exec I w) := by
+    EndsAs ((entry recv_Decimals_entry).exec I w) (Model.decimalsArm.exec I w) := by
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm5_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Decimals_entry, exec_nonPayable, hwv])
       (by simp [Model.decimalsArm, exec_nonPayable, hwv])
-  have eg : (entry recv0_arm5_entry).exec I w =
-      (entry (recv0_arm5 >>= Evm_return_value_Sol_u8)).exec I w := by
-    simp [entry, recv0_arm5_entry, exec_nonPayable, hwv, decodeDecimals_exec]
+  have eg : (entry recv_Decimals_entry).exec I w =
+      (entry (recv_Decimals >>= Evm_return_value_Sol_u8)).exec I w := by
+    simp [entry, recv_Decimals_entry, exec_nonPayable, hwv, decodeDecimals_exec]
   have eh : Model.decimalsArm.exec I w =
       (Model.decimals >>= fun r => pure r.toByteArray).exec I w := by
     simp [Model.decimalsArm, exec_nonPayable, hwv]
@@ -280,27 +280,27 @@ theorem decimals_endsAs (hw : w.memory = ByteArray.empty) :
 
 theorem balanceOf_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm6_entry).exec I w) ((Model.balanceOfArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_BalanceOf_entry).exec I w) ((Model.balanceOfArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 1 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm6_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_BalanceOf_entry, exec_nonPayable, hwv])
       (by simp [Model.balanceOfArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 36
   · exact revert_endsAs I w (by
-      simp [recv0_arm6_entry, exec_nonPayable, hwv, decodeBalanceOf_exec I w.reserved hlo hfits,
+      simp [recv_BalanceOf_entry, exec_nonPayable, hwv, decodeBalanceOf_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.balanceOfArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 1 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases ha0 : NotAddress (word I.calldata 4)
   · exact revert_endsAs I w (by
-      simp [recv0_arm6_entry, exec_nonPayable, hwv, decodeBalanceOf_exec I w.reserved hlo hfits,
+      simp [recv_BalanceOf_entry, exec_nonPayable, hwv, decodeBalanceOf_exec I w.reserved hlo hfits,
         hshort,
         ha0])
       (by simp [Model.balanceOfArm, exec_nonPayable, hwv, hgood, ha0])
-  have eg : (entry recv0_arm6_entry).exec I w =
-      (entry (recv0_arm6 (word I.calldata 4) >>= Evm_return_value_Sol_u256)).exec I w := by
-    simp [entry, recv0_arm6_entry, exec_nonPayable, hwv,
+  have eg : (entry recv_BalanceOf_entry).exec I w =
+      (entry (recv_BalanceOf (word I.calldata 4) >>= Evm_return_value_Sol_u256)).exec I w := by
+    simp [entry, recv_BalanceOf_entry, exec_nonPayable, hwv,
       decodeBalanceOf_exec I w.reserved hlo hfits,
       hshort, ha0]
   have eh : (Model.balanceOfArm I.calldata).exec I w =
@@ -314,27 +314,27 @@ theorem balanceOf_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.callda
 
 theorem transfer_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm8_entry).exec I w) ((Model.transferArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_Transfer_entry).exec I w) ((Model.transferArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm8_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Transfer_entry, exec_nonPayable, hwv])
       (by simp [Model.transferArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
-      simp [recv0_arm8_entry, exec_nonPayable, hwv, decodeTransfer_exec I w.reserved hlo hfits,
+      simp [recv_Transfer_entry, exec_nonPayable, hwv, decodeTransfer_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.transferArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 2 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases ha0 : NotAddress (word I.calldata 4)
   · exact revert_endsAs I w (by
-      simp [recv0_arm8_entry, exec_nonPayable, hwv, decodeTransfer_exec I w.reserved hlo hfits,
+      simp [recv_Transfer_entry, exec_nonPayable, hwv, decodeTransfer_exec I w.reserved hlo hfits,
         hshort,
         ha0])
       (by simp [Model.transferArm, exec_nonPayable, hwv, hgood, ha0])
-  have eg : (entry recv0_arm8_entry).exec I w = (entry (recv0_arm8 (word I.calldata 4)
+  have eg : (entry recv_Transfer_entry).exec I w = (entry (recv_Transfer (word I.calldata 4)
       (word I.calldata 36) >>= Evm_return_value_Sol_bool)).exec I w := by
-    simp [entry, recv0_arm8_entry, exec_nonPayable, hwv,
+    simp [entry, recv_Transfer_entry, exec_nonPayable, hwv,
       decodeTransfer_exec I w.reserved hlo hfits, hshort,
       ha0]
   have eh : (Model.transferArm I.calldata).exec I w = ((caller >>= fun src =>
@@ -348,10 +348,10 @@ theorem transfer_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldat
     (by rw [World.reserved_size, hw]; decide)
 
 theorem deposit_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv0_arm9_entry).exec I w) (Model.depositArm.exec I w) := by
-  have eg : (entry recv0_arm9_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
+    EndsAs ((entry recv_Deposit_entry).exec I w) (Model.depositArm.exec I w) := by
+  have eg : (entry recv_Deposit_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
       fun _ => returnData (UInt256.ofNat 0) (UInt256.ofNat 0))).exec I w := by
-    simp [entry, recv0_arm9_entry, decodeDeposit_exec, recv0_arm9]
+    simp [entry, recv_Deposit_entry, decodeDeposit_exec, recv_Deposit]
   have eh : Model.depositArm.exec I w =
       (Model.deposit >>= fun _ => pure ByteArray.empty).exec I w := by
     simp [Model.depositArm]
@@ -379,33 +379,33 @@ theorem fallback_endsAs (hw : w.memory = ByteArray.empty) :
 
 theorem allowance_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldata.size)
     (hfits : I.calldata.size < 2 ^ 64) :
-    EndsAs ((entry recv0_arm10_entry).exec I w) ((Model.allowanceArm I.calldata).exec I w) := by
+    EndsAs ((entry recv_Allowance_entry).exec I w) ((Model.allowanceArm I.calldata).exec I w) := by
   have hbad := badHead_iff I.calldata 2 hfits
   by_cases hwv : I.weiValue = ⟨0⟩
   swap
-  · exact revert_endsAs I w (by simp [recv0_arm10_entry, exec_nonPayable, hwv])
+  · exact revert_endsAs I w (by simp [recv_Allowance_entry, exec_nonPayable, hwv])
       (by simp [Model.allowanceArm, exec_nonPayable, hwv])
   by_cases hshort : I.calldata.size < 68
   · exact revert_endsAs I w (by
-      simp [recv0_arm10_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
+      simp [recv_Allowance_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
         hshort])
       (by simp [Model.allowanceArm, exec_nonPayable, hwv, hbad.mpr (by omega)])
   have hgood : ¬ BadHead I.calldata 2 := fun h => hshort (by have := hbad.mp h; omega)
   by_cases ha0 : NotAddress (word I.calldata 4)
   · exact revert_endsAs I w (by
-      simp [recv0_arm10_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
+      simp [recv_Allowance_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
         hshort,
         ha0])
       (by simp [Model.allowanceArm, exec_nonPayable, hwv, hgood, ha0])
   by_cases ha1 : NotAddress (word I.calldata 36)
   · exact revert_endsAs I w (by
-      simp [recv0_arm10_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
+      simp [recv_Allowance_entry, exec_nonPayable, hwv, decodeAllowance_exec I w.reserved hlo hfits,
         hshort,
         ha0, ha1])
       (by simp [Model.allowanceArm, exec_nonPayable, hwv, hgood, ha0, ha1])
-  have eg : (entry recv0_arm10_entry).exec I w = (entry (recv0_arm10 (word I.calldata 4)
+  have eg : (entry recv_Allowance_entry).exec I w = (entry (recv_Allowance (word I.calldata 4)
       (word I.calldata 36) >>= Evm_return_value_Sol_u256)).exec I w := by
-    simp [entry, recv0_arm10_entry, exec_nonPayable, hwv,
+    simp [entry, recv_Allowance_entry, exec_nonPayable, hwv,
       decodeAllowance_exec I w.reserved hlo hfits,
       hshort, ha0, ha1]
   have eh : (Model.allowanceArm I.calldata).exec I w = (Model.allowance (word I.calldata 4)
@@ -443,7 +443,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
   have hn4 : ¬ I.calldata.size < 4 := Nat.not_lt.mpr hsz
   by_cases h0 : selIs I (feWETH9SelBytes 0)
   · have hw' := selWord_hit (nameEvmSelector hsz) h0
-    have eg : (entry runtime).exec I w = (entry recv0_arm0_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Name_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.nameArm.exec I w := by
       simp [Model.runtime, hn4,
@@ -455,7 +455,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (nameEvmSelector hsz) n0
   by_cases h1 : selIs I (feWETH9SelBytes 1)
   · have hw' := selWord_hit (approveEvmSelector hsz) h1
-    have eg : (entry runtime).exec I w = (entry recv0_arm1_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Approve_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.approveArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
@@ -468,7 +468,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (approveEvmSelector hsz) n1
   by_cases h2 : selIs I (feWETH9SelBytes 2)
   · have hw' := selWord_hit (totalSupplyEvmSelector hsz) h2
-    have eg : (entry runtime).exec I w = (entry recv0_arm2_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_TotalSupply_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.totalSupplyArm.exec I w := by
       simp [Model.runtime, hn4,
@@ -482,7 +482,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (totalSupplyEvmSelector hsz) n2
   by_cases h3 : selIs I (feWETH9SelBytes 3)
   · have hw' := selWord_hit (transferFromEvmSelector hsz) h3
-    have eg : (entry runtime).exec I w = (entry recv0_arm3_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_TransferFrom_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.transferFromArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
@@ -497,7 +497,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (transferFromEvmSelector hsz) n3
   by_cases h4 : selIs I (feWETH9SelBytes 4)
   · have hw' := selWord_hit (withdrawEvmSelector hsz) h4
-    have eg : (entry runtime).exec I w = (entry recv0_arm4_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Withdraw_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.withdrawArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
@@ -513,7 +513,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (withdrawEvmSelector hsz) n4
   by_cases h5 : selIs I (feWETH9SelBytes 5)
   · have hw' := selWord_hit (decimalsEvmSelector hsz) h5
-    have eg : (entry runtime).exec I w = (entry recv0_arm5_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Decimals_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.decimalsArm.exec I w := by
       simp [Model.runtime, hn4,
@@ -530,7 +530,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (decimalsEvmSelector hsz) n5
   by_cases h6 : selIs I (feWETH9SelBytes 6)
   · have hw' := selWord_hit (balanceOfEvmSelector hsz) h6
-    have eg : (entry runtime).exec I w = (entry recv0_arm6_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_BalanceOf_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.balanceOfArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
@@ -548,7 +548,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (balanceOfEvmSelector hsz) n6
   by_cases h7 : selIs I (feWETH9SelBytes 7)
   · have hw' := selWord_hit (symbolEvmSelector hsz) h7
-    have eg : (entry runtime).exec I w = (entry recv0_arm7_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Symbol_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.symbolArm.exec I w := by
       simp [Model.runtime, hn4,
@@ -567,7 +567,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (symbolEvmSelector hsz) n7
   by_cases h8 : selIs I (feWETH9SelBytes 8)
   · have hw' := selWord_hit (transferEvmSelector hsz) h8
-    have eg : (entry runtime).exec I w = (entry recv0_arm8_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Transfer_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.transferArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,
@@ -587,7 +587,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (transferEvmSelector hsz) n8
   by_cases h9 : selIs I (feWETH9SelBytes 9)
   · have hw' := selWord_hit (depositEvmSelector hsz) h9
-    have eg : (entry runtime).exec I w = (entry recv0_arm9_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Deposit_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by
       simp [Model.runtime, hn4,
@@ -608,7 +608,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
     selWord_miss (depositEvmSelector hsz) n9
   by_cases h10 : selIs I (feWETH9SelBytes 10)
   · have hw' := selWord_hit (allowanceEvmSelector hsz) h10
-    have eg : (entry runtime).exec I w = (entry recv0_arm10_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_Allowance_entry).exec I w := by
       simp +decide [entry, runtime, hn, hn4, selector_exec, hw']
     have eh : Model.runtime.exec I w = (Model.allowanceArm I.calldata).exec I w := by
       simp [Model.runtime, hn4,

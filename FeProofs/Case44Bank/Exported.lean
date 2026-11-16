@@ -6,7 +6,7 @@ import FeProofs.Lib.Exported
 The definitions below are the output of `fe-lean-export` on `Case44Bank.fe` (Fe branch
 `fevm-precompiles`, golden file `tests/golden/case44_bank.lean`), copied in by
 `scripts/sync_exported.py`: the layout of `Ledger`, the internal function `credit` at the field's
-`balances` map, the arm `Credit` (`recv0_arm0`), the runtime entry and the deployment entry.  The
+`balances` map, the arm `Credit` (`recv_Credit`), the runtime entry and the deployment entry.  The
 core and std definitions they call are shared with the other exported contracts, in
 `FeProofs/Lib/Exported.lean`.  `Bytecode.lean` has the bytecode the same compiler makes.
 -/
@@ -33,86 +33,84 @@ structure Credit where
   amount : UInt256
 deriving Inhabited
 
+/-- The `init` of contract `Case44Bank`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
-def credit (v0 : Place) (v1 : UInt256) (v2 : UInt256) : FeM Unit := do
-  let v3 := v2
-  let v4 := v1
-  let l0 ← StorageMap_locate_Address_u256 v0 v0.slot v4
+/-- `case44_bank::credit` -/
+def credit (m : Place) (who : UInt256) (amount : UInt256) : FeM Unit := do
+  let v4 := who
+  let l0 ← StorageMap_locate_Address_u256 m m.slot v4
   let v5 ← load (Place.mk .storage l0.slot)
-  let v6 ← checkedAdd v5 v3
-  let l1 ← StorageMap_locate_Address_u256 v0 v0.slot v4
+  let v6 ← checkedAdd v5 amount
+  let l1 ← StorageMap_locate_Address_u256 m m.slot v4
   store (Place.mk .storage l1.slot) v6
-  let v7 := ()
   return ()
 
-def recv0_arm0 (r0 : UInt256) (v0 : UInt256) : FeM UInt256 := do
-  let mut r0 := r0
+/-- `Credit { who, amount } -> u256`, selector `0x00000001` -/
+def recv_Credit (who : UInt256) (amount : UInt256) : FeM UInt256 := do
+  let mut who := who
   let v1 := (Field.ledger.field Layout.Ledger 0)
-  let v2 := r0
-  let v3 ← credit v1 v2 v0
+  let who_2 := who
+  let _ ← credit v1 who_2 amount
   let v4 := (Field.ledger.field Layout.Ledger 0)
-  let v5 := r0
-  let v6 ← credit v4 v5 v0
+  let who_5 := who
+  let _ ← credit v4 who_5 amount
   let v7 ← load (Field.ledger.field Layout.Ledger 1)
-  let v8 ← checkedAdd v7 v0
+  let v8 ← checkedAdd v7 amount
   store (Field.ledger.field Layout.Ledger 1) v8
-  let v9 := ()
-  let v10 := r0
-  let l0 ← StorageMap_locate_Address_u256 (Field.ledger.field Layout.Ledger 0) (Field.ledger.field Layout.Ledger 0).slot v10
+  let who_10 := who
+  let l0 ← StorageMap_locate_Address_u256 (Field.ledger.field Layout.Ledger 0) (Field.ledger.field Layout.Ledger 0).slot who_10
   let v11 ← load (Place.mk .storage l0.slot)
   let v12 ← load (Field.ledger.field Layout.Ledger 1)
   let v13 ← checkedAdd v11 v12
   return v13
 
+/-- `<Credit as AbiSize>::HEAD_SIZE` -/
 def Credit_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_u256
   let v4 ← checkedAdd v2 v3
   return v4
 
-def Credit_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Credit := do
-  let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+/-- `<Credit as Decode>::decode_from<CallData>` -/
+def Credit_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Credit := do
+  let __fe_msg_decode_input_len ← len_CallData __fe_msg_decode_input
+  let __fe_field_0 ← decode_msg_field_from_Sol_Address_CallData __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_base __fe_msg_decode_input_len
   let v7 ← abi_field_head_size_Address
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := (Credit.mk v5 v10)
+  let v8 ← checkedAdd __fe_msg_decode_base v7
+  let __fe_field_1 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v8 __fe_msg_decode_input_len
+  let v11 := (Credit.mk __fe_field_0 __fe_field_1)
   return v11
 
-def decode_from_prechecked_head_Credit_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Credit := do
-  let v3 ← Credit_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Credit, Sol, CallData>` -/
+def decode_from_prechecked_head_Credit_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Credit := do
+  let v3 ← Credit_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Credit>` -/
 def decode_runtime_args_Evm_Sol_Credit : FeM Credit := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  let input_2 ← Evm_input
+  input := input_2
+  let base ← Sol_SELECTOR_SIZE
+  let input_6 := input
+  let len ← len_CallData input_6
   let v9 ← Credit_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Credit_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  let input_11 := input
+  let v12 ← decode_from_prechecked_head_Credit_Sol_CallData input_11 base len
   return v12
 
-def recv0_arm0_entry : FeM Empty := do
+/-- The entry of `recv_Credit`, for `case44_bank::LedgerMsg::Credit` -/
+def recv_Credit_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Credit
-  let result ← recv0_arm0 message.who message.amount
+  let result ← recv_Credit message.who message.amount
   Evm_return_value_Sol_u256 result
 
+/-- The runtime entry of contract `Case44Bank`: the entry of the arm the call's selector picks -/
 def runtime : FeM Empty := do
   let size ← calldatasize
   if size.toNat < 4 then
@@ -120,10 +118,11 @@ def runtime : FeM Empty := do
   else
     let selector ← calldataSelector
     if selector = UInt256.ofNat 0x00000001 then
-      recv0_arm0_entry
+      recv_Credit_entry
     else
       revertEmpty
 
+/-- The deployment entry of contract `Case44Bank`: `init` on the arguments after the creation code -/
 def init_entry (args : ByteArray) : FeM ByteArray := do
   nonPayable
   let _ ← init

@@ -5,7 +5,7 @@ import Fe.EVM.Reach
 /-!
 # FePackedStore: the bytecode refines the exported arms
 
-`handContract` runs the exporter's arm bodies `recv0_arm0` to `recv0_arm4` and its `init`
+`handContract` runs the exporter's arm bodies `recv_Get0` to `recv_SetBoth` and its `init`
 (`Exported.lean`).  The entry code around them (selector dispatch, call-value and calldata
 checks, argument decoding, result encoding) is written by hand.
 
@@ -40,28 +40,28 @@ def setBothSelector : ByteArray := ⟨#[0x92, 0xcf, 0x1e, 0xf5]⟩
 
 def get0Arm : FeM ByteArray := do
   nonPayable
-  return (← recv0_arm0).toByteArray
+  return (← recv_Get0).toByteArray
 
 def get1Arm : FeM ByteArray := do
   nonPayable
-  return (← recv0_arm1).toByteArray
+  return (← recv_Get1).toByteArray
 
 def set0Arm (cd : ByteArray) : FeM ByteArray := do
   nonPayable
   if BadHead cd 1 then M.revert ByteArray.empty
-  recv0_arm2 (word cd 4)
+  recv_Set0 (word cd 4)
   return ByteArray.empty
 
 def set1Arm (cd : ByteArray) : FeM ByteArray := do
   nonPayable
   if BadHead cd 1 then M.revert ByteArray.empty
-  recv0_arm3 (word cd 4)
+  recv_Set1 (word cd 4)
   return ByteArray.empty
 
 def setBothArm (cd : ByteArray) : FeM ByteArray := do
   nonPayable
   if BadHead cd 2 then M.revert ByteArray.empty
-  recv0_arm4 (word cd 4) (word cd 36)
+  recv_SetBoth (word cd 4) (word cd 36)
   return ByteArray.empty
 
 /-- The runtime entry, written by hand: match the selector and run its arm.  Calldata with no selector, or with

@@ -37,7 +37,7 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 variable (m : Module) (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported arm entry, its arm and the primitives they reach unfold under `simp` here. -/
-attribute [local simp] Exported.recv0_arm0_entry Exported.recv0_arm0 Exported.balancesField
+attribute [local simp] Exported.recv_Credit_entry Exported.recv_Credit Exported.balancesField
   Exported.totalField Place.storage store load sload entry exec_nonPayable exec_sstore
 
 /-- The room a step of the exported arm needs, from the room the arm has. -/
@@ -75,7 +75,7 @@ set_option maxHeartbeats 8000000 in
 theorem arm_credit (hm : m.func? "credit" = some creditFunc)
     (hown : ∃ acc, w.accounts.get? I.codeOwner = some acc)
     (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm0_entry).exec I w)
+    EndsAs ((entry Exported.recv_Credit_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 5).exec I w)) := by
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
   have hdec := Exported.decodeCredit_exec I w.reserved hsz hfits
@@ -194,7 +194,7 @@ theorem runtime_endsAs (hown : OwnerExists w.accounts I)
   have hn4 : ¬ I.calldata.size < 4 := by omega
   by_cases h1 : selWord I.calldata = UInt256.ofNat 0x00000001
   · obtain ⟨E, p, hr⟩ := ir_dispatch m ic I w hsz hfits ((selWord_eq_iff (by decide)).mp h1)
-    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv0_arm0_entry).exec I w by
+    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv_Credit_entry).exec I w by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h1], hr]
     exact arm_credit m ic w hsz hfits hm (ownerExists_iff_get?.mp hown) hmem E p
   rw [entry_exec (f := .revert .empty) (by
