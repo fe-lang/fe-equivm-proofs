@@ -664,7 +664,6 @@ def shape (width : UInt256) (height : UInt256) : FeM Shape := do
   else
     let join_1 : Shape → FeM Shape := fun v3 => do
       join v3
-    -- if width == 0 {
     if decide (width = height) then
       join_1 (Shape.Square width)
     else
@@ -676,17 +675,14 @@ def recv_Area (width_0 : UInt256) (height_1 : UInt256) : FeM UInt256 := do
   let v3 ← shape width_0 height_1
   let join : UInt256 → FeM UInt256 := fun v2 => do
     return v2
-  -- match shape(width, height) {
   match v3 with
   | .Empty =>
     join (UInt256.ofNat 0)
   | .Square .. =>
-    -- match shape(width, height) {
     let side := v3.Square_0
     let v8 ← checkedMul side side
     join v8
   | .Rect .. =>
-    -- match shape(width, height) {
     let v14 ← checkedMul v3.Rect_0 v3.Rect_1
     join v14
 
@@ -696,7 +692,6 @@ def halve (value : UInt256) : FeM Option_u256 := do
   let v4 ← checkedRem value (UInt256.ofNat 2)
   let join : Option_u256 → FeM Option_u256 := fun v1 => do
     return v1
-  -- if value % 2 == 0 {
   if decide (v4 = (UInt256.ofNat 0)) then
     -- Option::Some(value / 2)
     let v9 ← checkedDiv value (UInt256.ofNat 2)
@@ -710,7 +705,6 @@ def recv_Half (value : UInt256) : FeM UInt256 := do
   let v2 ← halve value
   let join : UInt256 → FeM UInt256 := fun v1 => do
     return v1
-  -- match halve(value) {
   match v2 with
   | .Some .. =>
     join v2.Some_0
@@ -814,11 +808,9 @@ def step (value : UInt256) : FeM Option_u256 := do
   if decide (value = (UInt256.ofNat 1)) then
     join Option_u256.None
   else
-    -- if value == 1 {
     let v10 ← checkedRem value (UInt256.ofNat 2)
     let join_1 : Option_u256 → FeM Option_u256 := fun v2 => do
       join v2
-    -- if value == 1 {
     if decide (v10 = (UInt256.ofNat 0)) then
       -- Option::Some(value / 2)
       let v15 ← checkedDiv value (UInt256.ofNat 2)
@@ -933,7 +925,6 @@ def windows (n : UInt256) (width : UInt256) : FeM UInt256 := do
             -- index = end
             index := «end»
             loop acc index started r3
-          -- if end % 2 == 1 {
           if decide (v60 = (UInt256.ofNat 1)) then
             -- acc = acc + end as u256
             let acc_66 ← checkedAdd acc «end»
@@ -957,7 +948,6 @@ def windows (n : UInt256) (width : UInt256) : FeM UInt256 := do
             -- for _ in index..end { acc = acc * 2 % 1000003 }
             let v41 ← Range_Unknown_Unknown_has r3 v3
             if v41 then
-              -- for _ in index..end { acc = acc * 2 % 1000003 }
               let _ ← Range_Unknown_Unknown_at r3 v3
               -- acc = acc * 2 % 1000003
               let v47 ← checkedMul acc (UInt256.ofNat 2)
@@ -972,7 +962,6 @@ def windows (n : UInt256) (width : UInt256) : FeM UInt256 := do
           loop_2 acc index started r3 v38
         else
           loop_1 acc index started r3
-      -- let end = if index + width + 1 < n { index + width + 1 } else { n }
       if decide (v19.toNat < n.toNat) then
         -- index + width + 1
         let v25 ← checkedAdd index width
@@ -1206,7 +1195,6 @@ def three_levels (n : UInt256) : FeM UInt256 := do
     -- for i in 0..n {
     let v13 ← Range_has_0 r2 v1
     if v13 then
-      -- for i in 0..n {
       let v15 ← Range_at_0 r2 v1
       let i := v15
       -- for j in 0..i {
@@ -1220,7 +1208,6 @@ def three_levels (n : UInt256) : FeM UInt256 := do
         -- for j in 0..i {
         let v24 ← Range_has_0 r3 v2
         if v24 then
-          -- for j in 0..i {
           let v26 ← Range_at_0 r3 v2
           let j := v26
           -- var k: usize = 0
@@ -1245,7 +1232,6 @@ def three_levels (n : UInt256) : FeM UInt256 := do
                 let k_54 ← checkedAdd k (UInt256.ofNat 1)
                 k := k_54
                 loop_2 total k r2 r3
-              -- if (i + j + k) % 3 == 0 { total += 1 } else { total += 2 }
               if decide (v37 = (UInt256.ofNat 0)) then
                 -- total += 1
                 let total_42 ← checkedAdd total (UInt256.ofNat 1)
@@ -1267,7 +1253,6 @@ def three_levels (n : UInt256) : FeM UInt256 := do
                 -- for j in 0..i {
                 let v70 ← Range_next_0 r3 v2
                 loop_1 total k r2 r3 v70
-              -- if j % 2 == 0 { total += 10 }
               if decide (v58 = (UInt256.ofNat 0)) then
                 -- total += 10
                 let total_63 ← checkedAdd total (UInt256.ofNat 10)
@@ -1574,21 +1559,18 @@ def recv_Advance («by» : UInt256) : FeM UInt256 := do
   let v3 ← load_Phase Field.phase
   let join : UInt256 → FeM UInt256 := fun v1 => do
     return v1
-  -- match phase {
   match v3 with
   | .Idle =>
     -- phase = Phase::Running(1, by)
     store_Phase Field.phase (Phase.Running (UInt256.ofNat 1) «by»)
     join (UInt256.ofNat 0)
   | .Running .. =>
-    -- match phase {
     let count ← loadInt (.u 64) (Field.phase.offset 1)
     let sum ← load (Field.phase.offset 2)
     -- phase = Phase::Done { ok: sum > by }
     store_Phase Field.phase (Phase.Done (decide («by».toNat < sum.toNat)))
     join sum
   | .Done .. =>
-    -- match phase {
     let ok ← loadBool (Field.phase.offset 1)
     let join_1 : UInt256 → FeM UInt256 := fun v2 => do
       join v2
@@ -2368,6 +2350,12 @@ set_option linter.unusedVariables false
 
 export Lib (CallData Evm_input Evm_return_value_Sol_u256 Sol_SELECTOR_SIZE Sol_validate_runtime_head abi_field_head_size_u256 decode_msg_field_from_Sol_u256_CallData len_CallData)
 
+def Field.counter : Place :=
+  .storage (UInt256.ofNat 4)
+
+def Layout.Counter : Layout :=
+  { storage := [0, 1] }
+
 structure Pair where
   a : UInt256
   b : UInt256
@@ -2590,22 +2578,26 @@ def long (x : UInt256) : FeM UInt256 := do
 
 /-- `Run { x } -> u256`, selector `0xa444f5e9` (`run(uint256)`) -/
 def recv_Run (x : UInt256) : FeM UInt256 := do
+  -- counter.1 += x
+  let v1 ← load (Field.counter.field Layout.Counter 1)
+  let v2 ← checkedAdd v1 x
+  store (Field.counter.field Layout.Counter 1) v2
   -- pair = Pair { a: x, b: load_Pair(x) }
-  let v1 ← load_Pair x
-  store_Pair Field.pair (Pair.mk x v1)
+  let v4 ← load_Pair x
+  store_Pair Field.pair (Pair.mk x v4)
   -- prop = Prop { flag: true, n: long_k1(x) }
-  let v5 ← long_k1 x
-  store_Prop Field.prop (Prop_1.mk true v5)
+  let v8 ← long_k1 x
+  store_Prop Field.prop (Prop_1.mk true v8)
   -- let stored = pair
   let pair ← load_Pair_1 Field.pair
   -- let p = prop
   let prop ← load_Prop Field.prop
   -- stored.a + stored.b + p.n + long(x)
-  let v14 ← checkedAdd pair.a pair.b
-  let v16 ← checkedAdd v14 prop.n
-  let v17 ← long x
-  let v18 ← checkedAdd v16 v17
-  return v18
+  let v17 ← checkedAdd pair.a pair.b
+  let v19 ← checkedAdd v17 prop.n
+  let v20 ← long x
+  let v21 ← checkedAdd v19 v20
+  return v21
 
 /-- `<Run as AbiSize>::HEAD_SIZE` -/
 def Run_HEAD_SIZE : FeM UInt256 := do
