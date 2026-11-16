@@ -120,7 +120,6 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     rw [recv_GetDepositRoot.loop.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
       ite_eq_right (by decide), countPlace, load_storage, Lib.exec_bind_ok I w (exec_sload _ I w),
       hs.slotWord, hinv.count, Lib.exec_bind_ok I w (truncate64_exec I w (by omega))] at hx
-    simp only [bind_pure] at hx
     rw [mixInLength_exec I w _ _ (by rw [ulit_toNat' _ (by
       rw [show UInt256.size = 2 ^ 256 from rfl]; omega)]; omega)] at hx
     obtain ⟨rfl, -, -⟩ := hashPair_ok I w hx

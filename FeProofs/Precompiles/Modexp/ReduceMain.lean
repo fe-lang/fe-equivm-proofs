@@ -418,7 +418,6 @@ theorem main_loop (md : Exported.Modexp.Modulus) (wp mp : UInt256) {Mem : ByteAr
           · rw [hI.above k (by omega), ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right h2])]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
-    dsimp only
     split_ifs <;> rfl
 
 end FeProofs.Modexp
