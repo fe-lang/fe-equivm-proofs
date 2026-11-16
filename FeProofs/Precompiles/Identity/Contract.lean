@@ -170,7 +170,7 @@ theorem le8_extract (x : ℕ) : (le8 x).extract 0 8 = le8 x :=
 theorem checkedAdd_ofNat (I : Env) (v : World) {a b : ℕ} (h : a + b < UInt256.size) :
     (checkedAdd (UInt256.ofNat a) (UInt256.ofNat b)).exec I v =
       some (.ok (UInt256.ofNat (a + b), v)) := by
-  rw [checkedAdd, if_neg (by rw [ulit_toNat' a (by omega), ulit_toNat' b (by omega)]; omega),
+  rw [checkedAdd, ite_eq_right (by rw [ulit_toNat' a (by omega), ulit_toNat' b (by omega)]; omega),
     ofNat_add_ofNat h]
   rfl
 
@@ -222,9 +222,9 @@ theorem bytes_exec (t : ℕ) : ∀ (k : ℕ) (v : World), k + t = d.size →
             exact low_byte d k (by omega))
         (by rw [ByteArray.size_extract, toByteArray_size]; omega)]
     rw [copied_MemBuffer.loop.loop_1.eq_1]
-    simp only [hkn, hn, show k < d.size by omega, decide_true, if_true, Fe.M.exec_bind, hbyte,
+    simp only [hkn, hn, show k < d.size by omega, decide_true, ite_true, Fe.M.exec_bind, hbyte,
       Lib.MemBuffer_index_mut, out, show ¬ d.size ≤ k by omega, decide_false, Bool.false_eq_true,
-      if_false, Fe.M.exec_pure, mstoreInt, Fe.M.exec_modify, IntTy.bits, hpk]
+      ite_false, Fe.M.exec_pure, mstoreInt, Fe.M.exec_modify, IntTy.bits, hpk]
     rw [show (32 - 8 / 8 : ℕ) = 31 from rfl, show (8 / 8 : ℕ) = 1 from rfl, hw,
       checkedAdd_ofNat I _ (by omega)]
     exact ih (k + 1) _ (by omega) rfl
@@ -247,7 +247,7 @@ theorem lanes_exec (t : ℕ) :
     rw [copied_MemBuffer.loop.eq_1]
     simp only [Fe.M.exec_bind, checkedAdd_ofNat I v (show k + 8 < UInt256.size by
       unfold UInt256.size; omega), toNat_lit (show k + 8 < 2 ^ 256 by omega),
-      hn, show ¬ k + 8 ≤ d.size by omega, decide_false, Bool.false_eq_true, if_false]
+      hn, show ¬ k + 8 ≤ d.size by omega, decide_false, Bool.false_eq_true, ite_false]
     exact bytes_exec I d M b hb hroom hfits (d.size - k) k v (by omega) hv
   | succ t ih =>
     intro k v hk hlt hv
@@ -256,7 +256,7 @@ theorem lanes_exec (t : ℕ) :
       unfold UInt256.size; omega), toNat_lit (show k + 8 < 2 ^ 256 by omega), hn]
     by_cases h8 : k + 8 ≤ d.size
     swap
-    · simp only [h8, decide_false, Bool.false_eq_true, if_false]
+    · simp only [h8, decide_false, Bool.false_eq_true, ite_false]
       exact bytes_exec I d M b hb hroom hfits (d.size - k) k v (by omega) hv
     have hs : (M ++ region d k).size = M.size + d.size := by
       rw [ByteArray.size_append, region_size d (by omega)]
@@ -271,7 +271,7 @@ theorem lanes_exec (t : ℕ) :
         v.memory (M.size + k) 8 = M ++ region d (k + 8) := by
       rw [hv, region_write d M _ (by omega) h8 ((le8_extract _).trans (le8_lane d k h8))
         (by rw [le8_size])]
-    simp only [h8, decide_true, if_true, Fe.M.exec_bind, hlane, hwr, hw,
+    simp only [h8, decide_true, ite_true, Fe.M.exec_bind, hlane, hwr, hw,
       checkedAdd_ofNat I _ (show k + 8 < UInt256.size by unfold UInt256.size; omega)]
     exact ih (k + 8) _ (by omega) (by omega) rfl
 
@@ -321,7 +321,7 @@ theorem arm_exec (I : Env) (w : World) (hpos : 0 < w.memory.size)
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size := toNat_lit (by omega)
   simp only [recv_fallback, Fe.M.exec_bind, input_eq, hin, hc, Fe.M.exec_pure, Lib.MemBuffer_drop,
     Lib.dealloc_u8, Lib.cast_u8_u8, SUCCESS, ne_eq, not_true_eq_false, decide_false,
-    Bool.false_eq_true, if_false, Lib.MemBuffer_span_ref, Lib.MemSlice_from_raw_parts_ref_u8,
+    Bool.false_eq_true, ite_false, Lib.MemBuffer_span_ref, Lib.MemSlice_from_raw_parts_ref_u8,
     Lib.Evm_return_data, Lib.MemSlice_ptr_u8, Lib.MemSlice_len_u8, out, returnData, hp, hn,
     Fe.M.exec_get, Fe.M.exec_stop, read_after]
 
@@ -334,7 +334,7 @@ theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f
     (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv, h]
+  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_left hv, h]
 
 /-- **The contract `Identity` is IDENTITY.**  On call data shorter than `2 ^ 64` bytes, with room
     in memory for the input and the output, and no call value, the exported runtime entry stops
@@ -354,7 +354,7 @@ theorem feIdentityContractCorrect (I : ExecutionEnv) (w : World) (hfits : Callda
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 /-- **The contract and the precompile.**  With at least the gas IDENTITY charges, the precompile
     returns what the contract stops with and keeps the account map. -/
@@ -366,7 +366,7 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
         some (.error (.stop (Ξ_ID σ g A I).2.2.2 { w with memory := memory })) ∧
       (Ξ_ID σ g A I).1 = σ := by
   obtain ⟨memory, h⟩ := feIdentityContractCorrect I w hfits hmem hv
-  simp only [Ξ_ID, if_neg (Nat.not_lt.mpr hg)]
+  simp only [Ξ_ID, ite_eq_right (Nat.not_lt.mpr hg)]
   exact ⟨memory, h, trivial⟩
 
 end FeProofs.Precompiles.Identity

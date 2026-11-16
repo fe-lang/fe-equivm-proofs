@@ -24,7 +24,7 @@ theorem shl_toNat (x : UInt256) {k : Nat} (hk : k < 256) :
     rw [show UInt256.size = 2 ^ 256 from rfl]; omega)
   show (UInt256.shiftLeft x (UInt256.ofNat k)).toNat = _
   unfold UInt256.shiftLeft
-  rw [if_neg (by show ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by show ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   show (x.toNat <<< (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkv]
 
@@ -34,7 +34,7 @@ theorem shr_toNat (x : UInt256) {k : Nat} (hk : k < 256) :
     rw [show UInt256.size = 2 ^ 256 from rfl]; omega)
   show (UInt256.shiftRight x (UInt256.ofNat k)).toNat = _
   unfold UInt256.shiftRight
-  rw [if_neg (by show ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
+  rw [ite_eq_right (by show ¬ (UInt256.ofNat k).toNat ≥ 256; omega)]
   show (x.toNat >>> (UInt256.ofNat k).toNat) % UInt256.size = _
   rw [hkv]
   exact Nat.mod_eq_of_lt (lt_of_le_of_lt (Nat.shiftRight_le _ _) x.val.isLt)

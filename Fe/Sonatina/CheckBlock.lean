@@ -58,7 +58,7 @@ theorem decode_append {code tail : ByteArray} {pc : UInt256} {op : Operation}
     split
     · rfl
     · next hw =>
-      rw [if_neg hw] at hn
+      rw [ite_eq_right hw] at hn
       simp only [Option.map_some, Option.getD_some] at hn
       rw [extract'_append (by omega)]
 
@@ -114,7 +114,7 @@ theorem mem_instrs_D_J {c : ByteArray} {pc : Nat} {a : Option Nat} {n : Nat} :
       rcases List.mem_cons.mp h with h | h
       · simp only [Prod.mk.injEq] at h
         obtain ⟨rfl, rfl, -⟩ := h
-        rw [if_pos rfl]
+        rw [ite_eq_left rfl]
         exact mem_D_J_aux_of_mem c.size _ _ (by omega) (Array.mem_push_self ..)
       · exact mem_instrs_D_J f _ _ _ (by rw [hrest, List.drop_drop]; rfl) h
 
@@ -319,7 +319,7 @@ theorem mstore_read_disjoint (v : UInt256) (m : ByteArray) (off a : Nat)
     (hgap : off - m.size < USize.size) (hd : off + 32 ≤ a ∨ a + 32 ≤ off) :
     ((UInt256.toByteArray v).write 0 m off 32).readWithPadding a 32 = m.readWithPadding a 32 :=
   readWithPadding_congr fun i hi => by
-    rw [mstore_getD v m off (a + i) hgap, if_neg (by omega)]
+    rw [mstore_getD v m off (a + i) hgap, ite_eq_right (by omega)]
 
 /-- Each word `ae.1` of memory `mem` holds the word of the expression `ae.2`. -/
 def HeldAt (I : ExecutionEnv) (ρ : Nat → UInt256) (req : List (Nat × Expr)) (mem : ByteArray) :
@@ -834,7 +834,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     unfold run at h
     by_cases harr : (p.events.isEmpty && p.calls.isEmpty &&
         (p.exit.selected.bind place) == some p.pc) = true
-    · rw [if_pos harr] at h
+    · rw [ite_eq_left harr] at h
       simp only [Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq] at harr
       obtain ⟨⟨hev, hcl0⟩, hsel⟩ := harr
       split at h
@@ -850,7 +850,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           fun d hd => selected_sound hS hp.valid (hp.next ▸ hd), hpl, hp.pc, hex, hrel, hB,
           arrivesHeld_rel h.2 hp.held, hp.env, hw⟩⟩)
       · cases h
-    rw [if_neg harr] at h
+    rw [ite_eq_right harr] at h
     split at h
     · cases h
     next op arg next hop =>
@@ -889,14 +889,14 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         subst hq
         simp at harg
     by_cases h1 : (op == .JUMPDEST) = true
-    · rw [if_pos h1] at h
+    · rw [ite_eq_left h1] at h
       simp only [beq_iff_eq] at h1
       subst h1
       have ha := decode_none hdec rfl
       subst ha
       exact cont _ _ _ (calm_of hdec (by decide)) (by decide) (jumpdest_moves hdec)
         (hone (by simpa using hnext)) hp.stack h
-    rw [if_neg h1] at h
+    rw [ite_eq_right h1] at h
     obtain ⟨v, rfl⟩ | rfl : (∃ v, arg = some v) ∨ arg = none := by cases arg <;> simp
     · simp only at h
       cases a with
@@ -921,10 +921,10 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             (hp.stack.cons rfl) h
     obtain ⟨rfl, hq⟩ := hnone rfl
     simp only at h
-    rw [if_neg (by simpa using hq)] at h
+    rw [ite_eq_right (by simpa using hq)] at h
     have hone' := hone (by simpa using hnext)
     by_cases h2 : (op == .POP) = true
-    · rw [if_pos h2] at h
+    · rw [ite_eq_left h2] at h
       simp only [beq_iff_eq] at h2
       subst h2
       split at h
@@ -936,7 +936,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         rw [hes] at hrest
         exact cont _ _ _ (calm_of hdec (by decide)) (by decide) (pop_moves hdec hs) hone' hrest h
       · cases h
-    rw [if_neg h2] at h
+    rw [ite_eq_right h2] at h
     obtain ⟨n, hn⟩ | hn : (∃ n, dupN op = some n) ∨ dupN op = none := by
       cases dupN op <;> simp
     · rw [hn] at h
@@ -968,7 +968,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     rw [hn'] at h
     simp only at h
     by_cases h3 : pureOps.contains op = true
-    · rw [if_pos h3] at h
+    · rw [ite_eq_left h3] at h
       split at h
       · next k hk =>
         split at h
@@ -984,10 +984,10 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             (hrest.cons (hval.intern (by rw [hev]; simpa using hv))) h
         · cases h
       · cases h
-    rw [if_neg h3] at h
+    rw [ite_eq_right h3] at h
     by_cases h35 : (op == .MLOAD && p.reloads) = true
     · -- A reload: the word the path knows holds its expression's word.
-      rw [if_pos h35] at h
+      rw [ite_eq_left h35] at h
       simp only [Bool.and_eq_true, beq_iff_eq] at h35
       obtain ⟨rfl, -⟩ := h35
       split at h
@@ -1027,9 +1027,9 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
                   by rw [hw'.memory, ← hw.memory]; exact hp.held⟩ hw' htr)
         · cases h
       · cases h
-    rw [if_neg h35] at h
+    rw [ite_eq_right h35] at h
     by_cases h4 : (readOps.contains op || writeOps.contains op) = true
-    · rw [if_pos h4] at h
+    · rw [ite_eq_left h4] at h
       split at h
       · next k ev events hk hevs =>
         split_ifs at h with hc
@@ -1071,7 +1071,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit, hheld⟩ hw2 htr'
         · cases h
       · cases h
-    rw [if_neg h4] at h
+    rw [ite_eq_right h4] at h
     -- Arrival at a successor's code, the events done.
     have arrive : ∀ (s₁ : State) (S pc' : Nat) (es : List Expr), p.events = [] → p.calls = [] →
         s₁.executionEnv = I → Agree M s₁ w → s₁.machineState.pc.toNat = pc' → place S = some pc' →
@@ -1093,7 +1093,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
       · rw [← h']; exact way_not_halt hw op args
       · exact (h'.2.1 op args).1
     by_cases h5 : haltOps.contains op = true
-    · rw [if_pos h5] at h
+    · rw [ite_eq_left h5] at h
       split at h
       · next hop' args hex =>
         simp only [Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq, decide_eq_true_eq] at h
@@ -1109,7 +1109,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         exact Ends.halt hcl0 hp.env (calm_of_mem hdec (by decide) h5) h5 hdec hs hl (htake ▸ hm)
           hw
       · cases h
-    rw [if_neg h5] at h
+    rw [ite_eq_right h5] at h
     have hjump : ∀ {t : Nat}, validJump code (jumpdests code) t = true →
         (D_J s.executionEnv.code 0).contains (UInt256.ofNat t) = true ∧
           (UInt256.ofNat t).toNat = t := fun hj => by
@@ -1117,7 +1117,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
       exact ⟨by rw [hp.env, hp.code]; exact D_J_append (jumpdests_D_J hj.2),
         by rw [toNat_ofNat, Nat.mod_eq_of_lt (by omega)]⟩
     by_cases h6 : (op == .JUMP) = true
-    · rw [if_pos h6] at h
+    · rw [ite_eq_left h6] at h
       simp only [beq_iff_eq] at h6
       subst h6
       split at h
@@ -1234,9 +1234,9 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               hwj⟩))⟩)
         · cases h
       · cases h
-    rw [if_neg h6] at h
+    rw [ite_eq_right h6] at h
     by_cases h7 : (op == .JUMPI) = true
-    · rw [if_pos h7] at h
+    · rw [ite_eq_left h7] at h
       simp only [beq_iff_eq] at h7
       subst h7
       split at h
@@ -1255,7 +1255,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           fun g hx => ?_
         have hw₁ := hw' g _ _ (hquiet (by decide) (by decide)) hx
         by_cases hc : (cv != ⟨0⟩) = true
-        · simp only [hc, if_true] at hw₁ ⊢
+        · simp only [hc, ite_true] at hw₁ ⊢
           have ht : (cv.toNat != 0) = true := by rw [← ne_zero_toNat]; exact hc
           split at htk
           · next S hS =>
@@ -1266,7 +1266,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               (by simp [htk.1.2, htk.2]) hp.held (nohalt hS) (isJump_of_way hp hS)⟩
           · next hS => exact (way_sound hS hcv ht hp.valid).elim
           · cases htk
-        · simp only [hc, Bool.false_eq_true, if_false] at hw₁ ⊢
+        · simp only [hc, Bool.false_eq_true, ite_false] at hw₁ ⊢
           have ht : (cv.toNat != 0) = false := by rw [← ne_zero_toNat]; simpa using hc
           split at hnt
           · next S hS =>
@@ -1287,7 +1287,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               hw₁ htr⟩
           · cases hnt
       · cases h
-    rw [if_neg h7] at h
+    rw [ite_eq_right h7] at h
     cases h
 
 end Fe.Sonatina.Check

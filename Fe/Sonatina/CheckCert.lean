@@ -136,7 +136,7 @@ theorem runSectionWith_eq {s : Sidecar} {name : String} {obj : Object} {sec : Se
     fun ic => by
       rw [runFuncG.eq_1]
       simp [guarded, hf, he, hp, Fe.Sonatina.bind]
-  simp only [show (Level.machine == Level.machine) = true from rfl, if_true, hrun, pre]
+  simp only [show (Level.machine == Level.machine) = true from rfl, ite_true, hrun, pre]
   cases low.entryFreePtr <;> simp only [Fe.M.exec_bind, pure_bind, endRun, Fe.EVM.mstore,
     Fe.M.exec_modify]
   all_goals
@@ -163,7 +163,7 @@ theorem runSection_eq {s : Sidecar} {name : String} {obj : Object} {sec : Sectio
     fun ic => by
       rw [runFunc_eq]
       simp [hf, he, hp, Fe.Sonatina.bind]
-  simp only [show (Level.machine == Level.machine) = true from rfl, if_true, hrun, pre]
+  simp only [show (Level.machine == Level.machine) = true from rfl, ite_true, hrun, pre]
   cases low.entryFreePtr <;> simp only [Fe.M.exec_bind, pure_bind, endRun, Fe.EVM.mstore,
     Fe.M.exec_modify]
   all_goals
@@ -276,7 +276,7 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
         runBlocksG ((plan name).guard low'.machine) low'.machine
           ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩ [] f {} none
           eb.id).exec I (World.init σ A feed)) := by
-      simp only [show (hint.name == entry) = true by simp [hname], preIf, if_true]
+      simp only [show (hint.name == entry) = true by simp [hname], preIf, ite_true]
       have h2 := hnp feed
       rw [runSectionWith_eq hobj hsec hcode hlow hfe he hpar] at h2
       exact NoPanicAt.of_endRun h2
@@ -290,7 +290,7 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
         rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
         by simp [hephi], by simp [funcSpill, FuncSpill.spillIn]⟩
       (fun h => by rw [hret] at h; cases h) hnpf
-    simp only [show (hint.name == entry) = true by simp [hname], preIf, if_true, ite_self] at hfin
+    simp only [show (hint.name == entry) = true by simp [hname], preIf, ite_true, ite_self] at hfin
     have hF := hfin.final
     refine ⟨(Xi_agrees (hF.agrees (by
       simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp

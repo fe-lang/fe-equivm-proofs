@@ -270,13 +270,13 @@ theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv_fallback_entr
 theorem entry_runtime_none (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩)
     (h : recv_fallback.exec I w.reserved = none) : (entry runtime).exec I w = none := by
   simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv_fallback_entry, exec_nonPayable,
-    if_pos hv, h]
+    ite_eq_left hv, h]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
     (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
+  simp only [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, ite_eq_left hv, h]
 
 /-- **The contract `Bn254Add` is ECADD.**  On call data `d` shorter than `2 ^ 64` bytes, with
     room in memory for the input and the 64-byte output, and no call value, the exported runtime
@@ -311,7 +311,7 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
         (Ξ_BN_ADD σ g A I).1 = σ) ∨
       ((entry runtime).exec I w = some (.error (.revert ByteArray.empty)) ∧
         Ξ_BN_ADD σ g A I = (∅, ⟨0⟩, A, .empty)) := by
-  rw [Ξ_BN_ADD_eq, if_neg (by omega)]
+  rw [Ξ_BN_ADD_eq, ite_eq_right (by omega)]
   rcases feBn254AddContractCorrect I w hfits hmem hv with h | ⟨o, ho, memory, h⟩ | ⟨ho, h⟩
   · exact Or.inl h
   · exact Or.inr (Or.inl ⟨memory, by simp only [ho]; exact h, by simp only [ho]⟩)
@@ -321,6 +321,6 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 end FeProofs.Bn254Add

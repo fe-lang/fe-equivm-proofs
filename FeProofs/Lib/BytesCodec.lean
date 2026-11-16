@@ -237,7 +237,7 @@ theorem copyPayload_exec (p : Nat) (hp : p < 2 ^ 256) (hfits : I.calldata.size <
     show w.memory.size + (L + 63) / 32 * 32 < UInt256.size by omega,
     show ¬ (L + 63) / 32 * 32 < 32 by omega, word_to_usize, ptr_offset, store_word, cast_u8_u256,
     Bytes_from_validated_abi_tail, replicate_zeros]
-  rw [if_pos ⟨hpN, by omega, by omega⟩]
+  rw [ite_eq_left ⟨hpN, by omega, by omega⟩]
   simp [Fe.EVM.calldatacopy, t0p, tm, t32L, hmem]
 
 theorem decodeMsgBytes_eq (cd : CallData) (a b c : UInt256) :
@@ -319,11 +319,11 @@ theorem decodeBytesField_exec (base head : Nat) (hb : base < 2 ^ 256) (hh : head
   unfold bytesAt?
   simp only [hoff]
   by_cases h1 : UInt256.size - 1 - base < off.toNat
-  · rw [if_pos h1] at hct
-    rw [exec_bind_err I w hct, if_neg (by omega)]
+  · rw [ite_eq_left h1] at hct
+    rw [exec_bind_err I w hct, ite_eq_right (by omega)]
   have hp : UInt256.ofNat base + off = UInt256.ofNat (base + off.toNat) := by
     rw [← ofNat_add_ofNat (by omega), u256_ofNat_toNat]
-  rw [if_neg h1, hp] at hct
+  rw [ite_eq_right h1, hp] at hct
   rw [exec_bind_ok I w hct, bounded_exec,
     copyPayload_exec I w (base + off.toNat) (by omega) hfits hroom]
   generalize uInt256OfByteArray (I.calldata.readBytes (base + off.toNat) 32) = Lw
@@ -331,6 +331,6 @@ theorem decodeBytesField_exec (base head : Nat) (hb : base < 2 ^ 256) (hh : head
       base + off.toNat + 32 + Lw.toNat ≤ I.calldata.size ∧ Lw.toNat ≤ 2 ^ 64 - 64
   · have hd : (I.calldata.extract (base + off.toNat + 32) (base + off.toNat + 32 + Lw.toNat)).size =
         Lw.toNat := by rw [ByteArray.size_extract]; omega
-    rw [if_pos hc, if_pos ⟨by omega, hc⟩]
+    rw [ite_eq_left hc, ite_eq_left ⟨by omega, hc⟩]
     simp only [hd, u256_ofNat_toNat]
-  · rw [if_neg hc, if_neg (fun h => hc h.2)]
+  · rw [ite_eq_right hc, ite_eq_right (fun h => hc h.2)]

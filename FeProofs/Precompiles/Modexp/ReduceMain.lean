@@ -45,14 +45,14 @@ theorem mulsub_exit (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w : UInt2
   have hS : UInt256.size = 2 ^ 256 := rfl
   rw [Modulus_reduce.loop_2.loop_3.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
-    show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, if_false,
+    show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, ite_false,
     pure_bind, sbb_w, down128_eq, add_lit (show j + n < 2 ^ 256 by omega), Fe.M.exec_bind,
     limb_lit wp (show wp.toNat + 8 * (j + n) < UInt256.size by omega),
     store_lf f hK hs (show j + n < K by omega), shr127_eq, ne_eq, limb_eq_zero_w,
     Modulus_reduce.loop_2.loop_3.loop_4.eq_1, Lib.Range_start_0]
   by_cases h : hbit (sbbD hi c b) = 0
-  · simp only [h, not_true_eq_false, decide_false, Bool.false_eq_true, if_false, if_true]
-  · simp only [h, not_false_eq_true, decide_true, if_true, if_false]
+  · simp only [h, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false, ite_true]
+  · simp only [h, not_false_eq_true, decide_true, ite_true, ite_false]
 
 /-- **After the add-back**: the top limb plus the carry, then the next step. -/
 theorem addback_exit (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w hw qw : UInt256)
@@ -71,7 +71,7 @@ theorem addback_exit (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w hw qw 
   have hl := load_lf (w := w) f hK hs (i := j + n) (by omega) I
   rw [Modulus_reduce.loop_2.loop_3.loop_5.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
-    show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, if_false,
+    show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, ite_false,
     pure_bind, add_lit (show j + n < 2 ^ 256 by omega), Fe.M.exec_bind,
     limb_lit wp (show wp.toNat + 8 * (j + n) < UInt256.size by omega), hl, addW64_eq,
     store_lf f hK hs (show j + n < K by omega), Modulus_reduce.loop_2.loop_3.loop_4.eq_1]
@@ -172,9 +172,9 @@ theorem after_qhat (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w : UInt25
   have hout2 : ∀ k, k < J ∨ J + (m + 2) < k → Function.update f' (J + (m + 2)) (loD S) k = f k :=
     fun k hk => by rw [Function.update_of_ne (by omega)]; exact hout' k (by omega)
   by_cases hz : hbit S = 0
-  · rw [if_pos hz]
+  · rw [ite_eq_left hz]
     exact ⟨_, c'.w, b'.w, r6, r9, kinv_step hI hD0 hDn hout2 (k0 (by rw [hz]; rfl)), rfl⟩
-  · rw [if_neg hz]
+  · rw [ite_eq_right hz]
     have h1 : (hbit S).val = 1 := by
       have : (hbit S).val ≠ 0 := fun e => hz (Fin.ext e)
       omega
@@ -256,7 +256,7 @@ theorem main_head (md : Exported.Modexp.Modulus) (cnt wp mp sh : UInt256) {Mem :
   have hl0 := load_lf (w := w) f hK hs (i := J + m) (by omega) I
   rw [Modulus_reduce.loop_2.eq_1]
   simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show J + 1 < 2 ^ 256 by omega),
-    show 0 < J + 1 by omega, decide_true, if_true,
+    show 0 < J + 1 by omega, decide_true, ite_true,
     sub_lit (show J + 1 < 2 ^ 256 by omega) (show 1 ≤ J + 1 by omega), Nat.add_sub_cancel,
     add_lit (show J + (m + 2) < 2 ^ 256 by omega),
     sub_lit (show J + (m + 2) < 2 ^ 256 by omega) (show 1 ≤ J + (m + 2) by omega),
@@ -268,10 +268,10 @@ theorem main_head (md : Exported.Modexp.Modulus) (cnt wp mp sh : UInt256) {Mem :
     hl2, hl1, w_inj_eq, hrec, Lib.Range_start_0, qsel]
   by_cases h1 : f (J + (m + 2)) = d1
   · by_cases h2 : f (J + m + 1) = d0
-    · simp only [decide_eq_true h1, decide_eq_true h2, if_true, if_pos (And.intro h1 h2), qmax_w]
-    · simp only [decide_eq_true h1, decide_eq_false h2, if_true, Bool.false_eq_true, if_false,
-        if_neg (fun h : _ ∧ _ => h2 h.2), Fe.M.exec_bind, hl0, div_3by2_eq, pure_bind]
-  · simp only [decide_eq_false h1, Bool.false_eq_true, if_false, if_neg (fun h : _ ∧ _ => h1 h.1),
+    · simp only [decide_eq_true h1, decide_eq_true h2, ite_true, ite_eq_left (And.intro h1 h2), qmax_w]
+    · simp only [decide_eq_true h1, decide_eq_false h2, ite_true, Bool.false_eq_true, ite_false,
+        ite_eq_right (fun h : _ ∧ _ => h2 h.2), Fe.M.exec_bind, hl0, div_3by2_eq, pure_bind]
+  · simp only [decide_eq_false h1, Bool.false_eq_true, ite_false, ite_eq_right (fun h : _ ∧ _ => h1 h.1),
       Fe.M.exec_bind, hl0, div_3by2_eq, pure_bind]
 
 /-- **The digit is exact or one too large**, from the window's and the divisor's top limbs. -/
@@ -309,14 +309,14 @@ theorem qsel_bounds {f : ℕ → Limb} {Dn J m : ℕ} (hDlt : Dn < 2 ^ (64 * (m 
   by_cases hc : f (J + (m + 2)) = limbAt Dn (m + 1) ∧ f (J + m + 1) = limbAt Dn m
   · have hT : (f (J + (m + 2))).val * 2 ^ 64 + (f (J + m + 1)).val =
         (limbAt Dn (m + 1)).val * 2 ^ 64 + (limbAt Dn m).val := by rw [hc.1, hc.2]
-    rw [if_pos hT] at hlo hhi
-    rw [if_pos hc]
+    rw [ite_eq_left hT] at hlo hhi
+    rw [ite_eq_left hc]
     exact ⟨hlo, hhi⟩
   · have hT : (f (J + (m + 2))).val * 2 ^ 64 + (f (J + m + 1)).val ≠
         (limbAt Dn (m + 1)).val * 2 ^ 64 + (limbAt Dn m).val := fun e =>
       hc ⟨Fin.ext (by omega), Fin.ext (by omega)⟩
-    rw [if_neg hT] at hlo hhi
-    rw [if_neg hc, div32_val _ _ _ _ _ hd1 (lt_of_le_of_ne hTD hT)]
+    rw [ite_eq_right hT] at hlo hhi
+    rw [ite_eq_right hc, div32_val _ _ _ _ _ hd1 (lt_of_le_of_ne hTD hT)]
     rw [show (f (J + (m + 2))).val * 2 ^ 128 + (f (J + m + 1)).val * 2 ^ 64 + (f (J + m)).val =
       ((f (J + (m + 2))).val * 2 ^ 64 + (f (J + m + 1)).val) * 2 ^ 64 + (f (J + m)).val by ring]
     exact ⟨hlo, hhi⟩
@@ -402,20 +402,20 @@ theorem main_loop (md : Exported.Modexp.Modulus) (wp mp : UInt256) {Mem : ByteAr
       rfl)
     rw [Modulus_reduce.loop_2.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
-      if_false, pure_bind, Lib.Range_start_0]
+      ite_false, pure_bind, Lib.Range_start_0]
     rw [denorm_loop wp hK hs hn hcK hs64 (R := X % M) (lt_of_lt_of_le (Nat.mod_lt _ hM0)
         (le_trans (Nat.le_mul_of_pos_right _ (by positivity)) hDlt.le))
       (fun k => if k < count + 1 then 0 else F k) w I r0 r1 r2 (UInt256.ofNat 0) r4 r5 r6 r7 r8 r9 r11 v1
       (m + 2) 0 f (by omega) (fun k _ => by
         beta_reduce
         by_cases h1 : k < m + 2
-        · rw [if_neg (by omega), if_pos (by omega), ← Nat.zero_add k, eq_limbAt_of_wv hv h1, Nat.zero_add]
+        · rw [ite_eq_right (by omega), ite_eq_left (by omega), ← Nat.zero_add k, eq_limbAt_of_wv hv h1, Nat.zero_add]
         · by_cases h2 : k < count + 1
           · rw [hzero k (by omega) h2]
             by_cases h3 : k ≤ m + 2
-            · rw [if_neg (by omega), if_pos h3, hz k (by omega)]
-            · rw [if_neg (by omega), if_neg h3, if_pos h2]
-          · rw [hI.above k (by omega), if_neg (by omega), if_neg (by omega), if_neg h2])]
+            · rw [ite_eq_right (by omega), ite_eq_left h3, hz k (by omega)]
+            · rw [ite_eq_right (by omega), ite_eq_right h3, ite_eq_left h2]
+          · rw [hI.above k (by omega), ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right h2])]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
     dsimp only

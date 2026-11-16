@@ -49,8 +49,8 @@ theorem emitDepositEvent_exec (e : DepositEvent) {d0 d1 d2 d3 d4 : ByteArray} {n
     bind_assoc, bind_pure_unit]
   rw [Fe.M.exec_bind, Lib.encodeBytes5_exec I w hn h0 h1 h2 h3 h4 hfit]
   by_cases hp : 2 ^ 64 - 1 < n
-  · rw [if_pos hp, if_pos hp]
-  rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp]
+  rw [ite_eq_right hp, ite_eq_right hp]
   dsimp only
   have hpos : 0 < n := by rw [← hn, Lib.abiEncodeBytes5_size]; omega
   rw [Lib.evmLog1_exec, ← depositEventTopic_eq]

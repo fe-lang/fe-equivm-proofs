@@ -129,7 +129,7 @@ theorem loop_exec (o : ℕ → UInt64) (r1 : Lib.MemBuffer) (r3 : Lib.Range_Know
     have hc : ¬ UInt256.size ≤ k * 8 := by unfold UInt256.size; omega
     simp only [Lib.Range_has_0_8, Lib.range_has, hk, h8, toNat0, Lib.Range_at_0_8, checkedMul,
       hmul, checkIndex, show k < 8 by omega, hvk, hwr, hmem, Lib.Range_next_0_8,
-      Lib.usize_wrapping_add, hnext, Fe.M.exec_bind, Fe.M.exec_pure, hc, if_false, if_true,
+      Lib.usize_wrapping_add, hnext, Fe.M.exec_bind, Fe.M.exec_pure, hc, ite_false, ite_true,
       show (0 ≤ k) = True by simp, decide_true]
     exact this
 
@@ -167,7 +167,7 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
   have hroom64 : w.memory.size + I.calldata.size + 64 < UInt256.size := hmem
   by_cases hs : I.calldata.size = 213
   swap
-  · rw [if_neg (fun h => hs h.1)]
+  · rw [ite_eq_right (fun h => hs h.1)]
     have hne : UInt256.ofNat I.calldata.size ≠ UInt256.ofNat 213 := fun e => hs (by
       have := congrArg UInt256.toNat e; rwa [hc] at this)
     simp [recv_fallback, hin, inputBuffer, Lib.MemBuffer_len, INPUT_LEN, hne, alloc, toNatMax,
@@ -183,12 +183,12 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
   have t1 : (UInt256.ofNat 1).toNat = 1 := rfl
   by_cases hf : byteAt I.calldata 212 ≤ 1
   swap
-  · rw [if_neg (fun h => hf h.2)]
+  · rw [ite_eq_right (fun h => hf h.2)]
     simp only [recv_fallback, Fe.M.exec_bind, hin, Lib.MemBuffer_len, INPUT_LEN, hdec,
-      Fe.M.exec_pure, Bool.false_eq_true, if_false, hi, hl]
+      Fe.M.exec_pure, Bool.false_eq_true, ite_false, hi, hl]
     simp [hbt, t1, Nat.lt_of_not_le hf, alloc, toNatMax, toNatU64, toNat0, hmax, hM, hroom,
       revertData, byteArray_readWithPadding_zero]
-  rw [if_pos ⟨hs, hf⟩]
+  rw [ite_eq_left ⟨hs, hf⟩]
   have hcomp := compress_exec (I := I) (w := { w with memory := inputMemory w.memory I.calldata })
     hh hs hf
   have hloop := loop_exec (outWord I.calldata) (inputBuffer w.memory I.calldata) ⟨(), ()⟩
@@ -201,7 +201,7 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
   rw [compressInput_out]
   refine ⟨inputMemory w.memory I.calldata ++ outK (outWord I.calldata) 8, ?_⟩
   simp only [recv_fallback, Fe.M.exec_bind, hin, Lib.MemBuffer_len, INPUT_LEN, hdec,
-    Fe.M.exec_pure, Bool.false_eq_true, if_false, hi, hl]
+    Fe.M.exec_pure, Bool.false_eq_true, ite_false, hi, hl]
   simp [hbt, t1, Nat.not_lt.mpr hf, hcomp, alloc, toNatMax, toNatU64, toNat0, toNat64, hmax, hM,
     hroom64, hp, zeroMem, Lib.Range_start_0_8]
   rw [← hM, zeros_write]
@@ -216,7 +216,7 @@ theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f
     (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv,
+  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_left hv,
     h]
 
 /-- The specification's test of the final byte. -/
@@ -238,17 +238,17 @@ theorem feBlake2FContractCorrect (I : ExecutionEnv) (w : World) (hfits : Calldat
   have h := arm_exec I w.reserved hfits hr
   simp only [flag_iff]
   split
-  · rw [if_pos (by assumption)] at h
+  · rw [ite_eq_left (by assumption)] at h
     obtain ⟨memory, h⟩ := h
     exact ⟨memory, entry_runtime_error I w hv h⟩
-  · rw [if_neg (by assumption)] at h
+  · rw [ite_eq_right (by assumption)] at h
     exact entry_runtime_error I w hv h
 
 /-- With call value the entry reverts with no data: the fallback is not payable. -/
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_right hv]
 
 /-- **The contract and the precompile.**  With at least the gas of the rounds the first four
     bytes give, the precompile returns what the contract stops with and keeps the account map,
@@ -264,14 +264,14 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
       Ξ_BLAKE2_F σ g A I = (∅, ⟨0⟩, A, .empty)) := by
   have h := feBlake2FContractCorrect I w hfits hmem hv
   rw [Ξ_BLAKE2_F_eq]
-  simp only [if_neg (Nat.not_lt.mpr hg)]
+  simp only [ite_eq_right (Nat.not_lt.mpr hg)]
   split
   · rename_i hc
-    rw [if_pos hc] at h
+    rw [ite_eq_left hc] at h
     obtain ⟨memory, h⟩ := h
     exact Or.inl ⟨memory, h, rfl⟩
   · rename_i hc
-    rw [if_neg hc] at h
+    rw [ite_eq_right hc] at h
     exact Or.inr ⟨h, rfl⟩
 
 end FeProofs.Blake2F

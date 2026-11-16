@@ -108,7 +108,7 @@ theorem lf_set (f : ℕ → Limb) {K i : ℕ} (x : Limb) :
   rw [List.getElem_set, lf_get _ (by simpa using h2), lf_get _ (by simpa using h2)]
   by_cases hk : i = k
   · subst hk; simp
-  · rw [if_neg hk, Function.update_of_ne (Ne.symm hk)]
+  · rw [ite_eq_right hk, Function.update_of_ne (Ne.symm hk)]
 
 theorem lf_succ (f : ℕ → Limb) (K : ℕ) : lf f (K + 1) = lf f K ++ [f K] := by
   apply List.ext_getElem (by simp)
@@ -150,7 +150,7 @@ theorem putLimbs_size {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : p + 8 * 
 
 theorem byteAt_putLimbs_out {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : p + 8 * ls.length ≤ mem.size)
     {j : ℕ} (hj : j < p ∨ p + 8 * ls.length ≤ j) : byteAt (putLimbs mem p ls) j = byteAt mem j := by
-  rw [putLimbs, byteAt_write_from _ _ _ _ _ _ (by simp) h, if_neg (by omega)]
+  rw [putLimbs, byteAt_write_from _ _ _ _ _ _ (by simp) h, ite_eq_right (by omega)]
 
 theorem limbsAt_putLimbs {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : p + 8 * ls.length ≤ mem.size) :
     LimbsAt (putLimbs mem p ls) p ls := by
@@ -164,7 +164,7 @@ theorem byte_of_limbsAt {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : LimbsA
     (hi : i < ls.length) (hr : r < 8) :
     byteAt mem (p + 8 * i + r) = ls[i].val / 2 ^ (8 * (7 - r)) % 256 := by
   have e := beAt_digit mem (p + 8 * i) 8 (7 - r)
-  rw [if_pos (by omega), h.2 i hi] at e
+  rw [ite_eq_left (by omega), h.2 i hi] at e
   rw [e]; congr 1; omega
 
 /-- **Memory with the limbs written**: a memory of the same size that holds `ls` at `p` and
@@ -195,7 +195,7 @@ theorem store8_putLimbs {mem : ByteArray} {p : ℕ} {ls : List Limb} (h : p + 8 
   apply eq_putLimbs (by rw [store8_size x (by omega), hs]) (hL.store hi x)
   intro j hj
   rw [List.length_set] at hj
-  rw [byteAt_store8 x (by omega), if_neg (by omega), byteAt_putLimbs_out h hj]
+  rw [byteAt_store8 x (by omega), ite_eq_right (by omega), byteAt_putLimbs_out h hj]
 
 /-- Writes at `p` of the same number of limbs: the last one counts. -/
 theorem putLimbs_putLimbs {mem : ByteArray} {p : ℕ} {ls ks : List Limb}
@@ -285,7 +285,7 @@ theorem limbAt_shr (V : ℕ) {s : ℕ} (hs : 0 < s) (hs' : s < 64) (i : ℕ) :
 theorem shl64_lit (x : Limb) {s : ℕ} (hs : s < 256) :
     IntTy.shl (.u 64) x.w (UInt256.ofNat s) = UInt256.ofNat (x.val * 2 ^ s % 2 ^ 64) := by
   simp only [IntTy.shl, val_u, Limb.toNat_w, toNat_lit (show s < 2 ^ 256 by omega),
-    show ¬ (256 ≤ s) by omega, if_false]
+    show ¬ (256 ≤ s) by omega, ite_false]
   rw [show ((x.val : ℤ) * 2 ^ s) = ((x.val * 2 ^ s : ℕ) : ℤ) by push_cast; ring, wrap_u_nat]
 
 theorem lor_lit {a b : ℕ} (ha : a < 2 ^ 256) (hb : b < 2 ^ 256) :
@@ -298,7 +298,7 @@ theorem sub64_checked {a b : ℕ} (ha : a < 2 ^ 64) (h : b ≤ a) :
     IntTy.sub (.u 64) (UInt256.ofNat a) (UInt256.ofNat b) = pure (UInt256.ofNat (a - b)) := by
   simp only [IntTy.sub, IntTy.checked, IntTy.Fits, val_u, toNat_lit (show a < 2 ^ 256 by omega),
     toNat_lit (show b < 2 ^ 256 by omega)]
-  rw [if_pos (by omega), show ((a : ℤ) - b) = ((a - b : ℕ) : ℤ) by omega, wrap_u_nat,
+  rw [ite_eq_left (by omega), show ((a : ℤ) - b) = ((a - b : ℕ) : ℤ) by omega, wrap_u_nat,
     Nat.mod_eq_of_lt (by omega)]
 
 end FeProofs.Modexp

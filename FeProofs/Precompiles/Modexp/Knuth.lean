@@ -43,7 +43,7 @@ theorem qhat_bounds {T u0 D' Wl Dl P W D : ℕ} (hu0 : u0 < 2 ^ 64) (hD'big : 2 
   have hqB : W / D < 2 ^ 64 := (Nat.div_lt_iff_lt_mul hDpos).mpr (by rw [Nat.mul_comm]; exact hWD)
   have hqD : W / D * D ≤ W := Nat.div_mul_le_self W D
   by_cases hc : T = D'
-  · rw [if_pos hc]
+  · rw [ite_eq_left hc]
     refine ⟨by omega, ?_⟩
     suffices h : 2 ^ 64 - 2 ≤ W / D by omega
     rw [Nat.le_div_iff_mul_le hDpos]
@@ -52,7 +52,7 @@ theorem qhat_bounds {T u0 D' Wl Dl P W D : ℕ} (hu0 : u0 < 2 ^ 64) (hD'big : 2 
     rw [hD, hW, hc]
     norm_num at h1 h2 ⊢
     nlinarith
-  · rw [if_neg hc]
+  · rw [ite_eq_right hc]
     have hlt : T < D' := lt_of_le_of_ne hTD hc
     have hW'B : (T * 2 ^ 64 + u0) / D' < 2 ^ 64 :=
       (Nat.div_lt_iff_lt_mul (by omega)).mpr (by nlinarith)

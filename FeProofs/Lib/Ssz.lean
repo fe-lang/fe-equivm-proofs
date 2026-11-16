@@ -76,11 +76,11 @@ theorem sha256To_exec {s1 s2 : Supply} {rest : List Supply} (hfeed : w.feed = s1
     obtain ⟨H, hH⟩ : ∃ H : UInt256, H.toByteArray = SHA256.hash d :=
       ⟨_, toByteArray_uInt256OfByteArray_of_size32 (SHA256.hash_size d)⟩
     have hne : ¬ ((⟨1⟩ : UInt256) = UInt256.ofNat 0) := by decide
-    simp only [hz, if_true]
+    simp only [hz, ite_true]
     simp [hne, returndatasize, mload, staticWorld, toNat32, ho, ← hH,
       show UInt256.ofNat 32 ⊓ UInt256.ofNat 32 = UInt256.ofNat 32 from rfl]
     rw [toByteArray_write32_read_back _ _ _ hr, uInt256OfByteArray_toByteArray]
-  · simp only [hz, Bool.false_eq_true, if_false]
+  · simp only [hz, Bool.false_eq_true, ite_false]
     simp [revertEmpty, show ({ val := 0 } : UInt256) = UInt256.ofNat 0 from rfl]
 
 theorem allocBytes_exec {n : Nat} (hn : n ≤ 2 ^ 64 - 1) (hroom : w.memory.size + n < UInt256.size) :
@@ -274,7 +274,7 @@ theorem u64Chunk_exec (v : UInt256) (hv : v.toNat < 2 ^ 64) :
   have shl192 : ∀ a : UInt256, (UInt256.shiftLeft a (UInt256.ofNat 192)).toNat =
       a.toNat % 2 ^ 64 * 2 ^ 192 := fun a => by
     unfold UInt256.shiftLeft
-    rw [if_neg (by show ¬ (UInt256.ofNat 192).toNat ≥ 256; rw [tl _ (by norm_num)]; omega)]
+    rw [ite_eq_right (by show ¬ (UInt256.ofNat 192).toNat ≥ 256; rw [tl _ (by norm_num)]; omega)]
     show (a.toNat <<< (UInt256.ofNat 192).toNat) % UInt256.size = _
     rw [tl _ (by norm_num), Nat.shiftLeft_eq, hsz,
       show (2 : Nat) ^ 256 = 2 ^ 64 * 2 ^ 192 by norm_num, Nat.mul_mod_mul_right]

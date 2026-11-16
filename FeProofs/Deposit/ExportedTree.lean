@@ -118,7 +118,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     obtain rfl : h = 32 := by omega
     have hl := hinv.len
     rw [recv_GetDepositRoot.loop.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
-      if_neg (by decide), countPlace, load_storage, Lib.exec_bind_ok I w (exec_sload _ I w),
+      ite_eq_right (by decide), countPlace, load_storage, Lib.exec_bind_ok I w (exec_sload _ I w),
       hs.slotWord, hinv.count, Lib.exec_bind_ok I w (truncate64_exec I w (by omega))] at hx
     simp only [bind_pure] at hx
     rw [mixInLength_exec I w _ _ (by rw [ulit_toNat' _ (by
@@ -130,7 +130,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
   | succ k ih =>
     intro h r1 w w' v hk hs hr hx
     rw [recv_GetDepositRoot.loop.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (by omega))] at hx
-    simp only [show h < 32 by omega, decide_true, if_true] at hx
+    simp only [show h < 32 by omega, decide_true, ite_true] at hx
     have hl := hinv.len
     have hsz : UInt256.size = 2 ^ 256 := rfl
     have hq : L.length / 2 ^ h < 2 ^ 64 := lt_of_le_of_lt (Nat.div_le_self _ _) (by omega)
@@ -142,7 +142,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     rw [Lib.exec_bind_ok I w (show (Range_at_0 ⟨(), UInt256.ofNat 32⟩ (UInt256.ofNat h)).exec I w =
       some (.ok (UInt256.ofNat h, w)) from rfl)] at hx
     by_cases hb : L.length / 2 ^ h % 2 = 1
-    · rw [if_pos (by simpa [land_one_eq_one hq] using hb), Lib.exec_bind_ok I w hck, branchPlace h
+    · rw [ite_eq_left (by simpa [land_one_eq_one hq] using hb), Lib.exec_bind_ok I w hck, branchPlace h
         (by omega), load_storage, Lib.exec_bind_ok I w (exec_sload _ I w), hs.slotWord] at hx
       obtain ⟨v26, w1, hp, hx⟩ := bind_ok_inv hx
       obtain ⟨rfl, hs1, -⟩ := hashPair_ok I w hp
@@ -150,7 +150,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
         ← FeProofs.Deposit.div_two_pow_succ] at hx
       refine ih (h + 1) _ w1 w' v (by omega) (hs.trans hs1) ?_ hx
       rw [hashW_bytes, hinv.branch h (by omega) hb, hr, FeProofs.Deposit.frontier_odd _ _ _ hb]
-    · rw [if_neg (by simpa [land_one_eq_one hq] using hb), Lib.exec_bind_ok I w hck, zeroPlace h
+    · rw [ite_eq_right (by simpa [land_one_eq_one hq] using hb), Lib.exec_bind_ok I w hck, zeroPlace h
         (by omega), load_storage, Lib.exec_bind_ok I w (exec_sload _ I w), hs.slotWord] at hx
       obtain ⟨v26, w1, hp, hx⟩ := bind_ok_inv hx
       obtain ⟨rfl, hs1, -⟩ := hashPair_ok I w hp

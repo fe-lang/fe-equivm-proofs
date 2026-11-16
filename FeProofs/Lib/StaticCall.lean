@@ -85,7 +85,7 @@ theorem staticcall_exec {I : ExecutionEnv} {w : World} {s : Supply} {rest : List
   simp only [Fe.EVM.staticcall, Fe.EVM.message, Fe.EVM.next, hfeed, Fe.M.exec_bind,
     Fe.M.exec_read, Fe.M.exec_get, Fe.M.exec_set, Fe.M.exec_pure, zero_le_word, true_and]
   unfold staticWorld staticR
-  by_cases hd : I.depth < 1024 <;> simp only [hd, if_true, if_false] <;> rfl
+  by_cases hd : I.depth < 1024 <;> simp only [hd, ite_true, ite_false] <;> rfl
 
 /-- A static call on an empty feed does not terminate. -/
 theorem staticcall_nil {I : ExecutionEnv} {w : World} (hfeed : w.feed = [])
@@ -98,7 +98,7 @@ theorem ofUInt256_two : AccountAddress.ofUInt256 (UInt256.ofNat 2) = (2 : Accoun
 theorem sha256_toExecute (σ : AccountMap) :
     toExecute σ (2 : AccountAddress) = .Precompiled 2 := by
   unfold toExecute
-  rw [if_pos (by decide +kernel)]
+  rw [ite_eq_left (by decide +kernel)]
 
 /-- `Θ`'s dispatch on a precompile's address, at address 2. -/
 theorem theta_match_two {β : AccountAddress → Sort u} (f1 : Unit → β 1) (f2 : Unit → β 2)
@@ -113,7 +113,7 @@ theorem staticR_sha256 {I : ExecutionEnv} {σ : AccountMap} {g : UInt256} {s : S
     (staticR I σ g s (UInt256.ofNat 2) d).2.2.2.2 = SHA256.hash d := by
   unfold staticR at hz ⊢
   by_cases hd : I.depth < 1024
-  · simp only [hd, if_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute] at hz ⊢
+  · simp only [hd, ite_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute] at hz ⊢
     unfold Θ at hz ⊢
     simp only [theta_match_two, Ξ_SHA256] at hz ⊢
     split_ifs at hz ⊢ <;> simp_all
@@ -160,16 +160,16 @@ theorem staticR_sha256_storage (I : ExecutionEnv) (σ : AccountMap) (g : UInt256
     (d : ByteArray) : SameStorage σ (staticR I σ g s (UInt256.ofNat 2) d).1 := by
   unfold staticR
   by_cases hd : I.depth < 1024
-  · simp only [hd, if_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
+  · simp only [hd, ite_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
     unfold Θ
     simp only [theta_match_two, Ξ_SHA256, show ((⟨0⟩ : UInt256) != UInt256.ofNat 0) = false by decide,
-      Bool.false_eq_true, if_false]
+      Bool.false_eq_true, ite_false]
     split_ifs
     all_goals first
       | exact SameStorage.refl _
       | exact sameStorage_step (sameStorage_step (SameStorage.refl σ) 2 _) I.codeOwner _
       | simp_all
-  · simp only [hd, if_false]; exact SameStorage.refl _
+  · simp only [hd, ite_false]; exact SameStorage.refl _
 
 set_option maxHeartbeats 1000000 in
 /-- A call of the SHA-256 precompile leaves the substate it was given: it appends no log. -/
@@ -177,10 +177,10 @@ theorem staticR_sha256_substate (I : ExecutionEnv) (σ : AccountMap) (g : UInt25
     (d : ByteArray) : (staticR I σ g s (UInt256.ofNat 2) d).2.2.1 = s.substate := by
   unfold staticR
   by_cases hd : I.depth < 1024
-  · simp only [hd, if_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
+  · simp only [hd, ite_true, ThetaCall.run, staticT, ofUInt256_two, sha256_toExecute]
     unfold Θ
     simp only [theta_match_two, Ξ_SHA256]
     split_ifs <;> rfl
-  · simp only [hd, if_false]
+  · simp only [hd, ite_false]
 
 end FeProofs.Lib

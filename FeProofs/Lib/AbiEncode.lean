@@ -341,7 +341,7 @@ theorem payloadSize5_eq (v0 : Bytes × Bytes × Bytes × Bytes × Bytes) :
         v0.2.2.2.2.size) := by
   simp only [abi_payload_size_tuple_Bytes_Bytes_Bytes_Bytes_Bytes,
     tuple_payload_size_Bytes_Bytes_Bytes_Bytes_Bytes, tupleHead5_eq, dynamic_payload_size_Bytes,
-    Bytes_IS_DYNAMIC, Bytes_payload_size, Bytes_encoded_size, pure_bind, if_true, bind_pure]
+    Bytes_IS_DYNAMIC, Bytes_payload_size, Bytes_encoded_size, pure_bind, ite_true, bind_pure]
 
 theorem encodeAlloc5_eq (v0 : Bytes × Bytes × Bytes × Bytes × Bytes) :
     encode_abi_payload_tuple_Bytes_Bytes_Bytes_Bytes_Bytes v0 = (do
@@ -379,10 +379,10 @@ theorem encodeBytes5_exec {b0 b1 b2 b3 b4 : Bytes} {d0 d1 d2 d3 d4 : ByteArray} 
   rw [encodeAlloc5_eq, payloadSize5_eq, Fe.M.exec_bind, Fe.M.exec_pure]
   dsimp only
   rw [hsum, exec_bind_ok I w (allocationLen_exec I w (by omega)), Fe.M.exec_bind,
-    memBufferNew_exec I w (by omega), if_pos hfit]
+    memBufferNew_exec I w (by omega), ite_eq_left hfit]
   by_cases hp : 2 ^ 64 - 1 < n
-  · rw [if_pos hp, if_pos hp]
-  rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp]
+  rw [ite_eq_right hp, ite_eq_right hp]
   dsimp only
   rw [exec_bind_ok I _ (tupleEncode5_exec I { w with memory := w.memory ++ zeros n } h0 h1 h2 h3
     h4 rfl hn hfit), Fe.M.exec_pure]
@@ -410,7 +410,7 @@ theorem singleRootBytes_eq (r0 : Bytes) :
   simp only [encode_single_root_alloc_Sol_Bytes, abi_single_root_size_Bytes, abi_field_size_Bytes,
     Bytes_payload_size, Bytes_encoded_size, Bytes_IS_DYNAMIC, abi_single_root_head_size_Bytes,
     abiFieldHeadBytes_eq, Bytes_drop, dealloc_u8, cast_u8_u8, MemBuffer_ptr,
-    AbiFrame_from_raw_parts, pure_bind, bind_pure, if_true]
+    AbiFrame_from_raw_parts, pure_bind, bind_pure, ite_true]
 
 set_option maxHeartbeats 4000000 in
 /-- Std's encoding of one `bytes` value as a call's whole return data: a fresh buffer that holds
@@ -433,10 +433,10 @@ theorem singleRootBytes_exec {b : Bytes} {d : ByteArray} (hb : BytesHolds b d w.
       ofNat_add_ofNat (show 32 + s < UInt256.size by omega)]
   rw [singleRootBytes_eq, exec_bind_ok I w hadd,
     exec_bind_ok I w (allocationLen_exec I w (n := 32 + s) (by omega)), Fe.M.exec_bind,
-    memBufferNew_exec I w (by omega), if_pos (show w.memory.size + (32 + s) < UInt256.size from hfit)]
+    memBufferNew_exec I w (by omega), ite_eq_left (show w.memory.size + (32 + s) < UInt256.size from hfit)]
   by_cases hp : 2 ^ 64 - 1 < 32 + s
-  · rw [if_pos hp, if_pos hp]
-  rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp]
+  rw [ite_eq_right hp, ite_eq_right hp]
   dsimp only
   have z0 : ({ w with memory := w.memory ++ zeros (32 + s) } : World).memory =
       w.memory ++ tupleBuf [] 32 32 s := by rw [tupleBuf_nil]
@@ -459,13 +459,13 @@ theorem returnBytes_exec {b : Bytes} {d : ByteArray} (hb : BytesHolds b d w.memo
       else some (.error (.stop (abiEncodeBytes [d])
         { w with memory := w.memory ++ abiEncodeBytes [d] })) := by
   simp only [Evm_return_value_Sol_Bytes, Bytes_IS_DYNAMIC, encode_return_alloc_Sol_Bytes,
-    const_Bytes, pure_bind, Bool.not_true, Bool.false_eq_true, if_false, MemBuffer_span_ref,
+    const_Bytes, pure_bind, Bool.not_true, Bool.false_eq_true, ite_false, MemBuffer_span_ref,
     MemSlice_from_raw_parts_ref_u8, Evm_return_bytes, Evm_return_data, MemSlice_ptr_u8,
     MemSlice_len_u8, bind_pure]
   rw [Fe.M.exec_bind, singleRootBytes_exec I w hb hfit]
   by_cases hp : 2 ^ 64 - 1 < (abiEncodeBytes [d]).size
-  · rw [if_pos hp, if_pos hp]
-  rw [if_neg hp, if_neg hp]
+  · rw [ite_eq_left hp, ite_eq_left hp]
+  rw [ite_eq_right hp, ite_eq_right hp]
   have hpos : 0 < (abiEncodeBytes [d]).size := by
     simp [abiEncodeBytes, abiBytesHeads, ByteArray.size_append]
   simp [returnData, ulit_toNat' w.memory.size (by omega),

@@ -107,7 +107,7 @@ theorem mulsub_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw :
     refine ⟨f', c', b', hb'', hout', hid', ?_⟩
     rw [Modulus_reduce.loop_2.loop_3.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
-      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
+      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, ite_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       limb_lit mp (show mp.toNat + 8 * i < UInt256.size by omega), hlm, mac_w, hP, shr64_eq,
       down128_limb_eq, down128_eq, add_lit (show i + j < 2 ^ 256 by omega),
@@ -169,7 +169,7 @@ theorem addback_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw 
     refine ⟨f', a', ha'', hout', hid', ?_⟩
     rw [Modulus_reduce.loop_2.loop_3.loop_5.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
-      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
+      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, ite_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       add_lit (show i + j < 2 ^ 256 by omega),
       limb_lit wp (show wp.toNat + 8 * (i + j) < UInt256.size by omega), hlx,

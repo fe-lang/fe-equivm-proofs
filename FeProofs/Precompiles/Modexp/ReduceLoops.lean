@@ -53,17 +53,17 @@ theorem zero_loop9 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toN
     rw [Modulus_reduce.loop.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = False from eq_false (by omega),
-      decide_false, Bool.false_eq_true, if_false, pure_bind, Fe.M.exec_pure]
+      decide_false, Bool.false_eq_true, ite_false, pure_bind, Fe.M.exec_pure]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
     dsimp only
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
     rw [Modulus_reduce.loop.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = True from eq_true (by omega),
-      decide_true, if_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
+      decide_true, ite_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
       next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       limb_lit wp (show wp.toNat + 8 * i < UInt256.size by omega),
       store_lf0 f hK hs (show i < K by omega)]
@@ -76,8 +76,8 @@ theorem zero_loop9 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toN
     · subst hk; simp [show k < hi by omega]
     · rw [Function.update_of_ne hk]
       by_cases h1 : i + 1 ≤ k ∧ k < hi
-      · rw [if_pos h1, if_pos (by omega)]
-      · rw [if_neg h1, if_neg (by omega)]
+      · rw [ite_eq_left h1, ite_eq_left (by omega)]
+      · rw [ite_eq_right h1, ite_eq_right (by omega)]
 
 /-- **`for i in lo..hi { *limb(wp, i) = 0 }`** after the division. -/
 theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toNat + 8 * K ≤ Mem.size)
@@ -95,17 +95,17 @@ theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.to
     rw [Modulus_reduce.loop_2.loop_6.loop_7.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = False from eq_false (by omega),
-      decide_false, Bool.false_eq_true, if_false, pure_bind, Fe.M.exec_pure]
+      decide_false, Bool.false_eq_true, ite_false, pure_bind, Fe.M.exec_pure]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr fun k _ => ?_)
     dsimp only
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
     rw [Modulus_reduce.loop_2.loop_6.loop_7.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = True from eq_true (by omega),
-      decide_true, if_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
+      decide_true, ite_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
       next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       limb_lit wp (show wp.toNat + 8 * i < UInt256.size by omega),
       store_lf0 f hK hs (show i < K by omega)]
@@ -118,8 +118,8 @@ theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.to
     · subst hk; simp [show k < hi by omega]
     · rw [Function.update_of_ne hk]
       by_cases h1 : i + 1 ≤ k ∧ k < hi
-      · rw [if_pos h1, if_pos (by omega)]
-      · rw [if_neg h1, if_neg (by omega)]
+      · rw [ite_eq_left h1, ite_eq_left (by omega)]
+      · rw [ite_eq_right h1, ite_eq_right (by omega)]
 
 /-! ## The normalising shift -/
 
@@ -147,14 +147,14 @@ theorem shift_loop (wp : UInt256) {Mem : ByteArray} {K X s count : ℕ}
   | 0, f, _, hf => by
     rw [Modulus_reduce.loop_8.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
-      if_false]
+      ite_false]
     rw [lf_congr hf]
   | i + 1, f, hi, hf => by
     have hS : UInt256.size = 2 ^ 256 := rfl
     have hl1 := load_lf (w := w) f hK hs (i := i + 1) (by omega) I
     have hl0 := load_lf (w := w) f hK hs (i := i) (by omega) I
     rw [hf _ (by omega)] at hl1 hl0
-    simp only [shiftF, lt_irrefl, if_false, if_true, show i < i + 1 by omega]
+    simp only [shiftF, lt_irrefl, ite_false, ite_true, show i < i + 1 by omega]
       at hl1 hl0
     have e1 : (shlL (limbAt X (i + 1)) s).w ||| (limbAt X i).w >>> UInt256.ofNat (64 - s) =
         (limbAt (X * 2 ^ s) (i + 1)).w := by
@@ -170,10 +170,10 @@ theorem shift_loop (wp : UInt256) {Mem : ByteArray} {K X s count : ℕ}
     have hl0' := load_lf (w := w) (Function.update f (i + 1) (limbAt (X * 2 ^ s) (i + 1))) hK hs
       (i := i) (by omega) I
     rw [Function.update_of_ne (show i ≠ i + 1 by omega), hf _ (by omega)] at hl0'
-    simp only [shiftF, show i < i + 1 by omega, if_true] at hl0'
+    simp only [shiftF, show i < i + 1 by omega, ite_true] at hl0'
     rw [Modulus_reduce.loop_8.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show i + 1 < 2 ^ 256 by omega),
-      show 0 < i + 1 by omega, decide_true, if_true,
+      show 0 < i + 1 by omega, decide_true, ite_true,
       sub_lit (show i + 1 < 2 ^ 256 by omega) (show 1 ≤ i + 1 by omega), Nat.add_sub_cancel,
       limb_lit wp (show wp.toNat + 8 * (i + 1) < UInt256.size by omega),
       limb_lit wp (show wp.toNat + 8 * i < UInt256.size by omega), pure_bind, Fe.M.exec_bind, hl1, hl0,
@@ -224,7 +224,7 @@ theorem rem_loop (md : Exported.Modexp.Modulus) (wp : UInt256) {Mem : ByteArray}
     refine ⟨shrL r s, by rw [shrL]; simp only [hr, Nat.sub_zero], ?_⟩
     rw [Modulus_reduce.loop_1.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
-      if_false, shr_shrL r (show s < 256 by omega), Fe.M.exec_bind,
+      ite_false, shr_shrL r (show s < 256 by omega), Fe.M.exec_bind,
       store_lf_base f hK hs hK0 (shrL r s) I, Fe.M.exec_pure]
     congr 4
     refine congrArg (putLimbs Mem wp.toNat) (lf_congr ?_)
@@ -236,10 +236,10 @@ theorem rem_loop (md : Exported.Modexp.Modulus) (wp : UInt256) {Mem : ByteArray}
     have hS : UInt256.size = 2 ^ 256 := rfl
     have hdpos : 0 < d.val := by omega
     have hl := load_lf (w := w) f hK hs (i := i) (by omega) I
-    rw [hf i (by omega), if_neg (by omega)] at hl
+    rw [hf i (by omega), ite_eq_right (by omega)] at hl
     rw [Modulus_reduce.loop_1.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show i + 1 < 2 ^ 256 by omega),
-      show 0 < i + 1 by omega, decide_true, if_true,
+      show 0 < i + 1 by omega, decide_true, ite_true,
       sub_lit (show i + 1 < 2 ^ 256 by omega) (show 1 ≤ i + 1 by omega), Nat.add_sub_cancel,
       limb_lit wp (show wp.toNat + 8 * i < UInt256.size by omega), pure_bind, Fe.M.exec_bind, hl,
       hrec, rem_2by1_eq, store_lf0 f hK hs (show i < K by omega)]
@@ -274,7 +274,7 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
     rw [Modulus_reduce.loop_2.loop_6.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
       show (0 ≤ i ∧ i < n) = False from eq_false (by omega), decide_false, pure_bind,
-      Bool.false_eq_true, if_false, add_lit (show count + 1 < 2 ^ 256 by omega),
+      Bool.false_eq_true, ite_false, add_lit (show count + 1 < 2 ^ 256 by omega),
       Lib.Range_Unknown_Unknown_start]
     rw [zero_loop50 wp hK hs hcK w I v1 r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 ⟨(), UInt256.ofNat n⟩
       (count + 1 - n) n f (by omega) le_rfl]
@@ -291,10 +291,10 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
     have hS : UInt256.size = 2 ^ 256 := rfl
     have hV : R * 2 ^ s / 2 ^ s = R := Nat.mul_div_cancel _ (by positivity)
     have hl := load_lf (w := w) f hK hs (i := i) (by omega) I
-    rw [hf i (by omega), if_neg (by omega), if_pos (by omega)] at hl
+    rw [hf i (by omega), ite_eq_right (by omega), ite_eq_left (by omega)] at hl
     rw [Modulus_reduce.loop_2.loop_6.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
-      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
+      show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, ite_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       limb_lit wp (show wp.toNat + 8 * i < UInt256.size by omega), hl,
       shr_shrL _ (show s < 256 by omega),
@@ -311,12 +311,12 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
       have e : (shrL (limbAt (R * 2 ^ 0) i) 0).w ||| UInt256.ofNat 0 = (limbAt R i).w := by
         rw [Limb.w, lor_lit (lt_trans (shrL _ 0).isLt (by norm_num)) (by norm_num), Nat.or_zero]
         simp only [shrL, pow_zero, Nat.div_one, Nat.mul_one]; rfl
-      simp only [decide_true, if_true, Fe.M.exec_bind, e,
+      simp only [decide_true, ite_true, Fe.M.exec_bind, e,
         store_lf f hK hs (show i < K by omega)]
       exact denorm_loop wp hK hs hn hcK hs64 hR F w I r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r11 v1 m (i + 1) _
         (by omega) (hnext _ rfl)
     · have hl1 := load_lf (w := w) f hK hs (i := i + 1) (by omega) I
-      rw [hf (i + 1) (by omega), if_neg (by omega), if_pos (by omega)] at hl1
+      rw [hf (i + 1) (by omega), ite_eq_right (by omega), ite_eq_left (by omega)] at hl1
       have e : (shrL (limbAt (R * 2 ^ s) i) s).w |||
           IntTy.shl (.u 64) (limbAt (R * 2 ^ s) (i + 1)).w (UInt256.ofNat (64 - s)) = (limbAt R i).w := by
         have := (limbAt (R * 2 ^ s) i).isLt
@@ -326,7 +326,7 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
         have h := limbAt_shr (R * 2 ^ s) (show 0 < s by omega) hs64 i
         rw [hV] at h
         simp only [shrL, h]; rfl
-      simp only [show decide (s = 0) = false from decide_eq_false hs0, Bool.false_eq_true, if_false,
+      simp only [show decide (s = 0) = false from decide_eq_false hs0, Bool.false_eq_true, ite_false,
         add_lit (show i + 1 < 2 ^ 256 by omega),
         limb_lit wp (show wp.toNat + 8 * (i + 1) < UInt256.size by omega), pure_bind, Fe.M.exec_bind,
         hl1, sub64_eq hs64, e,

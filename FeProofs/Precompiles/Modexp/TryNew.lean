@@ -133,18 +133,18 @@ theorem try_new_exit {value : Lib.MemArray_u64} {w : World} {N n s : ℕ} (hn : 
   rw [Modulus_try_new.loop.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
     show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, pure_bind,
-    Bool.false_eq_true, if_false, ofNat_eq_iff (show n < 2 ^ 256 by omega) (show 1 < 2 ^ 256 by norm_num)]
+    Bool.false_eq_true, ite_false, ofNat_eq_iff (show n < 2 ^ 256 by omega) (show 1 < 2 ^ 256 by norm_num)]
   by_cases h1 : n = 1
   · subst h1
     have hd : 2 ^ 63 ≤ (limbAt N 0).val := limbAt_top (n := 1) le_rfl hN htop
     have hl := load_exec (w := { w with memory := w.memory ++ limbBytes (limbsOf N 1) }) hL
       (i := 0) (by simp) hsz I
     rw [limbsOf_get N 1 0 (by omega)] at hl
-    simp only [decide_true, if_true, idx_ref_fresh (show 0 < 1 by omega) hroom, pure_bind,
+    simp only [decide_true, ite_true, idx_ref_fresh (show 0 < 1 by omega) hroom, pure_bind,
       Fe.M.exec_bind, hl, reciprocal_2by1_eq _ hd, Fe.M.exec_pure]
     have hv : (limbAt N 0).val = N := by
       simp only [limbAt, Nat.mul_zero, pow_zero, Nat.div_one]; exact Nat.mod_eq_of_lt hN
-    simp only [recipOf, if_true, Limb.w, recip21L, hv]
+    simp only [recipOf, ite_true, Limb.w, recip21L, hv]
   · have h2 : 2 ≤ n := by omega
     have hd : 2 ^ 63 ≤ (limbAt N (n - 1)).val := limbAt_top (by omega) hN htop
     have hl1 := load_exec (w := { w with memory := w.memory ++ limbBytes (limbsOf N n) }) hL
@@ -152,14 +152,14 @@ theorem try_new_exit {value : Lib.MemArray_u64} {w : World} {N n s : ℕ} (hn : 
     have hl2 := load_exec (w := { w with memory := w.memory ++ limbBytes (limbsOf N n) }) hL
       (i := n - 2) (by simp; omega) hsz I
     rw [limbsOf_get N n _ (by omega)] at hl1 hl2
-    simp only [h1, decide_false, Bool.false_eq_true, if_false,
+    simp only [h1, decide_false, Bool.false_eq_true, ite_false,
       checkedSub_lit (show n < 2 ^ 256 by omega) (show 1 ≤ n by omega),
       checkedSub_lit (show n < 2 ^ 256 by omega) (show 2 ≤ n by omega),
       idx_ref_fresh (show n - 1 < n by omega) hroom, idx_ref_fresh (show n - 2 < n by omega) hroom,
       pure_bind, Fe.M.exec_bind, hl1, hl2, reciprocal_3by2_eq _ _ hd, Fe.M.exec_pure]
     have hv := recip32_val _ (limbAt N (n - 2)) hd
     rw [top_limbs h2 hN] at hv
-    simp only [recipOf, h1, if_false, ← hv]
+    simp only [recipOf, h1, ite_false, ← hv]
     rfl
 
 /-- **The normalising loop of `try_new`**, from limb `k`: limb `k` of `M * 2 ^ s` into the fresh
@@ -195,13 +195,13 @@ theorem try_new_loop {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
     have e := norm_limb M (k := k) hs
     rw [Modulus_try_new.loop.eq_1]
     simp only [has0_eq' n (by omega) (show k < 2 ^ 256 by omega), show (0 ≤ k ∧ k < n) = True from
-      eq_true (by omega), decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0,
+      eq_true (by omega), decide_true, ite_true, Lib.Range_at_0, Lib.Range_next_0,
       next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
       index_ref_eq (a := value) (i := k) (by rw [hvk.len]; omega) (by omega), hl,
       ofNat_eq_iff (show s < 2 ^ 256 by omega) (show 0 < 2 ^ 256 by norm_num),
       ofNat_eq_iff (show k < 2 ^ 256 by omega) (show 0 < 2 ^ 256 by norm_num)]
     by_cases hlow : s = 0 ∨ k = 0
-    · rw [if_pos hlow] at e
+    · rw [ite_eq_left hlow] at e
       have hc : (decide (s = 0) = true ∨ (decide (s = 0) = false ∧ decide (k = 0) = true)) := by
         by_cases h : s = 0
         · left; simp [h]
@@ -209,21 +209,21 @@ theorem try_new_loop {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
           · exact absurd h' h
           · simp [h, h']
       rcases hc with hc | ⟨hc1, hc2⟩
-      · simp only [hc, if_true, idx_fresh hkn hroom, e, Fe.M.exec_bind,
+      · simp only [hc, ite_true, idx_fresh hkn hroom, e, Fe.M.exec_bind,
           store_exec (show w.memory.size + 8 * k < UInt256.size by omega),
           limbsMem_store _ _ _ _ hkn, pure_bind]
         exact try_new_loop hv hnl hM hs hn hN htop hn64 hroom I m (k + 1) (by omega)
-      · simp only [hc1, hc2, Bool.false_eq_true, if_false, if_true, idx_fresh hkn hroom, e,
+      · simp only [hc1, hc2, Bool.false_eq_true, ite_false, ite_true, idx_fresh hkn hroom, e,
           Fe.M.exec_bind,
           store_exec (show w.memory.size + 8 * k < UInt256.size by omega),
           limbsMem_store _ _ _ _ hkn, pure_bind]
         exact try_new_loop hv hnl hM hs hn hN htop hn64 hroom I m (k + 1) (by omega)
-    · rw [if_neg hlow] at e
+    · rw [ite_eq_right hlow] at e
       have hl' := load_exec (w := { w with memory := limbsMem w.memory (M * 2 ^ s) n k }) hvk.limbs
         (i := k - 1) (by omega) hvk.small I
       rw [hg (k - 1) (by omega)] at hl'
       simp only [show decide (s = 0) = false from decide_eq_false (by omega),
-        show decide (k = 0) = false from decide_eq_false (by omega), Bool.false_eq_true, if_false,
+        show decide (k = 0) = false from decide_eq_false (by omega), Bool.false_eq_true, ite_false,
         checkedSub_lit (show k < 2 ^ 256 by omega) (show 1 ≤ k by omega),
         index_ref_eq (a := value) (i := k - 1) (by rw [hvk.len]; omega) (by omega), hl',
         sub64_checked (show 64 < 2 ^ 64 by norm_num) (show s ≤ 64 by omega),
@@ -276,13 +276,13 @@ theorem try_new_exec {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
     rw [toNat_lit (show w.memory.size < 2 ^ 256 by omega)]
     exact limbsAt_limbBytes _ _
   · simp only [Modulus_try_new, downcast_u64_usize, pure_bind, toNat_lit (show 0 < 2 ^ 256 by norm_num),
-      toNat_lit (show n < 2 ^ 256 by omega), hn, decide_true, if_true, Lib.MemArray_len_u64,
+      toNat_lit (show n < 2 ^ 256 by omega), hn, decide_true, ite_true, Lib.MemArray_len_u64,
       hv.len, show (n ≤ vs.length) = True from eq_true hnl,
       sub64_checked (show n < 2 ^ 64 by omega) (show 1 ≤ n by omega),
       index_ref_eq (a := value) (i := n - 1) (by rw [hv.len]; omega) (by omega), Fe.M.exec_bind, hl,
       ne_eq, limb_eq_zero_w, show (vs[n - 1]'(by omega) = 0) = False from eq_false htop,
       not_false_eq_true, Lib.assert, Bool.not_true, Bool.false_eq_true,
-      if_false, lz_limb _ hpos,
+      ite_false, lz_limb _ hpos,
       checkedSub_lit (show 255 - (vs[n - 1]'(by omega)).val.log2 < 2 ^ 256 by omega)
         (show 192 ≤ 255 - (vs[n - 1]'(by omega)).val.log2 by omega),
       downcast_truncate_u256_u64_eq, toNat_lit (show s < 2 ^ 256 by omega),
@@ -314,11 +314,11 @@ theorem try_new_top_zero {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
   have hsm := hv.small
   have hl := load_exec (w := w) hv.limbs (i := n - 1) (by omega) hsm I
   simp only [Modulus_try_new, downcast_u64_usize, pure_bind, toNat_lit (show 0 < 2 ^ 256 by norm_num),
-    toNat_lit (show n < 2 ^ 256 by omega), hn, decide_true, if_true, Lib.MemArray_len_u64,
+    toNat_lit (show n < 2 ^ 256 by omega), hn, decide_true, ite_true, Lib.MemArray_len_u64,
     hv.len, show (n ≤ vs.length) = True from eq_true hnl,
     sub64_checked (show n < 2 ^ 64 by omega) (show 1 ≤ n by omega),
     index_ref_eq (a := value) (i := n - 1) (by rw [hv.len]; omega) (by omega), Fe.M.exec_bind, hl,
-    ne_eq, limb_eq_zero_w, htop, not_true_eq_false, decide_false, Bool.false_eq_true, if_false,
+    ne_eq, limb_eq_zero_w, htop, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false,
     Lib.assert, Bool.not_false, trap, Fe.M.exec_fail]
 
 end FeProofs.Modexp
