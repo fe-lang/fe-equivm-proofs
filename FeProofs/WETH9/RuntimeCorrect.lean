@@ -40,7 +40,7 @@ theorem alike_transferFrom (src dst wad : UInt256) (hmem : w.memory.size + 864 <
 theorem alike_transfer (dst wad : UInt256) (hmem : w.memory.size + 864 < UInt256.size) :
     Alike 864 w ((recv_Transfer dst wad).exec I w)
       ((caller >>= fun src => Model.transferFrom src dst wad).exec I w) := by
-  simpa [recv_Transfer] using transferFrom_alike I w (sender I) dst wad hmem
+  simpa [recv_Transfer] using! transferFrom_alike I w (sender I) dst wad hmem
 
 theorem alike_decimals : Alike 0 w (recv_Decimals.exec I w) (Model.decimals.exec I w) :=
   alike_of_eq (decimals_exec I w) fun a v h => by
