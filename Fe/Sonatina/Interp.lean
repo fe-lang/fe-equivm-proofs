@@ -12,6 +12,12 @@ memory, calldata, logs, return data and message calls are the model library's ow
 exported model is.  `Sidecar.model` is the contract model of an object: its `init` and
 `runtime` sections, each run from its entry function.
 
+The runner is `runFuncG`, under a `Guard`: words of memory each statement must leave as they
+were, else the run panics with `spillClobbered`.  The machine IR with its memory spills
+(`Spill.lean`) runs under one; `runFunc`, `runBlocks` and `runBody` are the runner under the
+guard that protects nothing, and `runFunc_eq`, `runBlocks_eq`, `runBody_cons_eq` and
+`runBody_nil_eq` unfold them as one step of the IR.
+
 The runner is a least fixpoint (`partial_fixpoint`): a run that loops for ever does not
 terminate, whatever the bytecode's gas, so a certificate never fails for want of the model's
 fuel.  A run does not terminate either when it reaches what the
@@ -353,34 +359,99 @@ def enter (env : Env) (prev : Option Nat) (b : Block) : FeM Env := do
     evalOperand env o
   bind env (b.phis.map fun phi => (phi.dst, phi.ty)) vals
 
+/-- What a run under a spill plan must leave as it is (`Spill.lean`): for each function and
+    block, the words of memory each statement of the block may not change (`Guard.at`).  It is
+    a table, built once per run.  The machine IR's run protects nothing (`Guard.none`). -/
+abbrev Guard := List (String × List (Nat × List (List Nat)))
+
+/-- The guard of the machine IR's run: nothing is protected. -/
+def Guard.none : Guard := []
+
+/-- The words each statement of block `b` of function `name` may not change. -/
+def Guard.at (g : Guard) (name : String) (b : Nat) : List (List Nat) :=
+  ((g.lookup name).bind (·.lookup b)).getD []
+
+/-- The panic code of a run that changes a word it protects: no Fe panic's, as it is no word. -/
+def spillClobbered : Nat := 2 ^ 256
+
+/-- The bytes of the words of memory at the addresses. -/
+def wordsAt (mem : ByteArray) (ws : List Nat) : List ByteArray := ws.map (mem.readWithPadding · 32)
+
+/-- Run `x`, and panic with `spillClobbered` if it changed a byte of the words at `ws`.  With no
+    words it is `x`. -/
+def guarded {α : Type} : List Nat → FeM α → FeM α
+  | [], x => x
+  | ws, x => do
+    let before := wordsAt (← get).memory ws
+    let a ← x
+    if wordsAt (← get).memory ws = before then pure a else Fe.M.panic spillClobbered
+
+@[partial_fixpoint_monotone]
+theorem monotone_guarded {α γ : Type} [Lean.Order.PartialOrder γ] (ws : List Nat)
+    (x : γ → FeM α) (hx : Lean.Order.monotone x) :
+    Lean.Order.monotone fun g => guarded ws (x g) := by
+  cases ws with
+  | nil => exact hx
+  | cons w ws =>
+    unfold guarded
+    refine Lean.Order.monotone_bind _ _ _ (Lean.Order.monotone_const _) ?_
+    refine Lean.Order.monotone_of_monotone_apply _ fun _ => ?_
+    exact Lean.Order.monotone_bind _ _ _ hx (Lean.Order.monotone_const _)
+
+/-- A guarded computation that returns has left the words it guards as they were. -/
+theorem guarded_kept {α : Type} {ws : List Nat} {x : FeM α} {I : ExecutionEnv} {w w' : World}
+    {a : α} (h : (guarded ws x).exec I w = some (.ok (a, w'))) :
+    ∀ p ∈ ws, w'.memory.readWithPadding p 32 = w.memory.readWithPadding p 32 := by
+  cases ws with
+  | nil => intro p hp; cases hp
+  | cons q qs =>
+    unfold guarded at h
+    simp only [Fe.M.exec_bind, Fe.M.exec_get] at h
+    split at h
+    · cases h
+    · cases h
+    · rename_i a' w₁ _
+      split at h
+      · next heq =>
+        simp only [Fe.M.exec_pure, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h
+        rw [← h.2]
+        intro p hp
+        exact List.map_inj_left.mp heq p hp
+      · simp at h
+
 mutual
 
-/-- Run statements, calling functions of `m`. -/
-def runBody (m : Module) (c : Ctx) (env : Env) : List Stmt → FeM Env
+/-- Run statements, calling functions of `m`, under the guard `g`: each statement leaves the
+    words `inh` its callers protect as they were, and those the head of `ps` names, the
+    block's own for the statement; a call runs its callee with both protected. -/
+def runBodyG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (ps : List (List Nat))
+    (env : Env) : List Stmt → FeM Env
   | [] => pure env
   | s :: rest => do
-    let vals ← match s.inst with
-      | .call callee args => do runFunc m c callee (← args.mapM (evalOperand env))
-      | inst => runInst c env inst
-    runBody m c (← bind env s.dsts vals) rest
+    let ws := inh ++ ps.headD []
+    let vals ← guarded ws (match s.inst with
+      | .call callee args => do runFuncG g m c ws callee (← args.mapM (evalOperand env))
+      | inst => runInst c env inst)
+    runBodyG g m c inh ps.tail (← bind env s.dsts vals) rest
 partial_fixpoint
 
-/-- Run `f` from block `id`, entered from `prev`. -/
-def runBlocks (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Option Nat) (id : Nat) :
-    FeM (List Val) := do
+/-- Run `f` from block `id`, entered from `prev`, under the guard `g` with the words `inh`
+    protected. -/
+def runBlocksG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (f : Func) (env : Env)
+    (prev : Option Nat) (id : Nat) : FeM (List Val) := do
   let some b := f.block? id | stuck
   let env ← enter env prev b
-  let env ← runBody m c env b.body
+  let env ← runBodyG g m c inh (g.at f.name id) env b.body
   match b.term with
-  | .jump dest => runBlocks m c f env (some id) dest
+  | .jump dest => runBlocksG g m c inh f env (some id) dest
   | .br cond nz z => do
     let (_, v) ← evalInt env cond
-    runBlocks m c f env (some id) (if v != 0 then nz else z)
+    runBlocksG g m c inh f env (some id) (if v != 0 then nz else z)
   | .brTable s default cases => do
     let (_, v) ← evalInt env s
     let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
     match (vals.find? (·.1 == v)).map (·.2) <|> default with
-    | some dest => runBlocks m c f env (some id) dest
+    | some dest => runBlocksG g m c inh f env (some id) dest
     | none => stuck
   | .ret values => values.mapM (evalOperand env)
   | .evmReturn a l => do
@@ -398,15 +469,91 @@ def runBlocks (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Option Nat) 
   | .unreachable => stuck
 partial_fixpoint
 
-/-- Run function `name` of `m` on `args`. -/
-def runFunc (m : Module) (c : Ctx) (name : String) (args : List Val) : FeM (List Val) := do
+/-- Run function `name` of `m` on `args`, under the guard `g` with the words `inh` protected:
+    it returns only if it leaves them as they were. -/
+def runFuncG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (name : String)
+    (args : List Val) : FeM (List Val) := guarded inh do
   let some f := m.func? name | stuck
   let some entry := f.blocks.head? | stuck
   let env ← bind {} f.params args
-  runBlocks m c f env none entry.id
+  runBlocksG g m c inh f env none entry.id
 partial_fixpoint
 
 end
+
+/-- Run statements, calling functions of `m`: the machine IR's run, which protects nothing. -/
+@[irreducible] def runBody (m : Module) (c : Ctx) (env : Env) (stmts : List Stmt) : FeM Env :=
+  runBodyG .none m c [] [] env stmts
+
+/-- Run `f` from block `id`, entered from `prev`. -/
+@[irreducible] def runBlocks (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Option Nat)
+    (id : Nat) : FeM (List Val) :=
+  runBlocksG .none m c [] f env prev id
+
+/-- Run function `name` of `m` on `args`. -/
+@[irreducible] def runFunc (m : Module) (c : Ctx) (name : String) (args : List Val) :
+    FeM (List Val) :=
+  runFuncG .none m c [] name args
+
+/-- The guarded run that protects nothing is the machine IR's. -/
+theorem runFuncG_none (m : Module) (c : Ctx) (name : String) (args : List Val) :
+    runFuncG .none m c [] name args = runFunc m c name args := by
+  unfold runFunc; rfl
+
+theorem runBody_nil_eq (m : Module) (c : Ctx) (env : Env) : runBody m c env [] = pure env := by
+  unfold runBody; rw [runBodyG.eq_1]
+
+theorem runBody_cons_eq (m : Module) (c : Ctx) (env : Env) (s : Stmt) (rest : List Stmt) :
+    runBody m c env (s :: rest) = (do
+      let vals ← match s.inst with
+        | .call callee args => do runFunc m c callee (← args.mapM (evalOperand env))
+        | inst => runInst c env inst
+      runBody m c (← bind env s.dsts vals) rest) := by
+  unfold runBody runFunc
+  rw [runBodyG.eq_2]
+  simp only [List.nil_append, List.headD_nil, List.tail_nil, guarded]
+  rcases s with ⟨dsts, inst⟩
+  cases inst <;> first | rfl | simp only [bind_assoc]
+
+theorem runBlocks_eq (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Option Nat)
+    (id : Nat) : runBlocks m c f env prev id = (do
+      let some b := f.block? id | stuck
+      let env ← enter env prev b
+      let env ← runBody m c env b.body
+      match b.term with
+      | .jump dest => runBlocks m c f env (some id) dest
+      | .br cond nz z => do
+        let (_, v) ← evalInt env cond
+        runBlocks m c f env (some id) (if v != 0 then nz else z)
+      | .brTable s default cases => do
+        let (_, v) ← evalInt env s
+        let vals ← cases.mapM fun (o, dest) => return ((← evalInt env o).2, dest)
+        match (vals.find? (·.1 == v)).map (·.2) <|> default with
+        | some dest => runBlocks m c f env (some id) dest
+        | none => stuck
+      | .ret values => values.mapM (evalOperand env)
+      | .evmReturn a l => do
+        let e ← returnData (← evalWord env a) (← evalWord env l)
+        nomatch e
+      | .evmRevert a l => do
+        let e ← revertData (← evalWord env a) (← evalWord env l)
+        nomatch e
+      | .evmStop => do
+        let e ← stopCall
+        nomatch e
+      | .evmInvalid => do
+        let e ← trap
+        nomatch e
+      | .unreachable => stuck) := by
+  unfold runBlocks runBody; rw [runBlocksG.eq_1]; rfl
+
+theorem runFunc_eq (m : Module) (c : Ctx) (name : String) (args : List Val) :
+    runFunc m c name args = (do
+      let some f := m.func? name | stuck
+      let some entry := f.blocks.head? | stuck
+      let env ← bind {} f.params args
+      runBlocks m c f env none entry.id) := by
+  unfold runFunc runBlocks; rw [runFuncG.eq_1]; rfl
 
 /-- Which IR of a sidecar runs: the module after optimization, which every section shares, or
     a section's own module after the backend's IR pipeline (`source`) or machine lowering. -/
@@ -420,13 +567,14 @@ def Sidecar.moduleAt (s : Sidecar) (code : CodeSection) : Level → Option Modul
   | .source => code.lowering.bind (·.source)
   | .machine => code.lowering.map (·.machine)
 
-/-- Run section `name` of the sidecar's object from its entry, in the IR of the level.  The
-    entry ends the call itself: one that returns is stuck, as is a run at a level whose IR the
-    sidecar does not have (`Sidecar.moduleAt`).  At the machine level the run starts
-    with what the section entry's code does before the machine IR: it stores the initial free
-    pointer the lowering record names. -/
-def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt) :
-    FeM ByteArray := do
+/-- Run section `name` of the sidecar's object from its entry, in the IR of the level, as
+    `prep` prepares it: the module to run and the guard to run it under.  The entry ends the
+    call itself: one that returns is stuck, as is a run at a level whose IR the sidecar does
+    not have (`Sidecar.moduleAt`).  At the machine level the run starts with what the section
+    entry's code does before the machine IR: it stores the initial free pointer the lowering
+    record names.  The context is the level's module's, whatever `prep` makes of it. -/
+def Sidecar.runSectionWith (s : Sidecar) (name : String) (level : Level)
+    (prep : Module → Module × Guard) : FeM ByteArray := do
   let some obj := s.objects.find? (·.name == s.object) | stuck
   let some sec := obj.sections.find? (·.name == name) | stuck
   let some code := s.section? name | stuck
@@ -436,8 +584,15 @@ def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt)
   if level == .machine then
     if let some ptr := code.lowering.bind (·.entryFreePtr) then
       mstore (UInt256.ofNat 0x40) (UInt256.ofNat ptr)
-  let _ ← runFunc m ⟨(code.symbols.lookup ·), m.fixedEnd, m.structs⟩ sec.entry []
+  let _ ← runFuncG (prep m).2 (prep m).1 ⟨(code.symbols.lookup ·), m.fixedEnd, m.structs⟩ []
+    sec.entry []
   stuck
+
+/-- Run section `name` of the sidecar's object from its entry, in the IR of the level, as it
+    is (`Sidecar.runSectionWith`). -/
+def Sidecar.runSection (s : Sidecar) (name : String) (level : Level := .postOpt) :
+    FeM ByteArray :=
+  s.runSectionWith name level fun m => (m, .none)
 
 /-- The contract model the IR of the level gives.  The constructor reads its arguments from
     the running code, as the init section does, and ends with the whole deployed code. -/

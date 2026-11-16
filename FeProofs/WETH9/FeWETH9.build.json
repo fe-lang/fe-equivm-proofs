@@ -1,1 +1,1 @@
-{"contract": "FeWETH9", "compiler": {"kind": "fe", "version": "26.6.0", "commit": "aa5244d43", "optimize": 1, "evmVersion": "osaka"}}
+{"contract": "FeWETH9", "compiler": {"kind": "fe", "version": "26.6.0", "feContract": "WETH9", "commit": "78be342aa4", "branch": "lean-export", "repository": "https://github.com/sbillig/fe", "sonatina": "490c3325", "optimize": 1, "evmVersion": "osaka"}}

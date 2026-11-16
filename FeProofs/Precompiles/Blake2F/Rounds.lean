@@ -101,16 +101,16 @@ theorem mul64 {a b : ℕ} (ha : a < 2 ^ 64) (hb : b < 2 ^ 64) (h : a * b < 2 ^ 6
 set_option maxRecDepth 10000 in
 /-- One pass of the loop of single rounds: round `r` with `σ[r mod 10]`. -/
 theorem rest_step {T r : ℕ} (hT : T < 2 ^ 64) (hr : r < T) (m v : Words) r0 r4 r5 r6 r7 r8 :
-    compress_MemBuffer.b5.b9.b13.b20.b23 (UInt256.ofNat T) r0 (toV m) (toV v) (UInt256.ofNat r)
+    compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4 (UInt256.ofNat T) r0 (toV m) (toV v) (UInt256.ofNat r)
         r4 r5 r6 r7 r8 =
-      compress_MemBuffer.b5.b9.b13.b20.b23 (UInt256.ofNat T) r0 (toV m)
+      compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4 (UInt256.ofNat T) r0 (toV m)
         (toV (BLAKE2.roundFast m v r)) (UInt256.ofNat (r + 1)) r4 r5 r6 r7 r8 := by
   have hj : r % 10 < 10 := Nat.mod_lt _ (by decide)
   have hrem : checkedRem (UInt256.ofNat r) (UInt256.ofNat 10) = pure (UInt256.ofNat (r % 10)) := by
     rw [checkedRem_lit _ (by decide) (by decide), toNat_lit (by omega)]
   have hmul : IntTy.mul (.u 64) (UInt256.ofNat (r % 10)) (UInt256.ofNat 16) =
       pure (UInt256.ofNat (r % 10 * 16)) := mul64 (by omega) (by decide) (by omega)
-  rw [compress_MemBuffer.b5.b9.b13.b20.b23.eq_1, roundFast_get]
+  rw [compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.eq_1, roundFast_get]
   simp only [toNat_lit (show r < 2 ^ 256 by omega), toNat_lit (show T < 2 ^ 256 by omega),
     decide_eq_true hr, ite_true, hrem, hmul, downcast_u64_usize, SIGMA_eq, pure_bind]
   generalize r % 10 = j at hj ⊢
@@ -327,13 +327,13 @@ theorem roundsFast_add (m : Words) (l : ℕ) :
 /-- The loop of single rounds runs the rounds from `r` to `total`, then the final loop. -/
 theorem rest_spec {T : ℕ} (hT : T < 2 ^ 64) (m v0 : Words) r0 r4 r5 r6 r7 r8 :
     ∀ n r, r + n = T →
-      compress_MemBuffer.b5.b9.b13.b20.b23 (UInt256.ofNat T) r0 (toV m)
+      compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4 (UInt256.ofNat T) r0 (toV m)
           (toV (BLAKE2.roundsFast m r 0 v0)) (UInt256.ofNat r) r4 r5 r6 r7 r8 =
-        compress_MemBuffer.b5.b9.b13.b20.b23.b26 r0 (toV m) (toV (BLAKE2.roundsFast m T 0 v0))
+        compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.loop_5 r0 (toV m) (toV (BLAKE2.roundsFast m T 0 v0))
           (UInt256.ofNat T) r4 r5 r6 r7 (Range_Known_0_Known_8.mk () ()) (UInt256.ofNat 0)
   | 0, r, h => by
     subst h
-    rw [compress_MemBuffer.b5.b9.b13.b20.b23.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.eq_1]
     simp [Lib.Range_start_0_8]
   | n + 1, r, h => by
     have hs := roundsFast_succ m r 0 v0
@@ -347,15 +347,15 @@ theorem rest_spec {T : ℕ} (hT : T < 2 ^ 64) (m v0 : Words) r0 r4 r5 r6 r7 r8 :
 rounds from `r` to `total`, then the final loop. -/
 theorem tens_spec {T : ℕ} (hT : T < 2 ^ 64) (m v0 : Words) r0 r4 r5 r6 r8 :
     ∀ n r r7, r % 10 = 0 → r + n = T → ∃ r7',
-      compress_MemBuffer.b5.b9.b13.b20 (UInt256.ofNat T) r0 (toV m)
+      compress_MemBuffer.loop.loop_1.loop_2.loop_3 (UInt256.ofNat T) r0 (toV m)
           (toV (BLAKE2.roundsFast m r 0 v0)) (UInt256.ofNat r) r4 r5 r6 r7 r8 =
-        compress_MemBuffer.b5.b9.b13.b20.b23.b26 r0 (toV m) (toV (BLAKE2.roundsFast m T 0 v0))
+        compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.loop_5 r0 (toV m) (toV (BLAKE2.roundsFast m T 0 v0))
           (UInt256.ofNat T) r4 r5 r6 r7' (Range_Known_0_Known_8.mk () ()) (UInt256.ofNat 0) := by
   intro n
   induction n using Nat.strong_induction_on with
   | _ n ih =>
     intro r r7 hr h
-    rw [compress_MemBuffer.b5.b9.b13.b20.eq_1, sub64' hT (show r ≤ T by omega)]
+    rw [compress_MemBuffer.loop.loop_1.loop_2.loop_3.eq_1, sub64' hT (show r ≤ T by omega)]
     simp only [pure_bind, toNat_lit (show T - r < 2 ^ 256 by omega),
       toNat_lit (show 10 < 2 ^ 256 by decide)]
     by_cases h10 : 10 ≤ T - r
@@ -386,17 +386,17 @@ theorem has16 (r : Range_Known_0_Known_16) {k : ℕ} (hk : k < 2 ^ 256) :
 /-- The final loop: `h[i] ^= v[i] ^ v[i + 8]` for the words from `i` on. -/
 theorem final_spec (v : Words) (H : Fin 8 → UInt64) r1 r3 r4 r5 r6 r7 r8 :
     ∀ n i, i + n = 8 →
-      compress_MemBuffer.b5.b9.b13.b20.b23.b26
+      compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.loop_5
           (Vector.ofFn fun j => lw (if j.val < i then outW H v j else H j)) r1 (toV v) r3 r4 r5 r6
           r7 r8 (UInt256.ofNat i) =
         pure (Vector.ofFn fun j => lw (outW H v j))
   | 0, i, h => by
     subst h
-    rw [compress_MemBuffer.b5.b9.b13.b20.b23.b26.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.loop_5.eq_1]
     simp only [has8 _ (show 0 + 8 < 2 ^ 256 by decide)]
     simp
   | n + 1, i, h => by
-    rw [compress_MemBuffer.b5.b9.b13.b20.b23.b26.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.loop_2.loop_3.loop_4.loop_5.eq_1]
     simp only [has8 _ (show i < 2 ^ 256 by omega), show 0 ≤ i ∧ i < 8 from ⟨by omega, by omega⟩,
       Lib.Range_at_0_8, Lib.Range_next_0_8, pure_bind, checkIndex_lt (show i < 16 by omega) (by decide), checkIndex_lt (show i < 8 by omega) (by decide),
       checkedAdd_small (show i + 8 < 2 ^ 256 by omega),

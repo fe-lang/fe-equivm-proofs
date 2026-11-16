@@ -26,8 +26,8 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 /-! The exported layout places the two fields of `Ledger` at slots 0 and 1: the root of the
 balances map and the total. -/
 
-theorem balancesField : Field.ledger.field Layout.Ledger 0 = .storage (UInt256.ofNat 0) := rfl
-theorem totalField : Field.ledger.field Layout.Ledger 1 = .storage (UInt256.ofNat 1) := rfl
+theorem balancesField : Field.ledger.balances = .storage (UInt256.ofNat 0) := rfl
+theorem totalField : Field.ledger.total = .storage (UInt256.ofNat 1) := rfl
 
 variable (I : ExecutionEnv) (w : World)
 

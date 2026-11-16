@@ -48,17 +48,17 @@ theorem digestN_lt (S : RIPEMD160.State) : ∀ k, digestN S k < 2 ^ (32 * k)
 /-- The digest loop, from word `k`. -/
 theorem digest_loop (S : RIPEMD160.State) r2 r3 :
     ∀ n k, k + n = 5 →
-      ripemd160_MemBuffer.b1.b5 (toV5 S) (UInt256.ofNat (digestN S k)) r2 r3 (UInt256.ofNat k) =
+      ripemd160_MemBuffer.loop.loop_1 (toV5 S) (UInt256.ofNat (digestN S k)) r2 r3 (UInt256.ofNat k) =
         pure (UInt256.ofNat (digestN S 5))
   | 0, k, h => by
     subst h
-    rw [ripemd160_MemBuffer.b1.b5.eq_1]
+    rw [ripemd160_MemBuffer.loop.loop_1.eq_1]
     simp [Lib.array_has_u32_5]
   | n + 1, k, h => by
     have hd := digestN_lt S k
     have hd' : digestN S k < 2 ^ 128 := lt_of_lt_of_le hd (Nat.pow_le_pow_right (by decide) (by omega))
     have hs := be_lt (sget S k)
-    rw [ripemd160_MemBuffer.b1.b5.eq_1]
+    rw [ripemd160_MemBuffer.loop.loop_1.eq_1]
     simp only [Lib.array_has_u32_5, Lib.array_at_ref_u32_5, Lib.array_next_u32_5,
       toNat_lit (show k < 2 ^ 256 by omega), toNat_lit (show 5 < 2 ^ 256 by decide),
       decide_eq_true (show k < 5 by omega), ↓reduceIte, pure_bind,
@@ -91,7 +91,7 @@ theorem stateAt_end (d : ByteArray) : stateAt d (blocksOf d.size) = hashState d 
 theorem block_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     (h : Holds b d w.memory) (hn : d.size < 2 ^ 64) r1 :
     ∀ m i r3, i + m = blocksOf d.size →
-      (ripemd160_MemBuffer.b1 b (UInt256.ofNat (blocksOf d.size)) (toV5 (stateAt d i)) r1
+      (ripemd160_MemBuffer.loop b (UInt256.ofNat (blocksOf d.size)) (toV5 (stateAt d i)) r1
           ⟨(), UInt256.ofNat (blocksOf d.size)⟩ r3 (UInt256.ofNat i)).exec I w =
         some (.ok (UInt256.ofNat (digestN (hashState d) 5), w)) := by
   intro m
@@ -99,7 +99,7 @@ theorem block_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
   | zero =>
     intro i r3 hi
     have hB : blocksOf d.size < 2 ^ 256 := by unfold blocksOf; omega
-    rw [ripemd160_MemBuffer.b1.eq_1]
+    rw [ripemd160_MemBuffer.loop.eq_1]
     simp only [Lib.Range_has_0, range_has_eq (show i < 2 ^ 256 by omega) (show 0 < 2 ^ 256 by decide) hB,
       show ¬ (0 ≤ i ∧ i < blocksOf d.size) by omega, decide_false, Bool.false_eq_true, ↓reduceIte,
       pure_bind, Lib.array_start_u32_5]
@@ -109,7 +109,7 @@ theorem block_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
   | succ m ih =>
     intro i r3 hi
     have hB : blocksOf d.size < 2 ^ 256 := by unfold blocksOf; omega
-    rw [ripemd160_MemBuffer.b1.eq_1]
+    rw [ripemd160_MemBuffer.loop.eq_1]
     simp only [Lib.Range_has_0, range_has_eq (show i < 2 ^ 256 by omega) (show 0 < 2 ^ 256 by decide) hB,
       decide_eq_true (show 0 ≤ i ∧ i < blocksOf d.size from ⟨by omega, by omega⟩), ↓reduceIte,
       pure_bind, Lib.Range_at_0, Lib.Range_next_0, Fe.M.exec_bind, len_exec, holds_len_eq h,

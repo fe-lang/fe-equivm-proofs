@@ -22,8 +22,8 @@ open Exported (decodeSet_exec decodeGet_exec initEntry_exec)
 variable (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
-attribute [local simp] Exported.runtime Exported.recv0_arm0_entry Exported.recv0_arm1_entry
-  Exported.recv0_arm0 Exported.recv0_arm1 Exported.init Exported.Field.stored Place.storage store
+attribute [local simp] Exported.runtime Exported.recv_Get_entry Exported.recv_Set_entry
+  Exported.recv_Get Exported.recv_Set Exported.init Exported.Field.stored Place.storage store
   load sload entry selector_exec exec_nonPayable exec_sstore returnNone_exec
 
 /-- The machine IR's runtime ends as the exported runtime entry does, on calldata below `2 ^ 64`
@@ -45,7 +45,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
   by_cases h0 : selWord I.calldata = UInt256.ofNat 0x60fe47b1
   · -- `set(uint256)`
     have hs := s0.mp h0
-    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv0_arm1_entry).exec I w by
+    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv_Set_entry).exec I w by
       simp [hn, hn4, h0]]
     by_cases hwv : I.weiValue = ⟨0⟩
     swap
@@ -70,7 +70,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 32 < UInt256.size)
   by_cases h1 : selWord I.calldata = UInt256.ofNat 0x6d4ce63c
   · -- `get()`
     have hs := s1.mp h1
-    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv0_arm0_entry).exec I w by
+    rw [show (entry Exported.runtime).exec I w = (entry Exported.recv_Get_entry).exec I w by
       simp [hn, hn4, h1, show UInt256.ofNat 0x6d4ce63c ≠ UInt256.ofNat 0x60fe47b1 by decide]]
     by_cases hwv : I.weiValue = ⟨0⟩
     swap

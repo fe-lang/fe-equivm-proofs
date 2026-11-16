@@ -114,9 +114,9 @@ theorem permute_loop (s : Vector UInt64 25) :
     ∀ k ≤ 24, ∀ r0 r2 v0 : Vector UInt256 25,
       ((24 - k) % 2 = 0 → v0 = toL (st s (24 - k))) →
       ((24 - k) % 2 = 1 → r0 = toL (st s (24 - k))) →
-      permute.b1 r0 (UInt256.ofNat (24 - k)) r2 v0 = pure ((), toL (st s 24))
+      permute.loop r0 (UInt256.ofNat (24 - k)) r2 v0 = pure ((), toL (st s 24))
   | 0, _, r0, r2, v0, h0, _ => by
-    rw [permute.b1.eq_1]
+    rw [permute.loop.eq_1]
     simp only [Nat.sub_zero, toNat_lit (show 24 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
       Bool.false_eq_true, ite_false]
     rw [h0 rfl]
@@ -124,7 +124,7 @@ theorem permute_loop (s : Vector UInt64 25) :
     have hm : 24 - (k + 1) < 24 := by omega
     have hn : 24 - (k + 1) + 1 = 24 - k := by omega
     have IH := permute_loop s k (by omega)
-    rw [permute.b1.eq_1]
+    rw [permute.loop.eq_1]
     simp only [toNat_lit (show 24 - (k + 1) < 2 ^ 256 by omega),
       toNat_lit (show 24 < 2 ^ 256 by decide), hm, decide_true, ite_true,
       checkedRem_lit _ (show 2 < 2 ^ 256 by decide) (show 0 < 2 by decide), pure_bind,

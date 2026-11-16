@@ -261,13 +261,13 @@ end Std
 
 The exported layout places the fields of `Weth9Store` at slots 0 to 4. -/
 
-theorem nameField : Field.store.field Layout.Weth9Store 0 = .storage (UInt256.ofNat 0) := rfl
-theorem symbolField : Field.store.field Layout.Weth9Store 1 = .storage (UInt256.ofNat 1) := rfl
-theorem decimalsField : Field.store.field Layout.Weth9Store 2 = .storage (UInt256.ofNat 2) :=
+theorem nameField : Field.store.name = .storage (UInt256.ofNat 0) := rfl
+theorem symbolField : Field.store.symbol = .storage (UInt256.ofNat 1) := rfl
+theorem decimalsField : Field.store.decimals = .storage (UInt256.ofNat 2) :=
   rfl
-theorem balanceOfField : Field.store.field Layout.Weth9Store 3 = .storage (UInt256.ofNat 3) :=
+theorem balanceOfField : Field.store.balance_of = .storage (UInt256.ofNat 3) :=
   rfl
-theorem allowanceField : Field.store.field Layout.Weth9Store 4 = .storage (UInt256.ofNat 4) :=
+theorem allowanceField : Field.store.allowance = .storage (UInt256.ofNat 4) :=
   rfl
 
 /-! ## Arms -/
@@ -296,13 +296,13 @@ theorem lowByte_eq (x : UInt256) :
     Nat.mod_mod, Nat.mod_mod, ulit_toNat' _ (by unfold UInt256.size; omega)]
 
 /-- `decimals()`'s arm: the low byte of slot 2. -/
-theorem decimalsLit_exec : recv0_arm5.exec I w =
+theorem decimalsLit_exec : recv_Decimals.exec I w =
     some (.ok (UInt256.land (slotWord I w.accounts (UInt256.ofNat 2)) (UInt256.ofNat 255), w)) := by
   have hmask : UInt256.ofNat 1 <<< UInt256.ofNat 8 = UInt256.ofNat 256 := by decide
   have hmul : UInt256.ofNat 0 * UInt256.ofNat 8 = UInt256.ofNat 0 := by decide
   have hsub : (UInt256.ofNat 256).sub (UInt256.ofNat 0) = UInt256.ofNat 256 := by decide
   have hsub1 : (UInt256.ofNat 256).sub (UInt256.ofNat 1) = UInt256.ofNat 255 := by decide
-  simp [decimalsField, recv0_arm5, SolSlot_read_u8, checkedMul, checkedSub,
+  simp [decimalsField, recv_Decimals, SolSlot_read_u8, checkedMul, checkedSub,
     toNat0, toNat32, hmask, hmul, hsub, hsub1, show UInt256.size ≠ 0 by decide,
     show (UInt256.ofNat 256).toNat = 256 from rfl, show (UInt256.ofNat 8).toNat = 8 from rfl,
     show (UInt256.ofNat 1).toNat = 1 from rfl, Layout.SolSlot, Layout.Payload, Fe.EVM.add_zero,
@@ -429,7 +429,7 @@ theorem loadLoop_exec (slot : UInt256) (L : ℕ) (hL : L < 2 ^ 255) (b3 : UInt25
     ∀ k i (wd : World), i + k = (L + 31) / 32 →
       wd.memory = M ++ ((UInt256.ofNat L).toByteArray ++
         (loadWords I wd.accounts slot L i ++ ⟨Array.replicate (32 * k) 0⟩)) →
-      (SolString_load.b7 (.storage slot) (UInt256.ofNat L) (UInt256.ofNat M.size) b3
+      (SolString_load.loop (.storage slot) (UInt256.ofNat L) (UInt256.ofNat M.size) b3
           (UInt256.ofNat i)).exec I wd =
         (b3 (UInt256.ofNat ((L + 31) / 32))).exec I { wd with memory := M ++
           ((UInt256.ofNat L).toByteArray ++ loadWords I wd.accounts slot L ((L + 31) / 32)) } := by
@@ -438,7 +438,7 @@ theorem loadLoop_exec (slot : UInt256) (L : ℕ) (hL : L < 2 ^ 255) (b3 : UInt25
   induction k with
   | zero =>
     intro i wd hik hmem
-    rw [SolString_load.b7.eq_1]
+    rw [SolString_load.loop.eq_1]
     obtain rfl : i = (L + 31) / 32 := by omega
     simp [wordCount_exec I wd L (by omega), ulit_toNat' ((L + 31) / 32) (by omega)]
     have hz : (⟨Array.replicate (32 * 0) 0⟩ : ByteArray) = ByteArray.empty := rfl
@@ -448,7 +448,7 @@ theorem loadLoop_exec (slot : UInt256) (L : ℕ) (hL : L < 2 ^ 255) (b3 : UInt25
     intro i wd hik hmem
     have hW : (L + 31) / 32 < 2 ^ 251 := by omega
     have hi : 32 * i < L := by omega
-    rw [SolString_load.b7.eq_1]
+    rw [SolString_load.loop.eq_1]
     simp [wordCount_exec I wd L (by omega), ulit_toNat' i (by omega),
       ulit_toNat' ((L + 31) / 32) (by omega), show i < (L + 31) / 32 by omega, keccakWords_single,
       ofNat_mul_ofNat (a := i) (b := 32) (by omega) (by decide) (by omega),
@@ -646,7 +646,7 @@ variable (I : ExecutionEnv) (w : World)
 theorem clearLoop_exec (slot : UInt256) (hperm : I.perm = true) (n : ℕ) (hn : n < 2 ^ 251)
     (r0 r1 : UInt256) :
     ∀ k i (wd : World), i + k = n →
-      (SolString_store.b10 (.storage slot) (UInt256.ofNat n) r0 r1 (UInt256.ofNat i)).exec I wd =
+      (SolString_store.loop (.storage slot) (UInt256.ofNat n) r0 r1 (UInt256.ofNat i)).exec I wd =
         some (.ok ((), { wd with
           accounts := clearDataWordsForwardFrom I.codeOwner wd.accounts
             (solidityBytesDataBaseSlot slot) (UInt256.ofNat i) k })) := by
@@ -655,12 +655,12 @@ theorem clearLoop_exec (slot : UInt256) (hperm : I.perm = true) (n : ℕ) (hn : 
   | zero =>
     intro i wd hik
     obtain rfl : i = n := by omega
-    rw [SolString_store.b10.eq_1]
+    rw [SolString_store.loop.eq_1]
     simp
     rfl
   | succ k ih =>
     intro i wd hik
-    rw [SolString_store.b10.eq_1]
+    rw [SolString_store.loop.eq_1]
     simp [ulit_toNat' i (by unfold UInt256.size; omega),
       ulit_toNat' n (by unfold UInt256.size; omega),
       show i < n by omega, Payload_locate, Layout.SolString, Fe.EVM.add_zero, keccakWords_single,

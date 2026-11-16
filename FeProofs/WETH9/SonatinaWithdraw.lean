@@ -28,7 +28,7 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 
 variable {m : Module} (ic : Fe.Sonatina.Ctx) {I : ExecutionEnv} (w : World)
 
-attribute [local simp] Exported.recv0_arm4_entry Exported.recv0_arm4 Exported.balanceOfField
+attribute [local simp] Exported.recv_Withdraw_entry Exported.recv_Withdraw Exported.balanceOfField
   Place.storage store load sload entry exec_nonPayable exec_sstore M.exec_ite toNat0 toNatMax
   toNatU64
 
@@ -64,7 +64,7 @@ set_option maxHeartbeats 8000000 in
 /-- `withdraw(uint256)`. -/
 theorem arm_withdraw (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray)
     (E : Sonatina.Env) (p : Option Nat) :
-    EndsAs ((entry Exported.recv0_arm4_entry).exec I w)
+    EndsAs ((entry Exported.recv_Withdraw_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 27).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 256 < UInt256.size :=
     reserveMemory_room hmem (by decide)

@@ -94,8 +94,8 @@ theorem word1_zero {d : ByteArray} (h : d.size ≤ 32) : BN254.Spec.word d 1 = 0
 /-- **The arm**: it diverges, or returns the bytes `Spec.ecrecover` gives of the call data. -/
 theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
     (hmem : w.memory.size + I.calldata.size + 32 < UInt256.size) :
-    recv0_arm0.exec I w = none ∨
-      ∃ memory, recv0_arm0.exec I w =
+    recv_fallback.exec I w = none ∨
+      ∃ memory, recv_fallback.exec I w =
         some (.error (.stop (Secp256k1.Spec.ecrecover I.calldata) { w with memory := memory })) := by
   have hin : input_Evm_4.exec I w = _ := input_exec I w hfits (by omega)
   have hh := input_holds w.memory I.calldata (by omega)
@@ -119,28 +119,28 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
     (hw 2 (by omega)) (hw 3 (by omega)) hpos (by show (inputMemory _ _).size + 32 < _; omega)
     with he | ⟨o, mem, he, hrd⟩
   · left
-    simp [recv0_arm0, hin, he]
+    simp [recv_fallback, hin, he]
   · right
     refine ⟨mem, ?_⟩
     rw [hl 0 (by omega), hl 1 (by omega), hl 2 (by omega), hl 3 (by omega), ecrecOut_eq] at hrd
-    simp [recv0_arm0, hin, he, MemBuffer_drop, Lib.dealloc_u8, Lib.cast_u8_u8, returnData, hrd]
+    simp [recv_fallback, hin, he, MemBuffer_drop, Lib.dealloc_u8, Lib.cast_u8_u8, returnData, hrd]
 
 /-! ## The contract -/
 
-theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.exec I w := by
+theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv_fallback_entry.exec I w := by
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 /-- Without call value the entry ends as the arm does. -/
 theorem entry_runtime_none (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩)
-    (h : recv0_arm0.exec I w.reserved = none) : (entry runtime).exec I w = none := by
-  simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv0_arm0_entry, exec_nonPayable,
-    ite_eq_left hv, h]
+    (h : recv_fallback.exec I w.reserved = none) : (entry runtime).exec I w = none := by
+  simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv_fallback_entry, exec_nonPayable,
+    if_pos hv, h]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_left hv, h]
+  simp only [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
 
 /-- **The contract `EcrecoverPrecompile` is ECRECOVER.**  On any call data `d` shorter than
     `2 ^ 64` bytes, with room in memory for the input and the 32-byte output, and no call value,
@@ -167,7 +167,7 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
       (∃ memory, (entry runtime).exec I w =
           some (.error (.stop (Ξ_ECREC σ g A I).2.2.2 { w with memory := memory })) ∧
         (Ξ_ECREC σ g A I).1 = σ) := by
-  rw [Ξ_ECREC_eq, ite_eq_right (by omega)]
+  rw [Ξ_ECREC_eq, if_neg (by omega)]
   rcases feEcrecoverPrecompileContractCorrect I w hfits hmem hv with h | ⟨memory, h⟩
   · exact Or.inl h
   · exact Or.inr ⟨memory, h, rfl⟩
@@ -176,6 +176,6 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
+  rw [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_neg hv]
 
 end FeProofs.EcrecoverPrecompile

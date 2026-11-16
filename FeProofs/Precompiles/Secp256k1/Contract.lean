@@ -10,7 +10,7 @@ The exported runtime entry on a call of `recover(e, v, r, s)`, against
 
 - `decodeRecover_exec`: std's decoder gives the four words at offsets 4, 36, 68 and 100, or reverts
   with no data on calldata shorter than 132 bytes.
-- `arm_spec`: the arm `recv0_arm0`, on any arguments, diverges or returns, with the world
+- `arm_spec`: the arm `recv_Recover`, on any arguments, diverges or returns, with the world
   unchanged, the triple `Spec.recover` decides (`tripleOf`): `(true, x, y)` for the key `(x, y)`,
   `(false, 0, 0)` for none.  `lib.fe` checks `recovery_id > 1`, `r == 0`, `r >= N`, `s == 0`
   and `s >= N` before it calls `secp256k1::recover`, which requires them: they are the
@@ -92,44 +92,44 @@ def tripleOf : Option (Fp × Fp) → Bool × UInt256 × UInt256
     what `Spec.recover` decides.  The arm's own checks of the recovery id, `r` and `s` are the
     specification's guard. -/
 theorem arm_spec (e v r s : UInt256) (env : Env) (w : World) :
-    (recv0_arm0 e v r s).exec env w = none ∨
-      (recv0_arm0 e v r s).exec env w =
+    (recv_Recover e v r s).exec env w = none ∨
+      (recv_Recover e v r s).exec env w =
         some (.ok (tripleOf (Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat), w)) := by
   have hn : (UInt256.ofNat Secp256k1.n).toNat = Secp256k1.n :=
     toNat_lit (show Secp256k1.n < 2 ^ 256 by decide)
   have t1 : (UInt256.ofNat 1).toNat = 1 := rfl
   have hspec : ¬ (0 < r.toNat ∧ r.toNat < Secp256k1.n ∧ 0 < s.toNat ∧ s.toNat < Secp256k1.n ∧
       v.toNat < 2) → Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat = none := fun hg => by
-    rw [Secp256k1.Spec.recover, ite_eq_right hg]
+    rw [Secp256k1.Spec.recover, if_neg hg]
   have h0 : ∀ x : UInt256, x = UInt256.ofNat 0 ↔ x.toNat = 0 := fun x =>
     ⟨fun h => by rw [h]; rfl, fun h => u256_inj (by rw [h]; rfl)⟩
   by_cases hv : 1 < v.toNat
   · right
     rw [hspec (by omega)]
-    simp [recv0_arm0, t1, hv, tripleOf]
+    simp [recv_Recover, t1, hv, tripleOf]
   by_cases hr0 : r = UInt256.ofNat 0
   · right
     rw [hspec (by rw [(h0 r).mp hr0]; omega)]
-    simp [recv0_arm0, t1, hv, hr0, tripleOf]
+    simp [recv_Recover, t1, hv, hr0, tripleOf]
   by_cases hr : Secp256k1.n ≤ r.toNat
   · right
     rw [hspec (by omega)]
-    simp [recv0_arm0, t1, hv, hr0, N_eq, hn, hr, tripleOf]
+    simp [recv_Recover, t1, hv, hr0, N_eq, hn, hr, tripleOf]
   by_cases hs0 : s = UInt256.ofNat 0
   · right
     rw [hspec (by rw [(h0 s).mp hs0]; omega)]
-    simp [recv0_arm0, t1, hv, hr0, N_eq, hs0, tripleOf]
+    simp [recv_Recover, t1, hv, hr0, N_eq, hs0, tripleOf]
   by_cases hs : Secp256k1.n ≤ s.toNat
   · right
     rw [hspec (by omega)]
-    simp [recv0_arm0, t1, hv, hr0, N_eq, hn, hs0, hs, tripleOf]
+    simp [recv_Recover, t1, hv, hr0, N_eq, hn, hs0, hs, tripleOf]
   have hr0' : 0 < r.toNat := Nat.pos_of_ne_zero fun h => hr0 ((h0 r).mpr h)
   have hs0' : 0 < s.toNat := Nat.pos_of_ne_zero fun h => hs0 ((h0 s).mpr h)
   rcases recover_spec e v r s (by omega) hr0' (by omega) hs0' (by omega) env w with h | h
   · left
-    simp [recv0_arm0, t1, hv, hr0, N_eq, hn, hr, hs0, hs, h]
+    simp [recv_Recover, t1, hv, hr0, N_eq, hn, hr, hs0, hs, h]
   · right
-    simp [recv0_arm0, t1, hv, hr0, N_eq, hn, hr, hs0, hs, h]
+    simp [recv_Recover, t1, hv, hr0, N_eq, hn, hr, hs0, hs, h]
     rcases Secp256k1.Spec.recover e.toNat v.toNat r.toNat s.toNat with _ | ⟨x, y⟩ <;>
       simp [keyOf, tripleOf, Option_PublicKey.Some_0]
 
@@ -200,7 +200,7 @@ def encodeTriple (t : Bool × UInt256 × UInt256) : ByteArray :=
 
 theorem runtime_recover (e v r s : UInt256) (I : ExecutionEnv) (w : World)
     (hcd : I.calldata = calldata e.toNat v.toNat r.toNat s.toNat) :
-    runtime.exec I w = recv0_arm0_entry.exec I w := by
+    runtime.exec I w = recv_Recover_entry.exec I w := by
   obtain ⟨hsz, hext, -⟩ := calldata_facts e v r s
   rw [← hcd] at hsz hext
   have hsel : selWord I.calldata = UInt256.ofNat 0x2aa6d351 :=
@@ -223,10 +223,10 @@ theorem feEcrecoverContractCorrect (e v r s : UInt256) (I : ExecutionEnv) (w : W
   obtain ⟨hsz, -, h4, h36, h68, h100⟩ := calldata_facts e v r s
   rw [← hcd] at hsz h4 h36 h68 h100
   have hdec := decodeRecover_exec I w.reserved (by omega) (by omega)
-  rw [ite_eq_right (by omega), h4, h36, h68, h100] at hdec
+  rw [if_neg (by omega), h4, h36, h68, h100] at hdec
   rcases arm_spec e v r s I w.reserved with harm | harm
   · left
-    simp [entry, runtime_recover e v r s I w.reserved hcd, recv0_arm0_entry, exec_nonPayable, hv,
+    simp [entry, runtime_recover e v r s I w.reserved hcd, recv_Recover_entry, exec_nonPayable, hv,
       hdec, harm]
   · right
     obtain ⟨memory, hret⟩ := FeProofs.Lib.returnTriple_exec I w.reserved
@@ -234,7 +234,7 @@ theorem feEcrecoverContractCorrect (e v r s : UInt256) (I : ExecutionEnv) (w : W
       (reserveMemory_room hmem (by decide))
     refine ⟨memory, ?_⟩
     simp only [entry, M.exec_bind, exec_reserve, runtime_recover e v r s I w.reserved hcd,
-      recv0_arm0_entry, exec_nonPayable, hv, ite_true, hdec, harm, hret, encodeTriple,
+      recv_Recover_entry, exec_nonPayable, hv, if_true, hdec, harm, hret, encodeTriple,
       World.reserved_accounts, World.reserved_logs, World.reserved_returnData,
       World.reserved_feed, World.reserved_calls]
 
@@ -263,7 +263,7 @@ theorem runtime_value (e v r s : UInt256) (I : ExecutionEnv) (w : World)
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
   rw [runtime_recover e v r s I w.reserved hcd]
-  rw [recv0_arm0_entry, M.exec_bind, exec_nonPayable, ite_eq_right hv]
+  rw [recv_Recover_entry, M.exec_bind, exec_nonPayable, if_neg hv]
 
 /-- **What `Main.lean` prints.**  The stand-in for ECDSARECOVER returns the key `x ‖ y` exactly
     when `Spec.recover` gives `(x, y)`, and none when it gives none, or the model does not

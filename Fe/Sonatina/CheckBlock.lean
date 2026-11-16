@@ -58,7 +58,7 @@ theorem decode_append {code tail : ByteArray} {pc : UInt256} {op : Operation}
     split
     · rfl
     · next hw =>
-      rw [ite_eq_right hw] at hn
+      rw [if_neg hw] at hn
       simp only [Option.map_some, Option.getD_some] at hn
       rw [extract'_append (by omega)]
 
@@ -114,7 +114,7 @@ theorem mem_instrs_D_J {c : ByteArray} {pc : Nat} {a : Option Nat} {n : Nat} :
       rcases List.mem_cons.mp h with h | h
       · simp only [Prod.mk.injEq] at h
         obtain ⟨rfl, rfl, -⟩ := h
-        rw [ite_eq_left rfl]
+        rw [if_pos rfl]
         exact mem_D_J_aux_of_mem c.size _ _ (by omega) (Array.mem_push_self ..)
       · exact mem_instrs_D_J f _ _ _ (by rw [hrest, List.drop_drop]; rfl) h
 
@@ -230,6 +230,7 @@ inductive Trace (I : ExecutionEnv) (ρ : Nat → UInt256) :
   | ok {ev : Event} {evs : List Event} {w w' : World} {r : Option (Except (Fe.Exit World) World)}
       {args : List UInt256} (ha : ev.args.mapM (·.eval I ρ) = some args)
       (hr : (evRun ev.op args).exec I w = some (.ok (ev.result.map ρ, w')))
+      (hk : ∀ a ∈ ev.keep, w'.memory.readWithPadding a 32 = w.memory.readWithPadding a 32)
       (rest : Trace I ρ evs w' r) : Trace I ρ (ev :: evs) w r
   | fail {ev : Event} {evs : List Event} {w : World} {e : Fe.Exit World} {args : List UInt256}
       (ha : ev.args.mapM (·.eval I ρ) = some args)
@@ -238,6 +239,168 @@ inductive Trace (I : ExecutionEnv) (ρ : Nat → UInt256) :
   | stuck {ev : Event} {evs : List Event} {w : World} {args : List UInt256}
       (ha : ev.args.mapM (·.eval I ρ) = some args)
       (hr : (evRun ev.op args).exec I w = none) : Trace I ρ (ev :: evs) w none
+
+/-- A byte of a word read is the memory's byte, zero past its end. -/
+theorem readWithPadding_getD (m : ByteArray) (a n i : Nat) (hi : i < n) :
+    (m.readWithPadding a n).data.getD i 0 = m.data.getD (a + i) 0 := by
+  unfold ByteArray.readWithPadding ByteArray.readWithoutPadding
+  simp only [Array.getD_eq_getD_getElem?]
+  have hsz : ∀ x : ByteArray, x.size = x.data.size := fun _ => rfl
+  split
+  · next h =>
+    rw [hsz] at h
+    rw [Array.getElem?_eq_none (show m.data.size ≤ a + i by omega)]
+    simp only [ByteArray.zeroes, ByteArray.data_append, Array.getElem?_append,
+      Array.getElem?_replicate, hsz]
+    split_ifs with hx <;> simp_all [ByteArray.empty, ByteArray.emptyWithCapacity]
+    all_goals (rename_i hh; exact absurd hh (by simp))
+  · next h =>
+    simp only [ge_iff_le, not_le, hsz] at h
+    simp only [ByteArray.data_append, ByteArray.data_extract, ByteArray.zeroes, hsz,
+      Array.getElem?_append, Array.size_extract, Array.getElem?_extract, Array.getElem?_replicate]
+    split_ifs <;> first
+      | omega
+      | (rw [Array.getElem?_eq_none (by omega)]; rfl)
+      | simp_all
+
+theorem readWithPadding_size' (m : ByteArray) (a n : Nat) : (m.readWithPadding a n).size = n := by
+  unfold ByteArray.readWithPadding ByteArray.readWithoutPadding
+  split
+  · rw [ByteArray.size_append]
+    simp only [ByteArray.zeroes, ByteArray.size, Array.size_replicate]
+    have : ByteArray.empty.data.size = 0 := rfl
+    omega
+  · rw [ByteArray.size_append, ByteArray.size_extract]
+    simp only [ByteArray.zeroes]
+    rw [show (ByteArray.mk (Array.replicate _ 0)).size = _ from Array.size_replicate]
+    omega
+
+theorem mstore_getD (v : UInt256) (m : ByteArray) (off i : Nat)
+    (hgap : off - m.size < USize.size) :
+    ((UInt256.toByteArray v).write 0 m off 32).data.getD i 0 =
+      if off ≤ i ∧ i < off + 32 then (UInt256.toByteArray v).data.getD (i - off) 0
+      else m.data.getD i 0 := by
+  have h32 : (UInt256.toByteArray v).size = 32 := Reasoning.Theory.toByteArray_size v
+  by_cases hle : off ≤ m.size
+  · rw [Reasoning.Theory.write32_eq _ _ off (by rw [h32]) hle]
+    simp only [Array.getD_eq_getD_getElem?, ByteArray.data_append, ByteArray.data_extract,
+      Array.getElem?_append, Array.size_append, Array.size_extract, Array.getElem?_extract]
+    split_ifs <;> first | omega | simp_all
+  · rw [Reasoning.Theory.toByteArray_write_eq _ _ off (by omega) hgap]
+    simp only [Array.getD_eq_getD_getElem?, ByteArray.data_append, ByteArray.zeroes,
+      Array.getElem?_append, Array.size_append, Array.size_replicate, Array.getElem?_replicate,
+      ByteArray.size_data]
+    split_ifs <;> first
+      | (exfalso; omega)
+      | (rw [show m.size + (off - m.size) = off by omega]; done)
+      | (rw [show m.size + (off - m.size) = off by omega,
+          Array.getElem?_eq_none (by rw [ByteArray.size_data, h32]; omega),
+          Array.getElem?_eq_none (by rw [ByteArray.size_data]; omega)])
+      | simp_all
+
+/-- Two byte arrays agree on a word if they agree on its bytes. -/
+theorem readWithPadding_congr {m m' : ByteArray} {a n : Nat}
+    (h : ∀ i < n, m'.data.getD (a + i) 0 = m.data.getD (a + i) 0) :
+    m'.readWithPadding a n = m.readWithPadding a n := by
+  apply ByteArray.ext
+  apply Array.ext
+  · simp only [ByteArray.size_data, readWithPadding_size']
+  · intro i h1 h2
+    have hi : i < n := by simpa [ByteArray.size_data, readWithPadding_size'] using h1
+    have e1 := readWithPadding_getD m' a n i hi
+    have e2 := readWithPadding_getD m a n i hi
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h1,
+      Array.getElem?_eq_getElem h2, Option.getD_some] at e1 e2
+    rw [e1, e2]
+    simpa only [Array.getD_eq_getD_getElem?] using h i hi
+
+/-- A word write leaves a word that does not meet it as it was. -/
+theorem mstore_read_disjoint (v : UInt256) (m : ByteArray) (off a : Nat)
+    (hgap : off - m.size < USize.size) (hd : off + 32 ≤ a ∨ a + 32 ≤ off) :
+    ((UInt256.toByteArray v).write 0 m off 32).readWithPadding a 32 = m.readWithPadding a 32 :=
+  readWithPadding_congr fun i hi => by
+    rw [mstore_getD v m off (a + i) hgap, if_neg (by omega)]
+
+/-- Each word `ae.1` of memory `mem` holds the word of the expression `ae.2`. -/
+def HeldAt (I : ExecutionEnv) (ρ : Nat → UInt256) (req : List (Nat × Expr)) (mem : ByteArray) :
+    Prop :=
+  ∀ ae ∈ req, ∃ v, ae.2.eval I ρ = some v ∧ mem.readWithPadding ae.1 32 = v.toByteArray
+
+/-- The words a path knows hold the words of their expressions, at addresses below `2 ^ 32`. -/
+def HeldRel (I : ExecutionEnv) (ρ : Nat → UInt256) (hs : List Held) (mem : ByteArray) : Prop :=
+  ∀ h ∈ hs, h.word < 2 ^ 32 ∧ ∃ v, h.expr.eval I ρ = some v ∧
+    mem.readWithPadding h.word 32 = v.toByteArray
+
+/-- The words a statement keeps hold what they held. -/
+theorem HeldRel.keep {I : ExecutionEnv} {ρ : Nat → UInt256} {hs : List Held} {mem mem' : ByteArray}
+    {keep : List Nat} (h : HeldRel I ρ hs mem)
+    (hk : ∀ a ∈ keep, mem'.readWithPadding a 32 = mem.readWithPadding a 32) :
+    HeldRel I ρ (keepHeld keep hs) mem' := fun x hx => by
+  simp only [keepHeld, List.mem_filter, List.contains_iff_mem] at hx
+  obtain ⟨hlt, v, hv, hr⟩ := h x hx.1
+  exact ⟨hlt, v, hv, by rw [hk _ hx.2, hr]⟩
+
+/-- After an event of a statement that keeps the words of its guard, the path knows what the
+    event wrote and the words it kept. -/
+theorem HeldRel.event {I : ExecutionEnv} {ρ : Nat → UInt256} {hs : List Held} {w w' : World}
+    {ev : Event} {args : List UInt256} {r : Option UInt256} (h : HeldRel I ρ hs w.memory)
+    (ha : ev.args.mapM (·.eval I ρ) = some args)
+    (hr : (evRun ev.op args).exec I w = some (.ok (r, w')))
+    (hk : ∀ a ∈ ev.keep, w'.memory.readWithPadding a 32 = w.memory.readWithPadding a 32) :
+    HeldRel I ρ (ev.held hs) w'.memory := by
+  unfold Event.held
+  split
+  · next a e hop hargs =>
+    split_ifs with hlt
+    · rw [hargs] at ha
+      cases he : e.eval I ρ with
+      | none => simp [List.mapM_cons, he] at ha
+      | some v =>
+        simp only [List.mapM_cons, List.mapM_nil, Expr.eval, he, Option.bind_eq_bind,
+          Option.bind_some, Option.pure_def, Option.some.injEq] at ha
+        subst ha
+        rw [hop] at hr
+        simp only [evRun, Fe.EVM.mstore, Fe.M.exec_bind, Fe.M.exec_modify, Fe.M.exec_pure,
+          Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at hr
+        obtain ⟨-, rfl⟩ := hr
+        have hlt' : (UInt256.ofNat a).toNat = a := by
+          rw [toNat_ofNat, Nat.mod_eq_of_lt (by unfold UInt256.size; omega)]
+        have hgap : a - w.memory.size < USize.size := by have := USize.le_size; omega
+        intro x hx
+        simp only [List.mem_cons, List.mem_filter, Bool.or_eq_true, decide_eq_true_eq,
+          List.contains_iff_mem] at hx
+        rcases hx with rfl | ⟨hx, (hkx | hdx) | hdx⟩
+        · refine ⟨hlt, v, he, ?_⟩
+          simp only [hlt']
+          exact Reasoning.Theory.toByteArray_write_read_back_of_gap v w.memory a hgap
+        · obtain ⟨hl, u, hu, hru⟩ := h x hx
+          exact ⟨hl, u, hu, by rw [hk _ hkx, hru]⟩
+        · obtain ⟨hl, u, hu, hru⟩ := h x hx
+          refine ⟨hl, u, hu, ?_⟩
+          simp only [hlt']
+          rw [mstore_read_disjoint v w.memory a x.word hgap (by omega), hru]
+        · obtain ⟨hl, u, hu, hru⟩ := h x hx
+          refine ⟨hl, u, hu, ?_⟩
+          simp only [hlt']
+          rw [mstore_read_disjoint v w.memory a x.word hgap (by omega), hru]
+    · exact h.keep hk
+  · exact h.keep hk
+
+/-- The path knows, at an arrival `arrivesHeld` accepts, the words the successor starts with. -/
+theorem arrivesHeld_rel {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {b S : Nat}
+    {hs : List Held} {mem : ByteArray} (ha : arrivesHeld c b S hs = true)
+    (h : HeldRel I ρ hs mem) :
+    ∃ req, c.arrivalHeld b S = some req ∧ HeldAt I ρ req mem := by
+  unfold arrivesHeld at ha
+  split at ha
+  · next req hreq =>
+    refine ⟨req, hreq, fun ae hae => ?_⟩
+    have := List.all_eq_true.mp ha ae hae
+    obtain ⟨x, hx, hxe⟩ := List.any_eq_true.mp this
+    simp only [Bool.and_eq_true, beq_iff_eq] at hxe
+    obtain ⟨-, v, hv, hr⟩ := h x hx
+    exact ⟨v, hxe.2 ▸ hv, hxe.1 ▸ hr⟩
+  · cases ha
 
 /-- An exit that goes to a successor: a `goto`, a `br` or a `br_table`. -/
 def Exit.IsJump : Exit → Prop
@@ -272,20 +435,23 @@ def Ends (K : Bool) (M : List Made) (code : ByteArray) (I : ExecutionEnv) (ρ : 
         (∀ d, e0.next I ρ = some d → d = S) ∧
         place S = some pc' ∧ s'.machineState.pc.toNat = pc' ∧ c.arrival hints b S = some exprs ∧
         StackRel I ρ exprs B' s'.machineState.stack ∧ (c.frame.exact S = true → B' = B) ∧
+        (∃ req, c.arrivalHeld b S = some req ∧ HeldAt I ρ req s'.machineState.memory) ∧
         s'.executionEnv = I ∧ Agree M s' w) ∨
      (∃ op args ws, cls = [] ∧ e0 = .halt op args ∧ args.mapM (·.eval I ρ) = some ws ∧
        HaltEnds K M (D_J I.code 0) s w op ws) ∨
      (∃ vals ws n s', cls = [] ∧ e0 = .ret vals ∧ vals.mapM (·.eval I ρ) = some ws ∧
        Steps K (D_J I.code 0) s (.ok (s', none)) n ∧ s'.machineState.pc = ρ c.frame.retId ∧
        s'.machineState.stack = ws ++ B ∧ s'.executionEnv = I ∧ Agree M s' w) ∨
-     (∃ cs more ce n s' ws k restE restW ex' fuel', cls = cs :: more ∧
+     (∃ cs more ce n s' ws k restE restW ex' fuel' hs, cls = cs :: more ∧
        c.frame.callee cs.callee = some ce ∧ ce.returns = true ∧
        Steps K (D_J I.code 0) s (.ok (s', none)) n ∧ s'.machineState.pc.toNat = ce.offset ∧
        cs.args.mapM (·.eval I ρ) = some ws ∧ restE.mapM (·.eval I ρ) = some restW ∧
        s'.machineState.stack = ws ++ UInt256.ofNat k :: restW ++ B ∧
        validJump code (jumpdests code) k = true ∧
        run code (codeTree code) (jumpdests code) c hints place b fuel'
-         ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more⟩ = true ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧ s'.executionEnv = I ∧ Agree M s' w) ∨
+         ⟨k, cs.dsts.map .atom ++ restE, cs.events, ex', more, keepHeld cs.keep hs⟩ = true ∧
+       HeldRel I ρ hs s'.machineState.memory ∧ ex'.Valid I ρ ∧ ExitRel I ρ e0 ex' ∧
+       s'.executionEnv = I ∧ Agree M s' w) ∨
      (∃ cs ce n s' ws t, cls = [cs] ∧ c.frame.callee cs.callee = some ce ∧ ce.returns = false ∧
        Steps K (D_J I.code 0) s (.ok (s', none)) n ∧ s'.machineState.pc.toNat = ce.offset ∧
        cs.args.mapM (·.eval I ρ) = some ws ∧ s'.machineState.stack = ws ++ t ∧
@@ -319,9 +485,10 @@ theorem Ends.cons {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} {
   · obtain ⟨vals, ws, n, s', h0, h1, h2, hx, h3⟩ := hret
     exact .inr (.inr ⟨w, hr, .inr (.inr (.inl ⟨vals, ws, n + 1, s', h0, h1, h2,
       .trans hc hstep henv hx, h3⟩))⟩)
-  · obtain ⟨cs, more, ce, n, s', ws, k, restE, restW, ex', fuel', h1, h2, h3, hx, h4⟩ := hcall
+  · obtain ⟨cs, more, ce, n, s', ws, k, restE, restW, ex', fuel', hs, h1, h2, h3, hx, h4⟩ :=
+      hcall
     exact .inr (.inr ⟨w, hr, .inr (.inr (.inr (.inl ⟨cs, more, ce, n + 1, s', ws, k, restE,
-      restW, ex', fuel', h1, h2, h3, .trans hc hstep henv hx, h4⟩)))⟩)
+      restW, ex', fuel', hs, h1, h2, h3, .trans hc hstep henv hx, h4⟩)))⟩)
   · obtain ⟨cs, ce, n, s', ws, t, h1, h2, h3, hx, h4⟩ := hcall
     exact .inr (.inr ⟨w, hr, .inr (.inr (.inr (.inr ⟨cs, ce, n + 1, s', ws, t, h1, h2, h3,
       .trans hc hstep henv hx, h4⟩)))⟩)
@@ -385,22 +552,24 @@ theorem Ends.event {code : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt256} 
     (hargs : ev.args.mapM (·.eval I ρ) = some args) (htr : Trace I ρ (ev :: evs) w r)
     (h : ∀ s' w', s'.machineState.pc = s.machineState.pc + ⟨1⟩ →
       s'.machineState.stack = (ev.result.map ρ).toList ++ t → s'.executionEnv = I → Agree M s' w' →
-      Trace I ρ evs w' r → Ends K M code I ρ c hints place b B e0 ex₁ cls s' r) :
+      Trace I ρ evs w' r → (evRun ev.op args).exec I w = some (.ok (ev.result.map ρ, w')) →
+      (∀ a ∈ ev.keep, w'.memory.readWithPadding a 32 = w.memory.readWithPadding a 32) →
+      Ends K M code I ρ c hints place b B e0 ex₁ cls s' r) :
     Ends K M code I ρ c hints place b B e0 ex cls s r := by
   subst henv
   rcases hm M w hw with hx | hx | ⟨f, e, he, hx, hf⟩ | ⟨r', w', s', he, hx, hpc, hst, henv', hw'⟩
   · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inl rfl⟩
   · exact .inl ⟨1, _, .step hc hx fun t ht => by simp at ht, .inr rfl⟩
   · cases htr with
-    | ok ha hr _ => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
+    | ok ha hr _ _ => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
     | fail ha hr =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
       exact .inr (.inl ⟨f, e, 1, rfl, hf, .step hc hx fun t ht => by simp at ht⟩)
     | stuck ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
   · cases htr with
-    | ok ha hr hrest =>
+    | ok ha hr hk hrest =>
       rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
-      exact Ends.cons hc hx henv' (h s' w' hpc hst henv' hw' hrest)
+      exact Ends.cons hc hx henv' (h s' w' hpc hst henv' hw' hrest he hk)
     | fail ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
     | stuck ha hr => rw [hargs] at ha; cases ha; rw [he] at hr; cases hr
 
@@ -528,6 +697,7 @@ structure PathRel (code tail : ByteArray) (I : ExecutionEnv) (ρ : Nat → UInt2
   stack : StackRel I ρ p.stack B s.machineState.stack
   valid : p.exit.Valid I ρ
   exit : ExitRel I ρ e0 p.exit
+  held : HeldRel I ρ p.held s.machineState.memory
 
 theorem arrives_rel {I : ExecutionEnv} {ρ : Nat → UInt256} {c : Ctx} {hints : List BlockHint}
     {b S : Nat} {es : List Expr} {B stk : List UInt256} (ha : arrives c hints b S es = true)
@@ -664,22 +834,23 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     unfold run at h
     by_cases harr : (p.events.isEmpty && p.calls.isEmpty &&
         (p.exit.selected.bind place) == some p.pc) = true
-    · rw [ite_eq_left harr] at h
+    · rw [if_pos harr] at h
       simp only [Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq] at harr
       obtain ⟨⟨hev, hcl0⟩, hsel⟩ := harr
       split at h
       · next S hS =>
         rw [hev] at htr
         cases htr
-        obtain ⟨exprs, B', hex, hrel, hB⟩ := arrives_rel h hp.stack
+        simp only [Bool.and_eq_true] at h
+        obtain ⟨exprs, B', hex, hrel, hB⟩ := arrives_rel h.1 hp.stack
         have hpl : place S = some p.pc := by simpa [hS] using hsel
         exact .inr (.inr ⟨w, rfl, .inl ⟨S, 0, s, p.pc, exprs, B', hcl0, e0_not_halt hp hS,
           isJump_of_selected hp hS, fun _ => hS,
           .inl ⟨rfl, rfl⟩,
           fun d hd => selected_sound hS hp.valid (hp.next ▸ hd), hpl, hp.pc, hex, hrel, hB,
-          hp.env, hw⟩⟩)
+          arrivesHeld_rel h.2 hp.held, hp.env, hw⟩⟩)
       · cases h
-    rw [ite_eq_right harr] at h
+    rw [if_neg harr] at h
     split at h
     · cases h
     next op arg next hop =>
@@ -705,7 +876,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
       fun pc' stk es hc hg hm hn hst hrun =>
       Ends.moves hp.env hc hm fun g hx => ⟨_, run_ends hsize hretj hval fuel
         { p with pc := next, stack := es } _ w r B hK
-        hrun ⟨hp.env, hp.code, hn, hst, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet hg (by simpa [Calm, hdec] using hc)) hx) htr⟩
+        hrun ⟨hp.env, hp.code, hn, hst, hp.valid, hp.exit, hp.held⟩ (hw' g _ _ (hquiet hg (by simpa [Calm, hdec] using hc)) hx) htr⟩
     have hone : next = p.pc + 1 → (s.machineState.pc + ⟨1⟩).toNat = next := fun hn => by
       rw [pc_one _ (by rw [hp.pc]; omega), hp.pc, hn]
     have hnone : arg = none → a = none ∧ op ≠ .PUSH0 := by
@@ -718,14 +889,14 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         subst hq
         simp at harg
     by_cases h1 : (op == .JUMPDEST) = true
-    · rw [ite_eq_left h1] at h
+    · rw [if_pos h1] at h
       simp only [beq_iff_eq] at h1
       subst h1
       have ha := decode_none hdec rfl
       subst ha
       exact cont _ _ _ (calm_of hdec (by decide)) (by decide) (jumpdest_moves hdec)
         (hone (by simpa using hnext)) hp.stack h
-    rw [ite_eq_right h1] at h
+    rw [if_neg h1] at h
     obtain ⟨v, rfl⟩ | rfl : (∃ v, arg = some v) ∨ arg = none := by cases arg <;> simp
     · simp only at h
       cases a with
@@ -750,10 +921,10 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             (hp.stack.cons rfl) h
     obtain ⟨rfl, hq⟩ := hnone rfl
     simp only at h
-    rw [ite_eq_right (by simpa using hq)] at h
+    rw [if_neg (by simpa using hq)] at h
     have hone' := hone (by simpa using hnext)
     by_cases h2 : (op == .POP) = true
-    · rw [ite_eq_left h2] at h
+    · rw [if_pos h2] at h
       simp only [beq_iff_eq] at h2
       subst h2
       split at h
@@ -765,7 +936,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         rw [hes] at hrest
         exact cont _ _ _ (calm_of hdec (by decide)) (by decide) (pop_moves hdec hs) hone' hrest h
       · cases h
-    rw [ite_eq_right h2] at h
+    rw [if_neg h2] at h
     obtain ⟨n, hn⟩ | hn : (∃ n, dupN op = some n) ∨ dupN op = none := by
       cases dupN op <;> simp
     · rw [hn] at h
@@ -797,7 +968,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
     rw [hn'] at h
     simp only at h
     by_cases h3 : pureOps.contains op = true
-    · rw [ite_eq_left h3] at h
+    · rw [if_pos h3] at h
       split at h
       · next k hk =>
         split at h
@@ -813,9 +984,52 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             (hrest.cons (hval.intern (by rw [hev]; simpa using hv))) h
         · cases h
       · cases h
-    rw [ite_eq_right h3] at h
+    rw [if_neg h3] at h
+    by_cases h35 : (op == .MLOAD && p.reloads) = true
+    · -- A reload: the word the path knows holds its expression's word.
+      rw [if_pos h35] at h
+      simp only [Bool.and_eq_true, beq_iff_eq] at h35
+      obtain ⟨rfl, -⟩ := h35
+      split at h
+      · next a rest hes =>
+        split at h
+        · next hd hfind =>
+          simp only [Bool.and_eq_true] at h
+          obtain ⟨-, h⟩ := h
+          have hword : hd.word = a := by simpa using List.find?_some hfind
+          obtain ⟨hlt, v, hv, hrd⟩ := hp.held hd (List.mem_of_find?_eq_some hfind)
+          obtain ⟨ws, tl, hm, hs, hrest, -⟩ := hp.stack.split (k := 1) (by simp [hes])
+          simp only [hes, List.take_succ_cons, List.take_zero, List.mapM_cons, List.mapM_nil,
+            Expr.eval, Option.bind_eq_bind, Option.bind_some, Option.pure_def,
+            Option.some.injEq] at hm
+          subst hm
+          rw [hes, List.drop_succ_cons, List.drop_zero] at hrest
+          have ha : (UInt256.ofNat a).toNat = a := by
+            rw [toNat_ofNat, Nat.mod_eq_of_lt (by rw [← hword]; unfold UInt256.size; omega)]
+          rcases mload_evMoves hdec hs M w hw with hx | hx | ⟨f, e, he, -, -⟩ |
+            ⟨r', w', s', he, hx, hpc, hst, henv', hw'⟩
+          · exact .inl ⟨1, _, .last (calm_of hdec (by decide)) (hp.env ▸ hx) (by simp), .inl rfl⟩
+          · exact .inl ⟨1, _, .last (calm_of hdec (by decide)) (hp.env ▸ hx) (by simp), .inr rfl⟩
+          · simp [evRun, Fe.EVM.mload] at he
+          · simp only [evRun, Fe.EVM.mload, Fe.M.exec_map, Fe.M.exec_bind, Fe.M.exec_get,
+              Fe.M.exec_pure, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at he
+            obtain ⟨rfl, rfl⟩ := he
+            have hwv : uInt256OfByteArray (w.memory.readWithPadding (UInt256.ofNat a).toNat 32) =
+                v := by
+              rw [ha, ← hw.memory, ← hword, hrd, Reasoning.Theory.uInt256OfByteArray_toByteArray]
+            rw [hwv] at hst
+            have hx' := hx
+            rw [hp.env] at hx'
+            exact Ends.cons (.inl (calm_of hdec (by decide))) hx' henv'
+              (run_ends hsize hretj hval fuel { p with pc := next, stack := hd.expr :: rest } s' w
+                r B hK h ⟨henv'.trans hp.env, hp.code, by rw [hpc]; exact hone',
+                  by simpa [hst] using hrest.cons hv, hp.valid, hp.exit,
+                  by rw [hw'.memory, ← hw.memory]; exact hp.held⟩ hw' htr)
+        · cases h
+      · cases h
+    rw [if_neg h35] at h
     by_cases h4 : (readOps.contains op || writeOps.contains op) = true
-    · rw [ite_eq_left h4] at h
+    · rw [if_pos h4] at h
       split at h
       · next k ev events hk hevs =>
         split_ifs at h with hc
@@ -837,35 +1051,41 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
             exact hall
           · exact .inl (calm_of hdec (by simpa using hco))
         refine Ends.event (ex₁ := p.exit) hp.env hcK (hop ▸ hem) hw hargs htr
-          fun s' w' hpc hst henv hw2 htr' => ?_
+          fun s' w' hpc hst henv hw2 htr' her hk => ?_
         have hpc' : s'.machineState.pc.toNat = next := by rw [hpc]; exact hone'
+        have hheld : HeldRel I ρ (ev.held p.held) s'.machineState.memory := by
+          rw [hw2.memory]
+          exact HeldRel.event (by rw [← hw.memory]; exact hp.held) hargs her hk
         split at h
         · next _ _ id hr _ =>
           rw [hr] at hst
           exact run_ends hsize hretj hval fuel ⟨next, .atom id :: p.stack.drop k, events, p.exit,
-            p.calls⟩ _ w' r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h
-            ⟨henv, hp.code, hpc', by
-              simpa [hst] using hrest.cons (e := .atom id) (v := ρ id) rfl, hp.valid, hp.exit⟩
-            hw2 htr'
+            p.calls, ev.held p.held⟩ _ w' r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h'))
+            h ⟨henv, hp.code, hpc', by
+              simpa [hst] using hrest.cons (e := .atom id) (v := ρ id) rfl, hp.valid, hp.exit,
+              hheld⟩ hw2 htr'
         · next _ _ hr _ =>
           rw [hr] at hst
-          exact run_ends hsize hretj hval fuel ⟨next, p.stack.drop k, events, p.exit, p.calls⟩ _ w'
-            r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit⟩ hw2 htr'
+          exact run_ends hsize hretj hval fuel ⟨next, p.stack.drop k, events, p.exit, p.calls,
+            ev.held p.held⟩ _ w' r B (fun ev' h' => hK ev' (by rw [hevs]; exact .tail _ h')) h
+            ⟨henv, hp.code, hpc', by simpa [hst] using hrest, hp.valid, hp.exit, hheld⟩ hw2 htr'
         · cases h
       · cases h
-    rw [ite_eq_right h4] at h
+    rw [if_neg h4] at h
     -- Arrival at a successor's code, the events done.
     have arrive : ∀ (s₁ : State) (S pc' : Nat) (es : List Expr), p.events = [] → p.calls = [] →
         s₁.executionEnv = I → Agree M s₁ w → s₁.machineState.pc.toNat = pc' → place S = some pc' →
         (∀ d, e0.next I ρ = some d → d = S) → StackRel I ρ es B s₁.machineState.stack →
-        arrives c hints b S es = true → (∀ op args, e0 ≠ .halt op args) → e0.IsJump →
-        Ends K M code I ρ c hints place b B e0 (.goto S) p.calls s₁ r := by
-      intro s₁ S pc' es hev hcl0 henv hw₁ hpc hpl hnx hst ha hnh hj
+        (arrives c hints b S es && arrivesHeld c b S p.held) = true →
+        HeldRel I ρ p.held s₁.machineState.memory → (∀ op args, e0 ≠ .halt op args) →
+        e0.IsJump → Ends K M code I ρ c hints place b B e0 (.goto S) p.calls s₁ r := by
+      intro s₁ S pc' es hev hcl0 henv hw₁ hpc hpl hnx hst ha hheld hnh hj
       rw [hev] at htr
       cases htr
-      obtain ⟨exprs, B', hex, hrel, hB⟩ := arrives_rel ha hst
+      simp only [Bool.and_eq_true] at ha
+      obtain ⟨exprs, B', hex, hrel, hB⟩ := arrives_rel ha.1 hst
       exact .inr (.inr ⟨w, rfl, .inl ⟨S, 0, s₁, pc', exprs, B', hcl0, hnh, hj, fun _ => rfl,
-        .inl ⟨rfl, rfl⟩, hnx, hpl, hpc, hex, hrel, hB, henv, hw₁⟩⟩)
+        .inl ⟨rfl, rfl⟩, hnx, hpl, hpc, hex, hrel, hB, arrivesHeld_rel ha.2 hheld, henv, hw₁⟩⟩)
     -- The block's exit is no halt where a jump's condition reads it.
     have nohalt : ∀ {cond taken w}, p.exit.way cond taken = some w →
         ∀ op args, e0 ≠ .halt op args := fun hw op args => by
@@ -873,7 +1093,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
       · rw [← h']; exact way_not_halt hw op args
       · exact (h'.2.1 op args).1
     by_cases h5 : haltOps.contains op = true
-    · rw [ite_eq_left h5] at h
+    · rw [if_pos h5] at h
       split at h
       · next hop' args hex =>
         simp only [Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq, decide_eq_true_eq] at h
@@ -889,7 +1109,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
         exact Ends.halt hcl0 hp.env (calm_of_mem hdec (by decide) h5) h5 hdec hs hl (htake ▸ hm)
           hw
       · cases h
-    rw [ite_eq_right h5] at h
+    rw [if_neg h5] at h
     have hjump : ∀ {t : Nat}, validJump code (jumpdests code) t = true →
         (D_J s.executionEnv.code 0).contains (UInt256.ofNat t) = true ∧
           (UInt256.ofNat t).toNat = t := fun hj => by
@@ -897,7 +1117,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
       exact ⟨by rw [hp.env, hp.code]; exact D_J_append (jumpdests_D_J hj.2),
         by rw [toNat_ofNat, Nat.mod_eq_of_lt (by omega)]⟩
     by_cases h6 : (op == .JUMP) = true
-    · rw [ite_eq_left h6] at h
+    · rw [if_pos h6] at h
       simp only [beq_iff_eq] at h6
       subst h6
       split at h
@@ -947,8 +1167,8 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
                   simp only [List.drop_succ_cons, List.drop_zero] at hrest3
                   obtain ⟨restW, hmR, rfl⟩ := hrest3
                   refine .inr (.inr ⟨w, rfl, .inr (.inr (.inr (.inl ⟨cs, more, ce, 1, _, wsA, k,
-                    rest', restW, p.exit, fuel, hcl, hce, hret, hst, ?_, hmA, hmR, ?_,
-                    hkj, hrun, hp.valid, hp.exit, rfl, hwj⟩)))⟩)
+                    rest', restW, p.exit, fuel, p.held, hcl, hce, hret, hst, ?_, hmA, hmR, ?_,
+                    hkj, hrun, hp.held, hp.valid, hp.exit, rfl, hwj⟩)))⟩)
                   · show (UInt256.ofNat t).toNat = _
                     rw [htn, hoff]
                   · show [].append tl = _
@@ -973,11 +1193,12 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               exact ⟨_, arrive _ S t rest harr'.1.1 harr'.1.2 hp.env
                 (hw' g _ _ (hquiet (by decide) (by decide)) hx) htn
                 (by simpa [hS] using harr'.2)
-                (fun d hd => selected_sound hS hp.valid (hp.next ▸ hd)) hrest h
+                (fun d hd => selected_sound hS hp.valid (hp.next ▸ hd)) hrest h hp.held
                 (e0_not_halt hp hS) (isJump_of_selected hp hS)⟩
             · cases h
           · exact ⟨_, run_ends hsize hretj hval fuel { p with pc := t, stack := rest } _ w r B hK h
-              ⟨hp.env, hp.code, htn, hrest, hp.valid, hp.exit⟩ (hw' g _ _ (hquiet (by decide) (by decide)) hx)
+              ⟨hp.env, hp.code, htn, hrest, hp.valid, hp.exit, hp.held⟩
+              (hw' g _ _ (hquiet (by decide) (by decide)) hx)
               htr⟩
       · -- A return.
         next r' rest hes =>
@@ -1013,9 +1234,9 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               hwj⟩))⟩)
         · cases h
       · cases h
-    rw [ite_eq_right h6] at h
+    rw [if_neg h6] at h
     by_cases h7 : (op == .JUMPI) = true
-    · rw [ite_eq_left h7] at h
+    · rw [if_pos h7] at h
       simp only [beq_iff_eq] at h7
       subst h7
       split at h
@@ -1034,18 +1255,18 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
           fun g hx => ?_
         have hw₁ := hw' g _ _ (hquiet (by decide) (by decide)) hx
         by_cases hc : (cv != ⟨0⟩) = true
-        · simp only [hc, ite_true] at hw₁ ⊢
+        · simp only [hc, if_true] at hw₁ ⊢
           have ht : (cv.toNat != 0) = true := by rw [← ne_zero_toNat]; exact hc
           split at htk
           · next S hS =>
             simp only [Bool.and_eq_true, beq_iff_eq] at htk
             have hn := way_sound hS hcv ht hp.valid
-            exact ⟨_, arrive _ S t rest hev (by simpa using hcl0) hp.env hw₁ htn htk.1
-              (fun d hd => by rw [← hp.next, hn] at hd; cases hd; rfl) hrest htk.2 (nohalt hS)
-              (isJump_of_way hp hS)⟩
+            exact ⟨_, arrive _ S t rest hev (by simpa using hcl0) hp.env hw₁ htn htk.1.1
+              (fun d hd => by rw [← hp.next, hn] at hd; cases hd; rfl) hrest
+              (by simp [htk.1.2, htk.2]) hp.held (nohalt hS) (isJump_of_way hp hS)⟩
           · next hS => exact (way_sound hS hcv ht hp.valid).elim
           · cases htk
-        · simp only [hc, Bool.false_eq_true, ite_false] at hw₁ ⊢
+        · simp only [hc, Bool.false_eq_true, if_false] at hw₁ ⊢
           have ht : (cv.toNat != 0) = false := by rw [← ne_zero_toNat]; simpa using hc
           split at hnt
           · next S hS =>
@@ -1054,7 +1275,7 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               { p with pc := next, stack := rest, exit := .goto S } _ w r B hK hnt
               ⟨hp.env, hp.code, hone', hrest, trivial,
               .inr ⟨by rw [← hp.next, hn]; rfl, fun op args =>
-                ⟨nohalt hS op args, by simp⟩, trivial, isJump_of_way hp hS⟩⟩ hw₁ htr⟩
+                ⟨nohalt hS op args, by simp⟩, trivial, isJump_of_way hp hS⟩, hp.held⟩ hw₁ htr⟩
           · next hS => exact (way_sound hS hcv ht hp.valid).elim
           · next e' hS =>
             have hn := way_sound hS hcv ht hp.valid
@@ -1062,11 +1283,11 @@ theorem run_ends {code tail : ByteArray} {I : ExecutionEnv} {ρ : Nat → UInt25
               w r B hK hnt ⟨hp.env, hp.code, hone', hrest, hn.2,
               .inr ⟨by rw [hn.1, hp.next], fun op args =>
                 ⟨nohalt hS op args, way_exit_not_halt hS op args⟩, way_exit_isJump hS,
-                isJump_of_way hp hS⟩⟩
+                isJump_of_way hp hS⟩, hp.held⟩
               hw₁ htr⟩
           · cases hnt
       · cases h
-    rw [ite_eq_right h7] at h
+    rw [if_neg h7] at h
     cases h
 
 end Fe.Sonatina.Check

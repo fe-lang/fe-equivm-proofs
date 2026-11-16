@@ -86,7 +86,7 @@ theorem is_zero_5_eq (a : ℕ → ℤ) (ha : ∀ i, R64 (a i)) :
   have hadd : ∀ k < 5, checkedAdd (UInt256.ofNat k) (UInt256.ofNat 1) = pure (UInt256.ofNat (k + 1)) := by
     intro k hk
     unfold checkedAdd
-    rw [toNat_lit (by omega), toNat_lit (by decide), ite_eq_right (by change ¬ 2 ^ 256 ≤ _; omega)]
+    rw [toNat_lit (by omega), toNat_lit (by decide), if_neg (by change ¬ 2 ^ 256 ≤ _; omega)]
     congr 1
     exact (Fe.EVM.ofNat_add_ofNat (by change k + 1 < 2 ^ 256; omega))
   have a0 : checkedAdd (UInt256.ofNat 0) (UInt256.ofNat 1) = pure (UInt256.ofNat 1) := hadd 0 (by decide)
@@ -95,9 +95,9 @@ theorem is_zero_5_eq (a : ℕ → ℤ) (ha : ∀ i, R64 (a i)) :
   have a3 : checkedAdd (UInt256.ofNat 3) (UInt256.ofNat 1) = pure (UInt256.ofNat 4) := hadd 3 (by decide)
   have a4 : checkedAdd (UInt256.ofNat 4) (UInt256.ofNat 1) = pure (UInt256.ofNat 5) := hadd 4 (by decide)
   iterate 6
-    rw [is_zero_5.b1.eq_1]
-    simp only [vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, ite_true, decide_true, decide_false,
-      ite_false, ne_eq, I_eq_zero_iff (ha _), decide_not, a0, a1, a2, a3, a4]
+    rw [is_zero_5.loop.eq_1]
+    simp only [vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, if_true, decide_true, decide_false,
+      if_false, ne_eq, I_eq_zero_iff (ha _), decide_not, a0, a1, a2, a3, a4]
   by_cases h0 : a 0 = 0 <;> by_cases h1 : a 1 = 0 <;> by_cases h2 : a 2 = 0 <;>
     by_cases h3 : a 3 = 0 <;> by_cases h4 : a 4 = 0 <;> simp [h0, h1, h2, h3, h4]
 
@@ -143,11 +143,11 @@ theorem add_if_negative_eq (r m : ℕ → ℤ) (hr : Small r) (hm : Small m) :
     refine addW64r (R64_of_small (hr i hi)) ?_ ?_
     · split; exact R64_of_small (hm i hi); exact ⟨by norm_num, by norm_num⟩
     · unfold R64; split <;> constructor <;> linarith
-  simp only [add_if_negative_5, vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, ite_true,
+  simp only [add_if_negative_5, vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, if_true,
     sign63 (R64_of_small (hr 4 le_rfl))]
   iterate 6
-    rw [add_if_negative_5.b1.eq_1]
-    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, ite_true, ite_false,
+    rw [add_if_negative_5.loop.eq_1]
+    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, I_land_if, hs 0 (by decide), hs 1 (by decide),
       hs 2 (by decide), hs 3 (by decide), hs 4 (by decide), set5]
 
@@ -182,8 +182,8 @@ theorem carry_5_eq (r : ℕ → ℤ) (hr : Mid r) : carry_5 (vec5 r) = pure (vec
   have h0 : I (r 0) = I (carryT r 0) := rfl
   simp only [carry_5, vec5, h0]
   iterate 5
-    rw [carry_5.b1.eq_1]
-    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, ite_true, ite_false,
+    rw [carry_5.loop.eq_1]
+    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, hs 0 (by decide), hs 1 (by decide),
       hs 2 (by decide), hs 3 (by decide), set5, M62_SIGNED_eq, I_land_M62]
   rfl
@@ -228,8 +228,8 @@ theorem normalize_5_eq (r m : ℕ → ℤ) (s : ℤ) (hr : Small r) (hm : Small 
   simp only [normalize_5, add_if_negative_eq r m hr hm, pure_bind, sign63 hs]
   simp only [vec5] at hc1 ha2 hc2 ⊢
   iterate 6
-    rw [normalize_5.b1.eq_1]
-    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, ite_true, ite_false,
+    rw [normalize_5.loop.eq_1]
+    simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, hn 0 (by decide), hn 1 (by decide),
       hn 2 (by decide), hn 3 (by decide), hn 4 (by decide), set5]
   simp only [hc1, pure_bind, ha2, hc2]
@@ -257,13 +257,13 @@ theorem val5_carryL (r : ℕ → ℤ) : val5 (carryL r) = val5 r := by
   have c0 : carryT r 0 = r 0 := rfl
   simp only [val5, carryL, show (0 : ℕ) < 4 by decide, show (1 : ℕ) < 4 by decide,
     show (2 : ℕ) < 4 by decide, show (3 : ℕ) < 4 by decide, show ¬ (4 : ℕ) < 4 by decide,
-    ite_true, ite_false]
+    if_true, if_false]
   linear_combination -e 0 - 2 ^ 62 * e 1 - 2 ^ 124 * e 2 - 2 ^ 186 * e 3 + 2 ^ 62 * c1 +
     2 ^ 124 * c2 + 2 ^ 186 * c3 + 2 ^ 248 * c4 + c0
 
 theorem canon_carryL (r : ℕ → ℤ) : Canon (carryL r) := by
   intro i hi
-  simp only [carryL, hi, ite_true]
+  simp only [carryL, hi, if_true]
   exact ⟨Int.emod_nonneg _ (by norm_num), Int.emod_lt_of_pos _ (by norm_num)⟩
 
 /-- Canonical limbs of a value in `(-2 ^ 256, 2 ^ 256)` have a small top limb. -/
@@ -297,9 +297,9 @@ theorem normalize_spec (r m : ℕ → ℤ) (s : ℤ) (hr : Canon r) (hm : Canon 
   have hb1 : -val5 m < val5 (addNeg r m) ∧ val5 (addNeg r m) < val5 m := by
     rw [val5_addNeg]
     by_cases h : r 4 < 0
-    · have := hsg.mpr h; rw [ite_eq_left h]; constructor <;> linarith
+    · have := hsg.mpr h; rw [if_pos h]; constructor <;> linarith
     · have : ¬ val5 r < 0 := fun h' => h (hsg.mp h')
-      rw [ite_eq_right h]; constructor <;> linarith
+      rw [if_neg h]; constructor <;> linarith
   have hb2 : -val5 m < val5 (negL (s < 0) (addNeg r m)) ∧
       val5 (negL (s < 0) (addNeg r m)) < val5 m := by
     rw [val5_negL]; split <;> constructor <;> linarith [hb1.1, hb1.2]
@@ -317,11 +317,11 @@ theorem normalize_spec (r m : ℕ → ℤ) (s : ℤ) (hr : Canon r) (hm : Canon 
     split_ifs <;> simp [Int.ModEq, Int.add_emod_right]
   by_cases h : carryL (negL (s < 0) (addNeg r m)) 4 < 0
   · have := hsg2.mpr h
-    rw [ite_eq_left h]
+    rw [if_pos h]
     refine ⟨by linarith [hb2.1], by linarith, ?_⟩
     exact (Int.ModEq.trans (by simp [Int.ModEq]) hc)
   · have : ¬ val5 (negL (s < 0) (addNeg r m)) < 0 := fun h' => h (hsg2.mp h')
-    rw [ite_eq_right h, _root_.add_zero]
+    rw [if_neg h, _root_.add_zero]
     exact ⟨by linarith, hb2.2, hc⟩
 
 end FeProofs.Precompiles

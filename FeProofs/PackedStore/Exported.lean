@@ -12,7 +12,7 @@ The definitions between the markers are the output of `fe-lean-export` on `FePac
 `ExportedCorrect.lean` evaluates the arms; `HandEntry.lean` and `RuntimeCorrect.lean` prove that
 the bytecode refines them, under a hand-written entry and under the exported one.
 
-The definitions end with the runtime entry: one `recv0_arm<n>_entry` per arm and `runtime`, with
+The definitions end with the runtime entry: one `recv_<Variant>_entry` per arm and `runtime`, with
 the std decoders at the contract's message types.  `RuntimeCorrect.lean` proves that `fePackedStoreBytecode`,
 built by the Fe commit the exporter ran on (`22b156fff`), refines the contract whose runtime is
 that entry.
@@ -51,239 +51,256 @@ structure SetBoth where
   second : UInt256
 deriving Inhabited
 
+/-- The `init` of contract `FePackedStore`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
-def recv0_arm0 : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
+/-- `Get0 -> u256`, selector `0x90bb7b44` (`get0()`) -/
+def recv_Get0 : FeM UInt256 := do
+  -- pack.get(0)
   let v1 := Field.pack
-  let v2 := v1
-  let v3 ← StoragePackedArray_get_8 v2 v0
+  let v3 ← StoragePackedArray_get_8 v1 (UInt256.ofNat 0)
   return v3
 
-def recv0_arm1 : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 1)
+/-- `Get1 -> u256`, selector `0x054c1a75` (`get1()`) -/
+def recv_Get1 : FeM UInt256 := do
+  -- pack.get(1)
   let v1 := Field.pack
-  let v2 := v1
-  let v3 ← StoragePackedArray_get_8 v2 v0
+  let v3 ← StoragePackedArray_get_8 v1 (UInt256.ofNat 1)
   return v3
 
-def recv0_arm2 (v0 : UInt256) : FeM Unit := do
-  let v1 := (UInt256.ofNat 0)
+/-- `Set0 { value }`, selector `0xf26feec9` (`set0(uint256)`) -/
+def recv_Set0 (value : UInt256) : FeM Unit := do
+  -- pack.set(i: 0, value)
   let v2 := Field.pack
-  let v3 ← StoragePackedArray_set_8 v2 v1 v0
+  let _ ← StoragePackedArray_set_8 v2 (UInt256.ofNat 0) value
   return ()
 
-def recv0_arm3 (v0 : UInt256) : FeM Unit := do
-  let v1 := (UInt256.ofNat 1)
+/-- `Set1 { value }`, selector `0x9bc39d3c` (`set1(uint256)`) -/
+def recv_Set1 (value : UInt256) : FeM Unit := do
+  -- pack.set(i: 1, value)
   let v2 := Field.pack
-  let v3 ← StoragePackedArray_set_8 v2 v1 v0
+  let _ ← StoragePackedArray_set_8 v2 (UInt256.ofNat 1) value
   return ()
 
-def recv0_arm4 (v0 : UInt256) (v1 : UInt256) : FeM Unit := do
-  let v2 := (UInt256.ofNat 0)
+/-- `SetBoth { first, second }`, selector `0x92cf1ef5` (`setBoth(uint256,uint256)`) -/
+def recv_SetBoth (first : UInt256) (second : UInt256) : FeM Unit := do
+  -- pack.set(i: 0, value: first)
   let v3 := Field.pack
-  let v4 ← StoragePackedArray_set_8 v3 v2 v0
-  let v5 := (UInt256.ofNat 1)
+  let _ ← StoragePackedArray_set_8 v3 (UInt256.ofNat 0) first
+  -- pack.set(i: 1, value: second)
   let v6 := Field.pack
-  let v7 ← StoragePackedArray_set_8 v6 v5 v1
+  let _ ← StoragePackedArray_set_8 v6 (UInt256.ofNat 1) second
   return ()
 
+/-- `<Get0 as AbiSize>::HEAD_SIZE` -/
 def Get0_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
-  return v0
+  return UInt256.ofNat 0
 
+/-- `<Get0 as Decode>::decode_from<CallData>` -/
 def Get0_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get0 := do
-  let v2 := (Get0.mk)
-  return v2
+  return Get0.mk
 
-def decode_from_prechecked_head_Get0_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Get0 := do
-  let v3 ← Get0_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Get0, Sol, CallData>` -/
+def decode_from_prechecked_head_Get0_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Get0 := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Get0_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Get0>` -/
 def decode_runtime_args_Evm_Sol_Get0 : FeM Get0 := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Get0_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Get0_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Get0_Sol_CallData input base len
   return v12
 
-def recv0_arm0_entry : FeM Empty := do
+/-- The entry of `recv_Get0`, for `packed_store::FePackedStoreMsg::Get0` -/
+def recv_Get0_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Get0
-  let result ← recv0_arm0
+  let result ← recv_Get0
   Evm_return_value_Sol_u256 result
 
+/-- `<Get1 as AbiSize>::HEAD_SIZE` -/
 def Get1_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
-  return v0
+  return UInt256.ofNat 0
 
+/-- `<Get1 as Decode>::decode_from<CallData>` -/
 def Get1_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get1 := do
-  let v2 := (Get1.mk)
-  return v2
+  return Get1.mk
 
-def decode_from_prechecked_head_Get1_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Get1 := do
-  let v3 ← Get1_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Get1, Sol, CallData>` -/
+def decode_from_prechecked_head_Get1_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Get1 := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Get1_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Get1>` -/
 def decode_runtime_args_Evm_Sol_Get1 : FeM Get1 := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Get1_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Get1_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Get1_Sol_CallData input base len
   return v12
 
-def recv0_arm1_entry : FeM Empty := do
+/-- The entry of `recv_Get1`, for `packed_store::FePackedStoreMsg::Get1` -/
+def recv_Get1_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Get1
-  let result ← recv0_arm1
+  let result ← recv_Get1
   Evm_return_value_Sol_u256 result
 
+/-- `<Set0 as AbiSize>::HEAD_SIZE` -/
 def Set0_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_u256
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   return v2
 
+/-- `<Set0 as Decode>::decode_from<CallData>` -/
 def Set0_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Set0 := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := (Set0.mk v5)
-  return v6
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Set0.mk v4
 
-def decode_from_prechecked_head_Set0_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Set0 := do
-  let v3 ← Set0_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Set0, Sol, CallData>` -/
+def decode_from_prechecked_head_Set0_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Set0 := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Set0_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Set0>` -/
 def decode_runtime_args_Evm_Sol_Set0 : FeM Set0 := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Set0_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Set0_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Set0_Sol_CallData input base len
   return v12
 
-def recv0_arm2_entry : FeM Empty := do
+/-- The entry of `recv_Set0`, for `packed_store::FePackedStoreMsg::Set0` -/
+def recv_Set0_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Set0
-  let _ ← recv0_arm2 message.value
+  let _ ← recv_Set0 message.value
   returnData (UInt256.ofNat 0) (UInt256.ofNat 0)
 
+/-- `<Set1 as AbiSize>::HEAD_SIZE` -/
 def Set1_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_u256
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   return v2
 
+/-- `<Set1 as Decode>::decode_from<CallData>` -/
 def Set1_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Set1 := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := (Set1.mk v5)
-  return v6
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Set1.mk v4
 
-def decode_from_prechecked_head_Set1_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Set1 := do
-  let v3 ← Set1_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Set1, Sol, CallData>` -/
+def decode_from_prechecked_head_Set1_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Set1 := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Set1_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Set1>` -/
 def decode_runtime_args_Evm_Sol_Set1 : FeM Set1 := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Set1_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Set1_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Set1_Sol_CallData input base len
   return v12
 
-def recv0_arm3_entry : FeM Empty := do
+/-- The entry of `recv_Set1`, for `packed_store::FePackedStoreMsg::Set1` -/
+def recv_Set1_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Set1
-  let _ ← recv0_arm3 message.value
+  let _ ← recv_Set1 message.value
   returnData (UInt256.ofNat 0) (UInt256.ofNat 0)
 
+/-- `<SetBoth as AbiSize>::HEAD_SIZE` -/
 def SetBoth_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_u256
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_u256
   let v4 ← checkedAdd v2 v3
   return v4
 
+/-- `<SetBoth as Decode>::decode_from<CallData>` -/
 def SetBoth_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM SetBoth := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_u256
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := (SetBoth.mk v5 v10)
-  return v11
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v2
+  return SetBoth.mk v4 v9
 
-def decode_from_prechecked_head_SetBoth_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM SetBoth := do
-  let v3 ← SetBoth_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<SetBoth, Sol, CallData>` -/
+def decode_from_prechecked_head_SetBoth_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM SetBoth := do
+  -- Self::decode_from(input, pos)
+  let v3 ← SetBoth_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, SetBoth>` -/
 def decode_runtime_args_Evm_Sol_SetBoth : FeM SetBoth := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← SetBoth_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_SetBoth_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_SetBoth_Sol_CallData input base len
   return v12
 
-def recv0_arm4_entry : FeM Empty := do
+/-- The entry of `recv_SetBoth`, for `packed_store::FePackedStoreMsg::SetBoth` -/
+def recv_SetBoth_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_SetBoth
-  let _ ← recv0_arm4 message.first message.second
+  let _ ← recv_SetBoth message.first message.second
   returnData (UInt256.ofNat 0) (UInt256.ofNat 0)
 
+/-- The runtime entry of contract `FePackedStore`: the entry of the arm the call's selector picks -/
 def runtime : FeM Empty := do
   let size ← calldatasize
   if size.toNat < 4 then
@@ -291,18 +308,19 @@ def runtime : FeM Empty := do
   else
     let selector ← calldataSelector
     if selector = UInt256.ofNat 0x054c1a75 then
-      recv0_arm1_entry
+      recv_Get1_entry
     else if selector = UInt256.ofNat 0x90bb7b44 then
-      recv0_arm0_entry
+      recv_Get0_entry
     else if selector = UInt256.ofNat 0x92cf1ef5 then
-      recv0_arm4_entry
+      recv_SetBoth_entry
     else if selector = UInt256.ofNat 0x9bc39d3c then
-      recv0_arm3_entry
+      recv_Set1_entry
     else if selector = UInt256.ofNat 0xf26feec9 then
-      recv0_arm2_entry
+      recv_Set0_entry
     else
       revertEmpty
 
+/-- The deployment entry of contract `FePackedStore`: `init` on the arguments after the creation code -/
 def init_entry (args : ByteArray) : FeM ByteArray := do
   nonPayable
   let _ ← init

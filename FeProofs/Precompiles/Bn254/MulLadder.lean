@@ -73,12 +73,12 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
     ∀ m ≤ 256, ∀ cur : Point_Mont_Bn254Base,
       GoodB cur ((n1 / 2 ^ m) • P1 + (n2 / 2 ^ m) • P2) →
       ∃ R, GoodB R (n1 • P1 + n2 • P2) ∧ ∀ r8 r9 r10 r11 r12 r13 r14 r15 r16 r17,
-        multiply_g1_k1.b7 (UInt256.ofNat n1) (UInt256.ofNat n2) (toBn a0) (toBn b0) (toBn a1)
+        multiply_g1_k1.loop (UInt256.ofNat n1) (UInt256.ofNat n2) (toBn a0) (toBn b0) (toBn a1)
           (toBn b1) (toBn a2) (toBn b2) cur (UInt256.ofNat m) r8 r9 r10 r11 r12 r13 r14 r15 r16
           r17 = pure R
   | 0, _, cur, hc => by
     refine ⟨cur, by simpa using hc, fun r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 => ?_⟩
-    rw [multiply_g1_k1.b7.eq_1]
+    rw [multiply_g1_k1.loop.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
       Bool.false_eq_true, ite_false]
   | m + 1, hm, cur, hc => by
@@ -94,7 +94,7 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
       simp only [d1, d2, zero_nsmul, one_nsmul, _root_.add_zero, zero_add] at hs
     · obtain ⟨R, hR, eR⟩ := IH D (hs ▸ hD)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
-      rw [multiply_g1_k1.b7.eq_1]
+      rw [multiply_g1_k1.loop.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
         ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
@@ -102,7 +102,7 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hP2
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
-      rw [multiply_g1_k1.b7.eq_1]
+      rw [multiply_g1_k1.loop.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
         ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
@@ -110,7 +110,7 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hP1
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
-      rw [multiply_g1_k1.b7.eq_1]
+      rw [multiply_g1_k1.loop.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
         ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,
@@ -118,7 +118,7 @@ theorem ladder (n1 n2 : ℕ) (h1 : n1 < 2 ^ 256) (h2 : n2 < 2 ^ 256) {P1 P2 : BN
     · obtain ⟨E, eE, hE⟩ := hD.add_affine hS
       obtain ⟨R, hR, eR⟩ := IH E (hs ▸ hE)
       refine ⟨R, hR, fun _ _ _ _ _ _ _ _ _ _ => ?_⟩
-      rw [multiply_g1_k1.b7.eq_1]
+      rw [multiply_g1_k1.loop.eq_1]
       simp only [toNat_lit (show 0 < 2 ^ 256 by decide),
         toNat_lit (show m + 1 < 2 ^ 256 by omega), show 0 < m + 1 by omega, decide_true,
         ite_true, sub_one_u64 (show m + 1 < 2 ^ 64 by omega), pure_bind, eD, t1, t2, d1, d2,

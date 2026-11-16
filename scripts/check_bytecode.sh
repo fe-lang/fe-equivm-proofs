@@ -5,6 +5,10 @@
 # names that commit: the certificates are about the pinned bytecode, so it must be what the
 # pinned compiler makes.
 #
+# The contract Fe compiles is the build record's `compiler.feContract`, or its `contract` when it
+# has none: `contract` is also the name EquiVM's scaffold gives the contract's files, and the two
+# differ where the Fe contract has another name (`FeDeposit` is Fe's `DepositContract`).
+#
 # Usage: scripts/check_bytecode.sh <fe checkout>
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd -P)
@@ -19,7 +23,7 @@ for json in "$root"/FeProofs/*/*.build.json; do
   # shellcheck disable=SC2046 # three words
   set -- $(python3 -c 'import json, sys
 c = json.load(open(sys.argv[1]))
-print(c["contract"], c["compiler"]["commit"], c["compiler"]["optimize"])' "$json")
+print(c["compiler"].get("feContract", c["contract"]), c["compiler"]["commit"], c["compiler"]["optimize"])' "$json")
   contract=$1 commit=$2 optimize=$3
   case $rev in "$commit"*) ;; *) continue ;; esac
   if [ -f "$dir/fe.toml" ]; then

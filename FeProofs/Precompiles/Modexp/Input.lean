@@ -95,11 +95,11 @@ theorem partLimb_lt (N i k : ℕ) : partLimb N i k < 2 ^ (8 * (8 - k)) :=
 theorem byte_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b d w.memory)
     {off len i : ℕ} (hoff : off + len < 2 ^ 64) (hi : 8 * i < len) (I : Env) :
     ∀ k, k ≤ 8 →
-      (input_limb_MemBuffer.b5 b (UInt256.ofNat off) (UInt256.ofNat len) (UInt256.ofNat i)
+      (input_limb_MemBuffer.loop b (UInt256.ofNat off) (UInt256.ofNat len) (UInt256.ofNat i)
           (UInt256.ofNat (partLimb (beAt d off len) i k)) (UInt256.ofNat k)).exec I w =
         some (.ok (UInt256.ofNat (partLimb (beAt d off len) i 0), w))
   | 0, _ => by
-    rw [input_limb_MemBuffer.b5.eq_1]
+    rw [input_limb_MemBuffer.loop.eq_1]
     simp
   | k + 1, hk => by
     have hp := partLimb_lt (beAt d off len) i (k + 1)
@@ -107,7 +107,7 @@ theorem byte_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b d
       lt_of_lt_of_le hp (Nat.pow_le_pow_right (by norm_num) (by omega))
     have hdig := beAt_digit d off len (8 * i + k)
     have hstep := partLimb_step (beAt d off len) i k (by omega)
-    rw [input_limb_MemBuffer.b5.eq_1]
+    rw [input_limb_MemBuffer.loop.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show k + 1 < 2 ^ 256 by omega),
       show 0 < k + 1 by omega, decide_true, ite_true,
       ofNat_sub_ofNat (show k + 1 < UInt256.size by unfold UInt256.size; omega) (show 1 ≤ k + 1 by omega),
@@ -249,21 +249,21 @@ theorem limbs_loop {b : Lib.MemBuffer} {d : ByteArray} {w : World} (h : Holds b 
     {off len count R : ℕ} (hoff : off + len < 2 ^ 64) (hR : R ≤ (len + 7) / 8) (hRc : R ≤ count)
     (hroom : w.memory.size + 8 * count < UInt256.size) (I : Env) :
     ∀ n k, k + n = R →
-      (input_limbs_MemBuffer.b6 b (UInt256.ofNat off) (UInt256.ofNat len)
+      (input_limbs_MemBuffer.loop b (UInt256.ofNat off) (UInt256.ofNat len)
           ⟨UInt256.ofNat w.memory.size, UInt256.ofNat count⟩ ⟨(), UInt256.ofNat R⟩
           (UInt256.ofNat k)).exec I { w with memory := limbsMem w.memory (beAt d off len) count k } =
         some (.ok (.Some ⟨UInt256.ofNat w.memory.size, UInt256.ofNat count⟩,
           { w with memory := limbsMem w.memory (beAt d off len) count R }))
   | 0, k, hk => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [show k = R by omega, input_limbs_MemBuffer.b6.eq_1]
+    rw [show k = R by omega, input_limbs_MemBuffer.loop.eq_1]
     simp [has0_eq' R (by omega) (show R < 2 ^ 256 by omega)]
   | n + 1, k, hk => by
     have hS : UInt256.size = 2 ^ 256 := rfl
     have hH := limbsMem_holds h (beAt d off len) count k (by omega) hroom
     have hl := input_limb_exec (w := { w with memory := limbsMem w.memory (beAt d off len) count k })
       hH hoff (i := k) (by omega) I
-    rw [input_limbs_MemBuffer.b6.eq_1]
+    rw [input_limbs_MemBuffer.loop.eq_1]
     simp only [has0_eq' R (by omega) (show k < 2 ^ 256 by omega), show (0 ≤ k ∧ k < R) = True from
       eq_true (by omega), decide_true, ite_true, Lib.Range_at_0, Lib.Range_next_0,
       next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind, hl,

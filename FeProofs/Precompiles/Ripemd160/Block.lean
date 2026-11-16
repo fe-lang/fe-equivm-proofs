@@ -56,14 +56,14 @@ theorem bits_loop (b13 : Vector UInt256 64 → Range_Known_0_Known_64 → Range_
       FeM (Vector UInt256 64)) (hb13 : ∀ r0 r1 r2, b13 r0 r1 r2 = pure r0) (N : ℕ) (g : ℕ → UInt8)
     r1 r2 :
     ∀ n j, j + n = 8 →
-      padded_block_MemBuffer.b1.b14 b13 (UInt256.ofNat (N % 2 ^ 64))
+      padded_block_MemBuffer.loop.loop_1 b13 (UInt256.ofNat (N % 2 ^ 64))
           (Vector.ofFn fun k : Fin 64 => lw32 (if 56 ≤ k.val ∧ k.val < 56 + j then
             (N >>> (8 * (k.val - 56))).toUInt8 else g k).toUInt32) r1 r2 (UInt256.ofNat j) =
         pure (Vector.ofFn fun k : Fin 64 => lw32 (if 56 ≤ k.val then
           (N >>> (8 * (k.val - 56))).toUInt8 else g k).toUInt32)
   | 0, j, h => by
     subst h
-    rw [padded_block_MemBuffer.b1.b14.eq_1]
+    rw [padded_block_MemBuffer.loop.loop_1.eq_1]
     simp only [has8 _ (show 0 + 8 < 2 ^ 256 by decide), hb13]
     simp only [show ¬ (0 ≤ 0 + 8 ∧ 0 + 8 < 8) by omega, decide_false, pure_bind,
       Bool.false_eq_true, ↓reduceIte]
@@ -74,7 +74,7 @@ theorem bits_loop (b13 : Vector UInt256 64 → Range_Known_0_Known_64 → Range_
     · rw [ite_eq_left ⟨hk, by omega⟩, ite_eq_left hk]
     · rw [ite_eq_right (fun h => hk h.1), ite_eq_right hk]
   | n + 1, j, h => by
-    rw [padded_block_MemBuffer.b1.b14.eq_1]
+    rw [padded_block_MemBuffer.loop.loop_1.eq_1]
     have hN : N % 2 ^ 64 < 2 ^ 256 := lt_trans (Nat.mod_lt _ (by decide)) (by decide)
     simp only [has8 _ (show j < 2 ^ 256 by omega),
       decide_eq_true (show 0 ≤ j ∧ j < 8 from ⟨by omega, by omega⟩), ↓reduceIte,
@@ -112,12 +112,12 @@ theorem ofNat_eq_iff {a b : ℕ} (ha : a < 2 ^ 256) (hb : b < 2 ^ 256) :
 theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     (h : Holds b d w.memory) {i Bl : ℕ} (hi : i * 64 + 64 < 2 ^ 256) r1 r2 :
     ∀ n k, k + n = 64 →
-      (padded_block_MemBuffer.b1 b (UInt256.ofNat 0) (UInt256.ofNat d.size) (UInt256.ofNat i)
+      (padded_block_MemBuffer.loop b (UInt256.ofNat 0) (UInt256.ofNat d.size) (UInt256.ofNat i)
           (UInt256.ofNat Bl) (UInt256.ofNat (i * 64))
           (Vector.ofFn fun k' : Fin 64 =>
             lw32 (if k'.val < k then msgByte d (i * 64 + k'.val) else 0).toUInt32)
           r1 r2 (UInt256.ofNat k)).exec I w =
-        (padded_block_MemBuffer.b1 b (UInt256.ofNat 0) (UInt256.ofNat d.size) (UInt256.ofNat i)
+        (padded_block_MemBuffer.loop b (UInt256.ofNat 0) (UInt256.ofNat d.size) (UInt256.ofNat i)
           (UInt256.ofNat Bl) (UInt256.ofNat (i * 64))
           (Vector.ofFn fun k' : Fin 64 => lw32 (msgByte d (i * 64 + k'.val)).toUInt32)
           r1 r2 (UInt256.ofNat 64)).exec I w
@@ -131,7 +131,7 @@ theorem msg_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     have hb := h.bound
     have hds : d.size < 2 ^ 256 := by unfold UInt256.size at hs; omega
     have hp : i * 64 + k < 2 ^ 256 := by omega
-    rw [padded_block_MemBuffer.b1.eq_1]
+    rw [padded_block_MemBuffer.loop.eq_1]
     simp only [has64 _ (show k < 2 ^ 256 by omega),
       decide_eq_true (show 0 ≤ k ∧ k < 64 from ⟨by omega, by omega⟩), ↓reduceIte,
       Lib.Range_at_0_64, Lib.Range_next_0_64, pure_bind,
@@ -192,7 +192,7 @@ theorem padded_block_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : Wor
   have e0 : Vector.replicate 64 (UInt256.ofNat 0) = Vector.ofFn fun k' : Fin 64 =>
       lw32 (if k'.val < 0 then msgByte d (i * 64 + k'.val) else 0).toUInt32 := by
     rw [replicate_ofFn]; rfl
-  rw [e0, msg_loop h hi64 _ _ 64 0 rfl, padded_block_MemBuffer.b1.eq_1]
+  rw [e0, msg_loop h hi64 _ _ 64 0 rfl, padded_block_MemBuffer.loop.eq_1]
   simp only [has64 _ (show 64 < 2 ^ 256 by decide), show ¬ (0 ≤ 64 ∧ 64 < 64) by omega,
     decide_false, Bool.false_eq_true, ↓reduceIte, pure_bind]
   have hsub : UInt256.ofNat (blocksOf d.size) - UInt256.ofNat 1 =

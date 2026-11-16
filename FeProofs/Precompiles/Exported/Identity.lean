@@ -6,7 +6,7 @@ import FeProofs.Precompiles.Exported.Shared
 The definitions between the markers are the output of `fe-lean-export` on the contract `Identity` of
 the ingot `FeProofs/Precompiles` (Fe branch `fevm-precompiles`, golden file
 `tests/golden/precompiles_identity.lean`), copied in by `scripts/sync_exported.py`: fevm's IDENTITY
-copy (`copied_MemBuffer`) of the call data in memory, with the fallback arm (`recv0_arm0`), the
+copy (`copied_MemBuffer`) of the call data in memory, with the fallback arm (`recv_fallback`), the
 runtime entry and the deployment entry. The definitions the ingot's contracts share are in
 `Shared.lean`, which the text names through `Shared`, and the core and std definitions in
 `FeProofs/Lib/Exported.lean`.
@@ -24,143 +24,127 @@ set_option linter.unusedVariables false
 export Lib (Evm_calldatacopy Evm_calldatasize Evm_return_data Evm_revert MemBuffer MemBuffer_drop MemBuffer_index_mut MemBuffer_new MemBuffer_span_ref MemBuffer_try_new MemBuffer_write_le_u64 MemSlice_empty_u8 downcast_unchecked_u256_usize)
 export Shared (MemBuffer_byte_at MemBuffer_lane_at MemBuffer_len_1 Output Output.mk SUCCESS host_allocation)
 
+/-- The `init` of contract `Identity`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
+/-- `lib::input<Evm>` -/
 def input_Evm_5 : FeM MemBuffer := do
-  let mut r1 : MemBuffer := default
-  let v1 ← Evm_calldatasize
-  let v2 := v1
-  let v3 ← downcast_unchecked_u256_usize v2
-  let v4 ← MemBuffer_new v3
-  let v5 := v4
-  r1 := v5
-  let v7 := (UInt256.ofNat 0)
-  let v8 := (UInt256.ofNat 0)
-  let (v10, v10_0) ← Evm_calldatacopy r1 v7 v8 v2
-  r1 := v10_0
-  let v11 := r1
-  return v11
+  let mut input : MemBuffer := default
+  -- let len = raw.calldatasize()
+  let len ← Evm_calldatasize
+  -- var input = MemBuffer::new(len.downcast_unchecked())
+  let v3 ← downcast_unchecked_u256_usize len
+  let input_4 ← MemBuffer_new v3
+  input := input_4
+  -- raw.calldatacopy(dest: mut input, dest_offset: 0, src_offset: 0, len)
+  let (v10, v10_0) ← Evm_calldatacopy input (UInt256.ofNat 0) (UInt256.ofNat 0) len
+  input := v10_0
+  return input
 
-def copied_MemBuffer (v0 : MemBuffer) (v1 : UInt256) : FeM Output := do
-  let mut r0 : MemBuffer := default
-  let mut r1 : UInt256 := default
-  let v2 ← MemBuffer_len_1 v0
-  let v3 := v2
-  let v4 ← MemBuffer_try_new v3
-  let v5 := v4
-  let v6 := v5
-  match (← pure v6) with
+/-- `lib::copied<MemBuffer>` -/
+def copied_MemBuffer (source : MemBuffer) (gas_used : UInt256) : FeM Output := do
+  let mut output : MemBuffer := default
+  let mut i : UInt256 := default
+  -- let len = source.len()
+  let len ← MemBuffer_len_1 source
+  -- let Option::Some(var output) = MemBuffer::try_new(len) else { return host_allocation(gas_used) }
+  let v4 ← MemBuffer_try_new len
+  match (← pure v4) with
   | .Some .. =>
-    let v7 := v5.Some_0
-    r0 := v7
-    let v8 := (UInt256.ofNat 0)
-    let v9 := v8
-    r1 := v9
-    let rec b5 (r0 : MemBuffer) (r1 : UInt256) : FeM Output := do
-      let mut r0 := r0
-      let mut r1 := r1
-      let v10 := r1
-      let v11 := v10
-      let v12 := (UInt256.ofNat 8)
-      let v13 ← checkedAdd v11 v12
-      let v14 := decide (v13.toNat ≤ v3.toNat)
-      if v14 then
-        let v15 := r1
-        let v16 := v15
-        let v17 := r1
-        let v18 := v17
-        let v19 ← MemBuffer_lane_at v0 v18
-        let (v21, v21_0) ← MemBuffer_write_le_u64 r0 v16 v19
-        r0 := v21_0
-        let v22 := (UInt256.ofNat 8)
-        let v23 := r1
-        let v24 ← checkedAdd v23 v22
-        let v25 := v24
-        r1 := v25
-        let v26 := ()
-        b5 r0 r1
+    output := v4.Some_0
+    -- var i: usize = 0
+    i := (UInt256.ofNat 0)
+    let rec loop (output : MemBuffer) (i : UInt256) : FeM Output := do
+      let mut output := output
+      let mut i := i
+      -- while i + 8 <= len {
+      let v13 ← checkedAdd i (UInt256.ofNat 8)
+      if decide (v13.toNat ≤ len.toNat) then
+        -- output.write_le<u64>(offset: i, value: source.lane_at(i))
+        let i_15 := i
+        let v19 ← MemBuffer_lane_at source i
+        let (v21, v21_0) ← MemBuffer_write_le_u64 output i_15 v19
+        output := v21_0
+        -- i += 8
+        let i_24 ← checkedAdd i (UInt256.ofNat 8)
+        i := i_24
+        loop output i
       else
-        let rec b8 (r0 : MemBuffer) (r1 : UInt256) : FeM Output := do
-          let mut r0 := r0
-          let mut r1 := r1
-          let v27 := r1
-          let v28 := v27
-          let v29 := decide (v28.toNat < v3.toNat)
-          if v29 then
-            let v30 := r1
-            let v31 := v30
-            let v32 ← MemBuffer_byte_at v0 v31
-            let v33 := r1
-            let v34 := v33
-            let (v36, v36_k) ← MemBuffer_index_mut r0 v34
+        let rec loop_1 (output : MemBuffer) (i : UInt256) : FeM Output := do
+          let mut output := output
+          let mut i := i
+          -- while i < len {
+          if decide (i.toNat < len.toNat) then
+            -- output[i] = source.byte_at(i)
+            let v32 ← MemBuffer_byte_at source i
+            let i_33 := i
+            let (v36, v36_k) ← MemBuffer_index_mut output i_33
             mstoreInt (.u 8) v36 v32
             let v36_0 ← v36_k v36
-            r0 := v36_0
-            let v37 := ()
-            let v38 := (UInt256.ofNat 1)
-            let v39 := r1
-            let v40 ← checkedAdd v39 v38
-            let v41 := v40
-            r1 := v41
-            let v42 := ()
-            b8 r0 r1
+            output := v36_0
+            -- i += 1
+            let i_40 ← checkedAdd i (UInt256.ofNat 1)
+            i := i_40
+            loop_1 output i
           else
+            -- Output { status: SUCCESS, gas_used, output }
             let v43 ← SUCCESS
-            let v44 := v1
-            let v45 := r0
-            let v46 := (Output.mk v43 v44 v45)
+            let v46 := (Output.mk v43 gas_used output)
             return v46
         partial_fixpoint
-        b8 r0 r1
+        loop_1 output i
     partial_fixpoint
-    b5 r0 r1
+    loop output i
   | _ =>
-    let v47 ← host_allocation v1
-    match (← pure v5) with
+    -- return host_allocation(gas_used)
+    let v47 ← host_allocation gas_used
+    match (← pure v4) with
     | .Some .. =>
-      let _ ← MemBuffer_drop v5.Some_0
+      let _ ← MemBuffer_drop v4.Some_0
       pure ()
     | _ => pure ()
     return v47
 
-def recv0_arm0 : FeM Empty := do
-  let mut r1 : Output := default
+/-- `_`, for a call no other arm takes -/
+def recv_fallback : FeM Empty := do
+  let mut result : Output := default
   let mut r2 : MemBuffer := default
+  -- let result = copied(input(), gas_used: 0)
   let v0 ← input_Evm_5
   r2 := v0
-  let v1 := (UInt256.ofNat 0)
-  let v3 ← copied_MemBuffer r2 v1
-  let v4 := v3
-  r1 := v4
+  let result_3 ← copied_MemBuffer r2 (UInt256.ofNat 0)
+  result := result_3
   let _ ← MemBuffer_drop r2
-  let v5 := r1.status
+  -- if result.status != SUCCESS { raw.revert(data: MemSpan::empty()) }
   let v6 ← SUCCESS
-  let v7 := decide (v5 ≠ v6)
-  if v7 then
+  if decide (result.status ≠ v6) then
+    -- raw.revert(data: MemSpan::empty())
     let v8 ← MemSlice_empty_u8
     let v11 ← Evm_revert v8
     nomatch v11
   else
-    let v12 := ()
-    let v13 := v12
-    let v16 ← MemBuffer_span_ref r1.output
+    -- raw.return_data(data: result.output.span())
+    let v16 ← MemBuffer_span_ref result.output
     let v19 ← Evm_return_data v16
     nomatch v19
 
-def recv0_arm0_entry : FeM Empty := do
+/-- The entry of `recv_fallback`, for a call no other arm takes -/
+def recv_fallback_entry : FeM Empty := do
   nonPayable
-  let _ ← recv0_arm0
+  let _ ← recv_fallback
   returnData (UInt256.ofNat 0) (UInt256.ofNat 0)
 
+/-- The runtime entry of contract `Identity`: the entry of the arm the call's selector picks -/
 def runtime : FeM Empty := do
   let size ← calldatasize
   if size.toNat < 4 then
-    recv0_arm0_entry
+    recv_fallback_entry
   else
     let selector ← calldataSelector
-    recv0_arm0_entry
+    recv_fallback_entry
 
+/-- The deployment entry of contract `Identity`: `init` on the arguments after the creation code -/
 def init_entry (args : ByteArray) : FeM ByteArray := do
   nonPayable
   let _ ← init

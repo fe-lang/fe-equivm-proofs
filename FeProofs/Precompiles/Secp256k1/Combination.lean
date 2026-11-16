@@ -67,18 +67,18 @@ theorem bit_loop (U V : UInt256) (t : ℕ → Point_Mont_Base) (G Q : W.toAffine
       GoodP cur ((U.toNat / 4 ^ m) • G + (V.toNat / 4 ^ m) • Q) zc →
       ∀ r0 r2 r3 r4 r5 r6 r7 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26
         r27 r28 r29 r30 r31 r32 r33 r34 r35 r36,
-      ∃ P' z', combination_k2.b1.b9.b16.b22 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 cur (UInt256.ofNat (2 * m))
+      ∃ P' z', combination_k2.loop.loop_2.loop_3.loop_4 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 cur (UInt256.ofNat (2 * m))
           r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32
           r33 r34 r35 r36 = pure P' ∧ GoodP P' (U.toNat • G + V.toNat • Q) z'
   | 0, _, cur, zc, hc, r0, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13, r14, r15, r16, r17, r18, r19,
       r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
-    rw [combination_k2.b1.b9.b16.b22.eq_1]
+    rw [combination_k2.loop.loop_2.loop_3.loop_4.eq_1]
     simp only [Nat.mul_zero, toNat_lit (show 0 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
       Bool.false_eq_true, ite_false]
     exact ⟨cur, zc, rfl, by simpa using hc⟩
   | m + 1, hm, cur, zc, hc, r0, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13, r14, r15, r16, r17, r18,
       r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
-    rw [combination_k2.b1.b9.b16.b22.eq_1]
+    rw [combination_k2.loop.loop_2.loop_3.loop_4.eq_1]
     obtain ⟨P1, z1, e1, h1⟩ := hc.double
     obtain ⟨P2, z2, e2, h2⟩ := h1.double
     simp only [toNat_lit (show 0 < 2 ^ 256 by decide), toNat_lit (show 2 * (m + 1) < 2 ^ 256 by omega),
@@ -208,12 +208,12 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
       RepB r4 (pr (fun i => (i / 4) • G + (i % 4) • Q) zs (k + 1))⁻¹ →
       ∀ r0 r3 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27
         r28 r29 r30 r31 r32 r33 r34 r35 r36,
-      ∃ P' z', combination_k2.b1.b9.b16 U V r0 (tbl t) (tbl pf) r3 (toB r4) (UInt256.ofNat (k + 1))
+      ∃ P' z', combination_k2.loop.loop_2.loop_3 U V r0 (tbl t) (tbl pf) r3 (toB r4) (UInt256.ofNat (k + 1))
           r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29
           r30 r31 r32 r33 r34 r35 r36 = pure P' ∧ GoodP P' (U.toNat • G + V.toNat • Q) z'
   | 0, _, t, r4, h0, _, hhigh, _, r0, r3, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16, r17,
       r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36 => by
-    rw [combination_k2.b1.b9.b16.eq_1]
+    rw [combination_k2.loop.loop_2.loop_3.eq_1]
     simp only [Nat.zero_add, toNat_lit (show 1 < 2 ^ 256 by decide), Nat.lt_irrefl, decide_false,
       Bool.false_eq_true, ite_false, infinity_eq, pure_bind]
     have htab : ∀ k < 16, TabOK (t k) ((k / 4) • G + (k % 4) • Q) := by
@@ -229,7 +229,7 @@ theorem norm_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp)
   | k + 1, hk, t, r4, h0, hlow, hhigh, hr4, r0, r3, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15,
       r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34,
       r35, r36 => by
-    rw [combination_k2.b1.b9.b16.eq_1]
+    rw [combination_k2.loop.loop_2.loop_3.eq_1]
     have hj : k + 1 < 16 := by omega
     have hg := hlow (k + 1) (by omega) le_rfl
     simp only [toNat_lit (show 1 < 2 ^ 256 by decide), toNat_lit (show k + 1 + 1 < 2 ^ 256 by omega),
@@ -313,14 +313,14 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
       RepB run (pr (fun i => (i / 4) • G + (i % 4) • Q) zs k) →
       ∀ r0 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27
         r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
-      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1.b9 U V r0 (tbl t) (tbl pf) (toB run) r4
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.loop.loop_2 U V r0 (tbl t) (tbl pf) (toB run) r4
         r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29
         r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat k)).exec env w)
   | 0, k, hkn, _, pf, run, hpf, hrun, r0, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14, r15, r16,
       r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35,
       r36, env, w => by
     obtain rfl : k = 16 := by omega
-    rw [combination_k2.b1.b9.eq_1]
+    rw [combination_k2.loop.loop_2.eq_1]
     simp only [has16 _ (show 16 < 2 ^ 256 by decide), pure_bind,
       show (1 ≤ 16 ∧ 16 < 16) = False by decide, decide_false, Bool.false_eq_true, ite_false]
     rw [Fe.M.exec_bind]
@@ -339,7 +339,7 @@ theorem prefix_loop (U V : UInt256) (G Q : W.toAffine.Point) (zs : ℕ → Fp) (
       r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34,
       r35, r36, env, w => by
     have hk : k < 16 := by omega
-    rw [combination_k2.b1.b9.eq_1]
+    rw [combination_k2.loop.loop_2.eq_1]
     have hgk := hg k hk1 hk
     simp only [has16 _ (show k < 2 ^ 256 by omega), show 1 ≤ k ∧ k < 16 from ⟨hk1, hk⟩, decide_true,
       ite_true, Range_at_1_16, pure_bind, checkIndex, toNat_lit (show k < 2 ^ 256 by omega), hk,
@@ -383,14 +383,14 @@ theorem arr_at {p : ℕ} (hp : p < 3) :
 theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3)
     (ih : ∀ t, TabGood G Q t (DO (p + 1)) → ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17
       r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
-      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.loop U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
         r10 r11 #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19
         r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
         (UInt256.ofNat (p + 1))).exec env w)) :
     ∀ m j, j + m = 4 → 1 ≤ j → ∀ t, TabGood G Q t (fun k => DO p k ∨ (k / 4 = p + 1 ∧ k % 4 < j)) →
       ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26
         r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
-      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1.b5 U V (UInt256.ofNat p)
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.loop.loop_1 U V (UInt256.ofNat p)
         (UInt256.ofNat (4 * (p + 1))) r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
         #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19 r20 r21
         r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat j)).exec env w)
@@ -398,7 +398,7 @@ theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3
       r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env,
       w => by
     obtain rfl : j = 4 := by omega
-    rw [combination_k2.b1.b5.eq_1]
+    rw [combination_k2.loop.loop_1.eq_1]
     simp only [has4 _ (show 4 < 2 ^ 256 by decide), pure_bind, show (1 ≤ 4 ∧ 4 < 4) = False by decide,
       decide_false, Bool.false_eq_true, ite_false, Lib.array_next_usize_3,
       next_eq (show p + 1 < 2 ^ 256 by omega)]
@@ -410,7 +410,7 @@ theorem tab_inner (U V : UInt256) (G Q : W.toAffine.Point) {p : ℕ} (hp : p < 3
       r18, r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36,
       env, w => by
     have hj : j < 4 := by omega
-    rw [combination_k2.b1.b5.eq_1]
+    rw [combination_k2.loop.loop_1.eq_1]
     have hi16 : 4 * (p + 1) < 16 := by omega
     have hk16 : 4 * (p + 1) + j < 16 := by omega
     obtain ⟨zi, hgi⟩ := ht (4 * (p + 1)) hi16 (Or.inl (Or.inl (by omega)))
@@ -447,13 +447,13 @@ theorem pr_one (A : ℕ → W.toAffine.Point) (zs : ℕ → Fp) : pr A zs 1 = 1 
 theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
     ∀ n p, p + n = 3 → ∀ t, TabGood G Q t (DO p) → ∀ r0 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r13 r14 r15
       r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 env w,
-      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.b1 U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
+      OutP (U.toNat • G + V.toNat • Q) w ((combination_k2.loop U V r0 (tbl t) r2 r3 r4 r5 r6 r7 r8 r9
         r10 r11 #v[UInt256.ofNat 4, UInt256.ofNat 8, UInt256.ofNat 12] r13 r14 r15 r16 r17 r18 r19
         r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 (UInt256.ofNat p)).exec env w)
   | 0, p, hp, t, ht, r0, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r13, r14, r15, r16, r17, r18, r19,
       r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env, w => by
     obtain rfl : p = 3 := by omega
-    rw [combination_k2.b1.eq_1]
+    rw [combination_k2.loop.eq_1]
     simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide), Nat.lt_irrefl,
       decide_false, Bool.false_eq_true, ite_false, pure_bind, one_Base, Range_start_1_16, tbl_replicate]
     have hall : ∀ k, ∃ z, k < 16 → GoodP (t k) ((k / 4) • G + (k % 4) • Q) z := by
@@ -470,7 +470,7 @@ theorem tab_outer (U V : UInt256) (G Q : W.toAffine.Point) :
       r19, r20, r21, r22, r23, r24, r25, r26, r27, r28, r29, r30, r31, r32, r33, r34, r35, r36, env,
       w => by
     have hp3 : p < 3 := by omega
-    rw [combination_k2.b1.eq_1]
+    rw [combination_k2.loop.eq_1]
     simp only [Lib.array_has_usize_3, toNat_lit (show 3 < 2 ^ 256 by decide),
       toNat_lit (show p < 2 ^ 256 by omega), hp3, decide_true, ite_true, pure_bind,
       Lib.array_at_ref_usize_3, checkIndex, arr_at hp3, Range_start_1_4]

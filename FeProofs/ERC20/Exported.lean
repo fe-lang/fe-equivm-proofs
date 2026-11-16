@@ -6,7 +6,7 @@ import Fe.EVM.World
 
 The definitions between the markers are the output of `fe-lean-export` on `FeERC20.fe` (Fe branch
 `lean-export`, golden file `tests/golden/erc20.lean`), copied in by `scripts/sync_exported.py`:
-the arms in the order of the `msg` declaration, `init`, the runtime entry (`recv0_arm<n>_entry`,
+the arms in the order of the `msg` declaration, `init`, the runtime entry (`recv_<Variant>_entry`,
 `runtime`), the deployment entry (`init_entry`), and the std code at the contract's own types,
 including the event encodings the compiler generates for `Transfer` and `Approval`.  The core and
 std definitions shared with the other exported contracts are in `FeProofs/Lib/Exported.lean`.
@@ -32,11 +32,23 @@ def Field.store : Place :=
 def Layout.TokenStore : Layout :=
   { storage := [0, 1, 2] }
 
+/-- `store.balances` -/
+abbrev Field.store.balances : Place :=
+  Field.store.field Layout.TokenStore 0
+
+/-- `store.total_supply` -/
+abbrev Field.store.total_supply : Place :=
+  Field.store.field Layout.TokenStore 2
+
 structure Transfer where
   «from» : UInt256
   «to» : UInt256
   value : UInt256
 deriving Inhabited
+
+/-- `store.allowances` -/
+abbrev Field.store.allowances : Place :=
+  Field.store.field Layout.TokenStore 1
 
 structure Approval where
   owner : UInt256
@@ -72,442 +84,440 @@ deriving Inhabited
 structure TotalSupply where
 deriving Inhabited
 
-def Transfer_emit_Evm (v0 : Transfer) : FeM Unit := do
+/-- `<Transfer as Event>::emit<Evm>` -/
+def Transfer_emit_Evm (self : Transfer) : FeM Unit := do
   let mut r0 : MemBuffer := default
   let mut r1 : UInt256 := default
   let mut r2 : UInt256 := default
-  let v2 := v0.value
-  let v3 := v2
-  let v4 ← encode_abi_payload_tuple_u256 v3
+  let v4 ← encode_abi_payload_tuple_u256 self.value
   r0 := v4
   let v6 ← MemBuffer_span_ref r0
   let v7 := (UInt256.ofNat 100389287136786176327247604509743168900146139575972864366142685224231313322991) -- a constant, as the compiler evaluates it
-  let v8 := v0.«from»
-  r1 := v8
-  let v9 := r1
-  let v10 ← Address_as_topic v9
-  let v11 := v0.«to»
-  r2 := v11
-  let v12 := r2
-  let v13 ← Address_as_topic v12
-  let v15 ← Evm_log3 v6 v7 v10 v13
+  r1 := self.«from»
+  let v10 ← Address_as_topic r1
+  r2 := self.«to»
+  let v13 ← Address_as_topic r2
+  let _ ← Evm_log3 v6 v7 v10 v13
   let _ ← MemBuffer_drop r0
   return ()
 
-def emit_Evm_Transfer (v1 : Transfer) : FeM Unit := do
-  let v3 := v1
-  let v4 ← Transfer_emit_Evm v3
+/-- `std::evm::effects::Log::emit<Evm, Transfer>` -/
+def emit_Evm_Transfer (event : Transfer) : FeM Unit := do
+  -- event.emit(mut self)
+  let _ ← Transfer_emit_Evm event
   return ()
 
-def init (v0 : UInt256) : FeM Unit := do
-  let v2 ← Evm_caller
-  let v3 := v2
-  let v4 := v0
-  let l0 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v3
-  store (Place.mk .storage l0.slot) v4
-  let v5 := ()
-  let v6 := v0
-  store (Field.store.field Layout.TokenStore 2) v6
-  let v7 := ()
+/-- `init(initial_supply: u256)` of contract `FeERC20` -/
+def init (initial_supply : UInt256) : FeM Unit := do
+  -- let sender = ctx.caller()
+  let sender ← Evm_caller
+  -- store.balances[sender] = initial_supply
+  let balances_sender ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot sender
+  store (Place.mk .storage balances_sender.slot) initial_supply
+  -- store.total_supply = initial_supply
+  store Field.store.total_supply initial_supply
+  -- log.emit(Transfer { from: Address::zero(), to: sender, value: initial_supply })
   let v8 ← Address_zero
-  let v9 := v0
-  let v10 := (Transfer.mk v8 v3 v9)
-  let v12 ← emit_Evm_Transfer v10
+  let _ ← emit_Evm_Transfer (Transfer.mk v8 sender initial_supply)
   return ()
 
-def recv0_arm0 (v0 : UInt256) (v1 : UInt256) : FeM Bool := do
-  let v3 ← Evm_caller
-  let v4 := v3
-  let l0 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v4
-  let v5 ← load (Place.mk .storage l0.slot)
-  let v6 := decide (v1.toNat ≤ v5.toNat)
-  if v6 then
-    let v7 := ()
-    let l1 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v4
-    let v8 ← load (Place.mk .storage l1.slot)
-    let v9 ← checkedSub v8 v1
-    let l2 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v4
-    store (Place.mk .storage l2.slot) v9
-    let v10 := ()
-    let l3 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-    let v11 ← load (Place.mk .storage l3.slot)
-    let v12 ← checkedAdd v11 v1
-    let l4 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-    store (Place.mk .storage l4.slot) v12
-    let v13 := ()
-    let v14 := (Transfer.mk v4 v0 v1)
-    let v16 ← emit_Evm_Transfer v14
-    let v17 := true
-    return v17
+/-- `Transfer { to, value } -> bool`, selector `0xa9059cbb` (`transfer(address,uint256)`) -/
+def recv_Transfer («to» : UInt256) (value : UInt256) : FeM Bool := do
+  -- let sender = ctx.caller()
+  let sender ← Evm_caller
+  -- assert!(store.balances[sender] >= value, "ERC20: insufficient balance")
+  let balances_sender ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot sender
+  let v5 ← load (Place.mk .storage balances_sender.slot)
+  if decide (value.toNat ≤ v5.toNat) then
+    -- store.balances[sender] -= value
+    let balances_sender_1 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot sender
+    let v8 ← load (Place.mk .storage balances_sender_1.slot)
+    let v9 ← checkedSub v8 value
+    let balances_sender_2 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot sender
+    store (Place.mk .storage balances_sender_2.slot) v9
+    -- store.balances[to] = store.balances[to] + value
+    let balances_to ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «to»
+    let v11 ← load (Place.mk .storage balances_to.slot)
+    let v12 ← checkedAdd v11 value
+    let balances_to_1 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «to»
+    store (Place.mk .storage balances_to_1.slot) v12
+    -- log.emit(Transfer { from: sender, to, value })
+    let _ ← emit_Evm_Transfer (Transfer.mk sender «to» value)
+    return true
   else
     M.revert (assertData "ERC20: insufficient balance")
 
-def Approval_emit_Evm (v0 : Approval) : FeM Unit := do
+/-- `<Approval as Event>::emit<Evm>` -/
+def Approval_emit_Evm (self : Approval) : FeM Unit := do
   let mut r0 : MemBuffer := default
   let mut r1 : UInt256 := default
   let mut r2 : UInt256 := default
-  let v2 := v0.value
-  let v3 := v2
-  let v4 ← encode_abi_payload_tuple_u256 v3
+  let v4 ← encode_abi_payload_tuple_u256 self.value
   r0 := v4
   let v6 ← MemBuffer_span_ref r0
   let v7 := (UInt256.ofNat 63486140976153616755203102783360879283472101686154884697241723088393386309925) -- a constant, as the compiler evaluates it
-  let v8 := v0.owner
-  r1 := v8
-  let v9 := r1
-  let v10 ← Address_as_topic v9
-  let v11 := v0.spender
-  r2 := v11
-  let v12 := r2
-  let v13 ← Address_as_topic v12
-  let v15 ← Evm_log3 v6 v7 v10 v13
+  r1 := self.owner
+  let v10 ← Address_as_topic r1
+  r2 := self.spender
+  let v13 ← Address_as_topic r2
+  let _ ← Evm_log3 v6 v7 v10 v13
   let _ ← MemBuffer_drop r0
   return ()
 
-def emit_Evm_Approval (v1 : Approval) : FeM Unit := do
-  let v3 := v1
-  let v4 ← Approval_emit_Evm v3
+/-- `std::evm::effects::Log::emit<Evm, Approval>` -/
+def emit_Evm_Approval (event : Approval) : FeM Unit := do
+  -- event.emit(mut self)
+  let _ ← Approval_emit_Evm event
   return ()
 
-def recv0_arm1 (v0 : UInt256) (v1 : UInt256) : FeM Bool := do
-  let v3 ← Evm_caller
-  let v4 := v3
-  let l0 ← StorageMap_locate_Address_StorageMap_Address_u256 (Field.store.field Layout.TokenStore 1) (Field.store.field Layout.TokenStore 1).slot v4
-  let l1 ← StorageMap_locate_Address_u256 (Place.mk .storage l0.slot) (Place.mk .storage l0.slot).slot v0
-  store (Place.mk .storage l1.slot) v1
-  let v5 := ()
-  let v6 := (Approval.mk v4 v0 v1)
-  let v8 ← emit_Evm_Approval v6
-  let v9 := true
-  return v9
+/-- `Approve { spender, value } -> bool`, selector `0x095ea7b3` (`approve(address,uint256)`) -/
+def recv_Approve (spender : UInt256) (value : UInt256) : FeM Bool := do
+  -- let owner = ctx.caller()
+  let owner ← Evm_caller
+  -- store.allowances[owner][spender] = value
+  let allowances_owner ← StorageMap_locate_Address_StorageMap_Address_u256 Field.store.allowances Field.store.allowances.slot owner
+  let allowances_owner_spender ← StorageMap_locate_Address_u256 (Place.mk .storage allowances_owner.slot) (Place.mk .storage allowances_owner.slot).slot spender
+  store (Place.mk .storage allowances_owner_spender.slot) value
+  -- log.emit(Approval { owner, spender, value })
+  let _ ← emit_Evm_Approval (Approval.mk owner spender value)
+  return true
 
-def recv0_arm2 (v0 : UInt256) (v1 : UInt256) (v2 : UInt256) : FeM Bool := do
-  let v4 ← Evm_caller
-  let v5 := v4
-  let l0 ← StorageMap_locate_Address_StorageMap_Address_u256 (Field.store.field Layout.TokenStore 1) (Field.store.field Layout.TokenStore 1).slot v0
-  let l1 ← StorageMap_locate_Address_u256 (Place.mk .storage l0.slot) (Place.mk .storage l0.slot).slot v5
-  let v6 ← load (Place.mk .storage l1.slot)
-  let v7 := v6
-  let v8 := decide (v2.toNat ≤ v7.toNat)
-  if v8 then
-    let v9 := ()
-    let l2 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-    let v10 ← load (Place.mk .storage l2.slot)
-    let v11 := decide (v2.toNat ≤ v10.toNat)
-    if v11 then
-      let v12 := ()
-      let v13 ← checkedSub v7 v2
-      let l3 ← StorageMap_locate_Address_StorageMap_Address_u256 (Field.store.field Layout.TokenStore 1) (Field.store.field Layout.TokenStore 1).slot v0
-      let l4 ← StorageMap_locate_Address_u256 (Place.mk .storage l3.slot) (Place.mk .storage l3.slot).slot v5
-      store (Place.mk .storage l4.slot) v13
-      let v14 := ()
-      let l5 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-      let v15 ← load (Place.mk .storage l5.slot)
-      let v16 ← checkedSub v15 v2
-      let l6 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-      store (Place.mk .storage l6.slot) v16
-      let v17 := ()
-      let l7 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v1
-      let v18 ← load (Place.mk .storage l7.slot)
-      let v19 ← checkedAdd v18 v2
-      let l8 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v1
-      store (Place.mk .storage l8.slot) v19
-      let v20 := ()
-      let v21 := (Transfer.mk v0 v1 v2)
-      let v23 ← emit_Evm_Transfer v21
-      let v24 := true
-      return v24
+/-- `TransferFrom { from, to, value } -> bool`, selector `0x23b872dd` (`transferFrom(address,address,uint256)`) -/
+def recv_TransferFrom («from» : UInt256) («to» : UInt256) (value : UInt256) : FeM Bool := do
+  -- let spender = ctx.caller()
+  let spender ← Evm_caller
+  -- let current_allowance = store.allowances[from][spender]
+  let allowances_from ← StorageMap_locate_Address_StorageMap_Address_u256 Field.store.allowances Field.store.allowances.slot «from»
+  let allowances_from_spender ← StorageMap_locate_Address_u256 (Place.mk .storage allowances_from.slot) (Place.mk .storage allowances_from.slot).slot spender
+  let current_allowance ← load (Place.mk .storage allowances_from_spender.slot)
+  -- assert!(current_allowance >= value, "ERC20: insufficient allowance")
+  if decide (value.toNat ≤ current_allowance.toNat) then
+    -- assert!(store.balances[from] >= value, "ERC20: insufficient balance")
+    let balances_from ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «from»
+    let v10 ← load (Place.mk .storage balances_from.slot)
+    if decide (value.toNat ≤ v10.toNat) then
+      -- store.allowances[from][spender] = current_allowance - value
+      let v13 ← checkedSub current_allowance value
+      let allowances_from_1 ← StorageMap_locate_Address_StorageMap_Address_u256 Field.store.allowances Field.store.allowances.slot «from»
+      let allowances_from_spender_1 ← StorageMap_locate_Address_u256 (Place.mk .storage allowances_from_1.slot) (Place.mk .storage allowances_from_1.slot).slot spender
+      store (Place.mk .storage allowances_from_spender_1.slot) v13
+      -- store.balances[from] = store.balances[from] - value
+      let balances_from_1 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «from»
+      let v15 ← load (Place.mk .storage balances_from_1.slot)
+      let v16 ← checkedSub v15 value
+      let balances_from_2 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «from»
+      store (Place.mk .storage balances_from_2.slot) v16
+      -- store.balances[to] = store.balances[to] + value
+      let balances_to ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «to»
+      let v18 ← load (Place.mk .storage balances_to.slot)
+      let v19 ← checkedAdd v18 value
+      let balances_to_1 ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot «to»
+      store (Place.mk .storage balances_to_1.slot) v19
+      -- log.emit(Transfer { from, to, value })
+      let _ ← emit_Evm_Transfer (Transfer.mk «from» «to» value)
+      return true
     else
       M.revert (assertData "ERC20: insufficient balance")
   else
     M.revert (assertData "ERC20: insufficient allowance")
 
-def recv0_arm3 (v0 : UInt256) : FeM UInt256 := do
-  let l0 ← StorageMap_locate_Address_u256 (Field.store.field Layout.TokenStore 0) (Field.store.field Layout.TokenStore 0).slot v0
-  let v1 ← load (Place.mk .storage l0.slot)
+/-- `BalanceOf { owner } -> u256`, selector `0x70a08231` (`balanceOf(address)`) -/
+def recv_BalanceOf (owner : UInt256) : FeM UInt256 := do
+  -- store.balances[owner]
+  let balances_owner ← StorageMap_locate_Address_u256 Field.store.balances Field.store.balances.slot owner
+  let v1 ← load (Place.mk .storage balances_owner.slot)
   return v1
 
-def recv0_arm4 (v0 : UInt256) (v1 : UInt256) : FeM UInt256 := do
-  let l0 ← StorageMap_locate_Address_StorageMap_Address_u256 (Field.store.field Layout.TokenStore 1) (Field.store.field Layout.TokenStore 1).slot v0
-  let l1 ← StorageMap_locate_Address_u256 (Place.mk .storage l0.slot) (Place.mk .storage l0.slot).slot v1
-  let v2 ← load (Place.mk .storage l1.slot)
+/-- `Allowance { owner, spender } -> u256`, selector `0xdd62ed3e` (`allowance(address,address)`) -/
+def recv_Allowance (owner : UInt256) (spender : UInt256) : FeM UInt256 := do
+  -- store.allowances[owner][spender]
+  let allowances_owner ← StorageMap_locate_Address_StorageMap_Address_u256 Field.store.allowances Field.store.allowances.slot owner
+  let allowances_owner_spender ← StorageMap_locate_Address_u256 (Place.mk .storage allowances_owner.slot) (Place.mk .storage allowances_owner.slot).slot spender
+  let v2 ← load (Place.mk .storage allowances_owner_spender.slot)
   return v2
 
-def recv0_arm5 : FeM UInt256 := do
-  let v0 ← load (Field.store.field Layout.TokenStore 2)
+/-- `TotalSupply -> u256`, selector `0x18160ddd` (`totalSupply()`) -/
+def recv_TotalSupply : FeM UInt256 := do
+  -- store.total_supply
+  let v0 ← load Field.store.total_supply
   return v0
 
+/-- `<Transfer as AbiSize>::HEAD_SIZE` -/
 def Transfer_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_u256
   let v4 ← checkedAdd v2 v3
   return v4
 
+/-- `<Transfer as Decode>::decode_from<CallData>` -/
 def Transfer_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Transfer_1 := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_Address
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := (Transfer_1.mk v5 v10)
-  return v11
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v2
+  return Transfer_1.mk v4 v9
 
-def decode_from_prechecked_head_Transfer_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Transfer_1 := do
-  let v3 ← Transfer_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Transfer, Sol, CallData>` -/
+def decode_from_prechecked_head_Transfer_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Transfer_1 := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Transfer_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Transfer>` -/
 def decode_runtime_args_Evm_Sol_Transfer : FeM Transfer_1 := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Transfer_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Transfer_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Transfer_Sol_CallData input base len
   return v12
 
-def recv0_arm0_entry : FeM Empty := do
+/-- The entry of `recv_Transfer`, for `erc20::Erc20Msg::Transfer` -/
+def recv_Transfer_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Transfer
-  let result ← recv0_arm0 message.«to» message.value
+  let result ← recv_Transfer message.«to» message.value
   Evm_return_value_Sol_bool result
 
+/-- `<Approve as AbiSize>::HEAD_SIZE` -/
 def Approve_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_u256
   let v4 ← checkedAdd v2 v3
   return v4
 
+/-- `<Approve as Decode>::decode_from<CallData>` -/
 def Approve_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Approve := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_Address
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := (Approve.mk v5 v10)
-  return v11
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v2
+  return Approve.mk v4 v9
 
-def decode_from_prechecked_head_Approve_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Approve := do
-  let v3 ← Approve_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Approve, Sol, CallData>` -/
+def decode_from_prechecked_head_Approve_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Approve := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Approve_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Approve>` -/
 def decode_runtime_args_Evm_Sol_Approve : FeM Approve := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Approve_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Approve_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Approve_Sol_CallData input base len
   return v12
 
-def recv0_arm1_entry : FeM Empty := do
+/-- The entry of `recv_Approve`, for `erc20::Erc20Msg::Approve` -/
+def recv_Approve_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Approve
-  let result ← recv0_arm1 message.spender message.value
+  let result ← recv_Approve message.spender message.value
   Evm_return_value_Sol_bool result
 
+/-- `<TransferFrom as AbiSize>::HEAD_SIZE` -/
 def TransferFrom_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_Address
   let v4 ← checkedAdd v2 v3
   let v5 ← abi_field_head_size_u256
   let v6 ← checkedAdd v4 v5
   return v6
 
+/-- `<TransferFrom as Decode>::decode_from<CallData>` -/
 def TransferFrom_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM TransferFrom := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_Address
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := v1
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v8 v2
   let v12 ← abi_field_head_size_Address
-  let v13 ← checkedAdd v11 v12
+  let v13 ← checkedAdd v1 v12
   let v14 ← abi_field_head_size_Address
   let v15 ← checkedAdd v13 v14
-  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v3
-  let v17 := v16
-  let v18 := (TransferFrom.mk v5 v10 v17)
-  return v18
+  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v2
+  return TransferFrom.mk v4 v9 v16
 
-def decode_from_prechecked_head_TransferFrom_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM TransferFrom := do
-  let v3 ← TransferFrom_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<TransferFrom, Sol, CallData>` -/
+def decode_from_prechecked_head_TransferFrom_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM TransferFrom := do
+  -- Self::decode_from(input, pos)
+  let v3 ← TransferFrom_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, TransferFrom>` -/
 def decode_runtime_args_Evm_Sol_TransferFrom : FeM TransferFrom := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← TransferFrom_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_TransferFrom_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_TransferFrom_Sol_CallData input base len
   return v12
 
-def recv0_arm2_entry : FeM Empty := do
+/-- The entry of `recv_TransferFrom`, for `erc20::Erc20Msg::TransferFrom` -/
+def recv_TransferFrom_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_TransferFrom
-  let result ← recv0_arm2 message.«from» message.«to» message.value
+  let result ← recv_TransferFrom message.«from» message.«to» message.value
   Evm_return_value_Sol_bool result
 
+/-- `<BalanceOf as AbiSize>::HEAD_SIZE` -/
 def BalanceOf_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   return v2
 
+/-- `<BalanceOf as Decode>::decode_from<CallData>` -/
 def BalanceOf_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM BalanceOf := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := (BalanceOf.mk v5)
-  return v6
+  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v2
+  return BalanceOf.mk v4
 
-def decode_from_prechecked_head_BalanceOf_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM BalanceOf := do
-  let v3 ← BalanceOf_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<BalanceOf, Sol, CallData>` -/
+def decode_from_prechecked_head_BalanceOf_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM BalanceOf := do
+  -- Self::decode_from(input, pos)
+  let v3 ← BalanceOf_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, BalanceOf>` -/
 def decode_runtime_args_Evm_Sol_BalanceOf : FeM BalanceOf := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← BalanceOf_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_BalanceOf_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_BalanceOf_Sol_CallData input base len
   return v12
 
-def recv0_arm3_entry : FeM Empty := do
+/-- The entry of `recv_BalanceOf`, for `erc20::Erc20Msg::BalanceOf` -/
+def recv_BalanceOf_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_BalanceOf
-  let result ← recv0_arm3 message.owner
+  let result ← recv_BalanceOf message.owner
   Evm_return_value_Sol_u256 result
 
+/-- `<Allowance as AbiSize>::HEAD_SIZE` -/
 def Allowance_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
   let v1 ← abi_field_head_size_Address
-  let v2 ← checkedAdd v0 v1
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
   let v3 ← abi_field_head_size_Address
   let v4 ← checkedAdd v2 v3
   return v4
 
+/-- `<Allowance as Decode>::decode_from<CallData>` -/
 def Allowance_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Allowance := do
   let v2 ← len_CallData v0
-  let v3 := v2
-  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v3
-  let v5 := v4
-  let v6 := v1
+  let v4 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_Address
-  let v8 ← checkedAdd v6 v7
-  let v9 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v8 v3
-  let v10 := v9
-  let v11 := (Allowance.mk v5 v10)
-  return v11
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_Address_CallData v0 v1 v8 v2
+  return Allowance.mk v4 v9
 
-def decode_from_prechecked_head_Allowance_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM Allowance := do
-  let v3 ← Allowance_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<Allowance, Sol, CallData>` -/
+def decode_from_prechecked_head_Allowance_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Allowance := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Allowance_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Allowance>` -/
 def decode_runtime_args_Evm_Sol_Allowance : FeM Allowance := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Allowance_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_Allowance_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Allowance_Sol_CallData input base len
   return v12
 
-def recv0_arm4_entry : FeM Empty := do
+/-- The entry of `recv_Allowance`, for `erc20::Erc20Msg::Allowance` -/
+def recv_Allowance_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_Allowance
-  let result ← recv0_arm4 message.owner message.spender
+  let result ← recv_Allowance message.owner message.spender
   Evm_return_value_Sol_u256 result
 
+/-- `<TotalSupply as AbiSize>::HEAD_SIZE` -/
 def TotalSupply_HEAD_SIZE : FeM UInt256 := do
-  let v0 := (UInt256.ofNat 0)
-  return v0
+  return UInt256.ofNat 0
 
+/-- `<TotalSupply as Decode>::decode_from<CallData>` -/
 def TotalSupply_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM TotalSupply := do
-  let v2 := (TotalSupply.mk)
-  return v2
+  return TotalSupply.mk
 
-def decode_from_prechecked_head_TotalSupply_Sol_CallData (v0 : CallData) (v1 : UInt256) (v2 : UInt256) : FeM TotalSupply := do
-  let v3 ← TotalSupply_decode_from_CallData v0 v1
+/-- `core::abi::Decode::decode_from_prechecked_head<TotalSupply, Sol, CallData>` -/
+def decode_from_prechecked_head_TotalSupply_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM TotalSupply := do
+  -- Self::decode_from(input, pos)
+  let v3 ← TotalSupply_decode_from_CallData input pos
   return v3
 
+/-- `core::contracts::decode_runtime_args<Evm, Sol, TotalSupply>` -/
 def decode_runtime_args_Evm_Sol_TotalSupply : FeM TotalSupply := do
-  let mut r0 : CallData := default
-  let v2 ← Evm_input
-  let v3 := v2
-  r0 := v3
-  let v4 ← Sol_SELECTOR_SIZE
-  let v5 := v4
-  let v6 := r0
-  let v7 ← len_CallData v6
-  let v8 := v7
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← TotalSupply_HEAD_SIZE
-  let v10 ← Sol_validate_runtime_head v8 v5 v9
-  let v11 := r0
-  let v12 ← decode_from_prechecked_head_TotalSupply_Sol_CallData v11 v5 v8
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_TotalSupply_Sol_CallData input base len
   return v12
 
-def recv0_arm5_entry : FeM Empty := do
+/-- The entry of `recv_TotalSupply`, for `erc20::Erc20Msg::TotalSupply` -/
+def recv_TotalSupply_entry : FeM Empty := do
   nonPayable
   let message ← decode_runtime_args_Evm_Sol_TotalSupply
-  let result ← recv0_arm5
+  let result ← recv_TotalSupply
   Evm_return_value_Sol_u256 result
 
+/-- The runtime entry of contract `FeERC20`: the entry of the arm the call's selector picks -/
 def runtime : FeM Empty := do
   let size ← calldatasize
   if size.toNat < 4 then
@@ -515,20 +525,21 @@ def runtime : FeM Empty := do
   else
     let selector ← calldataSelector
     if selector = UInt256.ofNat 0x095ea7b3 then
-      recv0_arm1_entry
+      recv_Approve_entry
     else if selector = UInt256.ofNat 0x18160ddd then
-      recv0_arm5_entry
+      recv_TotalSupply_entry
     else if selector = UInt256.ofNat 0x23b872dd then
-      recv0_arm2_entry
+      recv_TransferFrom_entry
     else if selector = UInt256.ofNat 0x70a08231 then
-      recv0_arm3_entry
+      recv_BalanceOf_entry
     else if selector = UInt256.ofNat 0xa9059cbb then
-      recv0_arm0_entry
+      recv_Transfer_entry
     else if selector = UInt256.ofNat 0xdd62ed3e then
-      recv0_arm4_entry
+      recv_Allowance_entry
     else
       revertEmpty
 
+/-- The deployment entry of contract `FeERC20`: `init` on the arguments after the creation code -/
 def init_entry (args : ByteArray) : FeM ByteArray := do
   nonPayable
   let size := UInt256.ofNat args.size

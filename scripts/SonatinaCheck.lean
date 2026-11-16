@@ -1,4 +1,4 @@
-import Fe.Sonatina.Check
+import Fe.Sonatina.FrameSafe
 import Fe.Sonatina.Parse
 
 /-!
@@ -6,9 +6,12 @@ Runs the checker of bytes against machine IR (`Fe/Sonatina/Check.lean`): on the 
 it must accept where they are in its class, on mutations of their hints, which it must reject
 unless the mutation changes nothing the semantics reads, on mutations of the calls of the
 fixtures with internal calls, of WETH9's message call, of a reentrancy guard's transient storage,
-of a factory's creation and of a leading-zeros probe's `CLZ`, which it must reject, and on every
-sidecar of a directory, as `SONATINA_CHECK_DIR` names, with a line per section and per sidecar
-the reader rejects, counting the sections it accepts and why it rejects the others.
+of a factory's creation, of a leading-zeros probe's `CLZ` and of the memory spills of
+`NestedArrayCaller`, which it must reject, and on every sidecar of a directory, as
+`SONATINA_CHECK_DIR` names, with a line per section (its verdict under `check` and under
+`checkSpills`, each section under its walked spill plan), per sidecar with spills (the fixed-slot
+check) and per sidecar the reader rejects, counting the sections each accepts and why
+`checkSpills` rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
 
@@ -134,6 +137,101 @@ def createMutations : List (String × (CodeSection → CodeSection)) :=
       | args => .evm .create2 args),
    ("create for create2", mapCreate fun args => .evm .create (args.take 3))]
 
+/-! Mutations of a section with memory spills (`NestedArrayCaller`, Fe's
+    `msg_nested_array_arg.fe`), each of which the spill-aware checker must reject. -/
+
+/-- The bytes `bs` from offset `i`. -/
+def setBytes (i : Nat) (bs : List UInt8) (c : CodeSection) : CodeSection :=
+  { c with bytecode := (bs.zipIdx.foldl (fun b (v, k) => b.set! (i + k) v) c.bytecode) }
+
+/-- The big-endian bytes of `v`, `n` of them. -/
+def beBytes (n v : Nat) : List UInt8 :=
+  (List.range n).reverse.map fun k => UInt8.ofNat (v / 256 ^ k % 256)
+
+/-- The sites `PUSHn w; op` of the code with `w` a word of `words`: the push's offset, width and
+    word. -/
+def wordSites (c : CodeSection) (words : List Nat) (op : Ethereum.Operation) :
+    List (Nat × Nat × Nat) :=
+  let is := Check.codeInstrs c.bytecode
+  (is.zip (is.drop 1)).filterMap fun ((pc, o, a, nx), (_, o', _, _)) =>
+    match a with
+    | some w => if o' == op && words.contains w && o != .PUSH0 then some (pc, nx - pc - 1, w)
+      else none
+    | none => none
+
+/-- The section with the spill word of value `v` in the record `w`. -/
+def setSpillWord (v w : Nat) (c : CodeSection) : CodeSection :=
+  { c with lowering := c.lowering.map fun l => { l with funcs := l.funcs.map fun f =>
+      { f with spills := f.spills.map fun (x, loc) =>
+        if x == v then (x, .memory w) else (x, loc) } } }
+
+/-- The spill-aware checker's verdict on section `name` of `s` changed by `m`, its plan the
+    walk's on the changed section, or `plan` if given. -/
+def spillVerdict (s : Sidecar) (name entry : String) (m : CodeSection → CodeSection)
+    (plan : Option SpillPlan := none) : String :=
+  match s.section? name with
+  | none => "no section"
+  | some code =>
+    let code' := m code
+    let p := plan.getD (code'.spillPlan entry)
+    match Check.checkSection code' entry p with
+    | .ok () => "ACCEPTED"
+    | .error e => s!"rejected: {e}"
+
+/-- The spill mutations of a section: each a name and its verdict. -/
+def spillMutations (s : Sidecar) (name entry : String) : List (String × String) := Id.run do
+  let some code := s.section? name | return []
+  let plan := code.spillPlan entry
+  let spills := plan.flatMap (·.2)
+  let words := spills.map (·.word)
+  let reloads := wordSites code words .MLOAD
+  let stores := wordSites code words .MSTORE
+  let mut out := []
+  -- Two reloads of different words, their words swapped.
+  match reloads.find? fun (_, n, _) => n > 0, reloads with
+  | some (p1, n1, w1), _ =>
+    match reloads.find? fun (p2, n2, w2) => p2 != p1 && n2 == n1 && w2 != w1 with
+    | some (p2, _, w2) =>
+      out := out ++ [("swap two reload words in the bytes", spillVerdict s name entry
+        (setBytes (p1 + 1) (beBytes n1 w2) ∘ setBytes (p2 + 1) (beBytes n1 w1)))]
+    | none => out := out ++ [("swap two reload words in the bytes", "NO SITE")]
+  | none, _ => out := out ++ [("swap two reload words in the bytes", "NO SITE")]
+  -- A spill store dropped: `PUSHn w MSTORE` as `POP` and `JUMPDEST`s.
+  match stores.head? with
+  | some (pc, n, w) =>
+    out := out ++ [("drop a spill store from the bytes", spillVerdict s name entry
+      (setBytes pc (0x50 :: List.replicate (n + 1) 0x5b)))]
+    out := out ++ [("store to the wrong word", spillVerdict s name entry
+      (setBytes (pc + 1) (beBytes n (w + 32))))]
+  | none => out := out ++ [("drop a spill store from the bytes", "NO SITE")]
+  -- A spill word changed in the record only.
+  match spills.head? with
+  | some sp => out := out ++ [("change a spill word in the record only",
+      spillVerdict s name entry (setSpillWord sp.value (sp.word + 32)))]
+  | none => pure ()
+  -- A word reused before a reload: a value stored alone at its word, before a reload of
+  -- another word in its block, stored (in the record and the bytes) at the reloaded word.
+  let offs := ((code.lowering.map (·.funcs)).getD []).flatMap (·.blocks) |>.filterMap (·.offset)
+  let blockOf := fun (pc : Nat) => (offs.filter (· ≤ pc)).foldl max 0
+  let single := spills.filter fun sp => (spills.filter (·.word == sp.word)).length == 1
+  let cand := stores.findSome? fun (pc, n, wu) =>
+    (single.find? (·.word == wu)).bind fun u =>
+      (reloads.find? fun (r, n', wv) => r > pc && n' == n && wv != wu &&
+        blockOf r == blockOf pc).map fun (_, _, wv) => (pc, n, u.value, wv)
+  match cand with
+  | some (pc, n, u, wv) => out := out ++ [("reload a value after its word was reused",
+      spillVerdict s name entry (setSpillWord u wv ∘ setBytes (pc + 1) (beBytes n wv)))]
+  | none => out := out ++ [("reload a value after its word was reused", "NO SITE")]
+  -- A value the bytes reload with no reload point in the plan.
+  match spills.find? (!·.reloads.isEmpty) with
+  | some sp =>
+    let plan' := plan.map fun (f, fp) =>
+      (f, fp.map fun (x : Spill) => if x.value == sp.value then { x with reloads := [] } else x)
+    out := out ++ [("mark a value as reloaded where the plan does not have it live",
+      spillVerdict s name entry id plan')]
+  | none => pure ()
+  return out
+
 /-- The section with every `CLZ` of its code (opcode `0x1e`) the opcode `op`. -/
 def clzBytes (op : UInt8) (c : CodeSection) : CodeSection :=
   let bytes := (Check.codeInstrs c.bytecode).foldl
@@ -155,24 +253,30 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
 
 #eval show IO Unit from do
   for f in ["FeConstant", "FeScalarStore", "FeERC20", "DepositContract", "Case44Bank",
-      "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory", "BitsProbe"] do
+      "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory", "BitsProbe",
+      "NestedArrayCaller"] do
     let s ← IO.ofExcept
       (Parse.parseSidecar (← IO.FS.readFile s!"Fe/Sonatina/Fixtures/{f}.sidecar.json"))
     for (name, entry) in Check.entries s do
       let some code := s.section? name | continue
-      let verdict := match Check.checkSection code entry with
+      let verdict := match Check.checkSection code entry (code.spillPlan entry) with
         | .ok () => "accepted"
         | .error e => s!"rejected: {e}"
-      IO.println s!"CHECK {f} {name} {verdict}"
-      if Check.checkSection code entry matches .ok () then
+      let plain := (Check.checkSection code entry [] matches .ok ()) &&
+        ((code.lowering.map (·.funcs.all (·.spills.isEmpty))).getD true)
+      IO.println s!"CHECK {f} {name} {verdict} (check: {if plain then "accepted" else "rejected"})"
+      if Check.checkSection code entry (code.spillPlan entry) matches .ok () then
         for (what, m) in mutations do
           let changed := m code
           unless changed.lowering == code.lowering && changed.symbols == code.symbols do
-            if Check.checkSection changed entry matches .ok () then
+            if Check.checkSection changed entry (changed.spillPlan entry) matches .ok () then
               IO.println s!"  MUTANT ACCEPTED {what}"
+        if f == "NestedArrayCaller" && name == "runtime" then
+          for (what, v) in spillMutations s name entry do
+            IO.println s!"  SPILL MUTANT {what}: {v}"
         if f == "Case44Bank" && name == "runtime" then
           for (what, m) in callMutations do
-            let verdict := match Check.checkSection (m code) entry with
+            let verdict := match Check.checkSection (m code) entry ((m code).spillPlan entry) with
               | .ok () => "ACCEPTED"
               | .error e => s!"rejected: {e}"
             IO.println s!"  CALL MUTANT {what}: {verdict}"
@@ -180,7 +284,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in messageMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry (changed.spillPlan entry) with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  MESSAGE MUTANT {what}: {verdict}"
@@ -188,7 +292,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in transientMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry (changed.spillPlan entry) with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  TRANSIENT MUTANT {what}: {verdict}"
@@ -197,7 +301,7 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
             let changed := m code
             let verdict := if changed.lowering == code.lowering && changed.bytecode == code.bytecode
               then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry (changed.spillPlan entry) with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  CLZ MUTANT {what}: {verdict}"
@@ -205,14 +309,14 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           for (what, m) in createMutations do
             let changed := m code
             let verdict := if changed.lowering == code.lowering then "UNCHANGED"
-              else match Check.checkSection changed entry with
+              else match Check.checkSection changed entry (changed.spillPlan entry) with
                 | .ok () => "ACCEPTED"
                 | .error e => s!"rejected: {e}"
             IO.println s!"  CREATE MUTANT {what}: {verdict}"
 
 #eval show IO Unit from do
   let some dir ← IO.getEnv "SONATINA_CHECK_DIR" | return
-  let mut (accepted, rejected, unparsed) := (0, (#[] : Array String), 0)
+  let mut (accepted, acceptedS, rejected, unparsed) := (0, 0, (#[] : Array String), 0)
   for entry in (← System.FilePath.readDir dir).qsort (·.fileName < ·.fileName) do
     unless entry.fileName.endsWith ".sidecar.json" do continue
     match Parse.parseSidecar (← IO.FS.readFile entry.path) with
@@ -220,16 +324,27 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
       unparsed := unparsed + 1
       IO.println s!"UNPARSED {entry.fileName}: {e}"
     | .ok s =>
+      let plans := (Check.entries s).map fun (n, _) => (n, s.spillPlan n)
+      let plan := fun n => (plans.lookup n).getD []
+      unless plans.all (·.2.isEmpty) do
+        IO.println s!"FIXEDSLOTS {entry.fileName} {if fixedSlotsSafe s plan then "safe" else "REJECTED"}"
       for (name, fn) in Check.entries s do
         let some code := s.section? name | continue
-        match Check.checkSection code fn with
-        | .ok () =>
-          accepted := accepted + 1
-          IO.println s!"SECTION {entry.fileName} {name} accepted"
-        | .error e =>
-          rejected := rejected.push e
-          IO.println s!"SECTION {entry.fileName} {name} rejected: {e}"
-  IO.println s!"sidecars unparsed {unparsed}; sections accepted {accepted}, rejected {rejected.size}"
+        let spills := !(code.lowering.map (·.funcs.all (·.spills.isEmpty))).getD true
+        let plain := match Check.checkSection code fn [] with
+          | .ok () => if spills then .error "memory spills" else .ok ()
+          | e => e
+        let withSpills := if spills then Check.checkSection code fn (plan name) else plain
+        let say := fun (r : Except String Unit) => match r with
+          | .ok () => "accepted"
+          | .error e => s!"rejected: {e}"
+        IO.println s!"SECTION {entry.fileName} {name} check={say plain} checkSpills={say withSpills}"
+        if plain matches .ok () then accepted := accepted + 1
+        if withSpills matches .ok () then acceptedS := acceptedS + 1
+        match withSpills with
+        | .error e => rejected := rejected.push e
+        | .ok () => pure ()
+  IO.println s!"sidecars unparsed {unparsed}; sections accepted by check {accepted}, by checkSpills {acceptedS}, rejected by checkSpills {rejected.size}"
   let reasons := rejected.toList.map fun e =>
     String.ofList ((e.splitOn ": ").getLast!.toList.filter (!·.isDigit))
   for r in reasons.eraseDups do

@@ -200,6 +200,9 @@ The files of an exported contract:
 `FeProofs/Lib/ExportedCorrect.lean` theorems about them. A method is named after the type its
 impl is for (`CallData_word_at`, `u256_to_word`). Where `FeProofs.Lib` is open, `simp` unfolds
 these definitions, except the ones `ExportedCorrect.lean` states a theorem for.
+`FeProofs/Lib/AbiBytes.lean` specifies the ABI encoding of `bytes` values as byte arrays, and
+`BytesCodec.lean`, `AbiEncode.lean` and `StaticCall.lean` state std's `bytes` decoder, its `bytes`
+encoders (a tuple's fields, a returned value, a log) and its static calls against it.
 `FeProofs/Fixtures/` has the exporter's output on fixtures without a bytecode proof, with checks
 of what it means.
 
@@ -251,6 +254,10 @@ exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BL
 generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
 on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
 (EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it.
+`scripts/ModexpKnuth.lean` builds inputs that reach the rare branches of `Modulus::reduce` (the
+digit `β - 1`, the corrections inside `div_3by2` and `rem_2by1`, the add-back, shift 0, a
+normalised top limb of `2^63`, `count < n`), runs the exported `Modulus_reduce` on them against
+`X mod M`, and the contract against `Ξ_EXPMOD`.
 `FeProofs/Precompiles/Identity` proves the exported `Identity` against `Ξ_ID`
 (`feIdentityContractCorrect`, `precompile_eq`): it stops with the call data, empty call data
 included.
@@ -385,8 +392,10 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
 
-FeERC20's bytecode is built with the Fe commit `fe.pin` names, which `FeERC20.build.json` records
-(`scripts/check_bytecode.sh` checks it):
+FeERC20's, FeDeposit's and WETH9's bytecode is what the Fe commit `fe.pin` names compiles, which
+their `*.build.json` record (`scripts/check_bytecode.sh` checks it). A record's `contract` is the
+name of the contract's files here; where Fe's contract has another name, `compiler.feContract`
+gives it (`DepositContract`, `WETH9`):
 
 ```sh
 fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode

@@ -254,8 +254,8 @@ open Lean.Order in
 theorem invert_loop {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (X : ℤ)
     (r11 : Vector UInt256 5) :
     ∀ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w,
-      Good (val5 m) X w ((invert_5.b1 (vec5 m) inv.w r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11).exec env w) := by
-  refine invert_5.b1.fixpoint_induct (vec5 m) inv.w r11
+      Good (val5 m) X w ((invert_5.loop (vec5 m) inv.w r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11).exec env w) := by
+  refine invert_5.loop.fixpoint_induct (vec5 m) inv.w r11
     (fun F => ∀ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10, St (val5 m) X r0 r1 r2 r3 r4 → ∀ env w,
       Good (val5 m) X w ((F r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10).exec env w)) ?_ ?_
   · refine Fe.M.admissible_arrow (β := (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → UInt256 → Transition → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → (Vector UInt256 5) → FeM (Vector UInt256 5))
@@ -349,7 +349,7 @@ theorem invert_5_spec {m : ℕ → ℤ} {inv : Limb} (hm : ModSpec m inv) (hm1 :
   · -- `x = 0`: the loop exits at once with `d = 0`.
     simp only [hz, ite_true]
     have hz' := (val5_eq_zero_iff hx).mp hz
-    rw [invert_5.b1.eq_1, is_zero_5_eq x (R64_of_lim hxl)]
+    rw [invert_5.loop.eq_1, is_zero_5_eq x (R64_of_lim hxl)]
     simp only [hz', and_self, decide_true, Bool.not_true,
       Bool.false_eq_true, ite_false, checkIndex, idx_lits, lt5, ite_true, pure_bind, vec5, vget5]
     have hd0 : Canon (fun _ => (0 : ℤ)) := fun _ _ => ⟨le_rfl, by norm_num⟩

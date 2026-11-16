@@ -223,10 +223,10 @@ end Std
 /-! The exported layout places the three fields of `TokenStore` at slots 0, 1 and 2: the roots
 of the balances and allowances maps and the supply. -/
 
-theorem balancesField : Field.store.field Layout.TokenStore 0 = .storage (UInt256.ofNat 0) := rfl
-theorem allowancesField : Field.store.field Layout.TokenStore 1 = .storage (UInt256.ofNat 1) :=
+theorem balancesField : Field.store.balances = .storage (UInt256.ofNat 0) := rfl
+theorem allowancesField : Field.store.allowances = .storage (UInt256.ofNat 1) :=
   rfl
-theorem supplyField : Field.store.field Layout.TokenStore 2 = .storage (UInt256.ofNat 2) := rfl
+theorem supplyField : Field.store.total_supply = .storage (UInt256.ofNat 2) := rfl
 
 /-- The contract as exported: the deployment entry and the runtime entry. -/
 def contract : ContractModel := { init := deploy init_entry, runtime := entry runtime }

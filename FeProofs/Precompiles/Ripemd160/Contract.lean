@@ -66,12 +66,12 @@ theorem digest_bytes (d : ByteArray) :
 /-- **The arm**: it stops with the digest of the call data, left-padded to 32 bytes. -/
 theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
     (hmem : w.memory.size + 32 + I.calldata.size < UInt256.size) :
-    ∃ memory, recv0_arm0.exec I w =
+    ∃ memory, recv_fallback.exec I w =
       some (.error (.stop (ByteArray.zeroes 12 ++ RIPEMD160.hash I.calldata)
         { w with memory := memory })) := by
   have hmax : ¬ UInt256.size - 1 < 18446744073709551615 := by unfold UInt256.size; norm_num
   have hms : w.memory.size + 32 < UInt256.size := by omega
-  simp [recv0_arm0, Lib.MemBuffer_new, Lib.MemBuffer_new_uninit, alloc, zeroMem, toNatMax, toNatU64,
+  simp [recv_fallback, Lib.MemBuffer_new, Lib.MemBuffer_new_uninit, alloc, zeroMem, toNatMax, toNatU64,
     toNat0, toNat32, hmax, hms]
   have hp0 : (UInt256.ofNat w.memory.size).toNat = w.memory.size := toNat_lit (by
     unfold UInt256.size at hms; omega)
@@ -92,14 +92,14 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
 
 /-! ## The contract -/
 
-theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.exec I w := by
+theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv_fallback_entry.exec I w := by
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_left hv, h]
+  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv, h]
 
 /-- **The contract `Ripemd160` is RIPEMD-160.**  On call data shorter than `2 ^ 64` bytes, with
     room in memory for the 32-byte output and the input, and no call value, the exported runtime
@@ -119,7 +119,7 @@ theorem feRipemd160ContractCorrect (I : ExecutionEnv) (w : World) (hfits : Calld
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, ite_eq_right hv]
+  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_neg hv]
 
 /-- **The contract and the precompile.**  With at least the gas RIPEMD-160 charges, the precompile
     returns what the contract stops with and keeps the account map. -/
@@ -132,7 +132,7 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
       (Ξ_RIP160 σ g A I).1 = σ := by
   obtain ⟨memory, h⟩ := feRipemd160ContractCorrect I w hfits hmem hv
   rw [Ξ_RIP160_eq]
-  simp only [ite_eq_right (Nat.not_lt.mpr hg)]
+  simp only [if_neg (Nat.not_lt.mpr hg)]
   exact ⟨memory, h, trivial⟩
 
 end FeProofs.Ripemd160
