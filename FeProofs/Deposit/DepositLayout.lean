@@ -21,7 +21,7 @@ theorem dPayload_extract (cd : ByteArray) (o : ℕ) :
   apply ByteArray.ext
   apply Array.toList_inj.mp
   simp only [ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop]
-  rw [← byteArray_toList_eq, List.drop_drop]
+  rw [← Reasoning.Theory.byteArray_toList_eq, List.drop_drop]
   congr 2; omega
 
 /-- The decoder's memory before its copy: the free-pointer bump and the last-word clear. -/

@@ -227,9 +227,9 @@ theorem rev8_lt (x : Nat) : rev8 x < 2 ^ 64 := by
 theorem u64Chunk_toNat (x : Nat) :
     (uInt256OfByteArray (u64Chunk x)).toNat = rev8 x * 2 ^ 192 := by
   have hl : (Precompiles.le8 x).toList = List.ofFn fun k : Fin 8 => UInt8.ofNat (x / 256 ^ k.val) := by
-    rw [byteArray_toList_eq]; simp [Precompiles.le8]
+    rw [Reasoning.Theory.byteArray_toList_eq]; simp [Precompiles.le8]
   have hz : (zeros 24).toList = List.replicate 24 0 := by
-    rw [byteArray_toList_eq]; simp [zeros]
+    rw [Reasoning.Theory.byteArray_toList_eq]; simp [zeros]
   have hr := rev8_lt x
   have hz0 : fromByteArrayBigEndian (zeros 24) = 0 := by
     have := fromBytesBigEndian_append_zeros [] 24

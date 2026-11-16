@@ -45,7 +45,7 @@ def beAt (d : ByteArray) (off : ℕ) : ℕ → ℕ
 theorem byteAt_lt (d : ByteArray) (j : ℕ) : byteAt d j < 256 := (d.toList.getD j 0).toNat_lt
 
 theorem byteAt_of_ge {d : ByteArray} {j : ℕ} (h : d.size ≤ j) : byteAt d j = 0 := by
-  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hl : d.toList.length = d.size := by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   simp [byteAt, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega : d.toList.length ≤ j)]
 
 theorem beAt_lt (d : ByteArray) (off n : ℕ) : beAt d off n < 2 ^ (8 * n) := by
@@ -85,7 +85,7 @@ theorem fromBytesBigEndian_snoc (l : List UInt8) (b : UInt8) :
 /-- The bytes from `off` that `d` has, as a list. -/
 theorem fromBytesBigEndian_take_drop (d : ByteArray) (off n : ℕ) (h : off + n ≤ d.size) :
     fromBytesBigEndian ((d.toList.drop off).take n) = beAt d off n := by
-  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hl : d.toList.length = d.size := by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   induction n with
   | zero => simp [beAt, fromBytesBigEndian, fromBytes']
   | succ n ih =>
@@ -97,15 +97,15 @@ theorem fromBytesBigEndian_take_drop (d : ByteArray) (off n : ℕ) (h : off + n 
 /-- A window that `d` covers. -/
 theorem fromByteArrayBigEndian_extract (d : ByteArray) (off n : ℕ) (h : off + n ≤ d.size) :
     fromByteArrayBigEndian (d.extract off (off + n)) = beAt d off n := by
-  rw [fromByteArrayBigEndian, byteArray_toList_eq, ByteArray.data_extract, Array.toList_extract,
-    List.extract_eq_take_drop, ← byteArray_toList_eq, show off + n - off = n by omega]
+  rw [fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq, ByteArray.data_extract, Array.toList_extract,
+    List.extract_eq_take_drop, ← Reasoning.Theory.byteArray_toList_eq, show off + n - off = n by omega]
   exact fromBytesBigEndian_take_drop d off n h
 
 /-- The list of the bytes from `off` that `d` has, padded with zeros to `n`. -/
 theorem fromBytesBigEndian_padded (d : ByteArray) (off n : ℕ) :
     fromBytesBigEndian ((d.toList.drop off).take n ++
       List.replicate (n - ((d.toList.drop off).take n).length) 0) = beAt d off n := by
-  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hl : d.toList.length = d.size := by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   rw [fromBytesBigEndian_append_zeros, List.length_take, List.length_drop, hl]
   by_cases h : off + n ≤ d.size
   · rw [fromBytesBigEndian_take_drop d off n h, min_eq_left (by omega), Nat.sub_self]
@@ -128,36 +128,36 @@ theorem readBytes_be (d : ByteArray) (off n : ℕ) (hoff : off < 2 ^ 64) (hn : n
   unfold ByteArray.readBytes
   rw [ite_eq_left (by simp only [Bool.and_eq_true, decide_eq_true_eq]; exact ⟨hoff, hn⟩)]
   have hc : (d.copySlice off ByteArray.empty 0 n).toList = (d.toList.drop off).take n := by
-    rw [ByteArray.copySlice_eq_append, byteArray_toList_eq, byteArray_toList_eq]
+    rw [ByteArray.copySlice_eq_append, Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq]
     simp [Array.toList_extract, List.extract_eq_take_drop]
   have hsz : (d.copySlice off ByteArray.empty 0 n).size =
       ((d.toList.drop off).take n).length := by
-    rw [← hc, byteArray_toList_eq, Array.length_toList]; rfl
-  rw [fromByteArrayBigEndian, byteArray_toList_eq, ByteArray.data_append, Array.toList_append,
-    ← byteArray_toList_eq, hc, byteArray_zeroes_toList, hsz]
+    rw [← hc, Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
+  rw [fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq, ByteArray.data_append, Array.toList_append,
+    ← Reasoning.Theory.byteArray_toList_eq, hc, byteArray_zeroes_toList, hsz]
   exact fromBytesBigEndian_padded d off n
 
 /-- **Call data read as if extended with zeros**, as EVMLean's precompile specifications read it,
     gives `beAt`. -/
 theorem readWithPadding_be (d : ByteArray) (off n : ℕ) :
     fromByteArrayBigEndian (d.readWithPadding off n) = beAt d off n := by
-  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hl : d.toList.length = d.size := by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   have hr : (d.readWithoutPadding off n).toList = (d.toList.drop off).take n := by
     unfold ByteArray.readWithoutPadding
     split_ifs with h
-    · rw [List.drop_eq_nil_of_le (by omega), List.take_nil, byteArray_toList_eq]; rfl
-    · rw [byteArray_toList_eq, ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop,
-        ← byteArray_toList_eq]
+    · rw [List.drop_eq_nil_of_le (by omega), List.take_nil, Reasoning.Theory.byteArray_toList_eq]; rfl
+    · rw [Reasoning.Theory.byteArray_toList_eq, ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop,
+        ← Reasoning.Theory.byteArray_toList_eq]
       by_cases hn : n ≤ d.size
       · rw [Nat.min_eq_left hn, Nat.add_sub_cancel_left]
       · rw [Nat.min_eq_right (by omega), Nat.add_sub_cancel_left,
           List.take_of_length_le (by rw [List.length_drop, hl]; omega),
           List.take_of_length_le (by rw [List.length_drop, hl]; omega)]
   have hsz : (d.readWithoutPadding off n).size = ((d.toList.drop off).take n).length := by
-    rw [← hr, byteArray_toList_eq, Array.length_toList]; rfl
+    rw [← hr, Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   unfold ByteArray.readWithPadding
-  rw [fromByteArrayBigEndian, byteArray_toList_eq, ByteArray.data_append, Array.toList_append,
-    ← byteArray_toList_eq, hr, byteArray_zeroes_toList, hsz]
+  rw [fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq, ByteArray.data_append, Array.toList_append,
+    ← Reasoning.Theory.byteArray_toList_eq, hr, byteArray_zeroes_toList, hsz]
   exact fromBytesBigEndian_padded d off n
 
 /-- The `n` bytes of `a`, big-endian, as `toBytes32` cuts them, read back. -/
@@ -187,13 +187,13 @@ theorem toBytes32_eq {a : ℕ} (ha : a < 2 ^ 256) :
     Weierstrass.toBytes32 a = (UInt256.ofNat a).toByteArray := by
   apply ByteArray.ext
   apply Array.ext'
-  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   apply fromBytesBigEndian_inj_of_length
-  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+  · rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq, Array.length_toList, Array.length_toList]
     show (Array.ofFn _).size = (UInt256.ofNat a).toByteArray.size
     rw [Array.size_ofFn, toByteArray_size]
   · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian, fromByteArrayBigEndian_toByteArray,
-      toNat_lit ha, fromByteArrayBigEndian, byteArray_toList_eq]
+      toNat_lit ha, fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq]
     show fromBytesBigEndian (Array.ofFn _).toList = a
     rw [Array.toList_ofFn, fromBytesBigEndian_ofFn_shift, Nat.mod_eq_of_lt ha]
 
@@ -287,12 +287,12 @@ theorem fromByteArrayBigEndian_low8 (y : UInt256) :
       ByteArray.extract_zero_size]
   have hlt : fromByteArrayBigEndian (y.toByteArray.extract 24 32) < 2 ^ 64 := by
     have := fromBytes'_le (bs := (y.toByteArray.extract 24 32).toList.reverse)
-    rw [List.length_reverse, byteArray_toList_eq, Array.length_toList] at this
+    rw [List.length_reverse, Reasoning.Theory.byteArray_toList_eq, Array.length_toList] at this
     have h8 : (y.toByteArray.extract 24 32).data.size = 8 := by
       show (y.toByteArray.extract 24 32).size = 8
       rw [ByteArray.size_extract, hs]; rfl
     rw [h8] at this
-    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, byteArray_toList_eq]
+    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, Reasoning.Theory.byteArray_toList_eq]
     exact this
   have h := fromByteArrayBigEndian_toByteArray y
   rw [hsplit, fromByteArrayBigEndian_append, ByteArray.size_extract, hs] at h
@@ -344,14 +344,14 @@ theorem swap_low8 {x : ℕ} (hx : x < 2 ^ 64) :
   simp only [List.length_range, Nat.zero_add] at hlt
   apply ByteArray.ext
   apply Array.ext'
-  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   apply fromBytesBigEndian_inj_of_length
-  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+  · rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq, Array.length_toList, Array.length_toList]
     show (ByteArray.extract _ 24 32).size = (le8 x).size
     rw [ByteArray.size_extract, hs, le8_size]; rfl
   · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian, fromByteArrayBigEndian_low8,
       swapBytes_u64_toNat hx, Nat.mod_eq_of_lt (by simpa using hlt), fromByteArrayBigEndian,
-      byteArray_toList_eq]
+      Reasoning.Theory.byteArray_toList_eq]
     show _ = fromBytesBigEndian (Array.ofFn _).toList
     rw [Array.toList_ofFn, fromBytesBigEndian_ofFn (fun n => x / 256 ^ n) 8]
 

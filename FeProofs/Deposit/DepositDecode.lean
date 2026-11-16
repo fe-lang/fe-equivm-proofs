@@ -33,7 +33,7 @@ def dArgsOk (cd : ByteArray) : Prop :=
   132 ≤ cd.size ∧ dBytesOk cd (dWord cd 0) ∧ dBytesOk cd (dWord cd 32) ∧ dBytesOk cd (dWord cd 64)
 
 theorem cd_toList_length (cd : ByteArray) : cd.toList.length = cd.size := by
-  rw [byteArray_toList_eq, Array.length_toList]; rfl
+  rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
 
 theorem dReadBytes_ok (cd : ByteArray) (o n : Nat) (h : 4 + o + n ≤ cd.size) :
     readBytes? (dArgs cd) o n = some (((dArgs cd).drop o).take n) := by

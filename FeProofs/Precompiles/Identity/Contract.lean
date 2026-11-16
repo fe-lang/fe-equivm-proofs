@@ -36,9 +36,9 @@ theorem eq_of_be {a b : ByteArray} (hs : a.size = b.size)
     (h : fromByteArrayBigEndian a = fromByteArrayBigEndian b) : a = b := by
   apply ByteArray.ext
   apply Array.ext'
-  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   apply fromBytesBigEndian_inj_of_length
-  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+  · rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq, Array.length_toList, Array.length_toList]
     exact hs
   · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian]
     exact h
@@ -46,7 +46,7 @@ theorem eq_of_be {a b : ByteArray} (hs : a.size = b.size)
 /-- The big-endian number of `le8 x`: the bytes of `x` from the least significant. -/
 theorem be_le8 (x : ℕ) : fromByteArrayBigEndian (le8 x) =
     (List.range 8).foldl (fun acc n => acc * 256 + x / 256 ^ n % 256) 0 := by
-  rw [fromByteArrayBigEndian, byteArray_toList_eq]
+  rw [fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq]
   show fromBytesBigEndian (Array.ofFn _).toList = _
   rw [Array.toList_ofFn, fromBytesBigEndian_ofFn (fun n => x / 256 ^ n) 8]
 
@@ -79,12 +79,12 @@ theorem fromByteArrayBigEndian_low1 (y : UInt256) :
       ByteArray.extract_zero_size]
   have hlt : fromByteArrayBigEndian (y.toByteArray.extract 31 32) < 2 ^ 8 := by
     have := fromBytes'_le (bs := (y.toByteArray.extract 31 32).toList.reverse)
-    rw [List.length_reverse, byteArray_toList_eq, Array.length_toList] at this
+    rw [List.length_reverse, Reasoning.Theory.byteArray_toList_eq, Array.length_toList] at this
     have h1 : (y.toByteArray.extract 31 32).data.size = 1 := by
       show (y.toByteArray.extract 31 32).size = 1
       rw [ByteArray.size_extract, hs]; rfl
     rw [h1] at this
-    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, byteArray_toList_eq]
+    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, Reasoning.Theory.byteArray_toList_eq]
     exact this
   have h := fromByteArrayBigEndian_toByteArray y
   rw [hsplit, fromByteArrayBigEndian_append, ByteArray.size_extract, hs] at h

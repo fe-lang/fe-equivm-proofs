@@ -482,7 +482,7 @@ theorem le64_returnEncoding (m : UInt256) :
     show (le64Bytes m).toArray.size = 8
     rw [List.size_toArray]; exact le64Bytes_length m
   have hlist : (⟨(le64Bytes m).toArray⟩ : ByteArray).toList = le64Bytes m := by
-    rw [byteArray_toList_eq]
+    rw [Reasoning.Theory.byteArray_toList_eq]
   simp only [encodeReturnValues?, encodeABIValues?, encodeABIValuesFrom?, abiTupleHeadSize?,
     encodeABIValue?, isDynamicABIType, staticABIEncodedSize?, Option.bind, bind, ite_true,
     List.nil_append, List.append_nil, Nat.add_zero, List.length_nil, hsize, hlist]

@@ -29,7 +29,7 @@ theorem decodeCalldata_word {cd : ByteArray} {name : Ident} {ty : ABIType}
     decodeCalldata [name] [ty] cd =
       (decodeABIWord? ty (calldataWord cd 4)).map (fun v => (∅ : Store).insert name v) := by
   have htlen : cd.toList.length = cd.size := by
-    rw [byteArray_toList_eq, Array.length_toList]; rfl
+    rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   have htake : ((cd.toList.drop 4).take 32).length = 32 := by
     rw [List.length_take, List.length_drop, htlen]; omega
   have hword : ABI.bytesToWord ((cd.toList.drop 4).take 32) = calldataWord cd 4 :=

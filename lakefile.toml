@@ -6,7 +6,7 @@ defaultTargets = ["FeProofs"]
 [[require]]
 name = "EquiVM"
 git = "https://github.com/sbillig/EquiVM"
-rev = "23cea3ab6ac1e5f0b4e3c880893b5c24a724aec8"
+rev = "e108ee74abb3a4375af37fb1abad7553f1a0bb4e"
 
 [[lean_lib]]
 name = "Fe"

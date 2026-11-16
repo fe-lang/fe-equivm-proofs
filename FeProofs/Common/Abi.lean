@@ -108,7 +108,7 @@ theorem decodeScalarWords_uint256s (cd : ByteArray) (n start : Nat)
       Option.some.injEq] at hval
     subst value
     have hlen : cd.toList.length = cd.size := by
-      rw [byteArray_toList_eq, Array.length_toList]; rfl
+      rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
     have hread : (((cd.toList.drop 4).drop (start + 32 * i)).take 32).length = 32 := by
       rw [List.drop_drop, List.length_take, List.length_drop, hlen]
       omega
@@ -127,7 +127,7 @@ theorem decodeCalldata_scalars {cd : ByteArray} {names : List Ident}
     (hdecoded : decodeScalarWords? tys (cd.toList.drop 4) 0 = some vals) :
     decodeCalldata names tys cd = decodeCalldata.insertValues names vals ∅ := by
   have hlen : cd.toList.length = cd.size := by
-    rw [byteArray_toList_eq, Array.length_toList]; rfl
+    rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   rw [decodeCalldata_scalarWords_eq hscalar]
   rw [ite_eq_right (by rw [hlen]; omega : ¬ cd.toList.length < 4)]
   rw [ite_eq_right (by

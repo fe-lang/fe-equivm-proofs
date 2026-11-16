@@ -15,7 +15,7 @@ open FeProofs.Precompiles Reasoning.Theory
 /-- The byte of a byte array at `i`, as `byteAt` reads it. -/
 theorem byte_get (d : ByteArray) (i : ℕ) : d[i]!.toNat = byteAt d i := by
   unfold byteAt
-  rw [byteArray_toList_eq, List.getD_eq_getElem?_getD]
+  rw [Reasoning.Theory.byteArray_toList_eq, List.getD_eq_getElem?_getD]
   by_cases h : i < d.size
   · rw [getElem!_pos d i h, List.getElem?_eq_getElem (by simpa using h)]
     simp

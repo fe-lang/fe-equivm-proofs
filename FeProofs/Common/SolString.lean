@@ -202,7 +202,7 @@ theorem leadWord_toByteArray (w : UInt256) (r : ℕ) :
   · rename_i hr
     rw [Nat.min_eq_left hr.le, leadMask_eq r hr, u256_land_comm]
     have hextlen : (w.toByteArray.extract 0 r).toList.length = r := by
-      rw [byteArray_extract0_toList, List.length_take, byteArray_toList_eq, Array.length_toList]
+      rw [byteArray_extract0_toList, List.length_take, Reasoning.Theory.byteArray_toList_eq, Array.length_toList]
       have hsz : (w.toByteArray).data.size = 32 := toByteArray_size w
       omega
     have hlist : EVM.Word.toBytesBE
@@ -326,7 +326,7 @@ theorem encodeString_eq (b : ByteArray) :
   rw [mk_toArray_eq, list_toByteArray_append, list_toByteArray_append, natBytes_toByteArray',
     natBytes_toByteArray', ABI.padRightToWord, list_toByteArray_append,
     byteArray_toList_toByteArray, ABI.zeroBytes,
-    show b.toList.length = b.size by rw [byteArray_toList_eq, Array.length_toList]; rfl]
+    show b.toList.length = b.size by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl]
 
 /-! ## The data base of a long string -/
 

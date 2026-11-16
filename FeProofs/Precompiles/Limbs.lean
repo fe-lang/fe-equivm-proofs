@@ -24,12 +24,12 @@ namespace FeProofs.Precompiles
 
 theorem byteAt_eq (d : ByteArray) (j : ℕ) :
     byteAt d j = if h : j < d.size then d[j].toNat else 0 := by
-  have hl : d.toList.length = d.size := by rw [byteArray_toList_eq, Array.length_toList]; rfl
+  have hl : d.toList.length = d.size := by rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   split_ifs with h
   · simp only [byteAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega : j < d.toList.length),
       Option.getD_some]
     congr 1
-    rw [List.getElem_of_eq (byteArray_toList_eq d)]
+    rw [List.getElem_of_eq (Reasoning.Theory.byteArray_toList_eq d)]
     simp [Array.getElem_toList]
     rfl
   · exact byteAt_of_ge (by omega)

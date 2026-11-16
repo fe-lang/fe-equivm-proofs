@@ -200,17 +200,17 @@ theorem toBytes32_fromBE (D : ByteArray) (hD : D.size = 32) :
     Weierstrass.toBytes32 (fromByteArrayBigEndian D) = D := by
   have hlt : fromByteArrayBigEndian D < 2 ^ 256 := by
     have := fromBytes'_le (bs := D.toList.reverse)
-    rw [List.length_reverse, byteArray_toList_eq, Array.length_toList] at this
+    rw [List.length_reverse, Reasoning.Theory.byteArray_toList_eq, Array.length_toList] at this
     have h8 : D.data.size = 32 := hD
     rw [h8] at this
-    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, byteArray_toList_eq]
+    rw [fromByteArrayBigEndian, fromBytesBigEndian, Function.comp, Reasoning.Theory.byteArray_toList_eq]
     exact this
   rw [toBytes32_eq hlt]
   apply ByteArray.ext
   apply Array.ext'
-  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   apply fromBytesBigEndian_inj_of_length
-  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+  · rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq, Array.length_toList, Array.length_toList]
     show (UInt256.ofNat _).toByteArray.size = D.size
     rw [toByteArray_size, hD]
   · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian, fromByteArrayBigEndian_toByteArray,
@@ -227,7 +227,7 @@ theorem shr_byte (L : UInt64) (m : ℕ) (hm : m < 8) :
 theorem fromBE_digest (st : Vector UInt64 25) : fromByteArrayBigEndian (digest st) = wordOf st := by
   have e : (digest st).toList = List.ofFn fun i : Fin 32 =>
       UInt8.ofNat ((st[Fin.ofNat 25 (i.val / 8)]).toNat / 2 ^ (8 * (i.val % 8))) := by
-    rw [byteArray_toList_eq]
+    rw [Reasoning.Theory.byteArray_toList_eq]
     show (Array.ofFn _).toList = _
     rw [Array.toList_ofFn]
     congr 1

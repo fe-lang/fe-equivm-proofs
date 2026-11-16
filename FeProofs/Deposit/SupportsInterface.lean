@@ -36,7 +36,7 @@ abbrev siResult (I : ExecutionEnv) : Bool :=
 theorem siArgBytes_length {I : ExecutionEnv} (hsz36 : 36 ≤ I.calldata.size) :
     (siArgBytes I).length = 32 := by
   have htlen : I.calldata.toList.length = I.calldata.size := by
-    rw [byteArray_toList_eq, Array.length_toList]; rfl
+    rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
   rw [List.length_take, List.length_drop, htlen]
   omega
 

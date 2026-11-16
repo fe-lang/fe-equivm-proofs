@@ -34,7 +34,7 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 theorem input_eq : input_Evm_2 = copyInput := rfl
 
 theorem zeroes_be (n : ℕ) : fromByteArrayBigEndian (ByteArray.zeroes n) = 0 := by
-  rw [fromByteArrayBigEndian, byteArray_toList_eq]
+  rw [fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq]
   simp only [ByteArray.zeroes, Array.toList_replicate, fromBytesBigEndian, Function.comp,
     List.reverse_replicate]
   induction n with
@@ -49,15 +49,15 @@ theorem digest_bytes (d : ByteArray) :
   have hl : fromByteArrayBigEndian (RIPEMD160.hash d) < 2 ^ 256 := by
     have := fromBytes'_le (bs := (RIPEMD160.hash d).toList.reverse)
     have hlen : (RIPEMD160.hash d).toList.reverse.length = 20 := by
-      rw [List.length_reverse, byteArray_toList_eq, Array.length_toList]; exact hs
+      rw [List.length_reverse, Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; exact hs
     rw [hlen] at this
     unfold fromByteArrayBigEndian fromBytesBigEndian
     exact lt_trans this (by norm_num)
   apply ByteArray.ext
   apply Array.ext'
-  rw [← byteArray_toList_eq, ← byteArray_toList_eq]
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   apply fromBytesBigEndian_inj_of_length
-  · rw [byteArray_toList_eq, byteArray_toList_eq, Array.length_toList, Array.length_toList]
+  · rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq, Array.length_toList, Array.length_toList]
     change (UInt256.ofNat _).toByteArray.size = (ByteArray.zeroes 12 ++ RIPEMD160.hash d).size
     rw [toByteArray_size, ByteArray.size_append, ByteArray_zeroes_size, hs]
   · rw [← fromByteArrayBigEndian, ← fromByteArrayBigEndian, fromByteArrayBigEndian_toByteArray,

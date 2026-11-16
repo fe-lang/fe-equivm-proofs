@@ -142,7 +142,7 @@ theorem ripemd160_exec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
       UInt256.ofNat 271733878, UInt256.ofNat 3285377520] : Vector UInt256 5) =
       toV5 (stateAt d 0) from rfl, block_loop h hn _ (blocksOf d.size) 0 _ (by omega)]
   congr 4
-  rw [hash_eq, fromByteArrayBigEndian, byteArray_toList_eq]
+  rw [hash_eq, fromByteArrayBigEndian, Reasoning.Theory.byteArray_toList_eq]
   simp only [fromBytesBigEndian_append, RIPEMD160.wordBytes, List.length_cons, List.length_nil]
   simp only [digestN, sget]
   norm_num
