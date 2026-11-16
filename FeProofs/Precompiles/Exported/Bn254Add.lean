@@ -7,7 +7,7 @@ The definitions between the markers are the output of `fe-lean-export` on the co
 the ingot `FeProofs/Precompiles` (Fe branch `fevm-precompiles`, golden file
 `tests/golden/precompiles_bn254add.lean`), copied in by `scripts/sync_exported.py`: fevm's ECADD
 (`bn254::add`) on the call data in memory and the point addition it uses, with the fallback arm
-(`recv0_arm0`), the runtime entry and the deployment entry. The G1 decoding, the Montgomery
+(`recv_fallback`), the runtime entry and the deployment entry. The G1 decoding, the Montgomery
 arithmetic at the BN254 base field (`Bn254Base`), the doubling and the encoding are shared with
 `Bn254Mul`. The definitions the ingot's contracts share are in `Shared.lean`, which the text names
 through `Shared`, and the core and std definitions in `FeProofs/Lib/Exported.lean`.
@@ -32,14 +32,16 @@ def init : FeM Unit := do
 /-- `lib::input<Evm>` -/
 def input_Evm : FeM MemBuffer := do
   let mut input : MemBuffer := default
+  -- let len = raw.calldatasize()
   let len ← Evm_calldatasize
+  -- var input = MemBuffer::new(len.downcast_unchecked())
   let v3 ← downcast_unchecked_u256_usize len
   let input_4 ← MemBuffer_new v3
   input := input_4
+  -- raw.calldatacopy(dest: mut input, dest_offset: 0, src_offset: 0, len)
   let (v10, v10_0) ← Evm_calldatacopy input (UInt256.ofNat 0) (UInt256.ofNat 0) len
   input := v10_0
-  let input_11 := input
-  return input_11
+  return input
 
 /-- `Point<Mont<Bn254Base>>::add` -/
 def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_Bn254Base) : FeM Point_Mont_Bn254Base := do
@@ -80,58 +82,60 @@ def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_B
   let mut r34 : Mont_Bn254Base := default
   let mut r35 : Mont_Bn254Base := default
   let mut r36 : Mont_Bn254Base := default
+  -- if self.is_infinity() { return other }
   let v3 ← Point_is_infinity_Mont_Bn254Base self
   if v3 then
-    let v4 := other
-    return v4
+    return other
   else
+    -- if other.is_infinity() { return self }
     let v7 ← Point_is_infinity_Mont_Bn254Base other
     if v7 then
-      let v8 := self
-      return v8
+      return self
     else
-      let v11 := self.z
-      r12 := v11
+      -- let z1z1 = self.z.square()
+      r12 := self.z
       let z1z1_13 ← Mont_square_Bn254Base r12
       z1z1 := z1z1_13
-      let v15 := other.z
-      r13 := v15
+      -- let z2z2 = other.z.square()
+      r13 := other.z
       let z2z2_17 ← Mont_square_Bn254Base r13
       z2z2 := z2z2_17
-      let v19 := self.x
-      r14 := v19
+      -- let u1 = self.x.mul(z2z2)
+      r14 := self.x
       let u1_22 ← Mont_mul_Bn254Base r14 z2z2
       u1 := u1_22
-      let v24 := other.x
-      r15 := v24
+      -- let u2 = other.x.mul(z1z1)
+      r15 := other.x
       let u2_27 ← Mont_mul_Bn254Base r15 z1z1
       u2 := u2_27
-      let v29 := other.z
-      r16 := v29
-      let v30 := self.y
-      r17 := v30
+      -- let s1 = self.y.mul(other.z).mul(z2z2)
+      r16 := other.z
+      r17 := self.y
       let v33 ← Mont_mul_Bn254Base r17 r16
       r18 := v33
       let s1_36 ← Mont_mul_Bn254Base r18 z2z2
       s1 := s1_36
-      let v38 := self.z
-      r19 := v38
-      let v39 := other.y
-      r20 := v39
+      -- let s2 = other.y.mul(self.z).mul(z1z1)
+      r19 := self.z
+      r20 := other.y
       let v42 ← Mont_mul_Bn254Base r20 r19
       r21 := v42
       let s2_45 ← Mont_mul_Bn254Base r21 z1z1
       s2 := s2_45
+      -- let h = u2.sub(u1)
       let h_49 ← Mont_sub_Bn254Base u2 u1
       h := h_49
+      -- let r = s2.sub(s1).double()
       let v53 ← Mont_sub_Bn254Base s2 s1
       r22 := v53
       let r_55 ← Mont_double_Bn254Base r22
       r := r_55
+      -- if h.is_zero() { return if r.is_zero() { self.double() } else { Self::infinity() } }
       let v58 ← Mont_is_zero_Bn254Base h
       if v58 then
+        -- return if r.is_zero() { self.double() } else { Self::infinity() }
         let v60 ← Mont_is_zero_Bn254Base r
-        let b12 : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Point_Mont_Bn254Base → FeM Point_Mont_Bn254Base := fun z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v2 => do
+        let join : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Point_Mont_Bn254Base → FeM Point_Mont_Bn254Base := fun z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v2 => do
           let mut z1z1 := z1z1
           let mut z2z2 := z2z2
           let mut u1 := u1
@@ -170,21 +174,28 @@ def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_B
           let mut r35 := r35
           let mut r36 := r36
           return v2
+        -- return if r.is_zero() { self.double() } else { Self::infinity() }
         if v60 then
+          -- self.double()
           let v61 ← Point_double_Mont_Bn254Base self
-          b12 z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v61
+          join z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v61
         else
+          -- Self::infinity()
           let v63 ← Point_infinity_Mont_Bn254Base
-          b12 z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v63
+          join z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v63
       else
+        -- let i = h.double().square()
         let v68 ← Mont_double_Bn254Base h
         r23 := v68
         let i_70 ← Mont_square_Bn254Base r23
         i := i_70
+        -- let j = h.mul(i)
         let j_74 ← Mont_mul_Bn254Base h i
         j := j_74
+        -- let v = u1.mul(i)
         let v_78 ← Mont_mul_Bn254Base u1 i
         v := v_78
+        -- let x = r.square().sub(j).sub(v.double())
         let v81 ← Mont_square_Bn254Base r
         r24 := v81
         let v84 ← Mont_sub_Bn254Base r24 j
@@ -193,6 +204,7 @@ def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_B
         r26 := v86
         let x_89 ← Mont_sub_Bn254Base r25 r26
         x := x_89
+        -- let y = r.mul(v.sub(x)).sub(s1.mul(j).double())
         let v93 ← Mont_sub_Bn254Base v x
         r27 := v93
         let v96 ← Mont_mul_Bn254Base r r27
@@ -202,10 +214,9 @@ def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_B
         let v101 ← Mont_double_Bn254Base r29
         r30 := v101
         let y ← Mont_sub_Bn254Base r28 r30
-        let v106 := other.z
-        r31 := v106
-        let v107 := self.z
-        r32 := v107
+        -- Point { x, y, z: self.z.add(other.z).square().sub(z1z1).sub(z2z2).mul(h) }
+        r31 := other.z
+        r32 := self.z
         let v110 ← Mont_add_Bn254Base r32 r31
         r33 := v110
         let v112 ← Mont_square_Bn254Base r33
@@ -215,89 +226,92 @@ def Point_add_Mont_Bn254Base (self : Point_Mont_Bn254Base) (other : Point_Mont_B
         let v118 ← Mont_sub_Bn254Base r35 z2z2
         r36 := v118
         let v121 ← Mont_mul_Bn254Base r36 h
-        let x_122 := x
-        let v123 := (Point_Mont_Bn254Base.mk x_122 y v121)
-        return v123
+        return Point_Mont_Bn254Base.mk x y v121
 
 /-- `lib::bn254::add<MemBuffer>` -/
 def add_MemBuffer (input : MemBuffer) : FeM Option_array_u256_2 := do
   let mut a : Point_Mont_Bn254Base := default
   let mut b : Point_Mont_Bn254Base := default
   let mut r2 : Point_Mont_Bn254Base := default
+  -- match (g1_point(input, offset: 0), g1_point(input, offset: 64)) {
   let v3 ← g1_point_MemBuffer input (UInt256.ofNat 0)
   let v5 ← g1_point_MemBuffer input (UInt256.ofNat 64)
   let v6 := (v3, v5)
+  -- match (g1_point(input, offset: 0), g1_point(input, offset: 64)) {
   let v7 := v6.snd
-  let b1 : Point_Mont_Bn254Base → Point_Mont_Bn254Base → Point_Mont_Bn254Base → Option_array_u256_2 → FeM Option_array_u256_2 := fun a b r2 v1 => do
+  let join : Point_Mont_Bn254Base → Point_Mont_Bn254Base → Point_Mont_Bn254Base → Option_array_u256_2 → FeM Option_array_u256_2 := fun a b r2 v1 => do
     let mut a := a
     let mut b := b
     let mut r2 := r2
     return v1
+  -- match (g1_point(input, offset: 0), g1_point(input, offset: 64)) {
   match v7 with
   | .Some .. =>
+    -- match (g1_point(input, offset: 0), g1_point(input, offset: 64)) {
     let v8 := v6.fst
     match v8 with
     | .Some .. =>
-      let a_9 := v8.Some_0
-      a := a_9
-      let b_11 := v7.Some_0
-      b := b_11
+      -- match (g1_point(input, offset: 0), g1_point(input, offset: 64)) {
+      a := v8.Some_0
+      b := v7.Some_0
       let v15 ← Point_add_Mont_Bn254Base a b
       r2 := v15
       let v17 ← encode r2
-      let v18 := Option_array_u256_2.Some v17
-      b1 a b r2 v18
+      join a b r2 (Option_array_u256_2.Some v17)
     | _ =>
-      let v20 := Option_array_u256_2.None
-      b1 a b r2 v20
+      join a b r2 Option_array_u256_2.None
   | _ =>
-    let v22 := Option_array_u256_2.None
-    b1 a b r2 v22
+    join a b r2 Option_array_u256_2.None
 
 /-- `_`, for a call no other arm takes -/
-def recv0_arm0 : FeM Empty := do
+def recv_fallback : FeM Empty := do
   let mut output : MemBuffer := default
   let mut r2 : MemBuffer := default
+  -- match bn254::add(input()) {
   let v0 ← input_Evm
   r2 := v0
   let v2 ← add_MemBuffer r2
   match v2 with
   | .Some .. =>
+    -- match bn254::add(input()) {
     let sum := v2.Some_0
+    -- var output = MemBuffer::new(64)
     let output_6 ← MemBuffer_new (UInt256.ofNat 64)
     output := output_6
+    -- output.write_word(offset: 0, value: sum[0])
     let v9 := (UInt256.ofNat 0)
     checkIndex v9 2
-    let v10 := sum[v9.toNat]!
-    let (v12, v12_0) ← MemBuffer_write_word output (UInt256.ofNat 0) v10
+    let (v12, v12_0) ← MemBuffer_write_word output (UInt256.ofNat 0) sum[v9.toNat]!
     output := v12_0
+    -- output.write_word(offset: 32, value: sum[1])
     let v14 := (UInt256.ofNat 1)
     checkIndex v14 2
-    let v15 := sum[v14.toNat]!
-    let (v17, v17_0) ← MemBuffer_write_word output (UInt256.ofNat 32) v15
+    let (v17, v17_0) ← MemBuffer_write_word output (UInt256.ofNat 32) sum[v14.toNat]!
     output := v17_0
+    -- raw.return_data(data: output.span())
     let v19 ← MemBuffer_span_ref output
     let v22 ← Evm_return_data v19
     nomatch v22
   | .None =>
+    -- match bn254::add(input()) {
     let v23 ← MemSlice_empty_u8
     let v26 ← Evm_revert v23
     nomatch v26
 
-/-- The entry of `recv0_arm0`, for a call no other arm takes -/
-def recv0_arm0_entry : FeM Empty := do
+/-- The entry of `recv_fallback`, for a call no other arm takes -/
+def recv_fallback_entry : FeM Empty := do
   nonPayable
-  let _ ← recv0_arm0
+  let _ ← recv_fallback
   returnData (UInt256.ofNat 0) (UInt256.ofNat 0)
 
 /-- The runtime entry of contract `Bn254Add`: the entry of the arm the call's selector picks -/
 def runtime : FeM Empty := do
   let size ← calldatasize
   if size.toNat < 4 then
-    recv0_arm0_entry
+    recv_fallback_entry
   else
     let selector ← calldataSelector
-    recv0_arm0_entry
+    recv_fallback_entry
 
 /-- The deployment entry of contract `Bn254Add`: `init` on the arguments after the creation code -/
 def init_entry (args : ByteArray) : FeM ByteArray := do

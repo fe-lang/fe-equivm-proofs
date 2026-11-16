@@ -300,7 +300,7 @@ theorem update_de_eq {U V Q R : ℤ} {a b m : ℕ → ℤ} (inv : Limb)
     downcast_i128_u64_I, downcast_i64_u64_I, M62_eq, mulW_w, addW_w, land_w,
     downcast_u64_i64_w, sgn_corr, kd, ke, z1, z2]
   iterate 5
-    rw [update_de_5_k6.b1.eq_1]
+    rw [update_de_5_k6.loop.eq_1]
     simp only [idx_lits, vget5, lt5, checkIndex, de_step hUV hkd ha hb hm, de_step hQR hke ha hb hm,
       downcast_truncate_i128_i64_eq, low62, pure_bind, M62_SIGNED_eq, decide_true, decide_false,
       if_true, if_false, Bool.false_eq_true, de_last hUV hkd ha hb hm, de_last hQR hke ha hb hm,

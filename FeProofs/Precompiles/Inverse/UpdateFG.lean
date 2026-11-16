@@ -204,7 +204,7 @@ theorem update_fg_eq {U V Q R : ℤ} {a b : ℕ → ℤ} (hU : |U| ≤ 2 ^ 62) (
   simp only [update_fg_5, update_fg_5_k1, update_fg_5_k2, pure_bind, vget5, z1, z2,
     checkIndex, idx_lits, lt5, if_true]
   iterate 5
-    rw [update_fg_5_k2.b1.eq_1]
+    rw [update_fg_5_k2.loop.eq_1]
     simp only [idx_lits, vget5, lt5, checkIndex, fg_step hU hV ha hb, fg_step hQ hR ha hb, downcast_truncate_i128_i64_eq,
       low62, pure_bind, M62_SIGNED_eq, decide_true, decide_false, if_true, if_false,
       Bool.false_eq_true, fg_last hU hV ha hb, fg_last hQ hR ha hb,

@@ -120,11 +120,11 @@ deriving Inhabited
 
 /-- `lib::secp256k1::N` -/
 def N : FeM UInt256 := do
-  return (UInt256.ofNat 115792089237316195423570985008687907852837564279074904382605163141518161494337)
+  return UInt256.ofNat 115792089237316195423570985008687907852837564279074904382605163141518161494337
 
 /-- `lib::secp256k1::P` -/
 def P : FeM UInt256 := do
-  return (UInt256.ofNat 115792089237316195423570985008687907853269984665640564039457584007908834671663)
+  return UInt256.ofNat 115792089237316195423570985008687907853269984665640564039457584007908834671663
 
 /-- `<Base as Modulus>::VALUE` -/
 def Base_VALUE : FeM UInt256 := do
@@ -133,269 +133,211 @@ def Base_VALUE : FeM UInt256 := do
 
 /-- `lib::montgomery::raw<Base>` -/
 def raw_Base (value : UInt256) : FeM Mont_Base := do
+  -- Mont {
   let v1 ← downcast_truncate_u256_u64 value
-  let v4 := value >>> (UInt256.ofNat 64)
-  let v5 ← downcast_truncate_u256_u64 v4
-  let v8 := value >>> (UInt256.ofNat 128)
-  let v9 ← downcast_truncate_u256_u64 v8
-  let v12 := value >>> (UInt256.ofNat 192)
-  let v13 ← downcast_truncate_u256_u64 v12
-  let v14 := (Mont_Base.mk v1 v5 v9 v13)
-  return v14
+  let v5 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 64))
+  let v9 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 128))
+  let v13 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 192))
+  return Mont_Base.mk v1 v5 v9 v13
 
 /-- `<Base as Modulus>::R2` -/
 def Base_R2 : FeM UInt256 := do
-  return (UInt256.ofNat 18446752466076602529)
+  return UInt256.ofNat 18446752466076602529
 
 /-- `lib::montgomery::mul_wide` -/
 def mul_wide (a : UInt256) (b : UInt256) : FeM (UInt256 × UInt256) := do
-  let v3 := a
-  let v5 := b
-  let t ← IntTy.mul (.u 128) v3 v5
+  -- let t = (a as u128) * (b as u128)
+  let t ← IntTy.mul (.u 128) a b
+  -- (t.downcast_truncate(), (t >> 64).downcast_truncate())
   let v8 ← downcast_truncate_u128_u64 t
-  let v10 := t >>> (UInt256.ofNat 64)
-  let v11 ← downcast_truncate_u128_u64 v10
-  let v12 := (v8, v11)
-  return v12
+  let v11 ← downcast_truncate_u128_u64 (t >>> (UInt256.ofNat 64))
+  return (v8, v11)
 
 /-- `lib::montgomery::adc` -/
 def adc (a : UInt256) (b : UInt256) (carry : UInt256) : FeM (UInt256 × UInt256) := do
-  let v4 := a
-  let v6 := b
-  let v7 ← IntTy.add (.u 128) v4 v6
-  let v9 := carry
-  let t ← IntTy.add (.u 128) v7 v9
+  -- let t = (a as u128) + (b as u128) + (carry as u128)
+  let v7 ← IntTy.add (.u 128) a b
+  let t ← IntTy.add (.u 128) v7 carry
+  -- (t.downcast_truncate(), (t >> 64).downcast_truncate())
   let v12 ← downcast_truncate_u128_u64 t
-  let v14 := t >>> (UInt256.ofNat 64)
-  let v15 ← downcast_truncate_u128_u64 v14
-  let v16 := (v12, v15)
-  return v16
+  let v15 ← downcast_truncate_u128_u64 (t >>> (UInt256.ofNat 64))
+  return (v12, v15)
 
 /-- `<Base as Modulus>::INV` -/
 def Base_INV : FeM UInt256 := do
-  return (UInt256.ofNat 15580212934572586289)
+  return UInt256.ofNat 15580212934572586289
 
 /-- `<Base as Modulus>::P0` -/
 def Base_P0 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744069414583343)
+  return UInt256.ofNat 18446744069414583343
 
 /-- `<Base as Modulus>::P1` -/
 def Base_P1 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744073709551615)
+  return UInt256.ofNat 18446744073709551615
 
 /-- `<Base as Modulus>::P2` -/
 def Base_P2 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744073709551615)
+  return UInt256.ofNat 18446744073709551615
 
 /-- `<Base as Modulus>::P3` -/
 def Base_P3 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744073709551615)
+  return UInt256.ofNat 18446744073709551615
 
-def Mont_shift_reduced_Base_k3 (s5 : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (u3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) (u4_76 : UInt256) : FeM (Mont_Base × UInt256) := do
-  let ca_78 := v75.snd
-  let v80 ← adc s5 cb_72 ca_78
-  let u5 := v80.fst
-  let v83 := (Mont_Base.mk u1_33 u2_49 u3_65 u4_76)
-  let v84 := (v83, u5)
+def Mont_shift_reduced_Base_k3 (s5 : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (u5, _) = adc(s5, cb, ca)
+  let v80 ← adc s5 v69.snd v75.snd
+  -- (Mont { l0: u1, l1: u2, l2: u3, l3: u4 }, u5)
+  let v84 := ((Mont_Base.mk v32.fst v48.fst v64.fst v75.fst), v80.fst)
   return v84
 
-def Mont_shift_reduced_Base_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (ca_51 : UInt256) (v53 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
-  let u3_54 := v53.fst
-  let cb_56 := v53.snd
+def Mont_shift_reduced_Base_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v53 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (k3, j3) = mul_wide(m, M::P3)
   let v58 ← Base_P3
   let v59 ← mul_wide m v58
-  let k3 := v59.fst
-  let j3 := v59.snd
-  let v64 ← adc u3_54 k3 ca_51
-  let u3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc s4 j3 cb_56
-  let u4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc u4_70 (UInt256.ofNat 0) ca_67
-  let u4_76 := v75.fst
-  Mont_shift_reduced_Base_k3 s5 u1_33 u2_49 u3_65 cb_72 v75 u4_76
+  -- let (u3, ca) = adc(u3, k3, ca)
+  let v64 ← adc v53.fst v59.fst v48.snd
+  -- let (u4, cb) = adc(s4, j3, cb)
+  let v69 ← adc s4 v59.snd v53.snd
+  -- let (u4, ca) = adc(u4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_shift_reduced_Base_k3 s5 v32 v48 v64 v69 v75
 
-def Mont_shift_reduced_Base_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (ca_18 : UInt256) (u1_22 : UInt256) (cb_24 : UInt256) (v27 : (UInt256 × UInt256)) (k1 : UInt256) : FeM (Mont_Base × UInt256) := do
-  let j1 := v27.snd
-  let v32 ← adc u1_22 k1 ca_18
-  let u1_33 := v32.fst
-  let ca_35 := v32.snd
-  let v37 ← adc s2 j1 cb_24
-  let u2_38 := v37.fst
-  let cb_40 := v37.snd
+def Mont_shift_reduced_Base_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v17 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) (v27 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (u1, ca) = adc(u1, k1, ca)
+  let v32 ← adc v21.fst v27.fst v17.snd
+  -- let (u2, cb) = adc(s2, j1, cb)
+  let v37 ← adc s2 v27.snd v21.snd
+  -- let (k2, j2) = mul_wide(m, M::P2)
   let v42 ← Base_P2
   let v43 ← mul_wide m v42
-  let k2 := v43.fst
-  let j2 := v43.snd
-  let v48 ← adc u2_38 k2 ca_35
-  let u2_49 := v48.fst
-  let ca_51 := v48.snd
-  let v53 ← adc s3 j2 cb_40
-  Mont_shift_reduced_Base_k2 s4 s5 m u1_33 u2_49 ca_51 v53
+  -- let (u2, ca) = adc(u2, k2, ca)
+  let v48 ← adc v37.fst v43.fst v32.snd
+  -- let (u3, cb) = adc(s3, j2, cb)
+  let v53 ← adc s3 v43.snd v37.snd
+  Mont_shift_reduced_Base_k2 s4 s5 m v32 v48 v53
 
 /-- `Mont<Base>::shift_reduced` -/
 def Mont_shift_reduced_Base (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) : FeM (Mont_Base × UInt256) := do
+  -- let m = s0.wrapping_mul(M::INV)
   let v6 ← Base_INV
   let m ← u64_wrapping_mul s0 v6
+  -- let (k0, j0) = mul_wide(m, M::P0)
   let v10 ← Base_P0
   let v11 ← mul_wide m v10
-  let k0 := v11.fst
-  let j0 := v11.snd
-  let v17 ← adc s0 k0 (UInt256.ofNat 0)
-  let ca_18 := v17.snd
-  let v21 ← adc s1 j0 (UInt256.ofNat 0)
-  let u1_22 := v21.fst
-  let cb_24 := v21.snd
+  -- let (_, ca) = adc(s0, k0, 0)
+  let v17 ← adc s0 v11.fst (UInt256.ofNat 0)
+  -- let (u1, cb) = adc(s1, j0, 0)
+  let v21 ← adc s1 v11.snd (UInt256.ofNat 0)
+  -- let (k1, j1) = mul_wide(m, M::P1)
   let v26 ← Base_P1
   let v27 ← mul_wide m v26
-  let k1 := v27.fst
-  Mont_shift_reduced_Base_k1 s2 s3 s4 s5 m ca_18 u1_22 cb_24 v27 k1
+  Mont_shift_reduced_Base_k1 s2 s3 s4 s5 m v17 v21 v27
 
-def Mont_first_row_Base_k1 (self : Mont_Base) (b : UInt256) (s0 : UInt256) (h1 : UInt256) (s1 : UInt256) (c_18 : UInt256) (l2 : UInt256) (h2 : UInt256) : FeM (Mont_Base × UInt256) := do
-  let v26 ← adc h1 l2 c_18
-  let s2 := v26.fst
-  let c_29 := v26.snd
-  let v31 := self.l3
-  let v32 ← mul_wide b v31
-  let l3 := v32.fst
-  let h3 := v32.snd
-  let v37 ← adc h2 l3 c_29
-  let s3 := v37.fst
-  let c_40 := v37.snd
-  let v43 ← adc h3 (UInt256.ofNat 0) c_40
-  let s4 := v43.fst
-  let v47 ← Mont_shift_reduced_Base s0 s1 s2 s3 s4 (UInt256.ofNat 0)
+def Mont_first_row_Base_k1 (self : Mont_Base) (b : UInt256) (v3 : (UInt256 × UInt256)) (v9 : (UInt256 × UInt256)) (v15 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (s2, c) = adc(h1, l2, c)
+  let v26 ← adc v9.snd v21.fst v15.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v32 ← mul_wide b self.l3
+  -- let (s3, c) = adc(h2, l3, c)
+  let v37 ← adc v21.snd v32.fst v26.snd
+  -- let (s4, _) = adc(h3, 0, c)
+  let v43 ← adc v32.snd (UInt256.ofNat 0) v37.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, 0)
+  let v47 ← Mont_shift_reduced_Base v3.fst v15.fst v26.fst v37.fst v43.fst (UInt256.ofNat 0)
   return v47
 
 /-- `Mont<Base>::first_row` -/
 def Mont_first_row_Base (self : Mont_Base) (b : UInt256) : FeM (Mont_Base × UInt256) := do
-  let v2 := self.l0
-  let v3 ← mul_wide b v2
-  let s0 := v3.fst
-  let h0 := v3.snd
-  let v8 := self.l1
-  let v9 ← mul_wide b v8
-  let l1 := v9.fst
-  let h1 := v9.snd
-  let v15 ← adc h0 l1 (UInt256.ofNat 0)
-  let s1 := v15.fst
-  let c_18 := v15.snd
-  let v20 := self.l2
-  let v21 ← mul_wide b v20
-  let l2 := v21.fst
-  let h2 := v21.snd
-  Mont_first_row_Base_k1 self b s0 h1 s1 c_18 l2 h2
+  -- let (s0, h0) = mul_wide(b, self.l0)
+  let v3 ← mul_wide b self.l0
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v9 ← mul_wide b self.l1
+  -- let (s1, c) = adc(h0, l1, 0)
+  let v15 ← adc v3.snd v9.fst (UInt256.ofNat 0)
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v21 ← mul_wide b self.l2
+  Mont_first_row_Base_k1 self b v3 v9 v15 v21
 
-def Mont_row_Base_k3 (s0 : UInt256) (s1_31 : UInt256) (s2_48 : UInt256) (s3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
-  let s4_76 := v75.fst
-  let ca_78 := v75.snd
-  let v81 ← adc cb_72 (UInt256.ofNat 0) ca_78
-  let s5 := v81.fst
-  let v84 ← Mont_shift_reduced_Base s0 s1_31 s2_48 s3_65 s4_76 s5
+def Mont_row_Base_k3 (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (s5, _) = adc(cb, 0, ca)
+  let v81 ← adc v69.snd (UInt256.ofNat 0) v75.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, s5)
+  let v84 ← Mont_shift_reduced_Base v12.fst v30.fst v47.fst v64.fst v75.fst v81.fst
   return v84
 
-def Mont_row_Base_k2 (self : Mont_Base) (b : UInt256) (t : Mont_Base) (top : UInt256) (s0 : UInt256) (s1_31 : UInt256) (cb_39 : UInt256) (h2 : UInt256) (s2_48 : UInt256) (ca_50 : UInt256) : FeM (Mont_Base × UInt256) := do
-  let v52 := t.l3
-  let v53 ← adc v52 h2 cb_39
-  let s3_54 := v53.fst
-  let cb_56 := v53.snd
-  let v58 := self.l3
-  let v59 ← mul_wide b v58
-  let l3 := v59.fst
-  let h3 := v59.snd
-  let v64 ← adc s3_54 l3 ca_50
-  let s3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc top h3 cb_56
-  let s4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc s4_70 (UInt256.ofNat 0) ca_67
-  Mont_row_Base_k3 s0 s1_31 s2_48 s3_65 cb_72 v75
+def Mont_row_Base_k2 (self : Mont_Base) (b : UInt256) (t : Mont_Base) (top : UInt256) (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v36 : (UInt256 × UInt256)) (v42 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (s3, cb) = adc(t.l3, h2, cb)
+  let v53 ← adc t.l3 v42.snd v36.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v59 ← mul_wide b self.l3
+  -- let (s3, ca) = adc(s3, l3, ca)
+  let v64 ← adc v53.fst v59.fst v47.snd
+  -- let (s4, cb) = adc(top, h3, cb)
+  let v69 ← adc top v59.snd v53.snd
+  -- let (s4, ca) = adc(s4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_row_Base_k3 v12 v30 v47 v64 v69 v75
 
-def Mont_row_Base_k1 (self : Mont_Base) (b : UInt256) (t : Mont_Base) (top : UInt256) (s0 : UInt256) (ca_15 : UInt256) (s1_20 : UInt256) (cb_22 : UInt256) (v25 : (UInt256 × UInt256)) (l1 : UInt256) : FeM (Mont_Base × UInt256) := do
-  let h1 := v25.snd
-  let v30 ← adc s1_20 l1 ca_15
-  let s1_31 := v30.fst
-  let ca_33 := v30.snd
-  let v35 := t.l2
-  let v36 ← adc v35 h1 cb_22
-  let s2_37 := v36.fst
-  let cb_39 := v36.snd
-  let v41 := self.l2
-  let v42 ← mul_wide b v41
-  let l2 := v42.fst
-  let h2 := v42.snd
-  let v47 ← adc s2_37 l2 ca_33
-  let s2_48 := v47.fst
-  let ca_50 := v47.snd
-  Mont_row_Base_k2 self b t top s0 s1_31 cb_39 h2 s2_48 ca_50
+def Mont_row_Base_k1 (self : Mont_Base) (b : UInt256) (t : Mont_Base) (top : UInt256) (v12 : (UInt256 × UInt256)) (v19 : (UInt256 × UInt256)) (v25 : (UInt256 × UInt256)) : FeM (Mont_Base × UInt256) := do
+  -- let (s1, ca) = adc(s1, l1, ca)
+  let v30 ← adc v19.fst v25.fst v12.snd
+  -- let (s2, cb) = adc(t.l2, h1, cb)
+  let v36 ← adc t.l2 v25.snd v19.snd
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v42 ← mul_wide b self.l2
+  -- let (s2, ca) = adc(s2, l2, ca)
+  let v47 ← adc v36.fst v42.fst v30.snd
+  Mont_row_Base_k2 self b t top v12 v30 v36 v42 v47
 
 /-- `Mont<Base>::row` -/
 def Mont_row_Base (self : Mont_Base) (b : UInt256) (t : Mont_Base) (top : UInt256) : FeM (Mont_Base × UInt256) := do
-  let v4 := self.l0
-  let v5 ← mul_wide b v4
-  let l0 := v5.fst
-  let h0 := v5.snd
-  let v10 := t.l0
-  let v12 ← adc v10 l0 (UInt256.ofNat 0)
-  let s0 := v12.fst
-  let ca_15 := v12.snd
-  let v17 := t.l1
-  let v19 ← adc v17 h0 (UInt256.ofNat 0)
-  let s1_20 := v19.fst
-  let cb_22 := v19.snd
-  let v24 := self.l1
-  let v25 ← mul_wide b v24
-  let l1 := v25.fst
-  Mont_row_Base_k1 self b t top s0 ca_15 s1_20 cb_22 v25 l1
+  -- let (l0, h0) = mul_wide(b, self.l0)
+  let v5 ← mul_wide b self.l0
+  -- let (s0, ca) = adc(t.l0, l0, 0)
+  let v12 ← adc t.l0 v5.fst (UInt256.ofNat 0)
+  -- let (s1, cb) = adc(t.l1, h0, 0)
+  let v19 ← adc t.l1 v5.snd (UInt256.ofNat 0)
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v25 ← mul_wide b self.l1
+  Mont_row_Base_k1 self b t top v12 v19 v25
 
 /-- `lib::montgomery::sbb` -/
 def sbb (a : UInt256) (b : UInt256) (borrow : UInt256) : FeM (UInt256 × UInt256) := do
-  let v4 := a
-  let v6 := b
-  let v7 ← u128_wrapping_sub v4 v6
-  let v9 := borrow
-  let t ← u128_wrapping_sub v7 v9
+  -- let t = (a as u128).wrapping_sub(b as u128).wrapping_sub(borrow as u128)
+  let v7 ← u128_wrapping_sub a b
+  let t ← u128_wrapping_sub v7 borrow
+  -- (t.downcast_truncate(), (t >> 127).downcast_truncate())
   let v12 ← downcast_truncate_u128_u64 t
-  let v14 := t >>> (UInt256.ofNat 127)
-  let v15 ← downcast_truncate_u128_u64 v14
-  let v16 := (v12, v15)
-  return v16
+  let v15 ← downcast_truncate_u128_u64 (t >>> (UInt256.ofNat 127))
+  return (v12, v15)
 
 /-- `Mont<Base>::reduce` -/
 def Mont_reduce_Base (self : Mont_Base) (top : UInt256) : FeM Mont_Base := do
-  let v3 := self.l0
+  -- let (d0, b) = sbb(self.l0, M::P0, 0)
   let v4 ← Base_P0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  let v6 ← sbb self.l0 v4 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
+  -- let (d1, b) = sbb(self.l1, M::P1, b)
   let v12 ← Base_P1
-  let v13 ← sbb v11 v12 b_9
+  let v13 ← sbb self.l1 v12 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
+  -- let (d2, b) = sbb(self.l2, M::P2, b)
   let v19 ← Base_P2
-  let v20 ← sbb v18 v19 b_16
+  let v20 ← sbb self.l2 v19 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
+  -- let (d3, b) = sbb(self.l3, M::P3, b)
   let v26 ← Base_P3
-  let v27 ← sbb v25 v26 b_23
+  let v27 ← sbb self.l3 v26 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
-  let v33 ← sbb top (UInt256.ofNat 0) b_30
-  let b_34 := v33.snd
-  let v37 := decide (b_34 = (UInt256.ofNat 1))
-  let b3 : Mont_Base → FeM Mont_Base := fun v2 => do
+  -- let (_, b) = sbb(top, 0, b)
+  let v33 ← sbb top (UInt256.ofNat 0) v27.snd
+  let join : Mont_Base → FeM Mont_Base := fun v2 => do
     return v2
-  if v37 then
-    let v38 := self
-    b3 v38
+  -- if b == 1 { self } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v33.snd = (UInt256.ofNat 1)) then
+    join self
   else
-    let v40 := (Mont_Base.mk d0 d1 d2 d3)
-    b3 v40
+    join (Mont_Base.mk d0 d1 d2 d3)
 
 /-- `<Mont<Base> as Field>::mul` -/
 def Mont_mul_Base (self : Mont_Base) (other : Mont_Base) : FeM Mont_Base := do
@@ -403,36 +345,30 @@ def Mont_mul_Base (self : Mont_Base) (other : Mont_Base) : FeM Mont_Base := do
   let mut t_r1 : Mont_Base := default
   let mut t_r2 : Mont_Base := default
   let mut t_r3 : Mont_Base := default
-  let v2 := other.l0
-  let v3 ← Mont_first_row_Base self v2
-  let t_4 := v3.fst
-  t_r0 := t_4
-  let top_6 := v3.snd
-  let v8 := other.l1
-  let v10 ← Mont_row_Base self v8 t_r0 top_6
-  let t_11 := v10.fst
-  t_r1 := t_11
-  let top_13 := v10.snd
-  let v15 := other.l2
-  let v17 ← Mont_row_Base self v15 t_r1 top_13
-  let t_18 := v17.fst
-  t_r2 := t_18
-  let top_20 := v17.snd
-  let v22 := other.l3
-  let v24 ← Mont_row_Base self v22 t_r2 top_20
-  let t_25 := v24.fst
-  t_r3 := t_25
-  let top_27 := v24.snd
-  let v30 ← Mont_reduce_Base t_r3 top_27
+  -- let (t, top) = self.first_row(other.l0)
+  let v3 ← Mont_first_row_Base self other.l0
+  t_r0 := v3.fst
+  -- let (t, top) = self.row(other.l1, t, top)
+  let v10 ← Mont_row_Base self other.l1 t_r0 v3.snd
+  t_r1 := v10.fst
+  -- let (t, top) = self.row(other.l2, t, top)
+  let v17 ← Mont_row_Base self other.l2 t_r1 v10.snd
+  t_r2 := v17.fst
+  -- let (t, top) = self.row(other.l3, t, top)
+  let v24 ← Mont_row_Base self other.l3 t_r2 v17.snd
+  t_r3 := v24.fst
+  -- t.reduce(top)
+  let v30 ← Mont_reduce_Base t_r3 v24.snd
   return v30
 
 /-- `Mont<Base>::new` -/
 def Mont_new_Base (value : UInt256) : FeM Mont_Base := do
   let mut r0 : Mont_Base := default
   let mut r1 : Mont_Base := default
+  -- core::assert(value < M::VALUE)
   let v2 ← Base_VALUE
-  let v3 := decide (value.toNat < v2.toNat)
-  let _ ← «assert» v3
+  let _ ← «assert» (decide (value.toNat < v2.toNat))
+  -- raw<M>(value).mul(raw<M>(M::R2))
   let v5 ← raw_Base value
   r0 := v5
   let v6 ← Base_R2
@@ -443,39 +379,29 @@ def Mont_new_Base (value : UInt256) : FeM Mont_Base := do
 
 /-- `<Mont<Base> as Field>::square` -/
 def Mont_square_Base (self : Mont_Base) : FeM Mont_Base := do
+  -- self.mul(self)
   let v1 ← Mont_mul_Base self self
   return v1
 
 /-- `<Mont<Base> as Field>::add` -/
 def Mont_add_Base (self : Mont_Base) (other : Mont_Base) : FeM Mont_Base := do
   let mut r0 : Mont_Base := default
-  let v2 := self.l0
-  let v3 := other.l0
-  let v5 ← adc v2 v3 (UInt256.ofNat 0)
-  let s0 := v5.fst
-  let c_8 := v5.snd
-  let v10 := self.l1
-  let v11 := other.l1
-  let v12 ← adc v10 v11 c_8
-  let s1 := v12.fst
-  let c_15 := v12.snd
-  let v17 := self.l2
-  let v18 := other.l2
-  let v19 ← adc v17 v18 c_15
-  let s2 := v19.fst
-  let c_22 := v19.snd
-  let v24 := self.l3
-  let v25 := other.l3
-  let v26 ← adc v24 v25 c_22
-  let s3 := v26.fst
-  let c_29 := v26.snd
-  let v31 := (Mont_Base.mk s0 s1 s2 s3)
-  r0 := v31
-  let v33 ← Mont_reduce_Base r0 c_29
+  -- let (s0, c) = adc(self.l0, other.l0, 0)
+  let v5 ← adc self.l0 other.l0 (UInt256.ofNat 0)
+  -- let (s1, c) = adc(self.l1, other.l1, c)
+  let v12 ← adc self.l1 other.l1 v5.snd
+  -- let (s2, c) = adc(self.l2, other.l2, c)
+  let v19 ← adc self.l2 other.l2 v12.snd
+  -- let (s3, c) = adc(self.l3, other.l3, c)
+  let v26 ← adc self.l3 other.l3 v19.snd
+  -- Mont { l0: s0, l1: s1, l2: s2, l3: s3 }.reduce(c)
+  r0 := (Mont_Base.mk v5.fst v12.fst v19.fst v26.fst)
+  let v33 ← Mont_reduce_Base r0 v26.snd
   return v33
 
 /-- `<Mont<Base> as Field>::one` -/
 def Mont_one_Base : FeM Mont_Base := do
+  -- Self::new(1)
   let v1 ← Mont_new_Base (UInt256.ofNat 1)
   return v1
 
@@ -485,102 +411,81 @@ def Mont_pow_Base (self : Mont_Base) (exponent : UInt256) : FeM Mont_Base := do
   let mut bit : UInt256 := default
   let mut r2 : Mont_Base := default
   let mut r3 : Mont_Base := default
+  -- var result = Self::one()
   let result_2 ← Mont_one_Base
   result := result_2
+  -- var bit: u64 = 256
   bit := (UInt256.ofNat 256)
-  let rec b1 (result : Mont_Base) (bit : UInt256) (r2 : Mont_Base) (r3 : Mont_Base) : FeM Mont_Base := do
+  let rec loop (result : Mont_Base) (bit : UInt256) (r2 : Mont_Base) (r3 : Mont_Base) : FeM Mont_Base := do
     let mut result := result
     let mut bit := bit
     let mut r2 := r2
     let mut r3 := r3
-    let bit_6 := bit
-    let v9 := decide ((UInt256.ofNat 0).toNat < bit_6.toNat)
-    if v9 then
-      let bit_11 := bit
-      let bit_12 ← IntTy.sub (.u 64) bit_11 (UInt256.ofNat 1)
+    -- while bit > 0 {
+    if decide ((UInt256.ofNat 0).toNat < bit.toNat) then
+      -- bit -= 1
+      let bit_12 ← IntTy.sub (.u 64) bit (UInt256.ofNat 1)
       bit := bit_12
-      let result_15 := result
-      r2 := result_15
+      -- result = result.square()
+      r2 := result
       let result_18 ← Mont_square_Base r2
       result := result_18
-      let bit_22 := bit
-      let v23 := bit_22
-      let v24 := exponent >>> v23
-      let v26 := v24 &&& (UInt256.ofNat 1)
-      let v28 := decide (v26 = (UInt256.ofNat 1))
-      let b6 : Mont_Base → UInt256 → Mont_Base → Mont_Base → FeM Mont_Base := fun result bit r2 r3 => do
+      -- if (exponent >> bit as u256) & 1 == 1 { result = result.mul(self) }
+      let v28 := decide (((exponent >>> bit) &&& (UInt256.ofNat 1)) = (UInt256.ofNat 1))
+      let join : Mont_Base → UInt256 → Mont_Base → Mont_Base → FeM Mont_Base := fun result bit r2 r3 => do
         let mut result := result
         let mut bit := bit
         let mut r2 := r2
         let mut r3 := r3
-        b1 result bit r2 r3
+        loop result bit r2 r3
+      -- if (exponent >> bit as u256) & 1 == 1 { result = result.mul(self) }
       if v28 then
-        let result_29 := result
-        r3 := result_29
+        -- result = result.mul(self)
+        r3 := result
         let result_32 ← Mont_mul_Base r3 self
         result := result_32
-        b6 result bit r2 r3
+        join result bit r2 r3
       else
-        b6 result bit r2 r3
+        join result bit r2 r3
     else
-      let result_38 := result
-      return result_38
+      return result
   partial_fixpoint
-  b1 result bit r2 r3
+  loop result bit r2 r3
 
 /-- `<Mont<Base> as Field>::equals` -/
 def Mont_equals_Base (self : Mont_Base) (other : Mont_Base) : FeM Bool := do
-  let v3 := self.l0
-  let v4 := other.l0
-  let v5 := decide (v3 = v4)
-  let b3 : Bool → FeM Bool := fun v2 => do
+  let join : Bool → FeM Bool := fun v2 => do
     return v2
-  let b2 : FeM Bool := do
-    b3 false
-  if v5 then
-    let v6 := self.l1
-    let v7 := other.l1
-    let v8 := decide (v6 = v7)
-    if v8 then
-      let v9 := self.l2
-      let v10 := other.l2
-      let v11 := decide (v9 = v10)
-      if v11 then
-        let v12 := self.l3
-        let v13 := other.l3
-        let v14 := decide (v12 = v13)
-        if v14 then
-          b3 true
+  let join_1 : FeM Bool := do
+    join false
+  -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+  if decide (self.l0 = other.l0) then
+    -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+    if decide (self.l1 = other.l1) then
+      -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+      if decide (self.l2 = other.l2) then
+        -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+        if decide (self.l3 = other.l3) then
+          join true
         else
-          b2
+          join_1
       else
-        b2
+        join_1
     else
-      b2
+      join_1
   else
-    b2
+    join_1
 
 /-- `Mont<Base>::value` -/
 def Mont_value_Base (self : Mont_Base) : FeM UInt256 := do
   let mut r0 : Mont_Base := default
+  -- let value = self.mul(raw<M>(1))
   let v2 ← raw_Base (UInt256.ofNat 1)
   r0 := v2
   let value ← Mont_mul_Base self r0
-  let v6 := value.l0
-  let v7 := v6
-  let v8 := value.l1
-  let v9 := v8
-  let v11 := v9 <<< (UInt256.ofNat 64)
-  let v12 := v7 ||| v11
-  let v13 := value.l2
-  let v14 := v13
-  let v16 := v14 <<< (UInt256.ofNat 128)
-  let v17 := v12 ||| v16
-  let v18 := value.l3
-  let v19 := v18
-  let v21 := v19 <<< (UInt256.ofNat 192)
-  let v22 := v17 ||| v21
-  return v22
+  -- value.l0 as u256 | (value.l1 as u256) << 64 | (value.l2 as u256) << 128 | (value.l3 as u256) << 192
+  let v17 := (value.l0 ||| (value.l1 <<< (UInt256.ofNat 64))) ||| (value.l2 <<< (UInt256.ofNat 128))
+  return v17 ||| (value.l3 <<< (UInt256.ofNat 192))
 
 /-- `<Order as Modulus>::VALUE` -/
 def Order_VALUE : FeM UInt256 := do
@@ -589,232 +494,182 @@ def Order_VALUE : FeM UInt256 := do
 
 /-- `lib::montgomery::raw<Order>` -/
 def raw_Order (value : UInt256) : FeM Mont_Order := do
+  -- Mont {
   let v1 ← downcast_truncate_u256_u64 value
-  let v4 := value >>> (UInt256.ofNat 64)
-  let v5 ← downcast_truncate_u256_u64 v4
-  let v8 := value >>> (UInt256.ofNat 128)
-  let v9 ← downcast_truncate_u256_u64 v8
-  let v12 := value >>> (UInt256.ofNat 192)
-  let v13 ← downcast_truncate_u256_u64 v12
-  let v14 := (Mont_Order.mk v1 v5 v9 v13)
-  return v14
+  let v5 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 64))
+  let v9 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 128))
+  let v13 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 192))
+  return Mont_Order.mk v1 v5 v9 v13
 
 /-- `<Order as Modulus>::R2` -/
 def Order_R2 : FeM UInt256 := do
-  return (UInt256.ofNat 71195301480278335217902614543643724933430614355449737089222010364394701574464)
+  return UInt256.ofNat 71195301480278335217902614543643724933430614355449737089222010364394701574464
 
 /-- `<Order as Modulus>::INV` -/
 def Order_INV : FeM UInt256 := do
-  return (UInt256.ofNat 5408259542528602431)
+  return UInt256.ofNat 5408259542528602431
 
 /-- `<Order as Modulus>::P0` -/
 def Order_P0 : FeM UInt256 := do
-  return (UInt256.ofNat 13822214165235122497)
+  return UInt256.ofNat 13822214165235122497
 
 /-- `<Order as Modulus>::P1` -/
 def Order_P1 : FeM UInt256 := do
-  return (UInt256.ofNat 13451932020343611451)
+  return UInt256.ofNat 13451932020343611451
 
 /-- `<Order as Modulus>::P2` -/
 def Order_P2 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744073709551614)
+  return UInt256.ofNat 18446744073709551614
 
 /-- `<Order as Modulus>::P3` -/
 def Order_P3 : FeM UInt256 := do
-  return (UInt256.ofNat 18446744073709551615)
+  return UInt256.ofNat 18446744073709551615
 
-def Mont_shift_reduced_Order_k3 (s5 : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (u3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) (u4_76 : UInt256) : FeM (Mont_Order × UInt256) := do
-  let ca_78 := v75.snd
-  let v80 ← adc s5 cb_72 ca_78
-  let u5 := v80.fst
-  let v83 := (Mont_Order.mk u1_33 u2_49 u3_65 u4_76)
-  let v84 := (v83, u5)
+def Mont_shift_reduced_Order_k3 (s5 : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (u5, _) = adc(s5, cb, ca)
+  let v80 ← adc s5 v69.snd v75.snd
+  -- (Mont { l0: u1, l1: u2, l2: u3, l3: u4 }, u5)
+  let v84 := ((Mont_Order.mk v32.fst v48.fst v64.fst v75.fst), v80.fst)
   return v84
 
-def Mont_shift_reduced_Order_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (ca_51 : UInt256) (v53 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
-  let u3_54 := v53.fst
-  let cb_56 := v53.snd
+def Mont_shift_reduced_Order_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v53 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (k3, j3) = mul_wide(m, M::P3)
   let v58 ← Order_P3
   let v59 ← mul_wide m v58
-  let k3 := v59.fst
-  let j3 := v59.snd
-  let v64 ← adc u3_54 k3 ca_51
-  let u3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc s4 j3 cb_56
-  let u4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc u4_70 (UInt256.ofNat 0) ca_67
-  let u4_76 := v75.fst
-  Mont_shift_reduced_Order_k3 s5 u1_33 u2_49 u3_65 cb_72 v75 u4_76
+  -- let (u3, ca) = adc(u3, k3, ca)
+  let v64 ← adc v53.fst v59.fst v48.snd
+  -- let (u4, cb) = adc(s4, j3, cb)
+  let v69 ← adc s4 v59.snd v53.snd
+  -- let (u4, ca) = adc(u4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_shift_reduced_Order_k3 s5 v32 v48 v64 v69 v75
 
-def Mont_shift_reduced_Order_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (ca_18 : UInt256) (u1_22 : UInt256) (cb_24 : UInt256) (v27 : (UInt256 × UInt256)) (k1 : UInt256) : FeM (Mont_Order × UInt256) := do
-  let j1 := v27.snd
-  let v32 ← adc u1_22 k1 ca_18
-  let u1_33 := v32.fst
-  let ca_35 := v32.snd
-  let v37 ← adc s2 j1 cb_24
-  let u2_38 := v37.fst
-  let cb_40 := v37.snd
+def Mont_shift_reduced_Order_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v17 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) (v27 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (u1, ca) = adc(u1, k1, ca)
+  let v32 ← adc v21.fst v27.fst v17.snd
+  -- let (u2, cb) = adc(s2, j1, cb)
+  let v37 ← adc s2 v27.snd v21.snd
+  -- let (k2, j2) = mul_wide(m, M::P2)
   let v42 ← Order_P2
   let v43 ← mul_wide m v42
-  let k2 := v43.fst
-  let j2 := v43.snd
-  let v48 ← adc u2_38 k2 ca_35
-  let u2_49 := v48.fst
-  let ca_51 := v48.snd
-  let v53 ← adc s3 j2 cb_40
-  Mont_shift_reduced_Order_k2 s4 s5 m u1_33 u2_49 ca_51 v53
+  -- let (u2, ca) = adc(u2, k2, ca)
+  let v48 ← adc v37.fst v43.fst v32.snd
+  -- let (u3, cb) = adc(s3, j2, cb)
+  let v53 ← adc s3 v43.snd v37.snd
+  Mont_shift_reduced_Order_k2 s4 s5 m v32 v48 v53
 
 /-- `Mont<Order>::shift_reduced` -/
 def Mont_shift_reduced_Order (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) : FeM (Mont_Order × UInt256) := do
+  -- let m = s0.wrapping_mul(M::INV)
   let v6 ← Order_INV
   let m ← u64_wrapping_mul s0 v6
+  -- let (k0, j0) = mul_wide(m, M::P0)
   let v10 ← Order_P0
   let v11 ← mul_wide m v10
-  let k0 := v11.fst
-  let j0 := v11.snd
-  let v17 ← adc s0 k0 (UInt256.ofNat 0)
-  let ca_18 := v17.snd
-  let v21 ← adc s1 j0 (UInt256.ofNat 0)
-  let u1_22 := v21.fst
-  let cb_24 := v21.snd
+  -- let (_, ca) = adc(s0, k0, 0)
+  let v17 ← adc s0 v11.fst (UInt256.ofNat 0)
+  -- let (u1, cb) = adc(s1, j0, 0)
+  let v21 ← adc s1 v11.snd (UInt256.ofNat 0)
+  -- let (k1, j1) = mul_wide(m, M::P1)
   let v26 ← Order_P1
   let v27 ← mul_wide m v26
-  let k1 := v27.fst
-  Mont_shift_reduced_Order_k1 s2 s3 s4 s5 m ca_18 u1_22 cb_24 v27 k1
+  Mont_shift_reduced_Order_k1 s2 s3 s4 s5 m v17 v21 v27
 
-def Mont_first_row_Order_k1 (self : Mont_Order) (b : UInt256) (s0 : UInt256) (h1 : UInt256) (s1 : UInt256) (c_18 : UInt256) (l2 : UInt256) (h2 : UInt256) : FeM (Mont_Order × UInt256) := do
-  let v26 ← adc h1 l2 c_18
-  let s2 := v26.fst
-  let c_29 := v26.snd
-  let v31 := self.l3
-  let v32 ← mul_wide b v31
-  let l3 := v32.fst
-  let h3 := v32.snd
-  let v37 ← adc h2 l3 c_29
-  let s3 := v37.fst
-  let c_40 := v37.snd
-  let v43 ← adc h3 (UInt256.ofNat 0) c_40
-  let s4 := v43.fst
-  let v47 ← Mont_shift_reduced_Order s0 s1 s2 s3 s4 (UInt256.ofNat 0)
+def Mont_first_row_Order_k1 (self : Mont_Order) (b : UInt256) (v3 : (UInt256 × UInt256)) (v9 : (UInt256 × UInt256)) (v15 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (s2, c) = adc(h1, l2, c)
+  let v26 ← adc v9.snd v21.fst v15.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v32 ← mul_wide b self.l3
+  -- let (s3, c) = adc(h2, l3, c)
+  let v37 ← adc v21.snd v32.fst v26.snd
+  -- let (s4, _) = adc(h3, 0, c)
+  let v43 ← adc v32.snd (UInt256.ofNat 0) v37.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, 0)
+  let v47 ← Mont_shift_reduced_Order v3.fst v15.fst v26.fst v37.fst v43.fst (UInt256.ofNat 0)
   return v47
 
 /-- `Mont<Order>::first_row` -/
 def Mont_first_row_Order (self : Mont_Order) (b : UInt256) : FeM (Mont_Order × UInt256) := do
-  let v2 := self.l0
-  let v3 ← mul_wide b v2
-  let s0 := v3.fst
-  let h0 := v3.snd
-  let v8 := self.l1
-  let v9 ← mul_wide b v8
-  let l1 := v9.fst
-  let h1 := v9.snd
-  let v15 ← adc h0 l1 (UInt256.ofNat 0)
-  let s1 := v15.fst
-  let c_18 := v15.snd
-  let v20 := self.l2
-  let v21 ← mul_wide b v20
-  let l2 := v21.fst
-  let h2 := v21.snd
-  Mont_first_row_Order_k1 self b s0 h1 s1 c_18 l2 h2
+  -- let (s0, h0) = mul_wide(b, self.l0)
+  let v3 ← mul_wide b self.l0
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v9 ← mul_wide b self.l1
+  -- let (s1, c) = adc(h0, l1, 0)
+  let v15 ← adc v3.snd v9.fst (UInt256.ofNat 0)
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v21 ← mul_wide b self.l2
+  Mont_first_row_Order_k1 self b v3 v9 v15 v21
 
-def Mont_row_Order_k3 (s0 : UInt256) (s1_31 : UInt256) (s2_48 : UInt256) (s3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
-  let s4_76 := v75.fst
-  let ca_78 := v75.snd
-  let v81 ← adc cb_72 (UInt256.ofNat 0) ca_78
-  let s5 := v81.fst
-  let v84 ← Mont_shift_reduced_Order s0 s1_31 s2_48 s3_65 s4_76 s5
+def Mont_row_Order_k3 (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (s5, _) = adc(cb, 0, ca)
+  let v81 ← adc v69.snd (UInt256.ofNat 0) v75.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, s5)
+  let v84 ← Mont_shift_reduced_Order v12.fst v30.fst v47.fst v64.fst v75.fst v81.fst
   return v84
 
-def Mont_row_Order_k2 (self : Mont_Order) (b : UInt256) (t : Mont_Order) (top : UInt256) (s0 : UInt256) (s1_31 : UInt256) (cb_39 : UInt256) (h2 : UInt256) (s2_48 : UInt256) (ca_50 : UInt256) : FeM (Mont_Order × UInt256) := do
-  let v52 := t.l3
-  let v53 ← adc v52 h2 cb_39
-  let s3_54 := v53.fst
-  let cb_56 := v53.snd
-  let v58 := self.l3
-  let v59 ← mul_wide b v58
-  let l3 := v59.fst
-  let h3 := v59.snd
-  let v64 ← adc s3_54 l3 ca_50
-  let s3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc top h3 cb_56
-  let s4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc s4_70 (UInt256.ofNat 0) ca_67
-  Mont_row_Order_k3 s0 s1_31 s2_48 s3_65 cb_72 v75
+def Mont_row_Order_k2 (self : Mont_Order) (b : UInt256) (t : Mont_Order) (top : UInt256) (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v36 : (UInt256 × UInt256)) (v42 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (s3, cb) = adc(t.l3, h2, cb)
+  let v53 ← adc t.l3 v42.snd v36.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v59 ← mul_wide b self.l3
+  -- let (s3, ca) = adc(s3, l3, ca)
+  let v64 ← adc v53.fst v59.fst v47.snd
+  -- let (s4, cb) = adc(top, h3, cb)
+  let v69 ← adc top v59.snd v53.snd
+  -- let (s4, ca) = adc(s4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_row_Order_k3 v12 v30 v47 v64 v69 v75
 
-def Mont_row_Order_k1 (self : Mont_Order) (b : UInt256) (t : Mont_Order) (top : UInt256) (s0 : UInt256) (ca_15 : UInt256) (s1_20 : UInt256) (cb_22 : UInt256) (v25 : (UInt256 × UInt256)) (l1 : UInt256) : FeM (Mont_Order × UInt256) := do
-  let h1 := v25.snd
-  let v30 ← adc s1_20 l1 ca_15
-  let s1_31 := v30.fst
-  let ca_33 := v30.snd
-  let v35 := t.l2
-  let v36 ← adc v35 h1 cb_22
-  let s2_37 := v36.fst
-  let cb_39 := v36.snd
-  let v41 := self.l2
-  let v42 ← mul_wide b v41
-  let l2 := v42.fst
-  let h2 := v42.snd
-  let v47 ← adc s2_37 l2 ca_33
-  let s2_48 := v47.fst
-  let ca_50 := v47.snd
-  Mont_row_Order_k2 self b t top s0 s1_31 cb_39 h2 s2_48 ca_50
+def Mont_row_Order_k1 (self : Mont_Order) (b : UInt256) (t : Mont_Order) (top : UInt256) (v12 : (UInt256 × UInt256)) (v19 : (UInt256 × UInt256)) (v25 : (UInt256 × UInt256)) : FeM (Mont_Order × UInt256) := do
+  -- let (s1, ca) = adc(s1, l1, ca)
+  let v30 ← adc v19.fst v25.fst v12.snd
+  -- let (s2, cb) = adc(t.l2, h1, cb)
+  let v36 ← adc t.l2 v25.snd v19.snd
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v42 ← mul_wide b self.l2
+  -- let (s2, ca) = adc(s2, l2, ca)
+  let v47 ← adc v36.fst v42.fst v30.snd
+  Mont_row_Order_k2 self b t top v12 v30 v36 v42 v47
 
 /-- `Mont<Order>::row` -/
 def Mont_row_Order (self : Mont_Order) (b : UInt256) (t : Mont_Order) (top : UInt256) : FeM (Mont_Order × UInt256) := do
-  let v4 := self.l0
-  let v5 ← mul_wide b v4
-  let l0 := v5.fst
-  let h0 := v5.snd
-  let v10 := t.l0
-  let v12 ← adc v10 l0 (UInt256.ofNat 0)
-  let s0 := v12.fst
-  let ca_15 := v12.snd
-  let v17 := t.l1
-  let v19 ← adc v17 h0 (UInt256.ofNat 0)
-  let s1_20 := v19.fst
-  let cb_22 := v19.snd
-  let v24 := self.l1
-  let v25 ← mul_wide b v24
-  let l1 := v25.fst
-  Mont_row_Order_k1 self b t top s0 ca_15 s1_20 cb_22 v25 l1
+  -- let (l0, h0) = mul_wide(b, self.l0)
+  let v5 ← mul_wide b self.l0
+  -- let (s0, ca) = adc(t.l0, l0, 0)
+  let v12 ← adc t.l0 v5.fst (UInt256.ofNat 0)
+  -- let (s1, cb) = adc(t.l1, h0, 0)
+  let v19 ← adc t.l1 v5.snd (UInt256.ofNat 0)
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v25 ← mul_wide b self.l1
+  Mont_row_Order_k1 self b t top v12 v19 v25
 
 /-- `Mont<Order>::reduce` -/
 def Mont_reduce_Order (self : Mont_Order) (top : UInt256) : FeM Mont_Order := do
-  let v3 := self.l0
+  -- let (d0, b) = sbb(self.l0, M::P0, 0)
   let v4 ← Order_P0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  let v6 ← sbb self.l0 v4 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
+  -- let (d1, b) = sbb(self.l1, M::P1, b)
   let v12 ← Order_P1
-  let v13 ← sbb v11 v12 b_9
+  let v13 ← sbb self.l1 v12 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
+  -- let (d2, b) = sbb(self.l2, M::P2, b)
   let v19 ← Order_P2
-  let v20 ← sbb v18 v19 b_16
+  let v20 ← sbb self.l2 v19 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
+  -- let (d3, b) = sbb(self.l3, M::P3, b)
   let v26 ← Order_P3
-  let v27 ← sbb v25 v26 b_23
+  let v27 ← sbb self.l3 v26 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
-  let v33 ← sbb top (UInt256.ofNat 0) b_30
-  let b_34 := v33.snd
-  let v37 := decide (b_34 = (UInt256.ofNat 1))
-  let b3 : Mont_Order → FeM Mont_Order := fun v2 => do
+  -- let (_, b) = sbb(top, 0, b)
+  let v33 ← sbb top (UInt256.ofNat 0) v27.snd
+  let join : Mont_Order → FeM Mont_Order := fun v2 => do
     return v2
-  if v37 then
-    let v38 := self
-    b3 v38
+  -- if b == 1 { self } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v33.snd = (UInt256.ofNat 1)) then
+    join self
   else
-    let v40 := (Mont_Order.mk d0 d1 d2 d3)
-    b3 v40
+    join (Mont_Order.mk d0 d1 d2 d3)
 
 /-- `<Mont<Order> as Field>::mul` -/
 def Mont_mul_Order (self : Mont_Order) (other : Mont_Order) : FeM Mont_Order := do
@@ -822,36 +677,30 @@ def Mont_mul_Order (self : Mont_Order) (other : Mont_Order) : FeM Mont_Order := 
   let mut t_r1 : Mont_Order := default
   let mut t_r2 : Mont_Order := default
   let mut t_r3 : Mont_Order := default
-  let v2 := other.l0
-  let v3 ← Mont_first_row_Order self v2
-  let t_4 := v3.fst
-  t_r0 := t_4
-  let top_6 := v3.snd
-  let v8 := other.l1
-  let v10 ← Mont_row_Order self v8 t_r0 top_6
-  let t_11 := v10.fst
-  t_r1 := t_11
-  let top_13 := v10.snd
-  let v15 := other.l2
-  let v17 ← Mont_row_Order self v15 t_r1 top_13
-  let t_18 := v17.fst
-  t_r2 := t_18
-  let top_20 := v17.snd
-  let v22 := other.l3
-  let v24 ← Mont_row_Order self v22 t_r2 top_20
-  let t_25 := v24.fst
-  t_r3 := t_25
-  let top_27 := v24.snd
-  let v30 ← Mont_reduce_Order t_r3 top_27
+  -- let (t, top) = self.first_row(other.l0)
+  let v3 ← Mont_first_row_Order self other.l0
+  t_r0 := v3.fst
+  -- let (t, top) = self.row(other.l1, t, top)
+  let v10 ← Mont_row_Order self other.l1 t_r0 v3.snd
+  t_r1 := v10.fst
+  -- let (t, top) = self.row(other.l2, t, top)
+  let v17 ← Mont_row_Order self other.l2 t_r1 v10.snd
+  t_r2 := v17.fst
+  -- let (t, top) = self.row(other.l3, t, top)
+  let v24 ← Mont_row_Order self other.l3 t_r2 v17.snd
+  t_r3 := v24.fst
+  -- t.reduce(top)
+  let v30 ← Mont_reduce_Order t_r3 v24.snd
   return v30
 
 /-- `Mont<Order>::new` -/
 def Mont_new_Order (value : UInt256) : FeM Mont_Order := do
   let mut r0 : Mont_Order := default
   let mut r1 : Mont_Order := default
+  -- core::assert(value < M::VALUE)
   let v2 ← Order_VALUE
-  let v3 := decide (value.toNat < v2.toNat)
-  let _ ← «assert» v3
+  let _ ← «assert» (decide (value.toNat < v2.toNat))
+  -- raw<M>(value).mul(raw<M>(M::R2))
   let v5 ← raw_Order value
   r0 := v5
   let v6 ← Order_R2
@@ -867,36 +716,35 @@ def Order_SIGNED_62 : FeM (Vector UInt256 5) := do
 
 /-- `<Order as Modulus>::INV62` -/
 def Order_INV62 : FeM UInt256 := do
-  return (UInt256.ofNat 3815112494326173377)
+  return UInt256.ofNat 3815112494326173377
 
 /-- `lib::inversion::M62` -/
 def M62 : FeM UInt256 := do
-  return (UInt256.ofNat 4611686018427387903)
+  return UInt256.ofNat 4611686018427387903
 
 /-- `lib::inversion::is_zero<5>` -/
 def is_zero_5 (r : (Vector UInt256 5)) : FeM Bool := do
   let mut i : UInt256 := default
+  -- var i: usize = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (i : UInt256) : FeM Bool := do
+  let rec loop (i : UInt256) : FeM Bool := do
     let mut i := i
-    let i_3 := i
-    let v6 := decide (i_3.toNat < (UInt256.ofNat 5).toNat)
-    if v6 then
+    -- while i < L {
+    if decide (i.toNat < (UInt256.ofNat 5).toNat) then
+      -- if r[i] != 0 { return false }
       let i_7 := i
       checkIndex i_7 5
-      let v8 := r[i_7.toNat]!
-      let v10 := decide (v8 ≠ (UInt256.ofNat 0))
-      if v10 then
+      if decide (r[i_7.toNat]! ≠ (UInt256.ofNat 0)) then
         return false
       else
-        let i_15 := i
-        let i_16 ← checkedAdd i_15 (UInt256.ofNat 1)
+        -- i += 1
+        let i_16 ← checkedAdd i (UInt256.ofNat 1)
         i := i_16
-        b1 i
+        loop i
     else
       return true
   partial_fixpoint
-  b1 i
+  loop i
 
 /-- `lib::inversion::divsteps` -/
 def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 × Transition) := do
@@ -909,15 +757,23 @@ def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 ×
   let mut eta : UInt256 := default
   let mut left : UInt256 := default
   let mut bits : UInt256 := default
+  -- var u: u64 = 1
   u := (UInt256.ofNat 1)
+  -- var v: u64 = 0
   v := (UInt256.ofNat 0)
+  -- var q: u64 = 0
   q := (UInt256.ofNat 0)
+  -- var r: u64 = 1
   r := (UInt256.ofNat 1)
+  -- var f = f0
   f := f0_1
+  -- var g = g0
   g := g0
+  -- var eta = eta
   eta := eta_0
+  -- var left: u64 = 62
   left := (UInt256.ofNat 62)
-  let rec b1 (u : UInt256) (v : UInt256) (q : UInt256) (r : UInt256) (f : UInt256) (g : UInt256) (eta : UInt256) (left : UInt256) (bits : UInt256) : FeM (UInt256 × Transition) := do
+  let rec loop (u : UInt256) (v : UInt256) (q : UInt256) (r : UInt256) (f : UInt256) (g : UInt256) (eta : UInt256) (left : UInt256) (bits : UInt256) : FeM (UInt256 × Transition) := do
     let mut u := u
     let mut v := v
     let mut q := q
@@ -927,47 +783,33 @@ def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 ×
     let mut eta := eta
     let mut left := left
     let mut bits := bits
-    let g_21 := g
-    let left_24 := left
-    let v25 := IntTy.shl (.u 64) (UInt256.ofNat 18446744073709551615) left_24
-    let v26 := g_21 ||| v25
-    let zeros := IntTy.trailingZeros (.u 64) v26
-    let g_29 := g
-    let g_31 := g_29 >>> zeros
-    g := g_31
-    let u_34 := u
-    let u_36 := IntTy.shl (.u 64) u_34 zeros
-    u := u_36
-    let v_39 := v
-    let v_41 := IntTy.shl (.u 64) v_39 zeros
-    v := v_41
+    -- let zeros = trailing_zeros(g | (0xffffffffffffffff << left))
+    let v25 := IntTy.shl (.u 64) (UInt256.ofNat 18446744073709551615) left
+    let zeros := IntTy.trailingZeros (.u 64) (g ||| v25)
+    -- g = g >> zeros
+    g := (g >>> zeros)
+    -- u = u << zeros
+    u := (IntTy.shl (.u 64) u zeros)
+    -- v = v << zeros
+    v := (IntTy.shl (.u 64) v zeros)
+    -- eta -= zeros.downcast_truncate()
     let v44 ← downcast_truncate_u64_i64 zeros
-    let eta_45 := eta
-    let eta_46 := IntTy.subW (.i 64) eta_45 v44
-    eta := eta_46
-    let left_49 := left
-    let left_50 := IntTy.subW (.u 64) left_49 zeros
-    left := left_50
-    let left_53 := left
-    let v56 := decide (left_53 = (UInt256.ofNat 0))
-    if v56 then
+    eta := (IntTy.subW (.i 64) eta v44)
+    -- left -= zeros
+    left := (IntTy.subW (.u 64) left zeros)
+    -- if left == 0 { break }
+    if decide (left = (UInt256.ofNat 0)) then
+      -- (eta, Transition { u: u.downcast_truncate(), v: v.downcast_truncate(), q: q.downcast_truncate(), r: r.downcast_truncate() })
       let eta_57 := eta
-      let u_59 := u
-      let v61 ← downcast_truncate_u64_i64 u_59
-      let v_62 := v
-      let v64 ← downcast_truncate_u64_i64 v_62
-      let q_65 := q
-      let v67 ← downcast_truncate_u64_i64 q_65
-      let r_68 := r
-      let v70 ← downcast_truncate_u64_i64 r_68
-      let v71 := (Transition.mk v61 v64 v67 v70)
-      let v72 := (eta_57, v71)
-      return v72
+      let v61 ← downcast_truncate_u64_i64 u
+      let v64 ← downcast_truncate_u64_i64 v
+      let v67 ← downcast_truncate_u64_i64 q
+      let v70 ← downcast_truncate_u64_i64 r
+      return (eta_57, (Transition.mk v61 v64 v67 v70))
     else
+      -- var bits: u64 = 15
       bits := (UInt256.ofNat 15)
-      let eta_77 := eta
-      let v80 := UInt256.sltBool eta_77 (UInt256.ofNat 0)
-      let b9 : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits => do
+      let join : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits => do
         let mut u := u
         let mut v := v
         let mut q := q
@@ -977,12 +819,9 @@ def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 ×
         let mut eta := eta
         let mut left := left
         let mut bits := bits
-        let eta_122 := eta
-        let v125 := IntTy.addW (.i 64) eta_122 (UInt256.ofNat 1)
-        let room ← downcast_truncate_i64_u64 v125
-        let left_128 := left
-        let v129 := decide (room.toNat < left_128.toNat)
-        let b12 : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits limit => do
+        -- let room: u64 = (eta + 1).downcast_truncate()
+        let room ← downcast_truncate_i64_u64 (IntTy.addW (.i 64) eta (UInt256.ofNat 1))
+        let join_1 : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits limit => do
           let mut u := u
           let mut v := v
           let mut q := q
@@ -992,13 +831,10 @@ def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 ×
           let mut eta := eta
           let mut left := left
           let mut bits := bits
-          let v137 := IntTy.subW (.u 64) (UInt256.ofNat 64) limit
-          let v138 := (UInt256.ofNat 18446744073709551615) >>> v137
-          let bits_139 := bits
-          let mask := v138 &&& bits_139
-          let bits_142 := bits
-          let v145 := decide (bits_142 = (UInt256.ofNat 63))
-          let b15 : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits w => do
+          -- let mask = (0xffffffffffffffff >> (64 - limit)) & bits
+          let v138 := (UInt256.ofNat 18446744073709551615) >>> (IntTy.subW (.u 64) (UInt256.ofNat 64) limit)
+          let mask := v138 &&& bits
+          let join_2 : UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → UInt256 → FeM (UInt256 × Transition) := fun u v q r f g eta left bits w => do
             let mut u := u
             let mut v := v
             let mut q := q
@@ -1008,81 +844,65 @@ def divsteps (eta_0 : UInt256) (f0_1 : UInt256) (g0 : UInt256) : FeM (UInt256 ×
             let mut eta := eta
             let mut left := left
             let mut bits := bits
-            let f_177 := f
-            let v179 := IntTy.mulW (.u 64) f_177 w
-            let g_180 := g
-            let g_181 := IntTy.addW (.u 64) g_180 v179
-            g := g_181
-            let u_184 := u
-            let v186 := IntTy.mulW (.u 64) u_184 w
-            let q_187 := q
-            let q_188 := IntTy.addW (.u 64) q_187 v186
-            q := q_188
-            let v_191 := v
-            let v193 := IntTy.mulW (.u 64) v_191 w
-            let r_194 := r
-            let r_195 := IntTy.addW (.u 64) r_194 v193
-            r := r_195
-            b1 u v q r f g eta left bits
-          if v145 then
-            let f_146 := f
-            let g_148 := g
-            let v149 := IntTy.mulW (.u 64) f_146 g_148
-            let f_150 := f
-            let f_152 := f
-            let v153 := IntTy.mulW (.u 64) f_150 f_152
-            let v155 := IntTy.subW (.u 64) v153 (UInt256.ofNat 2)
-            let v156 := IntTy.mulW (.u 64) v149 v155
-            let v157 := v156 &&& mask
-            b15 u v q r f g eta left bits v157
+            -- g += f * w
+            g := (IntTy.addW (.u 64) g (IntTy.mulW (.u 64) f w))
+            -- q += u * w
+            q := (IntTy.addW (.u 64) q (IntTy.mulW (.u 64) u w))
+            -- r += v * w
+            r := (IntTy.addW (.u 64) r (IntTy.mulW (.u 64) v w))
+            loop u v q r f g eta left bits
+          -- let w = if bits == 63 {
+          if decide (bits = (UInt256.ofNat 63)) then
+            -- (f * g * (f * f - 2)) & mask
+            let v155 := IntTy.subW (.u 64) (IntTy.mulW (.u 64) f f) (UInt256.ofNat 2)
+            let v157 := (IntTy.mulW (.u 64) (IntTy.mulW (.u 64) f g) v155) &&& mask
+            join_2 u v q r f g eta left bits v157
           else
-            let f_160 := f
-            let f_162 := f
-            let v165 := IntTy.addW (.u 64) f_162 (UInt256.ofNat 1)
-            let v167 := v165 &&& (UInt256.ofNat 4)
-            let v169 := IntTy.shl (.u 64) v167 (UInt256.ofNat 1)
-            let v170 := IntTy.addW (.u 64) f_160 v169
-            let v171 := IntTy.subW (.u 64) (UInt256.ofNat 0) v170
-            let g_172 := g
-            let v173 := IntTy.mulW (.u 64) v171 g_172
-            let v174 := v173 &&& mask
-            b15 u v q r f g eta left bits v174
-        if v129 then
-          b12 u v q r f g eta left bits room
+            -- ((0 - (f + (((f + 1) & 4) << 1))) * g) & mask
+            let v167 := (IntTy.addW (.u 64) f (UInt256.ofNat 1)) &&& (UInt256.ofNat 4)
+            let v170 := IntTy.addW (.u 64) f (IntTy.shl (.u 64) v167 (UInt256.ofNat 1))
+            let v173 := IntTy.mulW (.u 64) (IntTy.subW (.u 64) (UInt256.ofNat 0) v170) g
+            join_2 u v q r f g eta left bits (v173 &&& mask)
+        -- let limit = if room < left { room } else { left }
+        if decide (room.toNat < left.toNat) then
+          join_1 u v q r f g eta left bits room
         else
-          let left_131 := left
-          b12 u v q r f g eta left bits left_131
-      if v80 then
-        let eta_82 := eta
-        let eta_83 := IntTy.subW (.i 64) (UInt256.ofNat 0) eta_82
-        eta := eta_83
+          join_1 u v q r f g eta left bits left
+      -- if eta < 0 {
+      if UInt256.sltBool eta (UInt256.ofNat 0) then
+        -- eta = 0 - eta
+        eta := (IntTy.subW (.i 64) (UInt256.ofNat 0) eta)
+        -- let f_old = f
         let f_86 := f
-        let g_88 := g
-        f := g_88
-        let g_93 := IntTy.subW (.u 64) (UInt256.ofNat 0) f_86
-        g := g_93
+        -- f = g
+        f := g
+        -- g = 0 - f_old
+        g := (IntTy.subW (.u 64) (UInt256.ofNat 0) f_86)
+        -- let u_old = u
         let u_96 := u
-        let q_98 := q
-        u := q_98
-        let q_103 := IntTy.subW (.u 64) (UInt256.ofNat 0) u_96
-        q := q_103
+        -- u = q
+        u := q
+        -- q = 0 - u_old
+        q := (IntTy.subW (.u 64) (UInt256.ofNat 0) u_96)
+        -- let v_old = v
         let v_106 := v
-        let r_108 := r
-        v := r_108
-        let r_113 := IntTy.subW (.u 64) (UInt256.ofNat 0) v_106
-        r := r_113
+        -- v = r
+        v := r
+        -- r = 0 - v_old
+        r := (IntTy.subW (.u 64) (UInt256.ofNat 0) v_106)
+        -- bits = 63
         bits := (UInt256.ofNat 63)
-        b9 u v q r f g eta left bits
+        join u v q r f g eta left bits
       else
-        b9 u v q r f g eta left bits
+        join u v q r f g eta left bits
   partial_fixpoint
-  b1 u v q r f g eta left bits
+  loop u v q r f g eta left bits
 
 /-- `lib::inversion::M62_SIGNED` -/
 def M62_SIGNED : FeM UInt256 := do
-  return (UInt256.ofNat 4611686018427387903)
+  return UInt256.ofNat 4611686018427387903
 
-def update_de_5_k6 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (next_d_130 : (Vector UInt256 5)) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_de_5_k6 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
   let mut me := me
   let mut cd := cd
@@ -1090,11 +910,13 @@ def update_de_5_k6 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  next_d := next_d_130
-  let next_e_133 := Vector.replicate 5 (UInt256.ofNat 0)
-  next_e := next_e_133
+  -- var next_d: [i64; L] = [0; L]
+  next_d := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- var next_e: [i64; L] = [0; L]
+  next_e := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- var i: usize = 1
   i := (UInt256.ofNat 1)
-  let rec b1 (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+  let rec loop (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
     let mut md := md
     let mut me := me
     let mut cd := cd
@@ -1102,106 +924,65 @@ def update_de_5_k6 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
     let mut next_d := next_d
     let mut next_e := next_e
     let mut i := i
-    let i_137 := i
-    let v140 := decide (i_137.toNat < (UInt256.ofNat 5).toNat)
-    if v140 then
-      let v141 := t.u
-      let v142 := v141
+    -- while i < L {
+    if decide (i.toNat < (UInt256.ofNat 5).toNat) then
+      -- cd += (t.u as i128) * (d[i] as i128) + (t.v as i128) * (e[i] as i128) + (modulus[i] as i128) * (md as i128)
       let i_143 := i
       checkIndex i_143 5
-      let v144 := d[i_143.toNat]!
-      let v145 := v144
-      let v146 := IntTy.mulW (.i 128) v142 v145
-      let v147 := t.v
-      let v148 := v147
       let i_149 := i
       checkIndex i_149 5
-      let v150 := e[i_149.toNat]!
-      let v151 := v150
-      let v152 := IntTy.mulW (.i 128) v148 v151
-      let v153 := IntTy.addW (.i 128) v146 v152
+      let v153 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.u d[i_143.toNat]!) (IntTy.mulW (.i 128) t.v e[i_149.toNat]!)
       let i_154 := i
       checkIndex i_154 5
-      let v155 := modulus[i_154.toNat]!
-      let v156 := v155
-      let md_157 := md
-      let v158 := md_157
-      let v159 := IntTy.mulW (.i 128) v156 v158
-      let v160 := IntTy.addW (.i 128) v153 v159
-      let cd_161 := cd
-      let cd_162 := IntTy.addW (.i 128) cd_161 v160
-      cd := cd_162
-      let v165 := t.q
-      let v166 := v165
+      let v160 := IntTy.addW (.i 128) v153 (IntTy.mulW (.i 128) modulus[i_154.toNat]! md)
+      cd := (IntTy.addW (.i 128) cd v160)
+      -- ce += (t.q as i128) * (d[i] as i128) + (t.r as i128) * (e[i] as i128) + (modulus[i] as i128) * (me as i128)
       let i_167 := i
       checkIndex i_167 5
-      let v168 := d[i_167.toNat]!
-      let v169 := v168
-      let v170 := IntTy.mulW (.i 128) v166 v169
-      let v171 := t.r
-      let v172 := v171
       let i_173 := i
       checkIndex i_173 5
-      let v174 := e[i_173.toNat]!
-      let v175 := v174
-      let v176 := IntTy.mulW (.i 128) v172 v175
-      let v177 := IntTy.addW (.i 128) v170 v176
+      let v177 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.q d[i_167.toNat]!) (IntTy.mulW (.i 128) t.r e[i_173.toNat]!)
       let i_178 := i
       checkIndex i_178 5
-      let v179 := modulus[i_178.toNat]!
-      let v180 := v179
-      let me_181 := me
-      let v182 := me_181
-      let v183 := IntTy.mulW (.i 128) v180 v182
-      let v184 := IntTy.addW (.i 128) v177 v183
-      let ce_185 := ce
-      let ce_186 := IntTy.addW (.i 128) ce_185 v184
-      ce := ce_186
-      let cd_189 := cd
-      let limb_d ← downcast_truncate_i128_i64 cd_189
-      let ce_193 := ce
-      let limb_e ← downcast_truncate_i128_i64 ce_193
+      let v184 := IntTy.addW (.i 128) v177 (IntTy.mulW (.i 128) modulus[i_178.toNat]! me)
+      ce := (IntTy.addW (.i 128) ce v184)
+      -- let limb_d: i64 = cd.downcast_truncate()
+      let limb_d ← downcast_truncate_i128_i64 cd
+      -- let limb_e: i64 = ce.downcast_truncate()
+      let limb_e ← downcast_truncate_i128_i64 ce
+      -- next_d[i - 1] = limb_d & M62_SIGNED
       let v197 ← M62_SIGNED
-      let v198 := limb_d &&& v197
-      let i_199 := i
-      let v202 := i_199 - (UInt256.ofNat 1)
+      let v202 := i - (UInt256.ofNat 1)
       checkIndex v202 5
-      next_d := (next_d.set! v202.toNat v198)
+      next_d := (next_d.set! v202.toNat (limb_d &&& v197))
+      -- next_e[i - 1] = limb_e & M62_SIGNED
       let v204 ← M62_SIGNED
-      let v205 := limb_e &&& v204
-      let i_206 := i
-      let v209 := i_206 - (UInt256.ofNat 1)
+      let v209 := i - (UInt256.ofNat 1)
       checkIndex v209 5
-      next_e := (next_e.set! v209.toNat v205)
-      let cd_211 := cd
-      let cd_214 := IntTy.shr (.i 128) cd_211 (UInt256.ofNat 62)
-      cd := cd_214
-      let ce_217 := ce
-      let ce_220 := IntTy.shr (.i 128) ce_217 (UInt256.ofNat 62)
-      ce := ce_220
-      let i_224 := i
-      let i_225 := i_224 + (UInt256.ofNat 1)
-      i := i_225
-      b1 md me cd ce next_d next_e i
+      next_e := (next_e.set! v209.toNat (limb_e &&& v204))
+      -- cd = cd >> 62
+      cd := (IntTy.shr (.i 128) cd (UInt256.ofNat 62))
+      -- ce = ce >> 62
+      ce := (IntTy.shr (.i 128) ce (UInt256.ofNat 62))
+      -- i += 1
+      i := (i + (UInt256.ofNat 1))
+      loop md me cd ce next_d next_e i
     else
-      let cd_228 := cd
-      let v230 ← downcast_truncate_i128_i64 cd_228
+      -- next_d[L - 1] = cd.downcast_truncate()
+      let v230 ← downcast_truncate_i128_i64 cd
       let v233 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
       checkIndex v233 5
       next_d := (next_d.set! v233.toNat v230)
-      let ce_235 := ce
-      let v237 ← downcast_truncate_i128_i64 ce_235
+      -- next_e[L - 1] = ce.downcast_truncate()
+      let v237 ← downcast_truncate_i128_i64 ce
       let v240 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
       checkIndex v240 5
       next_e := (next_e.set! v240.toNat v237)
-      let next_d_242 := next_d
-      let next_e_244 := next_e
-      let v245 := (next_d_242, next_e_244)
-      return v245
+      return (next_d, next_e)
   partial_fixpoint
-  b1 md me cd ce next_d next_e i
+  loop md me cd ce next_d next_e i
 
-def update_de_5_k5 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (v109 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_de_5_k5 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (v107 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
   let mut me := me
   let mut cd := cd
@@ -1209,22 +990,15 @@ def update_de_5_k5 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  let me_110 := me
-  let v111 := me_110
-  let v112 := IntTy.mulW (.i 128) v109 v111
-  let ce_113 := ce
-  let ce_114 := IntTy.addW (.i 128) ce_113 v112
+  let ce_114 := IntTy.addW (.i 128) ce (IntTy.mulW (.i 128) modulus[v107.toNat]! me)
   ce := ce_114
-  let cd_117 := cd
-  let cd_120 := IntTy.shr (.i 128) cd_117 (UInt256.ofNat 62)
-  cd := cd_120
-  let ce_123 := ce
-  let ce_126 := IntTy.shr (.i 128) ce_123 (UInt256.ofNat 62)
-  ce := ce_126
-  let next_d_130 := Vector.replicate 5 (UInt256.ofNat 0)
-  update_de_5_k6 d e t modulus next_d_130 md me cd ce next_d next_e i
+  -- cd = cd >> 62
+  cd := (IntTy.shr (.i 128) cd (UInt256.ofNat 62))
+  -- ce = ce >> 62
+  ce := (IntTy.shr (.i 128) ce (UInt256.ofNat 62))
+  update_de_5_k6 d e t modulus md me cd ce next_d next_e i
 
-def update_de_5_k4 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (correction_e : UInt256) (md_90 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_de_5_k4 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (correction_d : UInt256) (correction_e : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
   let mut me := me
   let mut cd := cd
@@ -1232,25 +1006,19 @@ def update_de_5_k4 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  md := md_90
-  let me_93 := me
-  let me_94 := IntTy.subW (.i 64) me_93 correction_e
-  me := me_94
+  -- md -= correction_d
+  md := (IntTy.subW (.i 64) md correction_d)
+  -- me -= correction_e
+  me := (IntTy.subW (.i 64) me correction_e)
+  -- cd += (modulus[0] as i128) * (md as i128)
   let v97 := (UInt256.ofNat 0)
   checkIndex v97 5
-  let v98 := modulus[v97.toNat]!
-  let v99 := v98
-  let md_100 := md
-  let v101 := md_100
-  let v102 := IntTy.mulW (.i 128) v99 v101
-  let cd_103 := cd
-  let cd_104 := IntTy.addW (.i 128) cd_103 v102
+  let cd_104 := IntTy.addW (.i 128) cd (IntTy.mulW (.i 128) modulus[v97.toNat]! md)
   cd := cd_104
+  -- ce += (modulus[0] as i128) * (me as i128)
   let v107 := (UInt256.ofNat 0)
   checkIndex v107 5
-  let v108 := modulus[v107.toNat]!
-  let v109 := v108
-  update_de_5_k5 d e t modulus v109 md me cd ce next_d next_e i
+  update_de_5_k5 d e t modulus v107 md me cd ce next_d next_e i
 
 def update_de_5_k3 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (low_d : UInt256) (low_e : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
@@ -1260,25 +1028,21 @@ def update_de_5_k3 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  let md_67 := md
-  let md_bits ← downcast_truncate_i64_u64 md_67
-  let me_71 := me
-  let me_bits ← downcast_truncate_i64_u64 me_71
-  let v76 := IntTy.mulW (.u 64) inv62 low_d
-  let v77 := IntTy.addW (.u 64) v76 md_bits
+  -- let md_bits: u64 = md.downcast_truncate()
+  let md_bits ← downcast_truncate_i64_u64 md
+  -- let me_bits: u64 = me.downcast_truncate()
+  let me_bits ← downcast_truncate_i64_u64 me
+  -- let correction_d: i64 = ((inv62 * low_d + md_bits) & M62).downcast_truncate()
+  let v77 := IntTy.addW (.u 64) (IntTy.mulW (.u 64) inv62 low_d) md_bits
   let v78 ← M62
-  let v79 := v77 &&& v78
-  let correction_d ← downcast_truncate_u64_i64 v79
-  let v83 := IntTy.mulW (.u 64) inv62 low_e
-  let v84 := IntTy.addW (.u 64) v83 me_bits
+  let correction_d ← downcast_truncate_u64_i64 (v77 &&& v78)
+  -- let correction_e: i64 = ((inv62 * low_e + me_bits) & M62).downcast_truncate()
+  let v84 := IntTy.addW (.u 64) (IntTy.mulW (.u 64) inv62 low_e) me_bits
   let v85 ← M62
-  let v86 := v84 &&& v85
-  let correction_e ← downcast_truncate_u64_i64 v86
-  let md_89 := md
-  let md_90 := IntTy.subW (.i 64) md_89 correction_d
-  update_de_5_k4 d e t modulus correction_e md_90 md me cd ce next_d next_e i
+  let correction_e ← downcast_truncate_u64_i64 (v84 &&& v85)
+  update_de_5_k4 d e t modulus correction_d correction_e md me cd ce next_d next_e i
 
-def update_de_5_k2 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (v45 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_de_5_k2 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
   let mut me := me
   let mut cd := cd
@@ -1286,28 +1050,20 @@ def update_de_5_k2 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  let v46 := v45
+  -- var ce = (t.q as i128) * (d[0] as i128) + (t.r as i128) * (e[0] as i128)
   let v47 := (UInt256.ofNat 0)
   checkIndex v47 5
-  let v48 := d[v47.toNat]!
-  let v49 := v48
-  let v50 := IntTy.mulW (.i 128) v46 v49
-  let v51 := t.r
-  let v52 := v51
   let v53 := (UInt256.ofNat 0)
   checkIndex v53 5
-  let v54 := e[v53.toNat]!
-  let v55 := v54
-  let v56 := IntTy.mulW (.i 128) v52 v55
-  let ce_57 := IntTy.addW (.i 128) v50 v56
+  let ce_57 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.q d[v47.toNat]!) (IntTy.mulW (.i 128) t.r e[v53.toNat]!)
   ce := ce_57
-  let cd_59 := cd
-  let low_d ← downcast_truncate_i128_u64 cd_59
-  let ce_63 := ce
-  let low_e ← downcast_truncate_i128_u64 ce_63
+  -- let low_d: u64 = cd.downcast_truncate()
+  let low_d ← downcast_truncate_i128_u64 cd
+  -- let low_e: u64 = ce.downcast_truncate()
+  let low_e ← downcast_truncate_i128_u64 ce
   update_de_5_k3 d e t modulus inv62 low_d low_e md me cd ce next_d next_e i
 
-def update_de_5_k1 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (sd : UInt256) (se : UInt256) (v25 : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_de_5_k1 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (sd : UInt256) (se : UInt256) (md : UInt256) (me : UInt256) (cd : UInt256) (ce : UInt256) (next_d : (Vector UInt256 5)) (next_e : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut md := md
   let mut me := me
   let mut cd := cd
@@ -1315,29 +1071,16 @@ def update_de_5_k1 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transi
   let mut next_d := next_d
   let mut next_e := next_e
   let mut i := i
-  let v26 := v25 &&& sd
-  let v27 := t.r
-  let v28 := v27 &&& se
-  let me_29 := IntTy.addW (.i 64) v26 v28
-  me := me_29
-  let v31 := t.u
-  let v32 := v31
+  -- var me = (t.q & sd) + (t.r & se)
+  me := (IntTy.addW (.i 64) (t.q &&& sd) (t.r &&& se))
+  -- var cd = (t.u as i128) * (d[0] as i128) + (t.v as i128) * (e[0] as i128)
   let v33 := (UInt256.ofNat 0)
   checkIndex v33 5
-  let v34 := d[v33.toNat]!
-  let v35 := v34
-  let v36 := IntTy.mulW (.i 128) v32 v35
-  let v37 := t.v
-  let v38 := v37
   let v39 := (UInt256.ofNat 0)
   checkIndex v39 5
-  let v40 := e[v39.toNat]!
-  let v41 := v40
-  let v42 := IntTy.mulW (.i 128) v38 v41
-  let cd_43 := IntTy.addW (.i 128) v36 v42
+  let cd_43 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.u d[v33.toNat]!) (IntTy.mulW (.i 128) t.v e[v39.toNat]!)
   cd := cd_43
-  let v45 := t.q
-  update_de_5_k2 d e t modulus inv62 v45 md me cd ce next_d next_e i
+  update_de_5_k2 d e t modulus inv62 md me cd ce next_d next_e i
 
 /-- `lib::inversion::update_de<5>` -/
 def update_de_5 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transition) (modulus : (Vector UInt256 5)) (inv62 : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
@@ -1348,22 +1091,17 @@ def update_de_5 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (t : Transitio
   let mut next_d : (Vector UInt256 5) := default
   let mut next_e : (Vector UInt256 5) := default
   let mut i : UInt256 := default
+  -- let sd = d[L - 1] >> 63
   let v7 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
   checkIndex v7 5
-  let v8 := d[v7.toNat]!
-  let sd := IntTy.shr (.i 64) v8 (UInt256.ofNat 63)
+  let sd := IntTy.shr (.i 64) d[v7.toNat]! (UInt256.ofNat 63)
+  -- let se = e[L - 1] >> 63
   let v14 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
   checkIndex v14 5
-  let v15 := e[v14.toNat]!
-  let se := IntTy.shr (.i 64) v15 (UInt256.ofNat 63)
-  let v19 := t.u
-  let v20 := v19 &&& sd
-  let v21 := t.v
-  let v22 := v21 &&& se
-  let md_23 := IntTy.addW (.i 64) v20 v22
-  md := md_23
-  let v25 := t.q
-  update_de_5_k1 d e t modulus inv62 sd se v25 md me cd ce next_d next_e i
+  let se := IntTy.shr (.i 64) e[v14.toNat]! (UInt256.ofNat 63)
+  -- var md = (t.u & sd) + (t.v & se)
+  md := (IntTy.addW (.i 64) (t.u &&& sd) (t.v &&& se))
+  update_de_5_k1 d e t modulus inv62 sd se md me cd ce next_d next_e i
 
 def update_fg_5_k2 (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (t : Transition) (cf : UInt256) (cg : UInt256) (next_f : (Vector UInt256 5)) (next_g : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut cf := cf
@@ -1371,121 +1109,84 @@ def update_fg_5_k2 (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (t : Transi
   let mut next_f := next_f
   let mut next_g := next_g
   let mut i := i
-  let next_f_44 := Vector.replicate 5 (UInt256.ofNat 0)
-  next_f := next_f_44
-  let next_g_47 := Vector.replicate 5 (UInt256.ofNat 0)
-  next_g := next_g_47
+  -- var next_f: [i64; L] = [0; L]
+  next_f := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- var next_g: [i64; L] = [0; L]
+  next_g := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- var i: usize = 1
   i := (UInt256.ofNat 1)
-  let rec b1 (cf : UInt256) (cg : UInt256) (next_f : (Vector UInt256 5)) (next_g : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+  let rec loop (cf : UInt256) (cg : UInt256) (next_f : (Vector UInt256 5)) (next_g : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
     let mut cf := cf
     let mut cg := cg
     let mut next_f := next_f
     let mut next_g := next_g
     let mut i := i
-    let i_51 := i
-    let v54 := decide (i_51.toNat < (UInt256.ofNat 5).toNat)
-    if v54 then
-      let v55 := t.u
-      let v56 := v55
+    -- while i < L {
+    if decide (i.toNat < (UInt256.ofNat 5).toNat) then
+      -- cf += (t.u as i128) * (f[i] as i128) + (t.v as i128) * (g[i] as i128)
       let i_57 := i
       checkIndex i_57 5
-      let v58 := f[i_57.toNat]!
-      let v59 := v58
-      let v60 := IntTy.mulW (.i 128) v56 v59
-      let v61 := t.v
-      let v62 := v61
       let i_63 := i
       checkIndex i_63 5
-      let v64 := g[i_63.toNat]!
-      let v65 := v64
-      let v66 := IntTy.mulW (.i 128) v62 v65
-      let v67 := IntTy.addW (.i 128) v60 v66
-      let cf_68 := cf
-      let cf_69 := IntTy.addW (.i 128) cf_68 v67
-      cf := cf_69
-      let v72 := t.q
-      let v73 := v72
+      let v67 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.u f[i_57.toNat]!) (IntTy.mulW (.i 128) t.v g[i_63.toNat]!)
+      cf := (IntTy.addW (.i 128) cf v67)
+      -- cg += (t.q as i128) * (f[i] as i128) + (t.r as i128) * (g[i] as i128)
       let i_74 := i
       checkIndex i_74 5
-      let v75 := f[i_74.toNat]!
-      let v76 := v75
-      let v77 := IntTy.mulW (.i 128) v73 v76
-      let v78 := t.r
-      let v79 := v78
       let i_80 := i
       checkIndex i_80 5
-      let v81 := g[i_80.toNat]!
-      let v82 := v81
-      let v83 := IntTy.mulW (.i 128) v79 v82
-      let v84 := IntTy.addW (.i 128) v77 v83
-      let cg_85 := cg
-      let cg_86 := IntTy.addW (.i 128) cg_85 v84
-      cg := cg_86
-      let cf_89 := cf
-      let limb_f ← downcast_truncate_i128_i64 cf_89
-      let cg_93 := cg
-      let limb_g ← downcast_truncate_i128_i64 cg_93
+      let v84 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.q f[i_74.toNat]!) (IntTy.mulW (.i 128) t.r g[i_80.toNat]!)
+      cg := (IntTy.addW (.i 128) cg v84)
+      -- let limb_f: i64 = cf.downcast_truncate()
+      let limb_f ← downcast_truncate_i128_i64 cf
+      -- let limb_g: i64 = cg.downcast_truncate()
+      let limb_g ← downcast_truncate_i128_i64 cg
+      -- next_f[i - 1] = limb_f & M62_SIGNED
       let v97 ← M62_SIGNED
-      let v98 := limb_f &&& v97
-      let i_99 := i
-      let v102 := i_99 - (UInt256.ofNat 1)
+      let v102 := i - (UInt256.ofNat 1)
       checkIndex v102 5
-      next_f := (next_f.set! v102.toNat v98)
+      next_f := (next_f.set! v102.toNat (limb_f &&& v97))
+      -- next_g[i - 1] = limb_g & M62_SIGNED
       let v104 ← M62_SIGNED
-      let v105 := limb_g &&& v104
-      let i_106 := i
-      let v109 := i_106 - (UInt256.ofNat 1)
+      let v109 := i - (UInt256.ofNat 1)
       checkIndex v109 5
-      next_g := (next_g.set! v109.toNat v105)
-      let cf_111 := cf
-      let cf_114 := IntTy.shr (.i 128) cf_111 (UInt256.ofNat 62)
-      cf := cf_114
-      let cg_117 := cg
-      let cg_120 := IntTy.shr (.i 128) cg_117 (UInt256.ofNat 62)
-      cg := cg_120
-      let i_124 := i
-      let i_125 := i_124 + (UInt256.ofNat 1)
-      i := i_125
-      b1 cf cg next_f next_g i
+      next_g := (next_g.set! v109.toNat (limb_g &&& v104))
+      -- cf = cf >> 62
+      cf := (IntTy.shr (.i 128) cf (UInt256.ofNat 62))
+      -- cg = cg >> 62
+      cg := (IntTy.shr (.i 128) cg (UInt256.ofNat 62))
+      -- i += 1
+      i := (i + (UInt256.ofNat 1))
+      loop cf cg next_f next_g i
     else
-      let cf_128 := cf
-      let v130 ← downcast_truncate_i128_i64 cf_128
+      -- next_f[L - 1] = cf.downcast_truncate()
+      let v130 ← downcast_truncate_i128_i64 cf
       let v133 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
       checkIndex v133 5
       next_f := (next_f.set! v133.toNat v130)
-      let cg_135 := cg
-      let v137 ← downcast_truncate_i128_i64 cg_135
+      -- next_g[L - 1] = cg.downcast_truncate()
+      let v137 ← downcast_truncate_i128_i64 cg
       let v140 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
       checkIndex v140 5
       next_g := (next_g.set! v140.toNat v137)
-      let next_f_142 := next_f
-      let next_g_144 := next_g
-      let v145 := (next_f_142, next_g_144)
-      return v145
+      return (next_f, next_g)
   partial_fixpoint
-  b1 cf cg next_f next_g i
+  loop cf cg next_f next_g i
 
-def update_fg_5_k1 (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (t : Transition) (v22 : UInt256) (cf : UInt256) (cg : UInt256) (next_f : (Vector UInt256 5)) (next_g : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
+def update_fg_5_k1 (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (t : Transition) (v19 : UInt256) (cf : UInt256) (cg : UInt256) (next_f : (Vector UInt256 5)) (next_g : (Vector UInt256 5)) (i : UInt256) : FeM ((Vector UInt256 5) × (Vector UInt256 5)) := do
   let mut cf := cf
   let mut cg := cg
   let mut next_f := next_f
   let mut next_g := next_g
   let mut i := i
-  let v23 := t.r
-  let v24 := v23
   let v25 := (UInt256.ofNat 0)
   checkIndex v25 5
-  let v26 := g[v25.toNat]!
-  let v27 := v26
-  let v28 := IntTy.mulW (.i 128) v24 v27
-  let cg_29 := IntTy.addW (.i 128) v22 v28
+  let cg_29 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.q f[v19.toNat]!) (IntTy.mulW (.i 128) t.r g[v25.toNat]!)
   cg := cg_29
-  let cf_31 := cf
-  let cf_34 := IntTy.shr (.i 128) cf_31 (UInt256.ofNat 62)
-  cf := cf_34
-  let cg_37 := cg
-  let cg_40 := IntTy.shr (.i 128) cg_37 (UInt256.ofNat 62)
-  cg := cg_40
+  -- cf = cf >> 62
+  cf := (IntTy.shr (.i 128) cf (UInt256.ofNat 62))
+  -- cg = cg >> 62
+  cg := (IntTy.shr (.i 128) cg (UInt256.ofNat 62))
   update_fg_5_k2 f g t cf cg next_f next_g i
 
 /-- `lib::inversion::update_fg<5>` -/
@@ -1495,111 +1196,88 @@ def update_fg_5 (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (t : Transitio
   let mut next_f : (Vector UInt256 5) := default
   let mut next_g : (Vector UInt256 5) := default
   let mut i : UInt256 := default
-  let v3 := t.u
-  let v4 := v3
+  -- var cf = (t.u as i128) * (f[0] as i128) + (t.v as i128) * (g[0] as i128)
   let v5 := (UInt256.ofNat 0)
   checkIndex v5 5
-  let v6 := f[v5.toNat]!
-  let v7 := v6
-  let v8 := IntTy.mulW (.i 128) v4 v7
-  let v9 := t.v
-  let v10 := v9
   let v11 := (UInt256.ofNat 0)
   checkIndex v11 5
-  let v12 := g[v11.toNat]!
-  let v13 := v12
-  let v14 := IntTy.mulW (.i 128) v10 v13
-  let cf_15 := IntTy.addW (.i 128) v8 v14
+  let cf_15 := IntTy.addW (.i 128) (IntTy.mulW (.i 128) t.u f[v5.toNat]!) (IntTy.mulW (.i 128) t.v g[v11.toNat]!)
   cf := cf_15
-  let v17 := t.q
-  let v18 := v17
+  -- var cg = (t.q as i128) * (f[0] as i128) + (t.r as i128) * (g[0] as i128)
   let v19 := (UInt256.ofNat 0)
   checkIndex v19 5
-  let v20 := f[v19.toNat]!
-  let v21 := v20
-  let v22 := IntTy.mulW (.i 128) v18 v21
-  update_fg_5_k1 f g t v22 cf cg next_f next_g i
+  update_fg_5_k1 f g t v19 cf cg next_f next_g i
 
 /-- `lib::inversion::add_if_negative<5>` -/
 def add_if_negative_5 (r_0 : (Vector UInt256 5)) (modulus : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
   let mut r : (Vector UInt256 5) := default
   let mut i : UInt256 := default
-  let r_2 := r_0
-  r := r_2
+  -- var r = r
+  r := r_0
+  -- let negative = r[L - 1] >> 63
   let v6 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
   checkIndex v6 5
-  let v7 := r[v6.toNat]!
-  let negative := IntTy.shr (.i 64) v7 (UInt256.ofNat 63)
+  let negative := IntTy.shr (.i 64) r[v6.toNat]! (UInt256.ofNat 63)
+  -- var i: usize = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (r : (Vector UInt256 5)) (i : UInt256) : FeM (Vector UInt256 5) := do
+  let rec loop (r : (Vector UInt256 5)) (i : UInt256) : FeM (Vector UInt256 5) := do
     let mut r := r
     let mut i := i
-    let i_13 := i
-    let v16 := decide (i_13.toNat < (UInt256.ofNat 5).toNat)
-    if v16 then
+    -- while i < L {
+    if decide (i.toNat < (UInt256.ofNat 5).toNat) then
+      -- r[i] += modulus[i] & negative
       let i_17 := i
       checkIndex i_17 5
-      let v18 := modulus[i_17.toNat]!
-      let v19 := v18 &&& negative
       let i_20 := i
       checkIndex i_20 5
-      let v21 := r[i_20.toNat]!
-      let v22 := IntTy.addW (.i 64) v21 v19
+      let v22 := IntTy.addW (.i 64) r[i_20.toNat]! (modulus[i_17.toNat]! &&& negative)
       let i_23 := i
       checkIndex i_23 5
       r := (r.set! i_23.toNat v22)
-      let i_26 := i
-      let i_27 := i_26 + (UInt256.ofNat 1)
-      i := i_27
-      b1 r i
+      -- i += 1
+      i := (i + (UInt256.ofNat 1))
+      loop r i
     else
-      let r_30 := r
-      return r_30
+      return r
   partial_fixpoint
-  b1 r i
+  loop r i
 
 /-- `lib::inversion::carry<5>` -/
 def carry_5 (r_0 : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
   let mut r : (Vector UInt256 5) := default
   let mut i : UInt256 := default
-  let r_1 := r_0
-  r := r_1
+  -- var r = r
+  r := r_0
+  -- var i: usize = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (r : (Vector UInt256 5)) (i : UInt256) : FeM (Vector UInt256 5) := do
+  let rec loop (r : (Vector UInt256 5)) (i : UInt256) : FeM (Vector UInt256 5) := do
     let mut r := r
     let mut i := i
-    let i_5 := i
-    let v8 := i_5 + (UInt256.ofNat 1)
-    let v10 := decide (v8.toNat < (UInt256.ofNat 5).toNat)
+    -- while i + 1 < L {
+    let v10 := decide ((i + (UInt256.ofNat 1)).toNat < (UInt256.ofNat 5).toNat)
     if v10 then
+      -- r[i + 1] += r[i] >> 62
       let i_11 := i
       checkIndex i_11 5
-      let v12 := r[i_11.toNat]!
-      let v14 := IntTy.shr (.i 64) v12 (UInt256.ofNat 62)
-      let i_15 := i
-      let v18 := i_15 + (UInt256.ofNat 1)
+      let v14 := IntTy.shr (.i 64) r[i_11.toNat]! (UInt256.ofNat 62)
+      let v18 := i + (UInt256.ofNat 1)
       checkIndex v18 5
-      let v19 := r[v18.toNat]!
-      let v20 := IntTy.addW (.i 64) v19 v14
       checkIndex v18 5
-      r := (r.set! v18.toNat v20)
+      r := (r.set! v18.toNat (IntTy.addW (.i 64) r[v18.toNat]! v14))
+      -- r[i] &= M62_SIGNED
       let v22 ← M62_SIGNED
       let i_23 := i
       checkIndex i_23 5
-      let v24 := r[i_23.toNat]!
-      let v25 := v24 &&& v22
       let i_26 := i
       checkIndex i_26 5
-      r := (r.set! i_26.toNat v25)
-      let i_29 := i
-      let i_30 := i_29 + (UInt256.ofNat 1)
-      i := i_30
-      b1 r i
+      r := (r.set! i_26.toNat (r[i_23.toNat]! &&& v22))
+      -- i += 1
+      i := (i + (UInt256.ofNat 1))
+      loop r i
     else
-      let r_33 := r
-      return r_33
+      return r
   partial_fixpoint
-  b1 r i
+  loop r i
 
 /-- `lib::inversion::normalize<5>` -/
 def normalize_5 (r_0 : (Vector UInt256 5)) (sign : UInt256) (modulus : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
@@ -1608,34 +1286,34 @@ def normalize_5 (r_0 : (Vector UInt256 5)) (sign : UInt256) (modulus : (Vector U
   let mut r2 : (Vector UInt256 5) := default
   let mut r3 : (Vector UInt256 5) := default
   let mut r4 : (Vector UInt256 5) := default
+  -- var r = add_if_negative(r, modulus)
   let r_3 ← add_if_negative_5 r_0 modulus
   r := r_3
+  -- let negate = sign >> 63
   let negate := IntTy.shr (.i 64) sign (UInt256.ofNat 63)
+  -- var i: usize = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (r : (Vector UInt256 5)) (i : UInt256) (r2 : (Vector UInt256 5)) (r3 : (Vector UInt256 5)) (r4 : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
+  let rec loop (r : (Vector UInt256 5)) (i : UInt256) (r2 : (Vector UInt256 5)) (r3 : (Vector UInt256 5)) (r4 : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
     let mut r := r
     let mut i := i
     let mut r2 := r2
     let mut r3 := r3
     let mut r4 := r4
-    let i_11 := i
-    let v14 := decide (i_11.toNat < (UInt256.ofNat 5).toNat)
-    if v14 then
+    -- while i < L {
+    if decide (i.toNat < (UInt256.ofNat 5).toNat) then
+      -- r[i] = (r[i] ^ negate) - negate
       let i_15 := i
       checkIndex i_15 5
-      let v16 := r[i_15.toNat]!
-      let v17 := v16 ^^^ negate
-      let v18 := IntTy.subW (.i 64) v17 negate
+      let v18 := IntTy.subW (.i 64) (r[i_15.toNat]! ^^^ negate) negate
       let i_19 := i
       checkIndex i_19 5
       r := (r.set! i_19.toNat v18)
-      let i_22 := i
-      let i_23 := i_22 + (UInt256.ofNat 1)
-      i := i_23
-      b1 r i r2 r3 r4
+      -- i += 1
+      i := (i + (UInt256.ofNat 1))
+      loop r i r2 r3 r4
     else
-      let r_26 := r
-      r2 := r_26
+      -- carry(add_if_negative(carry(r), modulus))
+      r2 := r
       let v29 ← carry_5 r2
       r3 := v29
       let v31 ← add_if_negative_5 r3 modulus
@@ -1643,7 +1321,7 @@ def normalize_5 (r_0 : (Vector UInt256 5)) (sign : UInt256) (modulus : (Vector U
       let v33 ← carry_5 r4
       return v33
   partial_fixpoint
-  b1 r i r2 r3 r4
+  loop r i r2 r3 r4
 
 /-- `lib::inversion::invert<5>` -/
 def invert_5 (x : (Vector UInt256 5)) (modulus : (Vector UInt256 5)) (inv62 : UInt256) : FeM (Vector UInt256 5) := do
@@ -1659,19 +1337,21 @@ def invert_5 (x : (Vector UInt256 5)) (modulus : (Vector UInt256 5)) (inv62 : UI
   let mut r9 : (Vector UInt256 5) := default
   let mut r10 : (Vector UInt256 5) := default
   let mut r11 : (Vector UInt256 5) := default
-  let d_4 := Vector.replicate 5 (UInt256.ofNat 0)
-  d := d_4
-  let e_7 := Vector.replicate 5 (UInt256.ofNat 0)
-  e := e_7
+  -- var d: [i64; L] = [0; L]
+  d := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- var e: [i64; L] = [0; L]
+  e := (Vector.replicate 5 (UInt256.ofNat 0))
+  -- e[0] = 1
   let v10 := (UInt256.ofNat 0)
   checkIndex v10 5
   e := (e.set! v10.toNat (UInt256.ofNat 1))
-  let f_12 := modulus
-  f := f_12
-  let g_14 := x
-  g := g_14
+  -- var f = modulus
+  f := modulus
+  -- var g = x
+  g := x
+  -- var eta: i64 = -1
   eta := (IntTy.wrap (.i 256) (-1))
-  let rec b1 (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (eta : UInt256) (t : Transition) (r6 : (Vector UInt256 5)) (r7 : (Vector UInt256 5)) (r8 : (Vector UInt256 5)) (r9 : (Vector UInt256 5)) (r10 : (Vector UInt256 5)) (r11 : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
+  let rec loop (d : (Vector UInt256 5)) (e : (Vector UInt256 5)) (f : (Vector UInt256 5)) (g : (Vector UInt256 5)) (eta : UInt256) (t : Transition) (r6 : (Vector UInt256 5)) (r7 : (Vector UInt256 5)) (r8 : (Vector UInt256 5)) (r9 : (Vector UInt256 5)) (r10 : (Vector UInt256 5)) (r11 : (Vector UInt256 5)) : FeM (Vector UInt256 5) := do
     let mut d := d
     let mut e := e
     let mut f := f
@@ -1684,190 +1364,147 @@ def invert_5 (x : (Vector UInt256 5)) (modulus : (Vector UInt256 5)) (inv62 : UI
     let mut r9 := r9
     let mut r10 := r10
     let mut r11 := r11
-    let g_18 := g
-    r6 := g_18
+    -- while !is_zero(g) {
+    r6 := g
     let v21 ← is_zero_5 r6
-    let v22 := !v21
-    if v22 then
+    if !v21 then
+      -- let (next, t) = divsteps(eta, f[0].downcast_truncate(), g[0].downcast_truncate())
       let eta_23 := eta
       let v25 := (UInt256.ofNat 0)
       checkIndex v25 5
-      let v26 := f[v25.toNat]!
-      let v27 ← downcast_truncate_i64_u64 v26
+      let v27 ← downcast_truncate_i64_u64 f[v25.toNat]!
       let v28 := (UInt256.ofNat 0)
       checkIndex v28 5
-      let v29 := g[v28.toNat]!
-      let v30 ← downcast_truncate_i64_u64 v29
+      let v30 ← downcast_truncate_i64_u64 g[v28.toNat]!
       let v31 ← divsteps eta_23 v27 v30
-      let next := v31.fst
-      let t_34 := v31.snd
-      t := t_34
-      eta := next
-      let d_38 := d
-      r7 := d_38
-      let e_40 := e
-      r8 := e_40
+      t := v31.snd
+      -- eta = next
+      eta := v31.fst
+      -- let (next_d, next_e) = update_de(d, e, t, modulus, inv62)
+      r7 := d
+      r8 := e
       let v45 ← update_de_5 r7 r8 t modulus inv62
-      let next_d := v45.fst
-      let next_e := v45.snd
-      d := next_d
-      e := next_e
-      let f_54 := f
-      r9 := f_54
-      let g_56 := g
-      r10 := g_56
+      -- d = next_d
+      d := v45.fst
+      -- e = next_e
+      e := v45.snd
+      -- let (next_f, next_g) = update_fg(f, g, t)
+      r9 := f
+      r10 := g
       let v61 ← update_fg_5 r9 r10 t
-      let next_f := v61.fst
-      let next_g := v61.snd
-      f := next_f
-      g := next_g
-      b1 d e f g eta t r6 r7 r8 r9 r10 r11
+      -- f = next_f
+      f := v61.fst
+      -- g = next_g
+      g := v61.snd
+      loop d e f g eta t r6 r7 r8 r9 r10 r11
     else
-      let d_70 := d
-      r11 := d_70
+      -- normalize(d, f[L - 1], modulus)
+      r11 := d
       let v74 := (UInt256.ofNat 5) - (UInt256.ofNat 1)
       checkIndex v74 5
       let v75 := f[v74.toNat]!
       let v77 ← normalize_5 r11 v75 modulus
       return v77
   partial_fixpoint
-  b1 d e f g eta t r6 r7 r8 r9 r10 r11
+  loop d e f g eta t r6 r7 r8 r9 r10 r11
 
-def invert_256_k5 (v76 : UInt256) (v85 : UInt256) (v94 : UInt256) (v98 : UInt256) (v100 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
+def invert_256_k5 (w : (Vector UInt256 5)) (v76 : UInt256) (v85 : UInt256) (v94 : UInt256) (v95 : UInt256) (v99 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
   let mut r0 := r0
-  let v102 := IntTy.shl (.u 64) v100 (UInt256.ofNat 56)
-  let v103 := v98 ||| v102
-  let v104 := #v[v76, v85, v94, v103]
-  return v104
+  let v103 := (w[v95.toNat]! >>> (UInt256.ofNat 6)) ||| (IntTy.shl (.u 64) w[v99.toNat]! (UInt256.ofNat 56))
+  return #v[v76, v85, v94, v103]
 
-def invert_256_k4 (w : (Vector UInt256 5)) (v76 : UInt256) (v80 : UInt256) (v81 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
+def invert_256_k4 (w : (Vector UInt256 5)) (v76 : UInt256) (v77 : UInt256) (v81 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
   let mut r0 := r0
-  let v82 := w[v81.toNat]!
-  let v84 := IntTy.shl (.u 64) v82 (UInt256.ofNat 60)
-  let v85 := v80 ||| v84
+  let v85 := (w[v77.toNat]! >>> (UInt256.ofNat 2)) ||| (IntTy.shl (.u 64) w[v81.toNat]! (UInt256.ofNat 60))
   let v86 := (UInt256.ofNat 2)
   checkIndex v86 5
-  let v87 := w[v86.toNat]!
-  let v89 := v87 >>> (UInt256.ofNat 4)
   let v90 := (UInt256.ofNat 3)
   checkIndex v90 5
-  let v91 := w[v90.toNat]!
-  let v93 := IntTy.shl (.u 64) v91 (UInt256.ofNat 58)
-  let v94 := v89 ||| v93
+  let v94 := (w[v86.toNat]! >>> (UInt256.ofNat 4)) ||| (IntTy.shl (.u 64) w[v90.toNat]! (UInt256.ofNat 58))
   let v95 := (UInt256.ofNat 3)
   checkIndex v95 5
-  let v96 := w[v95.toNat]!
-  let v98 := v96 >>> (UInt256.ofNat 6)
   let v99 := (UInt256.ofNat 4)
   checkIndex v99 5
-  let v100 := w[v99.toNat]!
-  invert_256_k5 v76 v85 v94 v98 v100 r0
+  invert_256_k5 w v76 v85 v94 v95 v99 r0
 
 def invert_256_k3 (s : (Vector UInt256 5)) (v55 : UInt256) (v58 : UInt256) (v61 : UInt256) (v62 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
   let mut r0 := r0
-  let v63 := s[v62.toNat]!
-  let v64 ← downcast_truncate_i64_u64 v63
+  let v64 ← downcast_truncate_i64_u64 s[v62.toNat]!
   let v65 := (UInt256.ofNat 4)
   checkIndex v65 5
-  let v66 := s[v65.toNat]!
-  let v67 ← downcast_truncate_i64_u64 v66
+  let v67 ← downcast_truncate_i64_u64 s[v65.toNat]!
   let w := #v[v55, v58, v61, v64, v67]
+  -- [w[0] | (w[1] << 62), (w[1] >> 2) | (w[2] << 60), (w[2] >> 4) | (w[3] << 58), (w[3] >> 6) | (w[4] << 56)]
   let v70 := (UInt256.ofNat 0)
   checkIndex v70 5
-  let v71 := w[v70.toNat]!
   let v72 := (UInt256.ofNat 1)
   checkIndex v72 5
-  let v73 := w[v72.toNat]!
-  let v75 := IntTy.shl (.u 64) v73 (UInt256.ofNat 62)
-  let v76 := v71 ||| v75
+  let v76 := w[v70.toNat]! ||| (IntTy.shl (.u 64) w[v72.toNat]! (UInt256.ofNat 62))
   let v77 := (UInt256.ofNat 1)
   checkIndex v77 5
-  let v78 := w[v77.toNat]!
-  let v80 := v78 >>> (UInt256.ofNat 2)
   let v81 := (UInt256.ofNat 2)
   checkIndex v81 5
-  invert_256_k4 w v76 v80 v81 r0
+  invert_256_k4 w v76 v77 v81 r0
 
 def invert_256_k2 (x : (Vector UInt256 4)) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (v7 : UInt256) (v19 : UInt256) (v31 : UInt256) (v43 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
   let mut r0 := r0
   let v44 := (UInt256.ofNat 3)
   checkIndex v44 4
-  let v45 := x[v44.toNat]!
-  let v47 := v45 >>> (UInt256.ofNat 56)
-  let v48 ← downcast_truncate_u64_i64 v47
-  let v49 := #v[v7, v19, v31, v43, v48]
-  r0 := v49
+  let v48 ← downcast_truncate_u64_i64 (x[v44.toNat]! >>> (UInt256.ofNat 56))
+  r0 := (#v[v7, v19, v31, v43, v48])
   let s ← invert_5 r0 modulus inv62
+  -- let w: [u64; 5] = [s[0].downcast_truncate(), s[1].downcast_truncate(), s[2].downcast_truncate(), s[3].downcast_truncate(), s[4].downcast_truncate()]
   let v53 := (UInt256.ofNat 0)
   checkIndex v53 5
-  let v54 := s[v53.toNat]!
-  let v55 ← downcast_truncate_i64_u64 v54
+  let v55 ← downcast_truncate_i64_u64 s[v53.toNat]!
   let v56 := (UInt256.ofNat 1)
   checkIndex v56 5
-  let v57 := s[v56.toNat]!
-  let v58 ← downcast_truncate_i64_u64 v57
+  let v58 ← downcast_truncate_i64_u64 s[v56.toNat]!
   let v59 := (UInt256.ofNat 2)
   checkIndex v59 5
-  let v60 := s[v59.toNat]!
-  let v61 ← downcast_truncate_i64_u64 v60
+  let v61 ← downcast_truncate_i64_u64 s[v59.toNat]!
   let v62 := (UInt256.ofNat 3)
   checkIndex v62 5
   invert_256_k3 s v55 v58 v61 v62 r0
 
-def invert_256_k1 (x : (Vector UInt256 4)) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (v7 : UInt256) (v19 : UInt256) (v21 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
+def invert_256_k1 (x : (Vector UInt256 4)) (modulus : (Vector UInt256 5)) (inv62 : UInt256) (v7 : UInt256) (v19 : UInt256) (v20 : UInt256) (r0 : (Vector UInt256 5)) : FeM (Vector UInt256 4) := do
   let mut r0 := r0
-  let v23 := v21 >>> (UInt256.ofNat 60)
   let v24 := (UInt256.ofNat 2)
   checkIndex v24 4
-  let v25 := x[v24.toNat]!
-  let v27 := IntTy.shl (.u 64) v25 (UInt256.ofNat 4)
-  let v28 := v23 ||| v27
+  let v28 := (x[v20.toNat]! >>> (UInt256.ofNat 60)) ||| (IntTy.shl (.u 64) x[v24.toNat]! (UInt256.ofNat 4))
   let v29 ← M62
-  let v30 := v28 &&& v29
-  let v31 ← downcast_truncate_u64_i64 v30
+  let v31 ← downcast_truncate_u64_i64 (v28 &&& v29)
   let v32 := (UInt256.ofNat 2)
   checkIndex v32 4
-  let v33 := x[v32.toNat]!
-  let v35 := v33 >>> (UInt256.ofNat 58)
   let v36 := (UInt256.ofNat 3)
   checkIndex v36 4
-  let v37 := x[v36.toNat]!
-  let v39 := IntTy.shl (.u 64) v37 (UInt256.ofNat 6)
-  let v40 := v35 ||| v39
+  let v40 := (x[v32.toNat]! >>> (UInt256.ofNat 58)) ||| (IntTy.shl (.u 64) x[v36.toNat]! (UInt256.ofNat 6))
   let v41 ← M62
-  let v42 := v40 &&& v41
-  let v43 ← downcast_truncate_u64_i64 v42
+  let v43 ← downcast_truncate_u64_i64 (v40 &&& v41)
   invert_256_k2 x modulus inv62 v7 v19 v31 v43 r0
 
 /-- `lib::inversion::invert_256` -/
 def invert_256 (x : (Vector UInt256 4)) (modulus : (Vector UInt256 5)) (inv62 : UInt256) : FeM (Vector UInt256 4) := do
   let mut r0 : (Vector UInt256 5) := default
+  -- let s = invert(
   let v3 := (UInt256.ofNat 0)
   checkIndex v3 4
-  let v4 := x[v3.toNat]!
   let v5 ← M62
-  let v6 := v4 &&& v5
-  let v7 ← downcast_truncate_u64_i64 v6
+  let v7 ← downcast_truncate_u64_i64 (x[v3.toNat]! &&& v5)
   let v8 := (UInt256.ofNat 0)
   checkIndex v8 4
-  let v9 := x[v8.toNat]!
-  let v11 := v9 >>> (UInt256.ofNat 62)
   let v12 := (UInt256.ofNat 1)
   checkIndex v12 4
-  let v13 := x[v12.toNat]!
-  let v15 := IntTy.shl (.u 64) v13 (UInt256.ofNat 2)
-  let v16 := v11 ||| v15
+  let v16 := (x[v8.toNat]! >>> (UInt256.ofNat 62)) ||| (IntTy.shl (.u 64) x[v12.toNat]! (UInt256.ofNat 2))
   let v17 ← M62
-  let v18 := v16 &&& v17
-  let v19 ← downcast_truncate_u64_i64 v18
+  let v19 ← downcast_truncate_u64_i64 (v16 &&& v17)
   let v20 := (UInt256.ofNat 1)
   checkIndex v20 4
-  let v21 := x[v20.toNat]!
-  invert_256_k1 x modulus inv62 v7 v19 v21 r0
+  invert_256_k1 x modulus inv62 v7 v19 v20 r0
 
 /-- `<Order as Modulus>::R3` -/
 def Order_R3 : FeM UInt256 := do
-  return (UInt256.ofNat 38611792656279623856209604949727965891812033543773964974832218758873530450413)
+  return UInt256.ofNat 38611792656279623856209604949727965891812033543773964974832218758873530450413
 
 /-- `<Mont<Order> as Field>::inverse` -/
 def Mont_inverse_Order (self : Mont_Order) : FeM Mont_Order := do
@@ -1875,29 +1512,22 @@ def Mont_inverse_Order (self : Mont_Order) : FeM Mont_Order := do
   let mut r1 : (Vector UInt256 5) := default
   let mut r2 : Mont_Order := default
   let mut r3 : Mont_Order := default
-  let v1 := self.l0
-  let v2 := self.l1
-  let v3 := self.l2
-  let v4 := self.l3
-  let v5 := #v[v1, v2, v3, v4]
-  r0 := v5
+  -- let limbs = invert_256([self.l0, self.l1, self.l2, self.l3], M::SIGNED_62, M::INV62)
+  r0 := (#v[self.l0, self.l1, self.l2, self.l3])
   let v6 ← Order_SIGNED_62
   r1 := v6
   let v7 ← Order_INV62
   let limbs ← invert_256 r0 r1 v7
+  -- Mont { l0: limbs[0], l1: limbs[1], l2: limbs[2], l3: limbs[3] }.mul(raw<M>(M::R3))
   let v12 := (UInt256.ofNat 0)
   checkIndex v12 4
-  let v13 := limbs[v12.toNat]!
   let v14 := (UInt256.ofNat 1)
   checkIndex v14 4
-  let v15 := limbs[v14.toNat]!
   let v16 := (UInt256.ofNat 2)
   checkIndex v16 4
-  let v17 := limbs[v16.toNat]!
   let v18 := (UInt256.ofNat 3)
   checkIndex v18 4
-  let v19 := limbs[v18.toNat]!
-  let v20 := (Mont_Order.mk v13 v15 v17 v19)
+  let v20 := (Mont_Order.mk limbs[v12.toNat]! limbs[v14.toNat]! limbs[v16.toNat]! limbs[v18.toNat]!)
   r2 := v20
   let v21 ← Order_R3
   let v22 ← raw_Order v21
@@ -1907,65 +1537,58 @@ def Mont_inverse_Order (self : Mont_Order) : FeM Mont_Order := do
 
 /-- `<Mont<Order> as Field>::zero` -/
 def Mont_zero_Order : FeM Mont_Order := do
+  -- Mont { l0: 0, l1: 0, l2: 0, l3: 0 }
   let v4 := (Mont_Order.mk (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0))
   return v4
 
-def Mont_sub_Order_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (d3 : UInt256) (b_30 : UInt256) (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (c_49 : UInt256) : FeM Mont_Order := do
+def Mont_sub_Order_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (v27 : (UInt256 × UInt256)) (d3 : UInt256) (s0 : UInt256) (s1 : UInt256) (v46 : (UInt256 × UInt256)) (s2 : UInt256) : FeM Mont_Order := do
+  -- let (s3, _) = adc(d3, M::P3, c)
   let v51 ← Order_P3
-  let v52 ← adc d3 v51 c_49
+  let v52 ← adc d3 v51 v46.snd
   let s3 := v52.fst
-  let v56 := decide (b_30 = (UInt256.ofNat 1))
-  let b3 : Mont_Order → FeM Mont_Order := fun v2 => do
+  let join : Mont_Order → FeM Mont_Order := fun v2 => do
     return v2
-  if v56 then
-    let v57 := (Mont_Order.mk s0 s1 s2 s3)
-    b3 v57
+  -- if b == 1 { Mont { l0: s0, l1: s1, l2: s2, l3: s3 } } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v27.snd = (UInt256.ofNat 1)) then
+    join (Mont_Order.mk s0 s1 s2 s3)
   else
-    let v59 := (Mont_Order.mk d0 d1 d2 d3)
-    b3 v59
+    join (Mont_Order.mk d0 d1 d2 d3)
 
-def Mont_sub_Order_k1 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (b_23 : UInt256) (v25 : UInt256) (v26 : UInt256) : FeM Mont_Order := do
-  let v27 ← sbb v25 v26 b_23
+def Mont_sub_Order_k1 (self : Mont_Order) (other : Mont_Order) (d0 : UInt256) (d1 : UInt256) (v20 : (UInt256 × UInt256)) (d2 : UInt256) : FeM Mont_Order := do
+  -- let (d3, b) = sbb(self.l3, other.l3, b)
+  let v27 ← sbb self.l3 other.l3 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
+  -- let (s0, c) = adc(d0, M::P0, 0)
   let v32 ← Order_P0
   let v34 ← adc d0 v32 (UInt256.ofNat 0)
   let s0 := v34.fst
-  let c_37 := v34.snd
+  -- let (s1, c) = adc(d1, M::P1, c)
   let v39 ← Order_P1
-  let v40 ← adc d1 v39 c_37
+  let v40 ← adc d1 v39 v34.snd
   let s1 := v40.fst
-  let c_43 := v40.snd
+  -- let (s2, c) = adc(d2, M::P2, c)
   let v45 ← Order_P2
-  let v46 ← adc d2 v45 c_43
+  let v46 ← adc d2 v45 v40.snd
   let s2 := v46.fst
-  let c_49 := v46.snd
-  Mont_sub_Order_k2 d0 d1 d2 d3 b_30 s0 s1 s2 c_49
+  Mont_sub_Order_k2 d0 d1 d2 v27 d3 s0 s1 v46 s2
 
 /-- `<Mont<Order> as Field>::sub` -/
 def Mont_sub_Order (self : Mont_Order) (other : Mont_Order) : FeM Mont_Order := do
-  let v3 := self.l0
-  let v4 := other.l0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  -- let (d0, b) = sbb(self.l0, other.l0, 0)
+  let v6 ← sbb self.l0 other.l0 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
-  let v12 := other.l1
-  let v13 ← sbb v11 v12 b_9
+  -- let (d1, b) = sbb(self.l1, other.l1, b)
+  let v13 ← sbb self.l1 other.l1 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
-  let v19 := other.l2
-  let v20 ← sbb v18 v19 b_16
+  -- let (d2, b) = sbb(self.l2, other.l2, b)
+  let v20 ← sbb self.l2 other.l2 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
-  let v26 := other.l3
-  Mont_sub_Order_k1 d0 d1 d2 b_23 v25 v26
+  Mont_sub_Order_k1 self other d0 d1 v20 d2
 
 /-- `<Mont<Order> as Field>::neg` -/
 def Mont_neg_Order (self : Mont_Order) : FeM Mont_Order := do
   let mut r0 : Mont_Order := default
+  -- Self::zero().sub(self)
   let v1 ← Mont_zero_Order
   r0 := v1
   let v3 ← Mont_sub_Order r0 self
@@ -1974,45 +1597,33 @@ def Mont_neg_Order (self : Mont_Order) : FeM Mont_Order := do
 /-- `Mont<Order>::value` -/
 def Mont_value_Order (self : Mont_Order) : FeM UInt256 := do
   let mut r0 : Mont_Order := default
+  -- let value = self.mul(raw<M>(1))
   let v2 ← raw_Order (UInt256.ofNat 1)
   r0 := v2
   let value ← Mont_mul_Order self r0
-  let v6 := value.l0
-  let v7 := v6
-  let v8 := value.l1
-  let v9 := v8
-  let v11 := v9 <<< (UInt256.ofNat 64)
-  let v12 := v7 ||| v11
-  let v13 := value.l2
-  let v14 := v13
-  let v16 := v14 <<< (UInt256.ofNat 128)
-  let v17 := v12 ||| v16
-  let v18 := value.l3
-  let v19 := v18
-  let v21 := v19 <<< (UInt256.ofNat 192)
-  let v22 := v17 ||| v21
-  return v22
+  -- value.l0 as u256 | (value.l1 as u256) << 64 | (value.l2 as u256) << 128 | (value.l3 as u256) << 192
+  let v17 := (value.l0 ||| (value.l1 <<< (UInt256.ofNat 64))) ||| (value.l2 <<< (UInt256.ofNat 128))
+  return v17 ||| (value.l3 <<< (UInt256.ofNat 192))
 
 /-- `Point<Mont<Base>>::affine` -/
 def Point_affine_Mont_Base (x : Mont_Base) (y : Mont_Base) : FeM Point_Mont_Base := do
-  let v2 := x
-  let v3 := y
+  -- Point { x, y, z: F::one() }
   let v4 ← Mont_one_Base
-  let v5 := (Point_Mont_Base.mk v2 v3 v4)
-  return v5
+  return Point_Mont_Base.mk x y v4
 
 /-- `lib::secp256k1::GX` -/
 def GX : FeM UInt256 := do
-  return (UInt256.ofNat 55066263022277343669578718895168534326250603453777594175500187360389116729240)
+  return UInt256.ofNat 55066263022277343669578718895168534326250603453777594175500187360389116729240
 
 /-- `lib::secp256k1::GY` -/
 def GY : FeM UInt256 := do
-  return (UInt256.ofNat 32670510020758816978083085130507043184471273380659243275938904335757337482424)
+  return UInt256.ofNat 32670510020758816978083085130507043184471273380659243275938904335757337482424
 
 /-- `lib::secp256k1::generator` -/
 def generator : FeM Point_Mont_Base := do
   let mut r0 : Mont_Base := default
   let mut r1 : Mont_Base := default
+  -- Point::affine(x: Fp::new(GX), y: Fp::new(GY))
   let v0 ← GX
   let v1 ← Mont_new_Base v0
   r0 := v1
@@ -2024,108 +1635,97 @@ def generator : FeM Point_Mont_Base := do
 
 /-- `<Mont<Base> as Field>::zero` -/
 def Mont_zero_Base : FeM Mont_Base := do
+  -- Mont { l0: 0, l1: 0, l2: 0, l3: 0 }
   let v4 := (Mont_Base.mk (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0))
   return v4
 
 /-- `Point<Mont<Base>>::infinity` -/
 def Point_infinity_Mont_Base : FeM Point_Mont_Base := do
+  -- Point { x: F::one(), y: F::one(), z: F::zero() }
   let v0 ← Mont_one_Base
   let v1 ← Mont_one_Base
   let v2 ← Mont_zero_Base
-  let v3 := (Point_Mont_Base.mk v0 v1 v2)
-  return v3
+  return Point_Mont_Base.mk v0 v1 v2
 
 /-- `<Mont<Base> as Field>::is_zero` -/
 def Mont_is_zero_Base (self : Mont_Base) : FeM Bool := do
-  let v2 := self.l0
-  let v4 := decide (v2 = (UInt256.ofNat 0))
-  let b3 : Bool → FeM Bool := fun v1 => do
+  let join : Bool → FeM Bool := fun v1 => do
     return v1
-  let b2 : FeM Bool := do
-    b3 false
-  if v4 then
-    let v5 := self.l1
-    let v7 := decide (v5 = (UInt256.ofNat 0))
-    if v7 then
-      let v8 := self.l2
-      let v10 := decide (v8 = (UInt256.ofNat 0))
-      if v10 then
-        let v11 := self.l3
-        let v13 := decide (v11 = (UInt256.ofNat 0))
-        if v13 then
-          b3 true
+  let join_1 : FeM Bool := do
+    join false
+  -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+  if decide (self.l0 = (UInt256.ofNat 0)) then
+    -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+    if decide (self.l1 = (UInt256.ofNat 0)) then
+      -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+      if decide (self.l2 = (UInt256.ofNat 0)) then
+        -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+        if decide (self.l3 = (UInt256.ofNat 0)) then
+          join true
         else
-          b2
+          join_1
       else
-        b2
+        join_1
     else
-      b2
+      join_1
   else
-    b2
+    join_1
 
 /-- `Point<Mont<Base>>::is_infinity` -/
 def Point_is_infinity_Mont_Base (self : Point_Mont_Base) : FeM Bool := do
   let mut r0 : Mont_Base := default
-  let v1 := self.z
-  r0 := v1
+  -- self.z.is_zero()
+  r0 := self.z
   let v3 ← Mont_is_zero_Base r0
   return v3
 
-def Mont_sub_Base_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (d3 : UInt256) (b_30 : UInt256) (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (c_49 : UInt256) : FeM Mont_Base := do
+def Mont_sub_Base_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (v27 : (UInt256 × UInt256)) (d3 : UInt256) (s0 : UInt256) (s1 : UInt256) (v46 : (UInt256 × UInt256)) (s2 : UInt256) : FeM Mont_Base := do
+  -- let (s3, _) = adc(d3, M::P3, c)
   let v51 ← Base_P3
-  let v52 ← adc d3 v51 c_49
+  let v52 ← adc d3 v51 v46.snd
   let s3 := v52.fst
-  let v56 := decide (b_30 = (UInt256.ofNat 1))
-  let b3 : Mont_Base → FeM Mont_Base := fun v2 => do
+  let join : Mont_Base → FeM Mont_Base := fun v2 => do
     return v2
-  if v56 then
-    let v57 := (Mont_Base.mk s0 s1 s2 s3)
-    b3 v57
+  -- if b == 1 { Mont { l0: s0, l1: s1, l2: s2, l3: s3 } } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v27.snd = (UInt256.ofNat 1)) then
+    join (Mont_Base.mk s0 s1 s2 s3)
   else
-    let v59 := (Mont_Base.mk d0 d1 d2 d3)
-    b3 v59
+    join (Mont_Base.mk d0 d1 d2 d3)
 
-def Mont_sub_Base_k1 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (b_23 : UInt256) (v25 : UInt256) (v26 : UInt256) : FeM Mont_Base := do
-  let v27 ← sbb v25 v26 b_23
+def Mont_sub_Base_k1 (self : Mont_Base) (other : Mont_Base) (d0 : UInt256) (d1 : UInt256) (v20 : (UInt256 × UInt256)) (d2 : UInt256) : FeM Mont_Base := do
+  -- let (d3, b) = sbb(self.l3, other.l3, b)
+  let v27 ← sbb self.l3 other.l3 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
+  -- let (s0, c) = adc(d0, M::P0, 0)
   let v32 ← Base_P0
   let v34 ← adc d0 v32 (UInt256.ofNat 0)
   let s0 := v34.fst
-  let c_37 := v34.snd
+  -- let (s1, c) = adc(d1, M::P1, c)
   let v39 ← Base_P1
-  let v40 ← adc d1 v39 c_37
+  let v40 ← adc d1 v39 v34.snd
   let s1 := v40.fst
-  let c_43 := v40.snd
+  -- let (s2, c) = adc(d2, M::P2, c)
   let v45 ← Base_P2
-  let v46 ← adc d2 v45 c_43
+  let v46 ← adc d2 v45 v40.snd
   let s2 := v46.fst
-  let c_49 := v46.snd
-  Mont_sub_Base_k2 d0 d1 d2 d3 b_30 s0 s1 s2 c_49
+  Mont_sub_Base_k2 d0 d1 d2 v27 d3 s0 s1 v46 s2
 
 /-- `<Mont<Base> as Field>::sub` -/
 def Mont_sub_Base (self : Mont_Base) (other : Mont_Base) : FeM Mont_Base := do
-  let v3 := self.l0
-  let v4 := other.l0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  -- let (d0, b) = sbb(self.l0, other.l0, 0)
+  let v6 ← sbb self.l0 other.l0 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
-  let v12 := other.l1
-  let v13 ← sbb v11 v12 b_9
+  -- let (d1, b) = sbb(self.l1, other.l1, b)
+  let v13 ← sbb self.l1 other.l1 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
-  let v19 := other.l2
-  let v20 ← sbb v18 v19 b_16
+  -- let (d2, b) = sbb(self.l2, other.l2, b)
+  let v20 ← sbb self.l2 other.l2 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
-  let v26 := other.l3
-  Mont_sub_Base_k1 d0 d1 d2 b_23 v25 v26
+  Mont_sub_Base_k1 self other d0 d1 v20 d2
 
 /-- `<Mont<Base> as Field>::double` -/
 def Mont_double_Base (self : Mont_Base) : FeM Mont_Base := do
+  -- self.add(self)
   let v1 ← Mont_add_Base self self
   return v1
 
@@ -2156,8 +1756,9 @@ def Point_double_Mont_Base (self : Point_Mont_Base) : FeM Point_Mont_Base := do
   let mut r22 : Mont_Base := default
   let mut r23 : Mont_Base := default
   let mut r24 : Mont_Base := default
+  -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
   let v1 ← Point_is_infinity_Mont_Base self
-  let b1 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → FeM Point_Mont_Base := fun a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 => do
+  let join : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → FeM Point_Mont_Base := fun a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 => do
     let mut a := a
     let mut b := b
     let mut c := c
@@ -2183,29 +1784,32 @@ def Point_double_Mont_Base (self : Point_Mont_Base) : FeM Point_Mont_Base := do
     let mut r22 := r22
     let mut r23 := r23
     let mut r24 := r24
+    -- return Self::infinity()
     let v72 ← Point_infinity_Mont_Base
     return v72
+  -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
   if v1 then
-    b1 a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
+    join a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
   else
-    let v2 := self.y
-    r6 := v2
+    -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
+    r6 := self.y
     let v4 ← Mont_is_zero_Base r6
     if v4 then
-      b1 a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
+      join a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
     else
-      let v7 := self.x
-      r7 := v7
+      -- let a = self.x.square()
+      r7 := self.x
       let a_9 ← Mont_square_Base r7
       a := a_9
-      let v11 := self.y
-      r8 := v11
+      -- let b = self.y.square()
+      r8 := self.y
       let b_13 ← Mont_square_Base r8
       b := b_13
+      -- let c = b.square()
       let c_16 ← Mont_square_Base b
       c := c_16
-      let v18 := self.x
-      r9 := v18
+      -- let d = self.x.add(b).square().sub(a).sub(c).double()
+      r9 := self.x
       let v21 ← Mont_add_Base r9 b
       r10 := v21
       let v23 ← Mont_square_Base r10
@@ -2216,16 +1820,19 @@ def Point_double_Mont_Base (self : Point_Mont_Base) : FeM Point_Mont_Base := do
       r13 := v29
       let d_31 ← Mont_double_Base r13
       d := d_31
+      -- let e = a.double().add(a)
       let v34 ← Mont_double_Base a
       r14 := v34
       let e_37 ← Mont_add_Base r14 a
       e := e_37
+      -- let x = e.square().sub(d.double())
       let v40 ← Mont_square_Base e
       r15 := v40
       let v42 ← Mont_double_Base d
       r16 := v42
       let x_45 ← Mont_sub_Base r15 r16
       x := x_45
+      -- let y = e.mul(d.sub(x)).sub(c.double().double().double())
       let v49 ← Mont_sub_Base d x
       r17 := v49
       let v52 ← Mont_mul_Base e r17
@@ -2237,16 +1844,13 @@ def Point_double_Mont_Base (self : Point_Mont_Base) : FeM Point_Mont_Base := do
       let v58 ← Mont_double_Base r20
       r21 := v58
       let y ← Mont_sub_Base r18 r21
-      let v63 := self.z
-      r22 := v63
-      let v64 := self.y
-      r23 := v64
+      -- Point { x, y, z: self.y.mul(self.z).double() }
+      r22 := self.z
+      r23 := self.y
       let v67 ← Mont_mul_Base r23 r22
       r24 := v67
       let v69 ← Mont_double_Base r24
-      let x_70 := x
-      let v71 := (Point_Mont_Base.mk x_70 y v69)
-      return v71
+      return Point_Mont_Base.mk x y v69
 
 /-- `Point<Mont<Base>>::add` -/
 def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM Point_Mont_Base := do
@@ -2287,58 +1891,60 @@ def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM
   let mut r34 : Mont_Base := default
   let mut r35 : Mont_Base := default
   let mut r36 : Mont_Base := default
+  -- if self.is_infinity() { return other }
   let v3 ← Point_is_infinity_Mont_Base self
   if v3 then
-    let v4 := other
-    return v4
+    return other
   else
+    -- if other.is_infinity() { return self }
     let v7 ← Point_is_infinity_Mont_Base other
     if v7 then
-      let v8 := self
-      return v8
+      return self
     else
-      let v11 := self.z
-      r12 := v11
+      -- let z1z1 = self.z.square()
+      r12 := self.z
       let z1z1_13 ← Mont_square_Base r12
       z1z1 := z1z1_13
-      let v15 := other.z
-      r13 := v15
+      -- let z2z2 = other.z.square()
+      r13 := other.z
       let z2z2_17 ← Mont_square_Base r13
       z2z2 := z2z2_17
-      let v19 := self.x
-      r14 := v19
+      -- let u1 = self.x.mul(z2z2)
+      r14 := self.x
       let u1_22 ← Mont_mul_Base r14 z2z2
       u1 := u1_22
-      let v24 := other.x
-      r15 := v24
+      -- let u2 = other.x.mul(z1z1)
+      r15 := other.x
       let u2_27 ← Mont_mul_Base r15 z1z1
       u2 := u2_27
-      let v29 := other.z
-      r16 := v29
-      let v30 := self.y
-      r17 := v30
+      -- let s1 = self.y.mul(other.z).mul(z2z2)
+      r16 := other.z
+      r17 := self.y
       let v33 ← Mont_mul_Base r17 r16
       r18 := v33
       let s1_36 ← Mont_mul_Base r18 z2z2
       s1 := s1_36
-      let v38 := self.z
-      r19 := v38
-      let v39 := other.y
-      r20 := v39
+      -- let s2 = other.y.mul(self.z).mul(z1z1)
+      r19 := self.z
+      r20 := other.y
       let v42 ← Mont_mul_Base r20 r19
       r21 := v42
       let s2_45 ← Mont_mul_Base r21 z1z1
       s2 := s2_45
+      -- let h = u2.sub(u1)
       let h_49 ← Mont_sub_Base u2 u1
       h := h_49
+      -- let r = s2.sub(s1).double()
       let v53 ← Mont_sub_Base s2 s1
       r22 := v53
       let r_55 ← Mont_double_Base r22
       r := r_55
+      -- if h.is_zero() { return if r.is_zero() { self.double() } else { Self::infinity() } }
       let v58 ← Mont_is_zero_Base h
       if v58 then
+        -- return if r.is_zero() { self.double() } else { Self::infinity() }
         let v60 ← Mont_is_zero_Base r
-        let b12 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v2 => do
+        let join : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v2 => do
           let mut z1z1 := z1z1
           let mut z2z2 := z2z2
           let mut u1 := u1
@@ -2377,21 +1983,28 @@ def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM
           let mut r35 := r35
           let mut r36 := r36
           return v2
+        -- return if r.is_zero() { self.double() } else { Self::infinity() }
         if v60 then
+          -- self.double()
           let v61 ← Point_double_Mont_Base self
-          b12 z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v61
+          join z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v61
         else
+          -- Self::infinity()
           let v63 ← Point_infinity_Mont_Base
-          b12 z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v63
+          join z1z1 z2z2 u1 u2 s1 s2 h r i j v x r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v63
       else
+        -- let i = h.double().square()
         let v68 ← Mont_double_Base h
         r23 := v68
         let i_70 ← Mont_square_Base r23
         i := i_70
+        -- let j = h.mul(i)
         let j_74 ← Mont_mul_Base h i
         j := j_74
+        -- let v = u1.mul(i)
         let v_78 ← Mont_mul_Base u1 i
         v := v_78
+        -- let x = r.square().sub(j).sub(v.double())
         let v81 ← Mont_square_Base r
         r24 := v81
         let v84 ← Mont_sub_Base r24 j
@@ -2400,6 +2013,7 @@ def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM
         r26 := v86
         let x_89 ← Mont_sub_Base r25 r26
         x := x_89
+        -- let y = r.mul(v.sub(x)).sub(s1.mul(j).double())
         let v93 ← Mont_sub_Base v x
         r27 := v93
         let v96 ← Mont_mul_Base r r27
@@ -2409,10 +2023,9 @@ def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM
         let v101 ← Mont_double_Base r29
         r30 := v101
         let y ← Mont_sub_Base r28 r30
-        let v106 := other.z
-        r31 := v106
-        let v107 := self.z
-        r32 := v107
+        -- Point { x, y, z: self.z.add(other.z).square().sub(z1z1).sub(z2z2).mul(h) }
+        r31 := other.z
+        r32 := self.z
         let v110 ← Mont_add_Base r32 r31
         r33 := v110
         let v112 ← Mont_square_Base r33
@@ -2422,9 +2035,7 @@ def Point_add_Mont_Base (self : Point_Mont_Base) (other : Point_Mont_Base) : FeM
         let v118 ← Mont_sub_Base r35 z2z2
         r36 := v118
         let v121 ← Mont_mul_Base r36 h
-        let x_122 := x
-        let v123 := (Point_Mont_Base.mk x_122 y v121)
-        return v123
+        return Point_Mont_Base.mk x y v121
 
 /-- `<Base as Modulus>::SIGNED_62` -/
 def Base_SIGNED_62 : FeM (Vector UInt256 5) := do
@@ -2433,11 +2044,11 @@ def Base_SIGNED_62 : FeM (Vector UInt256 5) := do
 
 /-- `<Base as Modulus>::INV62` -/
 def Base_INV62 : FeM UInt256 := do
-  return (UInt256.ofNat 2866531139136965327)
+  return UInt256.ofNat 2866531139136965327
 
 /-- `<Base as Modulus>::R3` -/
 def Base_R3 : FeM UInt256 := do
-  return (UInt256.ofNat 79228216581683516649686562417)
+  return UInt256.ofNat 79228216581683516649686562417
 
 /-- `<Mont<Base> as Field>::inverse` -/
 def Mont_inverse_Base (self : Mont_Base) : FeM Mont_Base := do
@@ -2445,29 +2056,22 @@ def Mont_inverse_Base (self : Mont_Base) : FeM Mont_Base := do
   let mut r1 : (Vector UInt256 5) := default
   let mut r2 : Mont_Base := default
   let mut r3 : Mont_Base := default
-  let v1 := self.l0
-  let v2 := self.l1
-  let v3 := self.l2
-  let v4 := self.l3
-  let v5 := #v[v1, v2, v3, v4]
-  r0 := v5
+  -- let limbs = invert_256([self.l0, self.l1, self.l2, self.l3], M::SIGNED_62, M::INV62)
+  r0 := (#v[self.l0, self.l1, self.l2, self.l3])
   let v6 ← Base_SIGNED_62
   r1 := v6
   let v7 ← Base_INV62
   let limbs ← invert_256 r0 r1 v7
+  -- Mont { l0: limbs[0], l1: limbs[1], l2: limbs[2], l3: limbs[3] }.mul(raw<M>(M::R3))
   let v12 := (UInt256.ofNat 0)
   checkIndex v12 4
-  let v13 := limbs[v12.toNat]!
   let v14 := (UInt256.ofNat 1)
   checkIndex v14 4
-  let v15 := limbs[v14.toNat]!
   let v16 := (UInt256.ofNat 2)
   checkIndex v16 4
-  let v17 := limbs[v16.toNat]!
   let v18 := (UInt256.ofNat 3)
   checkIndex v18 4
-  let v19 := limbs[v18.toNat]!
-  let v20 := (Mont_Base.mk v13 v15 v17 v19)
+  let v20 := (Mont_Base.mk limbs[v12.toNat]! limbs[v14.toNat]! limbs[v16.toNat]! limbs[v18.toNat]!)
   r2 := v20
   let v21 ← Base_R3
   let v22 ← raw_Base v21
@@ -2507,37 +2111,42 @@ def Point_add_affine_Mont_Base (self : Point_Mont_Base) (x2 : Mont_Base) (y2 : M
   let mut r27 : Mont_Base := default
   let mut r28 : Mont_Base := default
   let mut r29 : Mont_Base := default
+  -- if self.is_infinity() { return Point::affine(x: x2, y: y2) }
   let v4 ← Point_is_infinity_Mont_Base self
   if v4 then
+    -- return Point::affine(x: x2, y: y2)
     let v5 ← Point_affine_Mont_Base x2 y2
     return v5
   else
-    let v8 := self.z
-    r10 := v8
+    -- let z1z1 = self.z.square()
+    r10 := self.z
     let z1z1_10 ← Mont_square_Base r10
     z1z1 := z1z1_10
+    -- let u2 = x2.mul(z1z1)
     let u2_13 ← Mont_mul_Base x2 z1z1
     u2 := u2_13
-    let v15 := self.z
-    r11 := v15
+    -- let s2 = y2.mul(self.z).mul(z1z1)
+    r11 := self.z
     let v17 ← Mont_mul_Base y2 r11
     r12 := v17
     let s2_20 ← Mont_mul_Base r12 z1z1
     s2 := s2_20
-    let v22 := self.x
-    r13 := v22
+    -- let h = u2.sub(self.x)
+    r13 := self.x
     let h_25 ← Mont_sub_Base u2 r13
     h := h_25
-    let v27 := self.y
-    r14 := v27
+    -- let r = s2.sub(self.y).double()
+    r14 := self.y
     let v30 ← Mont_sub_Base s2 r14
     r15 := v30
     let r_32 ← Mont_double_Base r15
     r := r_32
+    -- if h.is_zero() { return if r.is_zero() { self.double() } else { Self::infinity() } }
     let v35 ← Mont_is_zero_Base h
     if v35 then
+      -- return if r.is_zero() { self.double() } else { Self::infinity() }
       let v37 ← Mont_is_zero_Base r
-      let b9 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v3 => do
+      let join : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v3 => do
         let mut z1z1 := z1z1
         let mut u2 := u2
         let mut s2 := s2
@@ -2569,25 +2178,32 @@ def Point_add_affine_Mont_Base (self : Point_Mont_Base) (x2 : Mont_Base) (y2 : M
         let mut r28 := r28
         let mut r29 := r29
         return v3
+      -- return if r.is_zero() { self.double() } else { Self::infinity() }
       if v37 then
+        -- self.double()
         let v38 ← Point_double_Mont_Base self
-        b9 z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v38
+        join z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v38
       else
+        -- Self::infinity()
         let v40 ← Point_infinity_Mont_Base
-        b9 z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v40
+        join z1z1 u2 s2 h r hh i j v x r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 v40
     else
+      -- let hh = h.square()
       let hh_45 ← Mont_square_Base h
       hh := hh_45
+      -- let i = hh.double().double()
       let v48 ← Mont_double_Base hh
       r16 := v48
       let i_50 ← Mont_double_Base r16
       i := i_50
+      -- let j = h.mul(i)
       let j_54 ← Mont_mul_Base h i
       j := j_54
-      let v56 := self.x
-      r17 := v56
+      -- let v = self.x.mul(i)
+      r17 := self.x
       let v_59 ← Mont_mul_Base r17 i
       v := v_59
+      -- let x = r.square().sub(j).sub(v.double())
       let v62 ← Mont_square_Base r
       r18 := v62
       let v65 ← Mont_sub_Base r18 j
@@ -2596,19 +2212,19 @@ def Point_add_affine_Mont_Base (self : Point_Mont_Base) (x2 : Mont_Base) (y2 : M
       r20 := v67
       let x_70 ← Mont_sub_Base r19 r20
       x := x_70
+      -- let y = r.mul(v.sub(x)).sub(self.y.mul(j).double())
       let v74 ← Mont_sub_Base v x
       r21 := v74
       let v77 ← Mont_mul_Base r r21
       r22 := v77
-      let v78 := self.y
-      r23 := v78
+      r23 := self.y
       let v81 ← Mont_mul_Base r23 j
       r24 := v81
       let v83 ← Mont_double_Base r24
       r25 := v83
       let y ← Mont_sub_Base r22 r25
-      let v88 := self.z
-      r26 := v88
+      -- Point { x, y, z: self.z.add(h).square().sub(z1z1).sub(hh) }
+      r26 := self.z
       let v91 ← Mont_add_Base r26 h
       r27 := v91
       let v93 ← Mont_square_Base r27
@@ -2616,9 +2232,7 @@ def Point_add_affine_Mont_Base (self : Point_Mont_Base) (x2 : Mont_Base) (y2 : M
       let v96 ← Mont_sub_Base r28 z1z1
       r29 := v96
       let v99 ← Mont_sub_Base r29 hh
-      let x_100 := x
-      let v101 := (Point_Mont_Base.mk x_100 y v99)
-      return v101
+      return Point_Mont_Base.mk x y v99
 
 def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
   let mut g := g
@@ -2658,10 +2272,11 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
   let mut r34 := r34
   let mut r35 := r35
   let mut r36 := r36
+  -- for i in [4 as usize, 8, 12] {
   let v41 := #v[(UInt256.ofNat 4), (UInt256.ofNat 8), (UInt256.ofNat 12)]
   r12 := v41
   let v43 ← array_start_usize_3 r12
-  let rec b1 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v3 : UInt256) : FeM Point_Mont_Base := do
+  let rec loop (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v3 : UInt256) : FeM Point_Mont_Base := do
     let mut g := g
     let mut table := table
     let mut «prefix» := «prefix»
@@ -2699,14 +2314,16 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
     let mut r34 := r34
     let mut r35 := r35
     let mut r36 := r36
+    -- for i in [4 as usize, 8, 12] {
     let v46 ← array_has_usize_3 r12 v3
     if v46 then
+      -- for i in [4 as usize, 8, 12] {
       let v48 ← array_at_ref_usize_3 r12 v3
       let i := v48
-      let v53 := (Range_Known_1_Known_4.mk () ())
-      r13 := v53
+      -- for j in 1..4 { table[i + j] = table[i].add(table[j]) }
+      r13 := (Range_Known_1_Known_4.mk () ())
       let v55 ← Range_start_1_4 r13
-      let rec b5 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v4 : UInt256) : FeM Point_Mont_Base := do
+      let rec loop_1 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v4 : UInt256) : FeM Point_Mont_Base := do
         let mut g := g
         let mut table := table
         let mut «prefix» := «prefix»
@@ -2744,37 +2361,41 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
         let mut r34 := r34
         let mut r35 := r35
         let mut r36 := r36
+        -- for j in 1..4 { table[i + j] = table[i].add(table[j]) }
         let v58 ← Range_has_1_4 r13 v4
         if v58 then
+          -- for j in 1..4 { table[i + j] = table[i].add(table[j]) }
           let v60 ← Range_at_1_4 r13 v4
           let j := v60
+          -- table[i + j] = table[i].add(table[j])
           checkIndex j 16
-          let v62 := table[j.toNat]!
-          r14 := v62
+          r14 := table[j.toNat]!
           checkIndex i 16
-          let v63 := table[i.toNat]!
-          r15 := v63
+          r15 := table[i.toNat]!
           let v66 ← Point_add_Mont_Base r15 r14
           let v67 ← checkedAdd i j
           checkIndex v67 16
           table := (table.set! v67.toNat v66)
+          -- for j in 1..4 { table[i + j] = table[i].add(table[j]) }
           let v70 ← Range_next_1_4 r13 v4
-          b5 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v70
+          loop_1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v70
         else
+          -- for i in [4 as usize, 8, 12] {
           let v74 ← array_next_usize_3 r12 v3
-          b1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v74
+          loop g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v74
       partial_fixpoint
-      b5 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v55
+      loop_1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v55
     else
+      -- var prefix = [Fp::one(); 16]
       let v76 ← Mont_one_Base
-      let prefix_77 := Vector.replicate 16 v76
-      «prefix» := prefix_77
+      «prefix» := (Vector.replicate 16 v76)
+      -- var running = Fp::one()
       let running_79 ← Mont_one_Base
       running := running_79
-      let v84 := (Range_Known_1_Known_16.mk () ())
-      r16 := v84
+      -- for k in 1..16 {
+      r16 := (Range_Known_1_Known_16.mk () ())
       let v86 ← Range_start_1_16 r16
-      let rec b9 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v5 : UInt256) : FeM Point_Mont_Base := do
+      let rec loop_2 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) (v5 : UInt256) : FeM Point_Mont_Base := do
         let mut g := g
         let mut table := table
         let mut «prefix» := «prefix»
@@ -2812,19 +2433,20 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
         let mut r34 := r34
         let mut r35 := r35
         let mut r36 := r36
+        -- for k in 1..16 {
         let v89 ← Range_has_1_16 r16 v5
         if v89 then
+          -- for k in 1..16 {
           let v91 ← Range_at_1_16 r16 v5
           let k_92 := v91
-          let running_93 := running
+          -- prefix[k] = running
           checkIndex k_92 16
-          «prefix» := («prefix».set! k_92.toNat running_93)
+          «prefix» := («prefix».set! k_92.toNat running)
+          -- if !table[k].is_infinity() { running = running.mul(table[k].z) }
           checkIndex k_92 16
-          let v96 := table[k_92.toNat]!
-          r17 := v96
+          r17 := table[k_92.toNat]!
           let v98 ← Point_is_infinity_Mont_Base r17
-          let v99 := !v98
-          let b15 : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
+          let join : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
             let mut g := g
             let mut table := table
             let mut «prefix» := «prefix»
@@ -2862,26 +2484,28 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
             let mut r34 := r34
             let mut r35 := r35
             let mut r36 := r36
+            -- for k in 1..16 {
             let v112 ← Range_next_1_16 r16 v5
-            b9 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v112
-          if v99 then
+            loop_2 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v112
+          -- if !table[k].is_infinity() { running = running.mul(table[k].z) }
+          if !v98 then
+            -- running = running.mul(table[k].z)
             checkIndex k_92 16
-            let v100 := table[k_92.toNat]!.z
-            r18 := v100
-            let running_101 := running
-            r19 := running_101
+            r18 := table[k_92.toNat]!.z
+            r19 := running
             let running_105 ← Mont_mul_Base r19 r18
             running := running_105
-            b15 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+            join g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
           else
-            b15 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+            join g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
         else
-          let running_114 := running
-          r20 := running_114
+          -- var inverse = running.inverse()
+          r20 := running
           let inverse_117 ← Mont_inverse_Base r20
           inverse := inverse_117
+          -- var k: usize = 16
           k := (UInt256.ofNat 16)
-          let rec b16 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
+          let rec loop_3 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
             let mut g := g
             let mut table := table
             let mut «prefix» := «prefix»
@@ -2919,67 +2543,61 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
             let mut r34 := r34
             let mut r35 := r35
             let mut r36 := r36
-            let k_121 := k
-            let v124 := decide ((UInt256.ofNat 1).toNat < k_121.toNat)
-            if v124 then
-              let k_126 := k
-              let k_127 ← checkedSub k_126 (UInt256.ofNat 1)
+            -- while k > 1 {
+            if decide ((UInt256.ofNat 1).toNat < k.toNat) then
+              -- k -= 1
+              let k_127 ← checkedSub k (UInt256.ofNat 1)
               k := k_127
+              -- if table[k].is_infinity() { continue }
               let k_130 := k
               checkIndex k_130 16
-              let v131 := table[k_130.toNat]!
-              r21 := v131
-              let k_132 := k
+              r21 := table[k_130.toNat]!
               let v134 ← Point_is_infinity_Mont_Base r21
               if v134 then
-                b16 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                loop_3 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
               else
+                -- let z_inverse = inverse.mul(prefix[k])
                 let k_137 := k
                 checkIndex k_137 16
-                let v138 := «prefix»[k_137.toNat]!
-                r22 := v138
-                let inverse_139 := inverse
-                r23 := inverse_139
-                let k_142 := k
+                r22 := «prefix»[k_137.toNat]!
+                r23 := inverse
                 let z_inverse_144 ← Mont_mul_Base r23 r22
                 z_inverse := z_inverse_144
+                -- inverse = inverse.mul(table[k].z)
                 let k_146 := k
                 checkIndex k_146 16
-                let v147 := table[k_146.toNat]!.z
-                r24 := v147
-                let inverse_148 := inverse
-                r25 := inverse_148
-                let k_151 := k
+                r24 := table[k_146.toNat]!.z
+                r25 := inverse
                 let inverse_153 ← Mont_mul_Base r25 r24
                 inverse := inverse_153
+                -- let z_inverse2 = z_inverse.square()
                 let z_inverse2_157 ← Mont_square_Base z_inverse
                 z_inverse2 := z_inverse2_157
+                -- table[k] = Point::affine(x: table[k].x.mul(z_inverse2), y: table[k].y.mul(z_inverse2.mul(z_inverse)))
                 let k_159 := k
                 checkIndex k_159 16
-                let v160 := table[k_159.toNat]!.x
-                r26 := v160
-                let k_161 := k
+                r26 := table[k_159.toNat]!.x
                 let v164 ← Mont_mul_Base r26 z_inverse2
                 r27 := v164
                 let v167 ← Mont_mul_Base z_inverse2 z_inverse
                 r28 := v167
                 let k_168 := k
                 checkIndex k_168 16
-                let v169 := table[k_168.toNat]!.y
-                r29 := v169
-                let k_170 := k
+                r29 := table[k_168.toNat]!.y
                 let v173 ← Mont_mul_Base r29 r28
                 r30 := v173
                 let v176 ← Point_affine_Mont_Base r27 r30
                 let k_177 := k
                 checkIndex k_177 16
                 table := (table.set! k_177.toNat v176)
-                b16 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                loop_3 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
             else
+              -- var result = Point<Fp>::infinity()
               let result_179 ← Point_infinity_Mont_Base
               result := result_179
+              -- var bit: u64 = 256
               bit := (UInt256.ofNat 256)
-              let rec b22 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
+              let rec loop_4 (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
                 let mut g := g
                 let mut table := table
                 let mut «prefix» := «prefix»
@@ -3017,31 +2635,21 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
                 let mut r34 := r34
                 let mut r35 := r35
                 let mut r36 := r36
-                let bit_183 := bit
-                let v186 := decide ((UInt256.ofNat 0).toNat < bit_183.toNat)
-                if v186 then
-                  let bit_188 := bit
-                  let bit_189 ← IntTy.sub (.u 64) bit_188 (UInt256.ofNat 2)
+                -- while bit > 0 {
+                if decide ((UInt256.ofNat 0).toNat < bit.toNat) then
+                  -- bit -= 2
+                  let bit_189 ← IntTy.sub (.u 64) bit (UInt256.ofNat 2)
                   bit := bit_189
-                  let result_192 := result
-                  r31 := result_192
+                  -- result = result.double().double()
+                  r31 := result
                   let v195 ← Point_double_Mont_Base r31
                   r32 := v195
                   let result_197 ← Point_double_Mont_Base r32
                   result := result_197
-                  let bit_201 := bit
-                  let v202 := bit_201
-                  let v203 := u >>> v202
-                  let v205 := v203 &&& (UInt256.ofNat 3)
-                  let v207 := v205 <<< (UInt256.ofNat 2)
-                  let bit_209 := bit
-                  let v210 := bit_209
-                  let v211 := v_1 >>> v210
-                  let v213 := v211 &&& (UInt256.ofNat 3)
-                  let v214 := v207 ||| v213
-                  let entry ← downcast_truncate_u256_usize v214
-                  let v218 := decide (entry ≠ (UInt256.ofNat 0))
-                  let b27 : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
+                  -- let entry: usize = ((((u >> bit as u256) & 3) << 2) | ((v >> bit as u256) & 3)).downcast_truncate()
+                  let v207 := ((u >>> bit) &&& (UInt256.ofNat 3)) <<< (UInt256.ofNat 2)
+                  let entry ← downcast_truncate_u256_usize (v207 ||| ((v_1 >>> bit) &&& (UInt256.ofNat 3)))
+                  let join_1 : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
                     let mut g := g
                     let mut table := table
                     let mut «prefix» := «prefix»
@@ -3079,8 +2687,8 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
                     let mut r34 := r34
                     let mut r35 := r35
                     let mut r36 := r36
-                    b22 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
-                  let b26 : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
+                    loop_4 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                  let join_2 : Point_Mont_Base → (Vector Point_Mont_Base 16) → (Vector Mont_Base 16) → Mont_Base → Mont_Base → UInt256 → Mont_Base → Mont_Base → Point_Mont_Base → UInt256 → Point_Mont_Base → Point_Mont_Base → (Vector UInt256 3) → Range_Known_1_Known_4 → Point_Mont_Base → Point_Mont_Base → Range_Known_1_Known_16 → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → Point_Mont_Base → Point_Mont_Base → Mont_Base → Mont_Base → Point_Mont_Base → FeM Point_Mont_Base := fun g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 => do
                     let mut g := g
                     let mut table := table
                     let mut «prefix» := «prefix»
@@ -3118,40 +2726,37 @@ def combination_k2 (u : UInt256) (v_1 : UInt256) (g : Point_Mont_Base) (table : 
                     let mut r34 := r34
                     let mut r35 := r35
                     let mut r36 := r36
-                    b27 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
-                  if v218 then
+                    join_1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                  -- if entry != 0 && !table[entry].is_infinity() {
+                  if decide (entry ≠ (UInt256.ofNat 0)) then
+                    -- if entry != 0 && !table[entry].is_infinity() {
                     checkIndex entry 16
-                    let v219 := table[entry.toNat]!
-                    r33 := v219
+                    r33 := table[entry.toNat]!
                     let v221 ← Point_is_infinity_Mont_Base r33
-                    let v222 := !v221
-                    if v222 then
+                    if !v221 then
+                      -- result = result.add_affine(x2: table[entry].x, y2: table[entry].y)
                       checkIndex entry 16
-                      let v223 := table[entry.toNat]!.x
-                      r34 := v223
+                      r34 := table[entry.toNat]!.x
                       checkIndex entry 16
-                      let v224 := table[entry.toNat]!.y
-                      r35 := v224
-                      let result_225 := result
-                      r36 := result_225
+                      r35 := table[entry.toNat]!.y
+                      r36 := result
                       let result_230 ← Point_add_affine_Mont_Base r36 r34 r35
                       result := result_230
-                      b27 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                      join_1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
                     else
-                      b26 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                      join_2 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
                   else
-                    b26 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+                    join_2 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
                 else
-                  let result_236 := result
-                  return result_236
+                  return result
               partial_fixpoint
-              b22 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+              loop_4 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
           partial_fixpoint
-          b16 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
+          loop_3 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36
       partial_fixpoint
-      b9 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v86
+      loop_2 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v86
   partial_fixpoint
-  b1 g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v43
+  loop g table «prefix» running inverse k z_inverse z_inverse2 result bit r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 r25 r26 r27 r28 r29 r30 r31 r32 r33 r34 r35 r36 v43
 
 def combination_k1 (u : UInt256) (v_1 : UInt256) (v20 : Point_Mont_Base) (v21 : UInt256) (g : Point_Mont_Base) (table : (Vector Point_Mont_Base 16)) («prefix» : (Vector Mont_Base 16)) (running : Mont_Base) (inverse : Mont_Base) (k : UInt256) (z_inverse : Mont_Base) (z_inverse2 : Mont_Base) (result : Point_Mont_Base) (bit : UInt256) (r10 : Point_Mont_Base) (r11 : Point_Mont_Base) (r12 : (Vector UInt256 3)) (r13 : Range_Known_1_Known_4) (r14 : Point_Mont_Base) (r15 : Point_Mont_Base) (r16 : Range_Known_1_Known_16) (r17 : Point_Mont_Base) (r18 : Mont_Base) (r19 : Mont_Base) (r20 : Mont_Base) (r21 : Point_Mont_Base) (r22 : Mont_Base) (r23 : Mont_Base) (r24 : Mont_Base) (r25 : Mont_Base) (r26 : Mont_Base) (r27 : Mont_Base) (r28 : Mont_Base) (r29 : Mont_Base) (r30 : Mont_Base) (r31 : Point_Mont_Base) (r32 : Point_Mont_Base) (r33 : Point_Mont_Base) (r34 : Mont_Base) (r35 : Mont_Base) (r36 : Point_Mont_Base) : FeM Point_Mont_Base := do
   let mut g := g
@@ -3192,18 +2797,19 @@ def combination_k1 (u : UInt256) (v_1 : UInt256) (v20 : Point_Mont_Base) (v21 : 
   let mut r35 := r35
   let mut r36 := r36
   table := (table.set! v21.toNat v20)
+  -- table[4] = g
   let v23 := (UInt256.ofNat 4)
-  let g_24 := g
   checkIndex v23 16
-  table := (table.set! v23.toNat g_24)
+  table := (table.set! v23.toNat g)
+  -- table[8] = g.double()
   let v27 ← Point_double_Mont_Base g
   let v28 := (UInt256.ofNat 8)
   checkIndex v28 16
   table := (table.set! v28.toNat v27)
+  -- table[12] = table[8].add(g)
   let v30 := (UInt256.ofNat 8)
   checkIndex v30 16
-  let v31 := table[v30.toNat]!
-  r11 := v31
+  r11 := table[v30.toNat]!
   let v34 ← Point_add_Mont_Base r11 g
   let v35 := (UInt256.ofNat 12)
   checkIndex v35 16
@@ -3249,23 +2855,25 @@ def combination (u : UInt256) (v_1 : UInt256) (q : Point_Mont_Base) : FeM Point_
   let mut r34 : Mont_Base := default
   let mut r35 : Mont_Base := default
   let mut r36 : Point_Mont_Base := default
+  -- let g = generator()
   let g_6 ← generator
   g := g_6
+  -- var table = [Point<Fp>::infinity(); 16]
   let v8 ← Point_infinity_Mont_Base
-  let table_9 := Vector.replicate 16 v8
-  table := table_9
-  let v11 := q
+  table := (Vector.replicate 16 v8)
+  -- table[1] = q
   let v12 := (UInt256.ofNat 1)
   checkIndex v12 16
-  table := (table.set! v12.toNat v11)
+  table := (table.set! v12.toNat q)
+  -- table[2] = q.double()
   let v14 ← Point_double_Mont_Base q
   let v15 := (UInt256.ofNat 2)
   checkIndex v15 16
   table := (table.set! v15.toNat v14)
+  -- table[3] = table[2].add(q)
   let v17 := (UInt256.ofNat 2)
   checkIndex v17 16
-  let v18 := table[v17.toNat]!
-  r10 := v18
+  r10 := table[v17.toNat]!
   let v20 ← Point_add_Mont_Base r10 q
   let v21 := (UInt256.ofNat 3)
   checkIndex v21 16
@@ -3279,26 +2887,26 @@ def Point_to_affine_Mont_Base (self : Point_Mont_Base) : FeM (Mont_Base × Mont_
   let mut r3 : Mont_Base := default
   let mut r4 : Mont_Base := default
   let mut r5 : Mont_Base := default
-  let v1 := self.z
-  r2 := v1
+  -- let z_inv = self.z.inverse()
+  r2 := self.z
   let z_inv_3 ← Mont_inverse_Base r2
   z_inv := z_inv_3
+  -- let z_inv2 = z_inv.square()
   let z_inv2_6 ← Mont_square_Base z_inv
   z_inv2 := z_inv2_6
-  let v8 := self.x
-  r3 := v8
+  -- (self.x.mul(z_inv2), self.y.mul(z_inv2.mul(z_inv)))
+  r3 := self.x
   let v11 ← Mont_mul_Base r3 z_inv2
   let v14 ← Mont_mul_Base z_inv2 z_inv
   r4 := v14
-  let v15 := self.y
-  r5 := v15
+  r5 := self.y
   let v18 ← Mont_mul_Base r5 r4
-  let v19 := (v11, v18)
-  return v19
+  return (v11, v18)
 
 /-- `<Mont<Base> as Field>::neg` -/
 def Mont_neg_Base (self : Mont_Base) : FeM Mont_Base := do
   let mut r0 : Mont_Base := default
+  -- Self::zero().sub(self)
   let v1 ← Mont_zero_Base
   r0 := v1
   let v3 ← Mont_sub_Base r0 self
@@ -3325,8 +2933,9 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
   let mut r16 : Mont_Order := default
   let mut r17 : Mont_Order := default
   let mut r18 : Point_Mont_Base := default
+  -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
   let v8 := decide (recovery_id.toNat ≤ (UInt256.ofNat 1).toNat)
-  let b3 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → Bool → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 v4 => do
+  let join : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → Bool → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 v4 => do
     let mut x := x
     let mut alpha := alpha
     let mut beta := beta
@@ -3346,9 +2955,12 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
     let mut r16 := r16
     let mut r17 := r17
     let mut r18 := r18
+    -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
     let _ ← «assert» v4
+    -- let x = Fp::new(r)
     let x_26 ← Mont_new_Base r
     x := x_26
+    -- let alpha = x.square().mul(x).add(Fp::new(7))
     let v29 ← Mont_square_Base x
     r8 := v29
     let v32 ← Mont_mul_Base r8 x
@@ -3357,23 +2969,22 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
     r10 := v34
     let alpha_37 ← Mont_add_Base r9 r10
     alpha := alpha_37
+    -- let beta = alpha.pow((P + 1) / 4)
     let v39 ← P
     let v41 ← checkedAdd v39 (UInt256.ofNat 1)
     let v43 ← checkedDiv v41 (UInt256.ofNat 4)
     let beta_45 ← Mont_pow_Base alpha v43
     beta := beta_45
+    -- if !beta.square().equals(alpha) { return Option::None }
     let v48 ← Mont_square_Base beta
     r11 := v48
     let v51 ← Mont_equals_Base r11 alpha
-    let v52 := !v51
-    if v52 then
-      let v53 := Option_PublicKey.None
-      return v53
+    if !v51 then
+      return Option_PublicKey.None
     else
+      -- let y = if beta.value() & 1 == recovery_id { beta } else { beta.neg() }
       let v57 ← Mont_value_Base beta
-      let v59 := v57 &&& (UInt256.ofNat 1)
-      let v61 := decide (v59 = recovery_id)
-      let b13 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → Mont_Base → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 y_5 => do
+      let join_1 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → Mont_Base → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 y_5 => do
         let mut x := x
         let mut alpha := alpha
         let mut beta := beta
@@ -3393,11 +3004,14 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
         let mut r16 := r16
         let mut r17 := r17
         let mut r18 := r18
+        -- let y = if beta.value() & 1 == recovery_id { beta } else { beta.neg() }
         y := y_5
+        -- let r_inverse = Scalar::new(r).inverse()
         let v68 ← Mont_new_Order r
         r12 := v68
         let r_inverse_70 ← Mont_inverse_Order r12
         r_inverse := r_inverse_70
+        -- let u = Scalar::new(hash % N).neg().mul(r_inverse).value()
         let v73 ← N
         let v74 ← checkedRem hash v73
         let v75 ← Mont_new_Order v74
@@ -3407,37 +3021,38 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
         let v80 ← Mont_mul_Order r14 r_inverse
         r15 := v80
         let u ← Mont_value_Order r15
+        -- let v = Scalar::new(s).mul(r_inverse).value()
         let v84 ← Mont_new_Order s
         r16 := v84
         let v87 ← Mont_mul_Order r16 r_inverse
         r17 := v87
         let v ← Mont_value_Order r17
+        -- let key = combination(u, v, q: Point::affine(x, y))
         let v93 ← Point_affine_Mont_Base x y
         r18 := v93
         let key_95 ← combination u v r18
         key := key_95
+        -- if key.is_infinity() { return Option::None }
         let v98 ← Point_is_infinity_Mont_Base key
         if v98 then
-          let v99 := Option_PublicKey.None
-          return v99
+          return Option_PublicKey.None
         else
+          -- let (key_x, key_y) = key.to_affine()
           let v103 ← Point_to_affine_Mont_Base key
-          let key_x_104 := v103.fst
-          key_x := key_x_104
-          let key_y_106 := v103.snd
-          key_y := key_y_106
+          key_x := v103.fst
+          key_y := v103.snd
+          -- Option::Some(PublicKey { x: key_x.value(), y: key_y.value() })
           let v109 ← Mont_value_Base key_x
           let v111 ← Mont_value_Base key_y
-          let v112 := (PublicKey.mk v109 v111)
-          let v113 := Option_PublicKey.Some v112
-          return v113
-      if v61 then
-        let beta_62 := beta
-        b13 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 beta_62
+          return Option_PublicKey.Some (PublicKey.mk v109 v111)
+      -- let y = if beta.value() & 1 == recovery_id { beta } else { beta.neg() }
+      if decide ((v57 &&& (UInt256.ofNat 1)) = recovery_id) then
+        join_1 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 beta
       else
+        -- beta.neg()
         let v65 ← Mont_neg_Base beta
-        b13 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 v65
-  let b2 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 => do
+        join_1 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 v65
+  let join_2 : Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Point_Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Base → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Mont_Order → Point_Mont_Base → FeM Option_PublicKey := fun x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 => do
     let mut x := x
     let mut alpha := alpha
     let mut beta := beta
@@ -3457,42 +3072,46 @@ def recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256)
     let mut r16 := r16
     let mut r17 := r17
     let mut r18 := r18
-    b3 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 false
+    join x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 false
+  -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
   if v8 then
-    let v11 := decide (r ≠ (UInt256.ofNat 0))
-    if v11 then
+    -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
+    if decide (r ≠ (UInt256.ofNat 0)) then
+      -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
       let v13 ← N
-      let v14 := decide (r.toNat < v13.toNat)
-      if v14 then
-        let v17 := decide (s ≠ (UInt256.ofNat 0))
-        if v17 then
+      if decide (r.toNat < v13.toNat) then
+        -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
+        if decide (s ≠ (UInt256.ofNat 0)) then
+          -- core::assert(recovery_id <= 1 && r != 0 && r < N && s != 0 && s < N)
           let v19 ← N
-          let v20 := decide (s.toNat < v19.toNat)
-          if v20 then
-            b3 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 true
+          if decide (s.toNat < v19.toNat) then
+            join x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 true
           else
-            b2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+            join_2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
         else
-          b2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+          join_2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
       else
-        b2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+        join_2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
     else
-      b2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+      join_2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
   else
-    b2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
+    join_2 x alpha beta y r_inverse key key_x key_y r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
 
 /-- `<MemBuffer as ByteSource>::len` -/
 def MemBuffer_len_1 (self : MemBuffer) : FeM UInt256 := do
+  -- MemBuffer::len(self)
   let v1 ← MemBuffer_len self
   return v1
 
 /-- `<MemBuffer as ByteSource>::lane_at` -/
 def MemBuffer_lane_at (self : MemBuffer) (index : UInt256) : FeM UInt256 := do
+  -- self.read_le<u64>(index)
   let v2 ← MemBuffer_read_le_u64 self index
   return v2
 
 /-- `<MemBuffer as ByteSource>::byte_at` -/
 def MemBuffer_byte_at (self : MemBuffer) (index : UInt256) : FeM UInt256 := do
+  -- self[index]
   let v2 ← MemBuffer_index_ref self index
   let v3 ← mloadInt (.u 8) v2
   return v3
@@ -3501,71 +3120,65 @@ def MemBuffer_byte_at (self : MemBuffer) (index : UInt256) : FeM UInt256 := do
 def word_at_MemBuffer (input : MemBuffer) (offset : UInt256) : FeM UInt256 := do
   let mut value : UInt256 := default
   let mut r1 : Range_Unknown_Unknown := default
+  -- if offset + 32 <= input.len() {
   let v6 ← checkedAdd offset (UInt256.ofNat 32)
   let v7 ← MemBuffer_len_1 input
-  let v8 := decide (v6.toNat ≤ v7.toNat)
-  if v8 then
+  if decide (v6.toNat ≤ v7.toNat) then
+    -- return (swap_bytes(input.lane_at(offset)) as u256) << 192
     let v9 ← MemBuffer_lane_at input offset
-    let v10 := IntTy.swapBytes (.u 64) v9
-    let v11 := v10
-    let v13 := v11 <<< (UInt256.ofNat 192)
+    let v13 := (IntTy.swapBytes (.u 64) v9) <<< (UInt256.ofNat 192)
     let v16 ← checkedAdd offset (UInt256.ofNat 8)
     let v17 ← MemBuffer_lane_at input v16
-    let v18 := IntTy.swapBytes (.u 64) v17
-    let v19 := v18
-    let v21 := v19 <<< (UInt256.ofNat 128)
-    let v22 := v13 ||| v21
+    let v21 := (IntTy.swapBytes (.u 64) v17) <<< (UInt256.ofNat 128)
     let v25 ← checkedAdd offset (UInt256.ofNat 16)
     let v26 ← MemBuffer_lane_at input v25
-    let v27 := IntTy.swapBytes (.u 64) v26
-    let v28 := v27
-    let v30 := v28 <<< (UInt256.ofNat 64)
-    let v31 := v22 ||| v30
+    let v30 := (IntTy.swapBytes (.u 64) v26) <<< (UInt256.ofNat 64)
     let v34 ← checkedAdd offset (UInt256.ofNat 24)
     let v35 ← MemBuffer_lane_at input v34
-    let v36 := IntTy.swapBytes (.u 64) v35
-    let v37 := v36
-    let v38 := v31 ||| v37
+    let v38 := ((v13 ||| v21) ||| v30) ||| (IntTy.swapBytes (.u 64) v35)
     return v38
   else
+    -- var value: u256 = 0
     value := (UInt256.ofNat 0)
+    -- for index in offset..offset + 32 {
     let v46 ← checkedAdd offset (UInt256.ofNat 32)
-    let v48 := (Range_Unknown_Unknown.mk offset v46)
-    r1 := v48
+    r1 := (Range_Unknown_Unknown.mk offset v46)
     let v50 ← Range_Unknown_Unknown_start r1
-    let rec b4 (value : UInt256) (r1 : Range_Unknown_Unknown) (v2 : UInt256) : FeM UInt256 := do
+    let rec loop (value : UInt256) (r1 : Range_Unknown_Unknown) (v2 : UInt256) : FeM UInt256 := do
       let mut value := value
       let mut r1 := r1
+      -- for index in offset..offset + 32 {
       let v53 ← Range_Unknown_Unknown_has r1 v2
       if v53 then
+        -- for index in offset..offset + 32 {
         let v55 ← Range_Unknown_Unknown_at r1 v2
         let index := v55
-        let value_57 := value
-        let v60 := value_57 <<< (UInt256.ofNat 8)
+        -- value = (value << 8) | if index < input.len() { input.byte_at(index) as u256 } else { 0 }
+        let v60 := value <<< (UInt256.ofNat 8)
         let v61 ← MemBuffer_len_1 input
-        let v62 := decide (index.toNat < v61.toNat)
-        let b10 : UInt256 → Range_Unknown_Unknown → UInt256 → FeM UInt256 := fun value r1 v3 => do
+        let join : UInt256 → Range_Unknown_Unknown → UInt256 → FeM UInt256 := fun value r1 v3 => do
           let mut value := value
           let mut r1 := r1
-          let value_68 := v60 ||| v3
-          value := value_68
+          -- value = (value << 8) | if index < input.len() { input.byte_at(index) as u256 } else { 0 }
+          value := (v60 ||| v3)
+          -- for index in offset..offset + 32 {
           let v72 ← Range_Unknown_Unknown_next r1 v2
-          b4 value r1 v72
-        if v62 then
+          loop value r1 v72
+        -- value = (value << 8) | if index < input.len() { input.byte_at(index) as u256 } else { 0 }
+        if decide (index.toNat < v61.toNat) then
+          -- input.byte_at(index) as u256
           let v63 ← MemBuffer_byte_at input index
-          let v64 := v63
-          b10 value r1 v64
+          join value r1 v63
         else
-          b10 value r1 (UInt256.ofNat 0)
+          join value r1 (UInt256.ofNat 0)
       else
-        let value_74 := value
-        return value_74
+        return value
     partial_fixpoint
-    b4 value r1 v50
+    loop value r1 v50
 
 /-- `lib::bn254_field::MODULUS` -/
 def MODULUS : FeM UInt256 := do
-  return (UInt256.ofNat 21888242871839275222246405745257275088696311157297823662689037894645226208583)
+  return UInt256.ofNat 21888242871839275222246405745257275088696311157297823662689037894645226208583
 
 /-- `<Bn254Base as Modulus>::VALUE` -/
 def Bn254Base_VALUE : FeM UInt256 := do
@@ -3574,232 +3187,182 @@ def Bn254Base_VALUE : FeM UInt256 := do
 
 /-- `lib::montgomery::raw<Bn254Base>` -/
 def raw_Bn254Base (value : UInt256) : FeM Mont_Bn254Base := do
+  -- Mont {
   let v1 ← downcast_truncate_u256_u64 value
-  let v4 := value >>> (UInt256.ofNat 64)
-  let v5 ← downcast_truncate_u256_u64 v4
-  let v8 := value >>> (UInt256.ofNat 128)
-  let v9 ← downcast_truncate_u256_u64 v8
-  let v12 := value >>> (UInt256.ofNat 192)
-  let v13 ← downcast_truncate_u256_u64 v12
-  let v14 := (Mont_Bn254Base.mk v1 v5 v9 v13)
-  return v14
+  let v5 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 64))
+  let v9 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 128))
+  let v13 ← downcast_truncate_u256_u64 (value >>> (UInt256.ofNat 192))
+  return Mont_Bn254Base.mk v1 v5 v9 v13
 
 /-- `<Bn254Base as Modulus>::R2` -/
 def Bn254Base_R2 : FeM UInt256 := do
-  return (UInt256.ofNat 3096616502983703923843567936837374451735540968419076528771170197431451843209)
+  return UInt256.ofNat 3096616502983703923843567936837374451735540968419076528771170197431451843209
 
 /-- `<Bn254Base as Modulus>::INV` -/
 def Bn254Base_INV : FeM UInt256 := do
-  return (UInt256.ofNat 9786893198990664585)
+  return UInt256.ofNat 9786893198990664585
 
 /-- `<Bn254Base as Modulus>::P0` -/
 def Bn254Base_P0 : FeM UInt256 := do
-  return (UInt256.ofNat 4332616871279656263)
+  return UInt256.ofNat 4332616871279656263
 
 /-- `<Bn254Base as Modulus>::P1` -/
 def Bn254Base_P1 : FeM UInt256 := do
-  return (UInt256.ofNat 10917124144477883021)
+  return UInt256.ofNat 10917124144477883021
 
 /-- `<Bn254Base as Modulus>::P2` -/
 def Bn254Base_P2 : FeM UInt256 := do
-  return (UInt256.ofNat 13281191951274694749)
+  return UInt256.ofNat 13281191951274694749
 
 /-- `<Bn254Base as Modulus>::P3` -/
 def Bn254Base_P3 : FeM UInt256 := do
-  return (UInt256.ofNat 3486998266802970665)
+  return UInt256.ofNat 3486998266802970665
 
-def Mont_shift_reduced_Bn254Base_k3 (s5 : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (u3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) (u4_76 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let ca_78 := v75.snd
-  let v80 ← adc s5 cb_72 ca_78
-  let u5 := v80.fst
-  let v83 := (Mont_Bn254Base.mk u1_33 u2_49 u3_65 u4_76)
-  let v84 := (v83, u5)
-  return v84
+def Mont_shift_reduced_Bn254Base_k3 (s5 : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (u5, _) = adc(s5, cb, ca)
+  let v80 ← adc s5 v69.snd v75.snd
+  -- (Mont { l0: u1, l1: u2, l2: u3, l3: u4 }, u5)
+  let v83 := (Mont_Bn254Base.mk v32.fst v48.fst v64.fst v75.fst)
+  return (v83, v80.fst)
 
-def Mont_shift_reduced_Bn254Base_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (u1_33 : UInt256) (u2_49 : UInt256) (ca_51 : UInt256) (v53 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
-  let u3_54 := v53.fst
-  let cb_56 := v53.snd
+def Mont_shift_reduced_Bn254Base_k2 (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v32 : (UInt256 × UInt256)) (v48 : (UInt256 × UInt256)) (v53 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (k3, j3) = mul_wide(m, M::P3)
   let v58 ← Bn254Base_P3
   let v59 ← mul_wide m v58
-  let k3 := v59.fst
-  let j3 := v59.snd
-  let v64 ← adc u3_54 k3 ca_51
-  let u3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc s4 j3 cb_56
-  let u4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc u4_70 (UInt256.ofNat 0) ca_67
-  let u4_76 := v75.fst
-  Mont_shift_reduced_Bn254Base_k3 s5 u1_33 u2_49 u3_65 cb_72 v75 u4_76
+  -- let (u3, ca) = adc(u3, k3, ca)
+  let v64 ← adc v53.fst v59.fst v48.snd
+  -- let (u4, cb) = adc(s4, j3, cb)
+  let v69 ← adc s4 v59.snd v53.snd
+  -- let (u4, ca) = adc(u4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_shift_reduced_Bn254Base_k3 s5 v32 v48 v64 v69 v75
 
-def Mont_shift_reduced_Bn254Base_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (ca_18 : UInt256) (u1_22 : UInt256) (cb_24 : UInt256) (v27 : (UInt256 × UInt256)) (k1 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let j1 := v27.snd
-  let v32 ← adc u1_22 k1 ca_18
-  let u1_33 := v32.fst
-  let ca_35 := v32.snd
-  let v37 ← adc s2 j1 cb_24
-  let u2_38 := v37.fst
-  let cb_40 := v37.snd
+def Mont_shift_reduced_Bn254Base_k1 (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) (m : UInt256) (v17 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) (v27 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (u1, ca) = adc(u1, k1, ca)
+  let v32 ← adc v21.fst v27.fst v17.snd
+  -- let (u2, cb) = adc(s2, j1, cb)
+  let v37 ← adc s2 v27.snd v21.snd
+  -- let (k2, j2) = mul_wide(m, M::P2)
   let v42 ← Bn254Base_P2
   let v43 ← mul_wide m v42
-  let k2 := v43.fst
-  let j2 := v43.snd
-  let v48 ← adc u2_38 k2 ca_35
-  let u2_49 := v48.fst
-  let ca_51 := v48.snd
-  let v53 ← adc s3 j2 cb_40
-  Mont_shift_reduced_Bn254Base_k2 s4 s5 m u1_33 u2_49 ca_51 v53
+  -- let (u2, ca) = adc(u2, k2, ca)
+  let v48 ← adc v37.fst v43.fst v32.snd
+  -- let (u3, cb) = adc(s3, j2, cb)
+  let v53 ← adc s3 v43.snd v37.snd
+  Mont_shift_reduced_Bn254Base_k2 s4 s5 m v32 v48 v53
 
 /-- `Mont<Bn254Base>::shift_reduced` -/
 def Mont_shift_reduced_Bn254Base (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (s3 : UInt256) (s4 : UInt256) (s5 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let m = s0.wrapping_mul(M::INV)
   let v6 ← Bn254Base_INV
   let m ← u64_wrapping_mul s0 v6
+  -- let (k0, j0) = mul_wide(m, M::P0)
   let v10 ← Bn254Base_P0
   let v11 ← mul_wide m v10
-  let k0 := v11.fst
-  let j0 := v11.snd
-  let v17 ← adc s0 k0 (UInt256.ofNat 0)
-  let ca_18 := v17.snd
-  let v21 ← adc s1 j0 (UInt256.ofNat 0)
-  let u1_22 := v21.fst
-  let cb_24 := v21.snd
+  -- let (_, ca) = adc(s0, k0, 0)
+  let v17 ← adc s0 v11.fst (UInt256.ofNat 0)
+  -- let (u1, cb) = adc(s1, j0, 0)
+  let v21 ← adc s1 v11.snd (UInt256.ofNat 0)
+  -- let (k1, j1) = mul_wide(m, M::P1)
   let v26 ← Bn254Base_P1
   let v27 ← mul_wide m v26
-  let k1 := v27.fst
-  Mont_shift_reduced_Bn254Base_k1 s2 s3 s4 s5 m ca_18 u1_22 cb_24 v27 k1
+  Mont_shift_reduced_Bn254Base_k1 s2 s3 s4 s5 m v17 v21 v27
 
-def Mont_first_row_Bn254Base_k1 (self : Mont_Bn254Base) (b : UInt256) (s0 : UInt256) (h1 : UInt256) (s1 : UInt256) (c_18 : UInt256) (l2 : UInt256) (h2 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let v26 ← adc h1 l2 c_18
-  let s2 := v26.fst
-  let c_29 := v26.snd
-  let v31 := self.l3
-  let v32 ← mul_wide b v31
-  let l3 := v32.fst
-  let h3 := v32.snd
-  let v37 ← adc h2 l3 c_29
-  let s3 := v37.fst
-  let c_40 := v37.snd
-  let v43 ← adc h3 (UInt256.ofNat 0) c_40
-  let s4 := v43.fst
-  let v47 ← Mont_shift_reduced_Bn254Base s0 s1 s2 s3 s4 (UInt256.ofNat 0)
+def Mont_first_row_Bn254Base_k1 (self : Mont_Bn254Base) (b : UInt256) (v3 : (UInt256 × UInt256)) (v9 : (UInt256 × UInt256)) (v15 : (UInt256 × UInt256)) (v21 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (s2, c) = adc(h1, l2, c)
+  let v26 ← adc v9.snd v21.fst v15.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v32 ← mul_wide b self.l3
+  -- let (s3, c) = adc(h2, l3, c)
+  let v37 ← adc v21.snd v32.fst v26.snd
+  -- let (s4, _) = adc(h3, 0, c)
+  let v43 ← adc v32.snd (UInt256.ofNat 0) v37.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, 0)
+  let v47 ← Mont_shift_reduced_Bn254Base v3.fst v15.fst v26.fst v37.fst v43.fst (UInt256.ofNat 0)
   return v47
 
 /-- `Mont<Bn254Base>::first_row` -/
 def Mont_first_row_Bn254Base (self : Mont_Bn254Base) (b : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let v2 := self.l0
-  let v3 ← mul_wide b v2
-  let s0 := v3.fst
-  let h0 := v3.snd
-  let v8 := self.l1
-  let v9 ← mul_wide b v8
-  let l1 := v9.fst
-  let h1 := v9.snd
-  let v15 ← adc h0 l1 (UInt256.ofNat 0)
-  let s1 := v15.fst
-  let c_18 := v15.snd
-  let v20 := self.l2
-  let v21 ← mul_wide b v20
-  let l2 := v21.fst
-  let h2 := v21.snd
-  Mont_first_row_Bn254Base_k1 self b s0 h1 s1 c_18 l2 h2
+  -- let (s0, h0) = mul_wide(b, self.l0)
+  let v3 ← mul_wide b self.l0
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v9 ← mul_wide b self.l1
+  -- let (s1, c) = adc(h0, l1, 0)
+  let v15 ← adc v3.snd v9.fst (UInt256.ofNat 0)
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v21 ← mul_wide b self.l2
+  Mont_first_row_Bn254Base_k1 self b v3 v9 v15 v21
 
-def Mont_row_Bn254Base_k3 (s0 : UInt256) (s1_31 : UInt256) (s2_48 : UInt256) (s3_65 : UInt256) (cb_72 : UInt256) (v75 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
-  let s4_76 := v75.fst
-  let ca_78 := v75.snd
-  let v81 ← adc cb_72 (UInt256.ofNat 0) ca_78
-  let s5 := v81.fst
-  let v84 ← Mont_shift_reduced_Bn254Base s0 s1_31 s2_48 s3_65 s4_76 s5
+def Mont_row_Bn254Base_k3 (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) (v64 : (UInt256 × UInt256)) (v69 : (UInt256 × UInt256)) (v75 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (s5, _) = adc(cb, 0, ca)
+  let v81 ← adc v69.snd (UInt256.ofNat 0) v75.snd
+  -- Self::shift_reduced(s0, s1, s2, s3, s4, s5)
+  let v84 ← Mont_shift_reduced_Bn254Base v12.fst v30.fst v47.fst v64.fst v75.fst v81.fst
   return v84
 
-def Mont_row_Bn254Base_k2 (self : Mont_Bn254Base) (b : UInt256) (t : Mont_Bn254Base) (top : UInt256) (s0 : UInt256) (s1_31 : UInt256) (cb_39 : UInt256) (h2 : UInt256) (s2_48 : UInt256) (ca_50 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let v52 := t.l3
-  let v53 ← adc v52 h2 cb_39
-  let s3_54 := v53.fst
-  let cb_56 := v53.snd
-  let v58 := self.l3
-  let v59 ← mul_wide b v58
-  let l3 := v59.fst
-  let h3 := v59.snd
-  let v64 ← adc s3_54 l3 ca_50
-  let s3_65 := v64.fst
-  let ca_67 := v64.snd
-  let v69 ← adc top h3 cb_56
-  let s4_70 := v69.fst
-  let cb_72 := v69.snd
-  let v75 ← adc s4_70 (UInt256.ofNat 0) ca_67
-  Mont_row_Bn254Base_k3 s0 s1_31 s2_48 s3_65 cb_72 v75
+def Mont_row_Bn254Base_k2 (self : Mont_Bn254Base) (b : UInt256) (t : Mont_Bn254Base) (top : UInt256) (v12 : (UInt256 × UInt256)) (v30 : (UInt256 × UInt256)) (v36 : (UInt256 × UInt256)) (v42 : (UInt256 × UInt256)) (v47 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (s3, cb) = adc(t.l3, h2, cb)
+  let v53 ← adc t.l3 v42.snd v36.snd
+  -- let (l3, h3) = mul_wide(b, self.l3)
+  let v59 ← mul_wide b self.l3
+  -- let (s3, ca) = adc(s3, l3, ca)
+  let v64 ← adc v53.fst v59.fst v47.snd
+  -- let (s4, cb) = adc(top, h3, cb)
+  let v69 ← adc top v59.snd v53.snd
+  -- let (s4, ca) = adc(s4, 0, ca)
+  let v75 ← adc v69.fst (UInt256.ofNat 0) v64.snd
+  Mont_row_Bn254Base_k3 v12 v30 v47 v64 v69 v75
 
-def Mont_row_Bn254Base_k1 (self : Mont_Bn254Base) (b : UInt256) (t : Mont_Bn254Base) (top : UInt256) (s0 : UInt256) (ca_15 : UInt256) (s1_20 : UInt256) (cb_22 : UInt256) (v25 : (UInt256 × UInt256)) (l1 : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let h1 := v25.snd
-  let v30 ← adc s1_20 l1 ca_15
-  let s1_31 := v30.fst
-  let ca_33 := v30.snd
-  let v35 := t.l2
-  let v36 ← adc v35 h1 cb_22
-  let s2_37 := v36.fst
-  let cb_39 := v36.snd
-  let v41 := self.l2
-  let v42 ← mul_wide b v41
-  let l2 := v42.fst
-  let h2 := v42.snd
-  let v47 ← adc s2_37 l2 ca_33
-  let s2_48 := v47.fst
-  let ca_50 := v47.snd
-  Mont_row_Bn254Base_k2 self b t top s0 s1_31 cb_39 h2 s2_48 ca_50
+def Mont_row_Bn254Base_k1 (self : Mont_Bn254Base) (b : UInt256) (t : Mont_Bn254Base) (top : UInt256) (v12 : (UInt256 × UInt256)) (v19 : (UInt256 × UInt256)) (v25 : (UInt256 × UInt256)) : FeM (Mont_Bn254Base × UInt256) := do
+  -- let (s1, ca) = adc(s1, l1, ca)
+  let v30 ← adc v19.fst v25.fst v12.snd
+  -- let (s2, cb) = adc(t.l2, h1, cb)
+  let v36 ← adc t.l2 v25.snd v19.snd
+  -- let (l2, h2) = mul_wide(b, self.l2)
+  let v42 ← mul_wide b self.l2
+  -- let (s2, ca) = adc(s2, l2, ca)
+  let v47 ← adc v36.fst v42.fst v30.snd
+  Mont_row_Bn254Base_k2 self b t top v12 v30 v36 v42 v47
 
 /-- `Mont<Bn254Base>::row` -/
 def Mont_row_Bn254Base (self : Mont_Bn254Base) (b : UInt256) (t : Mont_Bn254Base) (top : UInt256) : FeM (Mont_Bn254Base × UInt256) := do
-  let v4 := self.l0
-  let v5 ← mul_wide b v4
-  let l0 := v5.fst
-  let h0 := v5.snd
-  let v10 := t.l0
-  let v12 ← adc v10 l0 (UInt256.ofNat 0)
-  let s0 := v12.fst
-  let ca_15 := v12.snd
-  let v17 := t.l1
-  let v19 ← adc v17 h0 (UInt256.ofNat 0)
-  let s1_20 := v19.fst
-  let cb_22 := v19.snd
-  let v24 := self.l1
-  let v25 ← mul_wide b v24
-  let l1 := v25.fst
-  Mont_row_Bn254Base_k1 self b t top s0 ca_15 s1_20 cb_22 v25 l1
+  -- let (l0, h0) = mul_wide(b, self.l0)
+  let v5 ← mul_wide b self.l0
+  -- let (s0, ca) = adc(t.l0, l0, 0)
+  let v12 ← adc t.l0 v5.fst (UInt256.ofNat 0)
+  -- let (s1, cb) = adc(t.l1, h0, 0)
+  let v19 ← adc t.l1 v5.snd (UInt256.ofNat 0)
+  -- let (l1, h1) = mul_wide(b, self.l1)
+  let v25 ← mul_wide b self.l1
+  Mont_row_Bn254Base_k1 self b t top v12 v19 v25
 
 /-- `Mont<Bn254Base>::reduce` -/
 def Mont_reduce_Bn254Base (self : Mont_Bn254Base) (top : UInt256) : FeM Mont_Bn254Base := do
-  let v3 := self.l0
+  -- let (d0, b) = sbb(self.l0, M::P0, 0)
   let v4 ← Bn254Base_P0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  let v6 ← sbb self.l0 v4 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
+  -- let (d1, b) = sbb(self.l1, M::P1, b)
   let v12 ← Bn254Base_P1
-  let v13 ← sbb v11 v12 b_9
+  let v13 ← sbb self.l1 v12 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
+  -- let (d2, b) = sbb(self.l2, M::P2, b)
   let v19 ← Bn254Base_P2
-  let v20 ← sbb v18 v19 b_16
+  let v20 ← sbb self.l2 v19 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
+  -- let (d3, b) = sbb(self.l3, M::P3, b)
   let v26 ← Bn254Base_P3
-  let v27 ← sbb v25 v26 b_23
+  let v27 ← sbb self.l3 v26 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
-  let v33 ← sbb top (UInt256.ofNat 0) b_30
-  let b_34 := v33.snd
-  let v37 := decide (b_34 = (UInt256.ofNat 1))
-  let b3 : Mont_Bn254Base → FeM Mont_Bn254Base := fun v2 => do
+  -- let (_, b) = sbb(top, 0, b)
+  let v33 ← sbb top (UInt256.ofNat 0) v27.snd
+  let join : Mont_Bn254Base → FeM Mont_Bn254Base := fun v2 => do
     return v2
-  if v37 then
-    let v38 := self
-    b3 v38
+  -- if b == 1 { self } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v33.snd = (UInt256.ofNat 1)) then
+    join self
   else
-    let v40 := (Mont_Bn254Base.mk d0 d1 d2 d3)
-    b3 v40
+    join (Mont_Bn254Base.mk d0 d1 d2 d3)
 
 /-- `<Mont<Bn254Base> as Field>::mul` -/
 def Mont_mul_Bn254Base (self : Mont_Bn254Base) (other : Mont_Bn254Base) : FeM Mont_Bn254Base := do
@@ -3807,36 +3370,30 @@ def Mont_mul_Bn254Base (self : Mont_Bn254Base) (other : Mont_Bn254Base) : FeM Mo
   let mut t_r1 : Mont_Bn254Base := default
   let mut t_r2 : Mont_Bn254Base := default
   let mut t_r3 : Mont_Bn254Base := default
-  let v2 := other.l0
-  let v3 ← Mont_first_row_Bn254Base self v2
-  let t_4 := v3.fst
-  t_r0 := t_4
-  let top_6 := v3.snd
-  let v8 := other.l1
-  let v10 ← Mont_row_Bn254Base self v8 t_r0 top_6
-  let t_11 := v10.fst
-  t_r1 := t_11
-  let top_13 := v10.snd
-  let v15 := other.l2
-  let v17 ← Mont_row_Bn254Base self v15 t_r1 top_13
-  let t_18 := v17.fst
-  t_r2 := t_18
-  let top_20 := v17.snd
-  let v22 := other.l3
-  let v24 ← Mont_row_Bn254Base self v22 t_r2 top_20
-  let t_25 := v24.fst
-  t_r3 := t_25
-  let top_27 := v24.snd
-  let v30 ← Mont_reduce_Bn254Base t_r3 top_27
+  -- let (t, top) = self.first_row(other.l0)
+  let v3 ← Mont_first_row_Bn254Base self other.l0
+  t_r0 := v3.fst
+  -- let (t, top) = self.row(other.l1, t, top)
+  let v10 ← Mont_row_Bn254Base self other.l1 t_r0 v3.snd
+  t_r1 := v10.fst
+  -- let (t, top) = self.row(other.l2, t, top)
+  let v17 ← Mont_row_Bn254Base self other.l2 t_r1 v10.snd
+  t_r2 := v17.fst
+  -- let (t, top) = self.row(other.l3, t, top)
+  let v24 ← Mont_row_Bn254Base self other.l3 t_r2 v17.snd
+  t_r3 := v24.fst
+  -- t.reduce(top)
+  let v30 ← Mont_reduce_Bn254Base t_r3 v24.snd
   return v30
 
 /-- `Mont<Bn254Base>::new` -/
 def Mont_new_Bn254Base (value : UInt256) : FeM Mont_Bn254Base := do
   let mut r0 : Mont_Bn254Base := default
   let mut r1 : Mont_Bn254Base := default
+  -- core::assert(value < M::VALUE)
   let v2 ← Bn254Base_VALUE
-  let v3 := decide (value.toNat < v2.toNat)
-  let _ ← «assert» v3
+  let _ ← «assert» (decide (value.toNat < v2.toNat))
+  -- raw<M>(value).mul(raw<M>(M::R2))
   let v5 ← raw_Bn254Base value
   r0 := v5
   let v6 ← Bn254Base_R2
@@ -3847,86 +3404,67 @@ def Mont_new_Bn254Base (value : UInt256) : FeM Mont_Bn254Base := do
 
 /-- `lib::bn254_field::fp` -/
 def fp (value : UInt256) : FeM Mont_Bn254Base := do
+  -- Fp::new(value)
   let v1 ← Mont_new_Bn254Base value
   return v1
 
 /-- `<Mont<Bn254Base> as Field>::one` -/
 def Mont_one_Bn254Base : FeM Mont_Bn254Base := do
+  -- Self::new(1)
   let v1 ← Mont_new_Bn254Base (UInt256.ofNat 1)
   return v1
 
 /-- `Point<Mont<Bn254Base>>::affine` -/
 def Point_affine_Mont_Bn254Base (x : Mont_Bn254Base) (y : Mont_Bn254Base) : FeM Point_Mont_Bn254Base := do
-  let v2 := x
-  let v3 := y
+  -- Point { x, y, z: F::one() }
   let v4 ← Mont_one_Bn254Base
-  let v5 := (Point_Mont_Bn254Base.mk v2 v3 v4)
-  return v5
+  return Point_Mont_Bn254Base.mk x y v4
 
 /-- `<Mont<Bn254Base> as Field>::square` -/
 def Mont_square_Bn254Base (self : Mont_Bn254Base) : FeM Mont_Bn254Base := do
+  -- self.mul(self)
   let v1 ← Mont_mul_Bn254Base self self
   return v1
 
 /-- `<Mont<Bn254Base> as Field>::add` -/
 def Mont_add_Bn254Base (self : Mont_Bn254Base) (other : Mont_Bn254Base) : FeM Mont_Bn254Base := do
   let mut r0 : Mont_Bn254Base := default
-  let v2 := self.l0
-  let v3 := other.l0
-  let v5 ← adc v2 v3 (UInt256.ofNat 0)
-  let s0 := v5.fst
-  let c_8 := v5.snd
-  let v10 := self.l1
-  let v11 := other.l1
-  let v12 ← adc v10 v11 c_8
-  let s1 := v12.fst
-  let c_15 := v12.snd
-  let v17 := self.l2
-  let v18 := other.l2
-  let v19 ← adc v17 v18 c_15
-  let s2 := v19.fst
-  let c_22 := v19.snd
-  let v24 := self.l3
-  let v25 := other.l3
-  let v26 ← adc v24 v25 c_22
-  let s3 := v26.fst
-  let c_29 := v26.snd
-  let v31 := (Mont_Bn254Base.mk s0 s1 s2 s3)
-  r0 := v31
-  let v33 ← Mont_reduce_Bn254Base r0 c_29
+  -- let (s0, c) = adc(self.l0, other.l0, 0)
+  let v5 ← adc self.l0 other.l0 (UInt256.ofNat 0)
+  -- let (s1, c) = adc(self.l1, other.l1, c)
+  let v12 ← adc self.l1 other.l1 v5.snd
+  -- let (s2, c) = adc(self.l2, other.l2, c)
+  let v19 ← adc self.l2 other.l2 v12.snd
+  -- let (s3, c) = adc(self.l3, other.l3, c)
+  let v26 ← adc self.l3 other.l3 v19.snd
+  -- Mont { l0: s0, l1: s1, l2: s2, l3: s3 }.reduce(c)
+  r0 := (Mont_Bn254Base.mk v5.fst v12.fst v19.fst v26.fst)
+  let v33 ← Mont_reduce_Bn254Base r0 v26.snd
   return v33
 
 /-- `<Mont<Bn254Base> as Field>::equals` -/
 def Mont_equals_Bn254Base (self : Mont_Bn254Base) (other : Mont_Bn254Base) : FeM Bool := do
-  let v3 := self.l0
-  let v4 := other.l0
-  let v5 := decide (v3 = v4)
-  let b3 : Bool → FeM Bool := fun v2 => do
+  let join : Bool → FeM Bool := fun v2 => do
     return v2
-  let b2 : FeM Bool := do
-    b3 false
-  if v5 then
-    let v6 := self.l1
-    let v7 := other.l1
-    let v8 := decide (v6 = v7)
-    if v8 then
-      let v9 := self.l2
-      let v10 := other.l2
-      let v11 := decide (v9 = v10)
-      if v11 then
-        let v12 := self.l3
-        let v13 := other.l3
-        let v14 := decide (v12 = v13)
-        if v14 then
-          b3 true
+  let join_1 : FeM Bool := do
+    join false
+  -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+  if decide (self.l0 = other.l0) then
+    -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+    if decide (self.l1 = other.l1) then
+      -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+      if decide (self.l2 = other.l2) then
+        -- self.l0 == other.l0 && self.l1 == other.l1 && self.l2 == other.l2 && self.l3 == other.l3
+        if decide (self.l3 = other.l3) then
+          join true
         else
-          b2
+          join_1
       else
-        b2
+        join_1
     else
-      b2
+      join_1
   else
-    b2
+    join_1
 
 /-- `lib::bn254_curve::on_curve<Mont<Bn254Base>>` -/
 def on_curve_Mont_Bn254Base (x : Mont_Bn254Base) (y : Mont_Bn254Base) (b : Mont_Bn254Base) : FeM Bool := do
@@ -3934,6 +3472,7 @@ def on_curve_Mont_Bn254Base (x : Mont_Bn254Base) (y : Mont_Bn254Base) (b : Mont_
   let mut r1 : Mont_Bn254Base := default
   let mut r2 : Mont_Bn254Base := default
   let mut r3 : Mont_Bn254Base := default
+  -- y.square().equals(x.square().mul(x).add(b))
   let v3 ← Mont_square_Bn254Base y
   r0 := v3
   let v4 ← Mont_square_Bn254Base x
@@ -3947,16 +3486,17 @@ def on_curve_Mont_Bn254Base (x : Mont_Bn254Base) (y : Mont_Bn254Base) (b : Mont_
 
 /-- `<Mont<Bn254Base> as Field>::zero` -/
 def Mont_zero_Bn254Base : FeM Mont_Bn254Base := do
+  -- Mont { l0: 0, l1: 0, l2: 0, l3: 0 }
   let v4 := (Mont_Bn254Base.mk (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0) (UInt256.ofNat 0))
   return v4
 
 /-- `Point<Mont<Bn254Base>>::infinity` -/
 def Point_infinity_Mont_Bn254Base : FeM Point_Mont_Bn254Base := do
+  -- Point { x: F::one(), y: F::one(), z: F::zero() }
   let v0 ← Mont_one_Bn254Base
   let v1 ← Mont_one_Bn254Base
   let v2 ← Mont_zero_Bn254Base
-  let v3 := (Point_Mont_Bn254Base.mk v0 v1 v2)
-  return v3
+  return Point_Mont_Bn254Base.mk v0 v1 v2
 
 /-- `lib::bn254::g1_point<MemBuffer>` -/
 def g1_point_MemBuffer (input : MemBuffer) (offset : UInt256) : FeM Option_Point_Mont_Bn254Base := do
@@ -3965,155 +3505,142 @@ def g1_point_MemBuffer (input : MemBuffer) (offset : UInt256) : FeM Option_Point
   let mut r2 : Mont_Bn254Base := default
   let mut r3 : Mont_Bn254Base := default
   let mut r4 : Mont_Bn254Base := default
+  -- let x = word_at(input, offset)
   let x ← word_at_MemBuffer input offset
+  -- let y = word_at(input, offset: offset + 32)
   let v6 ← checkedAdd offset (UInt256.ofNat 32)
   let y ← word_at_MemBuffer input v6
+  -- if x >= MODULUS || y >= MODULUS { return Option::None }
   let v9 ← MODULUS
-  let v10 := decide (v9.toNat ≤ x.toNat)
-  let b1 : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Option_Point_Mont_Bn254Base := fun r0 r1 r2 r3 r4 => do
+  let join : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Option_Point_Mont_Bn254Base := fun r0 r1 r2 r3 r4 => do
     let mut r0 := r0
     let mut r1 := r1
     let mut r2 := r2
     let mut r3 := r3
     let mut r4 := r4
-    let v42 := Option_Point_Mont_Bn254Base.None
-    return v42
-  if v10 then
-    b1 r0 r1 r2 r3 r4
+    return Option_Point_Mont_Bn254Base.None
+  -- if x >= MODULUS || y >= MODULUS { return Option::None }
+  if decide (v9.toNat ≤ x.toNat) then
+    join r0 r1 r2 r3 r4
   else
+    -- if x >= MODULUS || y >= MODULUS { return Option::None }
     let v11 ← MODULUS
-    let v12 := decide (v11.toNat ≤ y.toNat)
-    if v12 then
-      b1 r0 r1 r2 r3 r4
+    if decide (v11.toNat ≤ y.toNat) then
+      join r0 r1 r2 r3 r4
     else
-      let v16 := decide (x = (UInt256.ofNat 0))
-      let b6 : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Option_Point_Mont_Bn254Base := fun r0 r1 r2 r3 r4 => do
+      let join_1 : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Option_Point_Mont_Bn254Base := fun r0 r1 r2 r3 r4 => do
         let mut r0 := r0
         let mut r1 := r1
         let mut r2 := r2
         let mut r3 := r3
         let mut r4 := r4
+        -- let point = Point::affine(x: fp(x), y: fp(y))
         let v23 ← fp x
         r0 := v23
         let v24 ← fp y
         r1 := v24
         let point ← Point_affine_Mont_Bn254Base r0 r1
-        let v29 := point.x
-        r2 := v29
-        let v30 := point.y
-        r3 := v30
+        -- if !on_curve(x: point.x, y: point.y, b: fp(3)) { return Option::None }
+        r2 := point.x
+        r3 := point.y
         let v32 ← fp (UInt256.ofNat 3)
         r4 := v32
         let v36 ← on_curve_Mont_Bn254Base r2 r3 r4
-        let v37 := !v36
-        if v37 then
-          let v38 := Option_Point_Mont_Bn254Base.None
-          return v38
+        if !v36 then
+          return Option_Point_Mont_Bn254Base.None
         else
-          let v41 := Option_Point_Mont_Bn254Base.Some point
-          return v41
-      if v16 then
-        let v18 := decide (y = (UInt256.ofNat 0))
-        if v18 then
+          return Option_Point_Mont_Bn254Base.Some point
+      -- if x == 0 && y == 0 { return Option::Some(Point::infinity()) }
+      if decide (x = (UInt256.ofNat 0)) then
+        -- if x == 0 && y == 0 { return Option::Some(Point::infinity()) }
+        if decide (y = (UInt256.ofNat 0)) then
+          -- return Option::Some(Point::infinity())
           let v19 ← Point_infinity_Mont_Bn254Base
-          let v20 := Option_Point_Mont_Bn254Base.Some v19
-          return v20
+          return Option_Point_Mont_Bn254Base.Some v19
         else
-          b6 r0 r1 r2 r3 r4
+          join_1 r0 r1 r2 r3 r4
       else
-        b6 r0 r1 r2 r3 r4
+        join_1 r0 r1 r2 r3 r4
 
 /-- `<Mont<Bn254Base> as Field>::is_zero` -/
 def Mont_is_zero_Bn254Base (self : Mont_Bn254Base) : FeM Bool := do
-  let v2 := self.l0
-  let v4 := decide (v2 = (UInt256.ofNat 0))
-  let b3 : Bool → FeM Bool := fun v1 => do
+  let join : Bool → FeM Bool := fun v1 => do
     return v1
-  let b2 : FeM Bool := do
-    b3 false
-  if v4 then
-    let v5 := self.l1
-    let v7 := decide (v5 = (UInt256.ofNat 0))
-    if v7 then
-      let v8 := self.l2
-      let v10 := decide (v8 = (UInt256.ofNat 0))
-      if v10 then
-        let v11 := self.l3
-        let v13 := decide (v11 = (UInt256.ofNat 0))
-        if v13 then
-          b3 true
+  let join_1 : FeM Bool := do
+    join false
+  -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+  if decide (self.l0 = (UInt256.ofNat 0)) then
+    -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+    if decide (self.l1 = (UInt256.ofNat 0)) then
+      -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+      if decide (self.l2 = (UInt256.ofNat 0)) then
+        -- self.l0 == 0 && self.l1 == 0 && self.l2 == 0 && self.l3 == 0
+        if decide (self.l3 = (UInt256.ofNat 0)) then
+          join true
         else
-          b2
+          join_1
       else
-        b2
+        join_1
     else
-      b2
+      join_1
   else
-    b2
+    join_1
 
 /-- `Point<Mont<Bn254Base>>::is_infinity` -/
 def Point_is_infinity_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM Bool := do
   let mut r0 : Mont_Bn254Base := default
-  let v1 := self.z
-  r0 := v1
+  -- self.z.is_zero()
+  r0 := self.z
   let v3 ← Mont_is_zero_Bn254Base r0
   return v3
 
-def Mont_sub_Bn254Base_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (d3 : UInt256) (b_30 : UInt256) (s0 : UInt256) (s1 : UInt256) (s2 : UInt256) (c_49 : UInt256) : FeM Mont_Bn254Base := do
+def Mont_sub_Bn254Base_k2 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (v27 : (UInt256 × UInt256)) (d3 : UInt256) (s0 : UInt256) (s1 : UInt256) (v46 : (UInt256 × UInt256)) (s2 : UInt256) : FeM Mont_Bn254Base := do
+  -- let (s3, _) = adc(d3, M::P3, c)
   let v51 ← Bn254Base_P3
-  let v52 ← adc d3 v51 c_49
+  let v52 ← adc d3 v51 v46.snd
   let s3 := v52.fst
-  let v56 := decide (b_30 = (UInt256.ofNat 1))
-  let b3 : Mont_Bn254Base → FeM Mont_Bn254Base := fun v2 => do
+  let join : Mont_Bn254Base → FeM Mont_Bn254Base := fun v2 => do
     return v2
-  if v56 then
-    let v57 := (Mont_Bn254Base.mk s0 s1 s2 s3)
-    b3 v57
+  -- if b == 1 { Mont { l0: s0, l1: s1, l2: s2, l3: s3 } } else { Mont { l0: d0, l1: d1, l2: d2, l3: d3 } }
+  if decide (v27.snd = (UInt256.ofNat 1)) then
+    join (Mont_Bn254Base.mk s0 s1 s2 s3)
   else
-    let v59 := (Mont_Bn254Base.mk d0 d1 d2 d3)
-    b3 v59
+    join (Mont_Bn254Base.mk d0 d1 d2 d3)
 
-def Mont_sub_Bn254Base_k1 (d0 : UInt256) (d1 : UInt256) (d2 : UInt256) (b_23 : UInt256) (v25 : UInt256) (v26 : UInt256) : FeM Mont_Bn254Base := do
-  let v27 ← sbb v25 v26 b_23
+def Mont_sub_Bn254Base_k1 (self : Mont_Bn254Base) (other : Mont_Bn254Base) (d0 : UInt256) (d1 : UInt256) (v20 : (UInt256 × UInt256)) (d2 : UInt256) : FeM Mont_Bn254Base := do
+  -- let (d3, b) = sbb(self.l3, other.l3, b)
+  let v27 ← sbb self.l3 other.l3 v20.snd
   let d3 := v27.fst
-  let b_30 := v27.snd
+  -- let (s0, c) = adc(d0, M::P0, 0)
   let v32 ← Bn254Base_P0
   let v34 ← adc d0 v32 (UInt256.ofNat 0)
   let s0 := v34.fst
-  let c_37 := v34.snd
+  -- let (s1, c) = adc(d1, M::P1, c)
   let v39 ← Bn254Base_P1
-  let v40 ← adc d1 v39 c_37
+  let v40 ← adc d1 v39 v34.snd
   let s1 := v40.fst
-  let c_43 := v40.snd
+  -- let (s2, c) = adc(d2, M::P2, c)
   let v45 ← Bn254Base_P2
-  let v46 ← adc d2 v45 c_43
+  let v46 ← adc d2 v45 v40.snd
   let s2 := v46.fst
-  let c_49 := v46.snd
-  Mont_sub_Bn254Base_k2 d0 d1 d2 d3 b_30 s0 s1 s2 c_49
+  Mont_sub_Bn254Base_k2 d0 d1 d2 v27 d3 s0 s1 v46 s2
 
 /-- `<Mont<Bn254Base> as Field>::sub` -/
 def Mont_sub_Bn254Base (self : Mont_Bn254Base) (other : Mont_Bn254Base) : FeM Mont_Bn254Base := do
-  let v3 := self.l0
-  let v4 := other.l0
-  let v6 ← sbb v3 v4 (UInt256.ofNat 0)
+  -- let (d0, b) = sbb(self.l0, other.l0, 0)
+  let v6 ← sbb self.l0 other.l0 (UInt256.ofNat 0)
   let d0 := v6.fst
-  let b_9 := v6.snd
-  let v11 := self.l1
-  let v12 := other.l1
-  let v13 ← sbb v11 v12 b_9
+  -- let (d1, b) = sbb(self.l1, other.l1, b)
+  let v13 ← sbb self.l1 other.l1 v6.snd
   let d1 := v13.fst
-  let b_16 := v13.snd
-  let v18 := self.l2
-  let v19 := other.l2
-  let v20 ← sbb v18 v19 b_16
+  -- let (d2, b) = sbb(self.l2, other.l2, b)
+  let v20 ← sbb self.l2 other.l2 v13.snd
   let d2 := v20.fst
-  let b_23 := v20.snd
-  let v25 := self.l3
-  let v26 := other.l3
-  Mont_sub_Bn254Base_k1 d0 d1 d2 b_23 v25 v26
+  Mont_sub_Bn254Base_k1 self other d0 d1 v20 d2
 
 /-- `<Mont<Bn254Base> as Field>::double` -/
 def Mont_double_Bn254Base (self : Mont_Bn254Base) : FeM Mont_Bn254Base := do
+  -- self.add(self)
   let v1 ← Mont_add_Bn254Base self self
   return v1
 
@@ -4144,8 +3671,9 @@ def Point_double_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM Point_Mont_B
   let mut r22 : Mont_Bn254Base := default
   let mut r23 : Mont_Bn254Base := default
   let mut r24 : Mont_Bn254Base := default
+  -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
   let v1 ← Point_is_infinity_Mont_Bn254Base self
-  let b1 : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Point_Mont_Bn254Base := fun a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 => do
+  let join : Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → Mont_Bn254Base → FeM Point_Mont_Bn254Base := fun a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24 => do
     let mut a := a
     let mut b := b
     let mut c := c
@@ -4171,29 +3699,32 @@ def Point_double_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM Point_Mont_B
     let mut r22 := r22
     let mut r23 := r23
     let mut r24 := r24
+    -- return Self::infinity()
     let v72 ← Point_infinity_Mont_Bn254Base
     return v72
+  -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
   if v1 then
-    b1 a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
+    join a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
   else
-    let v2 := self.y
-    r6 := v2
+    -- if self.is_infinity() || self.y.is_zero() { return Self::infinity() }
+    r6 := self.y
     let v4 ← Mont_is_zero_Bn254Base r6
     if v4 then
-      b1 a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
+      join a b c d e x r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 r22 r23 r24
     else
-      let v7 := self.x
-      r7 := v7
+      -- let a = self.x.square()
+      r7 := self.x
       let a_9 ← Mont_square_Bn254Base r7
       a := a_9
-      let v11 := self.y
-      r8 := v11
+      -- let b = self.y.square()
+      r8 := self.y
       let b_13 ← Mont_square_Bn254Base r8
       b := b_13
+      -- let c = b.square()
       let c_16 ← Mont_square_Bn254Base b
       c := c_16
-      let v18 := self.x
-      r9 := v18
+      -- let d = self.x.add(b).square().sub(a).sub(c).double()
+      r9 := self.x
       let v21 ← Mont_add_Bn254Base r9 b
       r10 := v21
       let v23 ← Mont_square_Bn254Base r10
@@ -4204,16 +3735,19 @@ def Point_double_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM Point_Mont_B
       r13 := v29
       let d_31 ← Mont_double_Bn254Base r13
       d := d_31
+      -- let e = a.double().add(a)
       let v34 ← Mont_double_Bn254Base a
       r14 := v34
       let e_37 ← Mont_add_Bn254Base r14 a
       e := e_37
+      -- let x = e.square().sub(d.double())
       let v40 ← Mont_square_Bn254Base e
       r15 := v40
       let v42 ← Mont_double_Bn254Base d
       r16 := v42
       let x_45 ← Mont_sub_Bn254Base r15 r16
       x := x_45
+      -- let y = e.mul(d.sub(x)).sub(c.double().double().double())
       let v49 ← Mont_sub_Bn254Base d x
       r17 := v49
       let v52 ← Mont_mul_Bn254Base e r17
@@ -4225,16 +3759,13 @@ def Point_double_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM Point_Mont_B
       let v58 ← Mont_double_Bn254Base r20
       r21 := v58
       let y ← Mont_sub_Bn254Base r18 r21
-      let v63 := self.z
-      r22 := v63
-      let v64 := self.y
-      r23 := v64
+      -- Point { x, y, z: self.y.mul(self.z).double() }
+      r22 := self.z
+      r23 := self.y
       let v67 ← Mont_mul_Bn254Base r23 r22
       r24 := v67
       let v69 ← Mont_double_Bn254Base r24
-      let x_70 := x
-      let v71 := (Point_Mont_Bn254Base.mk x_70 y v69)
-      return v71
+      return Point_Mont_Bn254Base.mk x y v69
 
 /-- `<Bn254Base as Modulus>::SIGNED_62` -/
 def Bn254Base_SIGNED_62 : FeM (Vector UInt256 5) := do
@@ -4243,11 +3774,11 @@ def Bn254Base_SIGNED_62 : FeM (Vector UInt256 5) := do
 
 /-- `<Bn254Base as Modulus>::INV62` -/
 def Bn254Base_INV62 : FeM UInt256 := do
-  return (UInt256.ofNat 4048164856291499127)
+  return UInt256.ofNat 4048164856291499127
 
 /-- `<Bn254Base as Modulus>::R3` -/
 def Bn254Base_R3 : FeM UInt256 := do
-  return (UInt256.ofNat 14921786541159648185948152738563080959093619838510245177710943249661917737183)
+  return UInt256.ofNat 14921786541159648185948152738563080959093619838510245177710943249661917737183
 
 /-- `<Mont<Bn254Base> as Field>::inverse` -/
 def Mont_inverse_Bn254Base (self : Mont_Bn254Base) : FeM Mont_Bn254Base := do
@@ -4255,29 +3786,22 @@ def Mont_inverse_Bn254Base (self : Mont_Bn254Base) : FeM Mont_Bn254Base := do
   let mut r1 : (Vector UInt256 5) := default
   let mut r2 : Mont_Bn254Base := default
   let mut r3 : Mont_Bn254Base := default
-  let v1 := self.l0
-  let v2 := self.l1
-  let v3 := self.l2
-  let v4 := self.l3
-  let v5 := #v[v1, v2, v3, v4]
-  r0 := v5
+  -- let limbs = invert_256([self.l0, self.l1, self.l2, self.l3], M::SIGNED_62, M::INV62)
+  r0 := (#v[self.l0, self.l1, self.l2, self.l3])
   let v6 ← Bn254Base_SIGNED_62
   r1 := v6
   let v7 ← Bn254Base_INV62
   let limbs ← invert_256 r0 r1 v7
+  -- Mont { l0: limbs[0], l1: limbs[1], l2: limbs[2], l3: limbs[3] }.mul(raw<M>(M::R3))
   let v12 := (UInt256.ofNat 0)
   checkIndex v12 4
-  let v13 := limbs[v12.toNat]!
   let v14 := (UInt256.ofNat 1)
   checkIndex v14 4
-  let v15 := limbs[v14.toNat]!
   let v16 := (UInt256.ofNat 2)
   checkIndex v16 4
-  let v17 := limbs[v16.toNat]!
   let v18 := (UInt256.ofNat 3)
   checkIndex v18 4
-  let v19 := limbs[v18.toNat]!
-  let v20 := (Mont_Bn254Base.mk v13 v15 v17 v19)
+  let v20 := (Mont_Bn254Base.mk limbs[v12.toNat]! limbs[v14.toNat]! limbs[v16.toNat]! limbs[v18.toNat]!)
   r2 := v20
   let v21 ← Bn254Base_R3
   let v22 ← raw_Bn254Base v21
@@ -4293,47 +3817,36 @@ def Point_to_affine_Mont_Bn254Base (self : Point_Mont_Bn254Base) : FeM (Mont_Bn2
   let mut r3 : Mont_Bn254Base := default
   let mut r4 : Mont_Bn254Base := default
   let mut r5 : Mont_Bn254Base := default
-  let v1 := self.z
-  r2 := v1
+  -- let z_inv = self.z.inverse()
+  r2 := self.z
   let z_inv_3 ← Mont_inverse_Bn254Base r2
   z_inv := z_inv_3
+  -- let z_inv2 = z_inv.square()
   let z_inv2_6 ← Mont_square_Bn254Base z_inv
   z_inv2 := z_inv2_6
-  let v8 := self.x
-  r3 := v8
+  -- (self.x.mul(z_inv2), self.y.mul(z_inv2.mul(z_inv)))
+  r3 := self.x
   let v11 ← Mont_mul_Bn254Base r3 z_inv2
   let v14 ← Mont_mul_Bn254Base z_inv2 z_inv
   r4 := v14
-  let v15 := self.y
-  r5 := v15
+  r5 := self.y
   let v18 ← Mont_mul_Bn254Base r5 r4
-  let v19 := (v11, v18)
-  return v19
+  return (v11, v18)
 
 /-- `Mont<Bn254Base>::value` -/
 def Mont_value_Bn254Base (self : Mont_Bn254Base) : FeM UInt256 := do
   let mut r0 : Mont_Bn254Base := default
+  -- let value = self.mul(raw<M>(1))
   let v2 ← raw_Bn254Base (UInt256.ofNat 1)
   r0 := v2
   let value ← Mont_mul_Bn254Base self r0
-  let v6 := value.l0
-  let v7 := v6
-  let v8 := value.l1
-  let v9 := v8
-  let v11 := v9 <<< (UInt256.ofNat 64)
-  let v12 := v7 ||| v11
-  let v13 := value.l2
-  let v14 := v13
-  let v16 := v14 <<< (UInt256.ofNat 128)
-  let v17 := v12 ||| v16
-  let v18 := value.l3
-  let v19 := v18
-  let v21 := v19 <<< (UInt256.ofNat 192)
-  let v22 := v17 ||| v21
-  return v22
+  -- value.l0 as u256 | (value.l1 as u256) << 64 | (value.l2 as u256) << 128 | (value.l3 as u256) << 192
+  let v17 := (value.l0 ||| (value.l1 <<< (UInt256.ofNat 64))) ||| (value.l2 <<< (UInt256.ofNat 128))
+  return v17 ||| (value.l3 <<< (UInt256.ofNat 192))
 
 /-- `lib::bn254_field::fp_value` -/
 def fp_value (a : Mont_Bn254Base) : FeM UInt256 := do
+  -- a.value()
   let v1 ← Mont_value_Bn254Base a
   return v1
 
@@ -4341,35 +3854,34 @@ def fp_value (a : Mont_Bn254Base) : FeM UInt256 := do
 def encode (point : Point_Mont_Bn254Base) : FeM (Vector UInt256 2) := do
   let mut x : Mont_Bn254Base := default
   let mut y : Mont_Bn254Base := default
+  -- if point.is_infinity() { return [0, 0] }
   let v1 ← Point_is_infinity_Mont_Bn254Base point
   if v1 then
-    let v4 := #v[(UInt256.ofNat 0), (UInt256.ofNat 0)]
-    return v4
+    return #v[(UInt256.ofNat 0), (UInt256.ofNat 0)]
   else
+    -- let (x, y) = point.to_affine()
     let v7 ← Point_to_affine_Mont_Bn254Base point
-    let x_8 := v7.fst
-    x := x_8
-    let y_10 := v7.snd
-    y := y_10
+    x := v7.fst
+    y := v7.snd
+    -- [fp_value(x), fp_value(y)]
     let v13 ← fp_value x
     let v15 ← fp_value y
-    let v16 := #v[v13, v15]
-    return v16
+    return #v[v13, v15]
 
 /-- `lib::SUCCESS` -/
 def SUCCESS : FeM UInt256 := do
-  return (UInt256.ofNat 0)
+  return UInt256.ofNat 0
 
 /-- `lib::HOST_ALLOCATION` -/
 def HOST_ALLOCATION : FeM UInt256 := do
-  return (UInt256.ofNat 2)
+  return UInt256.ofNat 2
 
 /-- `lib::host_allocation` -/
 def host_allocation (gas_used : UInt256) : FeM Output := do
+  -- Output { status: HOST_ALLOCATION, gas_used, output: MemBuffer::empty() }
   let v1 ← HOST_ALLOCATION
   let v3 ← MemBuffer_empty
-  let v4 := (Output.mk v1 gas_used v3)
-  return v4
+  return Output.mk v1 gas_used v3
 
 -- END fe-lean-export
 

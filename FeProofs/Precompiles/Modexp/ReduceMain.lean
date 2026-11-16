@@ -3,7 +3,7 @@ import FeProofs.Precompiles.Modexp.ReduceSub
 /-!
 # Modexp: the Knuth main loop of `Modulus::reduce`
 
-`Modulus_reduce.b25` runs `j` down from `count + 1 - n` to `0`; each step takes the window of
+`Modulus_reduce.loop_2` runs `j` down from `count + 1 - n` to `0`; each step takes the window of
 limbs `[j, j + n]` of the normalised dividend to its remainder by the normalised divisor `D`.
 Its invariant `KInv` (over the `T = count + 1` limbs) says the limbs above the window are zero,
 the top `n` limbs of the window are below `D`, and the whole is congruent to the dividend
@@ -30,26 +30,26 @@ theorem mulsub_exit (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w : UInt2
     (hi q c b : Limb) (f : ℕ → Limb) (w : World) (I : Env) (r0 r1 r2 r6 : UInt256)
     (r7 : Lib.Range_Unknown_Unknown) (r9 r10 : Lib.Range_Known_0_Unknown)
     (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
-    (Modulus_reduce.b25.b32 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hi.w q.w r0 r1 r2 (UInt256.ofNat j)
+    (Modulus_reduce.loop_2.loop_3 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hi.w q.w r0 r1 r2 (UInt256.ofNat j)
         c.w b.w r6 r7 ⟨(), UInt256.ofNat n⟩ r9 r10 r11 v1 (UInt256.ofNat n)).exec I
         { w with memory := putLimbs Mem wp.toNat (lf f K) } =
       if hbit (sbbD hi c b) = 0 then
-        (Modulus_reduce.b25 md cnt (UInt256.ofNat n) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat j) c.w b.w
+        (Modulus_reduce.loop_2 md cnt (UInt256.ofNat n) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat j) c.w b.w
           r6 r7 ⟨(), UInt256.ofNat n⟩ r9 r10 r11 v1).exec I
           { w with memory := putLimbs Mem wp.toNat (lf (Function.update f (j + n) (loD (sbbD hi c b))) K) }
       else
-        (Modulus_reduce.b25.b32.b39 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hi.w q.w r0 r1 r2
+        (Modulus_reduce.loop_2.loop_3.loop_5 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hi.w q.w r0 r1 r2
           (UInt256.ofNat j) c.w b.w (UInt256.ofNat 0) r7 ⟨(), UInt256.ofNat n⟩ ⟨(), UInt256.ofNat n⟩ r10
           r11 v1 (UInt256.ofNat 0)).exec I
           { w with memory := putLimbs Mem wp.toNat (lf (Function.update f (j + n) (loD (sbbD hi c b))) K) } := by
   have hS : UInt256.size = 2 ^ 256 := rfl
-  rw [Modulus_reduce.b25.b32.eq_1]
+  rw [Modulus_reduce.loop_2.loop_3.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
     show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, if_false,
     pure_bind, sbb_w, down128_eq, add_lit (show j + n < 2 ^ 256 by omega), Fe.M.exec_bind,
     limb_lit wp (show wp.toNat + 8 * (j + n) < UInt256.size by omega),
     store_lf f hK hs (show j + n < K by omega), shr127_eq, ne_eq, limb_eq_zero_w,
-    Modulus_reduce.b25.b32.b38.eq_1, Lib.Range_start_0]
+    Modulus_reduce.loop_2.loop_3.loop_4.eq_1, Lib.Range_start_0]
   by_cases h : hbit (sbbD hi c b) = 0
   · simp only [h, not_true_eq_false, decide_false, Bool.false_eq_true, if_false, if_true]
   · simp only [h, not_false_eq_true, decide_true, if_true, if_false]
@@ -60,21 +60,21 @@ theorem addback_exit (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w hw qw 
     (hjn : j + n < K) (a : Limb) (f : ℕ → Limb) (w : World) (I : Env) (r0 r1 r2 r4 r5 : UInt256)
     (r7 : Lib.Range_Unknown_Unknown) (r8 r10 : Lib.Range_Known_0_Unknown)
     (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
-    (Modulus_reduce.b25.b32.b39 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hw qw r0 r1 r2
+    (Modulus_reduce.loop_2.loop_3.loop_5 md cnt (UInt256.ofNat n) wp mp sh d1w d0w hw qw r0 r1 r2
         (UInt256.ofNat j) r4 r5 a.w r7 r8 ⟨(), UInt256.ofNat n⟩ r10 r11 v1 (UInt256.ofNat n)).exec I
         { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-      (Modulus_reduce.b25 md cnt (UInt256.ofNat n) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat j) r4 r5 a.w
+      (Modulus_reduce.loop_2 md cnt (UInt256.ofNat n) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat j) r4 r5 a.w
         r7 r8 ⟨(), UInt256.ofNat n⟩ r10 r11 v1).exec I
         { w with memory := (putLimbs Mem wp.toNat
           (lf (Function.update f (j + n) (addMod (f (j + n)) a)) K)) } := by
   have hS : UInt256.size = 2 ^ 256 := rfl
   have hl := load_lf (w := w) f hK hs (i := j + n) (by omega) I
-  rw [Modulus_reduce.b25.b32.b39.eq_1]
+  rw [Modulus_reduce.loop_2.loop_3.loop_5.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
     show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, Bool.false_eq_true, if_false,
     pure_bind, add_lit (show j + n < 2 ^ 256 by omega), Fe.M.exec_bind,
     limb_lit wp (show wp.toNat + 8 * (j + n) < UInt256.size by omega), hl, addW64_eq,
-    store_lf f hK hs (show j + n < K by omega), Modulus_reduce.b25.b32.b38.eq_1]
+    store_lf f hK hs (show j + n < K by omega), Modulus_reduce.loop_2.loop_3.loop_4.eq_1]
 
 /-! ## The invariant -/
 
@@ -135,10 +135,10 @@ theorem after_qhat (md : Exported.Modexp.Modulus) (cnt wp mp sh d1w d0w : UInt25
     (hq2 : q.val ≤ wv f J (m + 2 + 1) / Dn + 1) :
     ∃ (g : ℕ → Limb) (r4' r5' r6' : UInt256) (r9' : Lib.Range_Known_0_Unknown),
       KInv g F Dn N0 T (m + 2) J ∧
-      (Modulus_reduce.b25.b32 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1w d0w (f (J + (m + 2))).w q.w r0
+      (Modulus_reduce.loop_2.loop_3 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1w d0w (f (J + (m + 2))).w q.w r0
           r1 r2 (UInt256.ofNat J) (UInt256.ofNat 0) (UInt256.ofNat 0) r6 r7 ⟨(), UInt256.ofNat (m + 2)⟩
           r9 r10 r11 v1 (UInt256.ofNat 0)).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-        (Modulus_reduce.b25 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat J)
+        (Modulus_reduce.loop_2 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1w d0w r0 r1 r2 (UInt256.ofNat J)
           r4' r5' r6' r7 ⟨(), UInt256.ofNat (m + 2)⟩ r9' r10 r11 v1).exec I
           { w with memory := putLimbs Mem wp.toNat (lf g K) } := by
   have hle := hI.le
@@ -244,9 +244,9 @@ theorem main_head (md : Exported.Modexp.Modulus) (cnt wp mp sh : UInt256) {Mem :
     (d1 d0 v : Limb) (hrec : md.reciprocal = v.w) (f : ℕ → Limb) (w : World) (I : Env)
     (r0 r1 r2 r4 r5 r6 : UInt256) (r7 : Lib.Range_Unknown_Unknown) (r8 r9 r10 : Lib.Range_Known_0_Unknown)
     (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
-    (Modulus_reduce.b25 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1.w d0.w r0 r1 r2 (UInt256.ofNat (J + 1))
+    (Modulus_reduce.loop_2 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1.w d0.w r0 r1 r2 (UInt256.ofNat (J + 1))
         r4 r5 r6 r7 r8 r9 r10 r11 v1).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-      (Modulus_reduce.b25.b32 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1.w d0.w (f (J + (m + 2))).w
+      (Modulus_reduce.loop_2.loop_3 md cnt (UInt256.ofNat (m + 2)) wp mp sh d1.w d0.w (f (J + (m + 2))).w
         (qsel (f (J + (m + 2))) (f (J + m + 1)) (f (J + m)) d1 d0 v).w r0 r1 r2 (UInt256.ofNat J)
         (UInt256.ofNat 0) (UInt256.ofNat 0) r6 r7 ⟨(), UInt256.ofNat (m + 2)⟩ r9 r10 r11 v1
         (UInt256.ofNat 0)).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } := by
@@ -254,7 +254,7 @@ theorem main_head (md : Exported.Modexp.Modulus) (cnt wp mp sh : UInt256) {Mem :
   have hl2 := load_lf (w := w) f hK hs (i := J + (m + 2)) (by omega) I
   have hl1 := load_lf (w := w) f hK hs (i := J + m + 1) (by omega) I
   have hl0 := load_lf (w := w) f hK hs (i := J + m) (by omega) I
-  rw [Modulus_reduce.b25.eq_1]
+  rw [Modulus_reduce.loop_2.eq_1]
   simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show J + 1 < 2 ^ 256 by omega),
     show 0 < J + 1 by omega, decide_true, if_true,
     sub_lit (show J + 1 < 2 ^ 256 by omega) (show 1 ≤ J + 1 by omega), Nat.add_sub_cancel,
@@ -335,10 +335,10 @@ theorem main_step (md : Exported.Modexp.Modulus) (cnt wp mp sh : UInt256) {Mem :
     (J : ℕ) (f : ℕ → Limb) (hI : KInv f F Dn N0 T (m + 2) (J + 1)) :
     ∃ (g : ℕ → Limb) (r4' r5' r6' : UInt256) (r8' r9' : Lib.Range_Known_0_Unknown),
       KInv g F Dn N0 T (m + 2) J ∧
-      (Modulus_reduce.b25 md cnt (UInt256.ofNat (m + 2)) wp mp sh (limbAt Dn (m + 1)).w (limbAt Dn m).w
+      (Modulus_reduce.loop_2 md cnt (UInt256.ofNat (m + 2)) wp mp sh (limbAt Dn (m + 1)).w (limbAt Dn m).w
           r0 r1 r2 (UInt256.ofNat (J + 1)) r4 r5 r6 r7 r8 r9 r10 r11 v1).exec I
           { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-        (Modulus_reduce.b25 md cnt (UInt256.ofNat (m + 2)) wp mp sh (limbAt Dn (m + 1)).w (limbAt Dn m).w
+        (Modulus_reduce.loop_2 md cnt (UInt256.ofNat (m + 2)) wp mp sh (limbAt Dn (m + 1)).w (limbAt Dn m).w
           r0 r1 r2 (UInt256.ofNat J) r4' r5' r6' r7 r8' r9' r10 r11 v1).exec I
           { w with memory := putLimbs Mem wp.toNat (lf g K) } := by
   have hle := hI.le
@@ -367,7 +367,7 @@ theorem main_loop (md : Exported.Modexp.Modulus) (wp mp : UInt256) {Mem : ByteAr
     (r10 : Lib.Range_Known_0_Unknown) (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
     ∀ J (f : ℕ → Limb) (r4 r5 r6 : UInt256) (r8 r9 : Lib.Range_Known_0_Unknown),
       KInv f F (M * 2 ^ s) (X * 2 ^ s) (count + 1) (m + 2) J →
-      (Modulus_reduce.b25 md (UInt256.ofNat count) (UInt256.ofNat (m + 2)) wp mp (UInt256.ofNat s)
+      (Modulus_reduce.loop_2 md (UInt256.ofNat count) (UInt256.ofNat (m + 2)) wp mp (UInt256.ofNat s)
           (limbAt (M * 2 ^ s) (m + 1)).w (limbAt (M * 2 ^ s) m).w r0 r1 r2 (UInt256.ofNat J) r4 r5 r6 r7
           r8 r9 r10 r11 v1).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
         some (.ok (((), v1), { w with memory := (putLimbs Mem wp.toNat
@@ -400,7 +400,7 @@ theorem main_loop (md : Exported.Modexp.Modulus) (wp mp : UInt256) {Mem : ByteAr
       rw [Nat.div_eq_of_lt (lt_of_lt_of_le (hRlt.trans hDlt) (Nat.pow_le_pow_right (by norm_num)
         (by omega)))]
       rfl)
-    rw [Modulus_reduce.b25.eq_1]
+    rw [Modulus_reduce.loop_2.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
       if_false, pure_bind, Lib.Range_start_0]
     rw [denorm_loop wp hK hs hn hcK hs64 (R := X % M) (lt_of_lt_of_le (Nat.mod_lt _ hM0)

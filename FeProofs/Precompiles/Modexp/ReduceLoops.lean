@@ -8,11 +8,11 @@ registers (`r0` … `r11`) that its loops share.  Memory holds `putLimbs Mem wp 
 `Work.lean`), and each lemma here takes one loop from a state to its exit, for any values of the
 registers it does not read:
 
-- `zero_loop9`, `zero_loop50`: `Modulus_reduce.b9` (limbs `count .. n` set to zero when
-  `count < n`) and `Modulus_reduce.b25.b43.b50` (limbs `n .. count` cleared at the end);
-- `shift_loop`: `Modulus_reduce.b16`, the dividend shifted left by `s`, from the top limb down;
-- `rem_loop`: `Modulus_reduce.b22`, the `n = 1` path, 2-by-1 remainders from the top;
-- `denorm_loop`: `Modulus_reduce.b25.b43`, the remainder shifted back right by `s`, then the
+- `zero_loop9`, `zero_loop50`: `Modulus_reduce.loop` (limbs `count .. n` set to zero when
+  `count < n`) and `Modulus_reduce.loop_2.loop_6.loop_7` (limbs `n .. count` cleared at the end);
+- `shift_loop`: `Modulus_reduce.loop_8`, the dividend shifted left by `s`, from the top limb down;
+- `rem_loop`: `Modulus_reduce.loop_1`, the `n = 1` path, 2-by-1 remainders from the top;
+- `denorm_loop`: `Modulus_reduce.loop_2.loop_6`, the remainder shifted back right by `s`, then the
   clearing.
 -/
 
@@ -44,13 +44,13 @@ theorem zero_loop9 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toN
     (r0 r1 r2 r3 r4 r5 r6 : UInt256) (r8 r9 r10 : Lib.Range_Known_0_Unknown)
     (r11 : Lib.Range_Unknown_Unknown) :
     ∀ m i (f : ℕ → Limb), i + m = hi → lo ≤ i →
-      (Modulus_reduce.b9 wp r0 r1 r2 r3 r4 r5 r6 ⟨UInt256.ofNat lo, UInt256.ofNat hi⟩ r8 r9 r10 r11 v1
+      (Modulus_reduce.loop wp r0 r1 r2 r3 r4 r5 r6 ⟨UInt256.ofNat lo, UInt256.ofNat hi⟩ r8 r9 r10 r11 v1
           (UInt256.ofNat i)).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
         some (.ok (((), v1), { w with memory := (putLimbs Mem wp.toNat
           (lf (fun k => if i ≤ k ∧ k < hi then 0 else f k) K)) }))
   | 0, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [Modulus_reduce.b9.eq_1]
+    rw [Modulus_reduce.loop.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, pure_bind, Fe.M.exec_pure]
@@ -60,7 +60,7 @@ theorem zero_loop9 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.toN
     rw [if_neg (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [Modulus_reduce.b9.eq_1]
+    rw [Modulus_reduce.loop.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
@@ -85,14 +85,14 @@ theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.to
     (r0 r1 r2 r3 r4 r5 r6 : UInt256) (r7 : Lib.Range_Unknown_Unknown)
     (r8 r9 r10 : Lib.Range_Known_0_Unknown) :
     ∀ m i (f : ℕ → Limb), i + m = hi → lo ≤ i →
-      (Modulus_reduce.b25.b43.b50 wp r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10
+      (Modulus_reduce.loop_2.loop_6.loop_7 wp r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10
           ⟨UInt256.ofNat lo, UInt256.ofNat hi⟩ v1 (UInt256.ofNat i)).exec I
           { w with memory := putLimbs Mem wp.toNat (lf f K) } =
         some (.ok (((), v1), { w with memory := (putLimbs Mem wp.toNat
           (lf (fun k => if i ≤ k ∧ k < hi then 0 else f k) K)) }))
   | 0, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [Modulus_reduce.b25.b43.b50.eq_1]
+    rw [Modulus_reduce.loop_2.loop_6.loop_7.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, pure_bind, Fe.M.exec_pure]
@@ -102,7 +102,7 @@ theorem zero_loop50 (wp : UInt256) {Mem : ByteArray} {K lo hi : ℕ} (hK : wp.to
     rw [if_neg (by omega)]
   | m + 1, i, f, hm, hl => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [Modulus_reduce.b25.b43.b50.eq_1]
+    rw [Modulus_reduce.loop_2.loop_6.loop_7.eq_1]
     simp only [has_uu (show lo < 2 ^ 256 by omega) (show hi < 2 ^ 256 by omega)
       (show i < 2 ^ 256 by omega), show (lo ≤ i ∧ i < hi) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
@@ -140,12 +140,12 @@ theorem shift_loop (wp : UInt256) {Mem : ByteArray} {K X s count : ℕ}
     (r1 r2 r3 r4 r5 r6 : UInt256) (r7 : Lib.Range_Unknown_Unknown) (r8 r9 r10 : Lib.Range_Known_0_Unknown)
     (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
     ∀ i (f : ℕ → Limb), i ≤ count → (∀ k < K, f k = shiftF X s count i F k) →
-      (Modulus_reduce.b16 wp (UInt256.ofNat s) K15 (UInt256.ofNat i) r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
+      (Modulus_reduce.loop_8 wp (UInt256.ofNat s) K15 (UInt256.ofNat i) r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
           v1).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
         (K15 (UInt256.ofNat 0) r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 v1).exec I
           { w with memory := putLimbs Mem wp.toNat (lf (shiftF X s count 0 F) K) }
   | 0, f, _, hf => by
-    rw [Modulus_reduce.b16.eq_1]
+    rw [Modulus_reduce.loop_8.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
       if_false]
     rw [lf_congr hf]
@@ -171,7 +171,7 @@ theorem shift_loop (wp : UInt256) {Mem : ByteArray} {K X s count : ℕ}
       (i := i) (by omega) I
     rw [Function.update_of_ne (show i ≠ i + 1 by omega), hf _ (by omega)] at hl0'
     simp only [shiftF, show i < i + 1 by omega, if_true] at hl0'
-    rw [Modulus_reduce.b16.eq_1]
+    rw [Modulus_reduce.loop_8.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show i + 1 < 2 ^ 256 by omega),
       show 0 < i + 1 by omega, decide_true, if_true,
       sub_lit (show i + 1 < 2 ^ 256 by omega) (show 1 ≤ i + 1 by omega), Nat.add_sub_cancel,
@@ -216,13 +216,13 @@ theorem rem_loop (md : Exported.Modexp.Modulus) (wp : UInt256) {Mem : ByteArray}
     ∀ i (r : Limb) (f : ℕ → Limb), i ≤ T → r.val = wv f0 i (T - i) % d.val →
       (∀ k < K, f k = if i ≤ k ∧ k < T then 0 else f0 k) →
       ∃ q : Limb, q.val = wv f0 0 T % d.val / 2 ^ s ∧
-        (Modulus_reduce.b22 md wp (UInt256.ofNat s) d.w r0 r.w (UInt256.ofNat i) r3 r4 r5 r6 r7 r8 r9
+        (Modulus_reduce.loop_1 md wp (UInt256.ofNat s) d.w r0 r.w (UInt256.ofNat i) r3 r4 r5 r6 r7 r8 r9
             r10 r11 v1).exec I { w with memory := putLimbs Mem wp.toNat (lf f K) } =
           some (.ok (((), v1), { w with memory := (putLimbs Mem wp.toNat
             (lf (Function.update (fun k => if k < T then 0 else f0 k) 0 q) K)) }))
   | 0, r, f, _, hr, hf => by
     refine ⟨shrL r s, by rw [shrL]; simp only [hr, Nat.sub_zero], ?_⟩
-    rw [Modulus_reduce.b22.eq_1]
+    rw [Modulus_reduce.loop_1.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), lt_irrefl, decide_false, Bool.false_eq_true,
       if_false, shr_shrL r (show s < 256 by omega), Fe.M.exec_bind,
       store_lf_base f hK hs hK0 (shrL r s) I, Fe.M.exec_pure]
@@ -237,7 +237,7 @@ theorem rem_loop (md : Exported.Modexp.Modulus) (wp : UInt256) {Mem : ByteArray}
     have hdpos : 0 < d.val := by omega
     have hl := load_lf (w := w) f hK hs (i := i) (by omega) I
     rw [hf i (by omega), if_neg (by omega)] at hl
-    rw [Modulus_reduce.b22.eq_1]
+    rw [Modulus_reduce.loop_1.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show i + 1 < 2 ^ 256 by omega),
       show 0 < i + 1 by omega, decide_true, if_true,
       sub_lit (show i + 1 < 2 ^ 256 by omega) (show 1 ≤ i + 1 by omega), Nat.add_sub_cancel,
@@ -264,14 +264,14 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
     (r11 : Lib.Range_Unknown_Unknown) (v1 : Lib.MemArray_u64) :
     ∀ m i (f : ℕ → Limb), i + m = n →
       (∀ k < K, f k = if k < i then limbAt R k else if k ≤ n then limbAt (R * 2 ^ s) k else F k) →
-      (Modulus_reduce.b25.b43 (UInt256.ofNat count) (UInt256.ofNat n) wp (UInt256.ofNat s) r0 r1 r2 r3
+      (Modulus_reduce.loop_2.loop_6 (UInt256.ofNat count) (UInt256.ofNat n) wp (UInt256.ofNat s) r0 r1 r2 r3
           r4 r5 r6 r7 r8 r9 ⟨(), UInt256.ofNat n⟩ r11 v1 (UInt256.ofNat i)).exec I
           { w with memory := putLimbs Mem wp.toNat (lf f K) } =
         some (.ok (((), v1), { w with memory := (putLimbs Mem wp.toNat
           (lf (fun k => if k < count + 1 then limbAt R k else F k) K)) }))
   | 0, i, f, hi, hf => by
     have hS : UInt256.size = 2 ^ 256 := rfl
-    rw [Modulus_reduce.b25.b43.eq_1]
+    rw [Modulus_reduce.loop_2.loop_6.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
       show (0 ≤ i ∧ i < n) = False from eq_false (by omega), decide_false, pure_bind,
       Bool.false_eq_true, if_false, add_lit (show count + 1 < 2 ^ 256 by omega),
@@ -292,7 +292,7 @@ theorem denorm_loop (wp : UInt256) {Mem : ByteArray} {K n count s R : ℕ}
     have hV : R * 2 ^ s / 2 ^ s = R := Nat.mul_div_cancel _ (by positivity)
     have hl := load_lf (w := w) f hK hs (i := i) (by omega) I
     rw [hf i (by omega), if_neg (by omega), if_pos (by omega)] at hl
-    rw [Modulus_reduce.b25.b43.eq_1]
+    rw [Modulus_reduce.loop_2.loop_6.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
       show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,

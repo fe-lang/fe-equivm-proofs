@@ -124,11 +124,11 @@ theorem words_out (env : Env) (w : World) (a : UInt256) (hpos : 0 < w.memory.siz
   have hm : (UInt256.ofNat w.memory.size).toNat = w.memory.size :=
     toNat_lit (by unfold UInt256.size at hroom; omega)
   have n1 : UInt256.ofNat 0 + UInt256.ofNat 1 = UInt256.ofNat 1 := rfl
-  rw [words_1.b5.eq_1]
+  rw [words_1.loop.eq_1]
   simp [Lib.Range_has_0, Lib.range_has, Lib.Range_at_0, Lib.Range_next_0, Lib.usize_wrapping_add,
     hmul0, checkIndex, toNat0, Lib.Option_u8.Some_0, Lib.Option_MemBuffer.Some_0, zeroMem, mstore,
     s32, a32, t1, n1, Fe.EVM.add_zero, toNat32, hm]
-  rw [words_1.b5.eq_1]
+  rw [words_1.loop.eq_1]
   simp [Lib.Range_has_0, Lib.range_has, t1, SUCCESS, wordsOut]
   have hz : (⟨Array.replicate 32 0⟩ : ByteArray).size = 32 := rfl
   apply toByteArray_write32_read_back

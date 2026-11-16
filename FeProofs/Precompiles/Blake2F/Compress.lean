@@ -108,18 +108,18 @@ theorem lane_lw {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : H
 theorem h_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Holds b d w.memory)
     (hd : d.size = 213) r1 r2 r3 r4 r5 r6 r7 r8 :
     ∀ n i, i + n = 8 →
-      (compress_MemBuffer.b5 b (Vector.ofFn fun j : Fin 8 =>
+      (compress_MemBuffer.loop b (Vector.ofFn fun j : Fin 8 =>
           lw (if j.val < i then BLAKE2.word d (4 + 8 * j.val) else 0)) r1 r2 r3 r4 r5 r6 r7 r8
           (UInt256.ofNat i)).exec I w =
-        (compress_MemBuffer.b5.b9 b (Vector.ofFn fun j : Fin 8 => lw (BLAKE2.word d (4 + 8 * j.val)))
+        (compress_MemBuffer.loop.loop_1 b (Vector.ofFn fun j : Fin 8 => lw (BLAKE2.word d (4 + 8 * j.val)))
           r1 r2 r3 r4 (Range_Known_0_Known_16.mk () ()) r6 r7 r8 (UInt256.ofNat 0)).exec I w
   | 0, i, hi => by
     subst hi
-    rw [compress_MemBuffer.b5.eq_1]
+    rw [compress_MemBuffer.loop.eq_1]
     simp only [has8 _ (show 0 + 8 < 2 ^ 256 by decide), Lib.Range_start_0_16, pure_bind]
     simp
   | n + 1, i, hi => by
-    rw [compress_MemBuffer.b5.eq_1]
+    rw [compress_MemBuffer.loop.eq_1]
     simp only [has8 _ (show i < 2 ^ 256 by omega),
       decide_eq_true (show 0 ≤ i ∧ i < 8 from ⟨by omega, by omega⟩), ↓reduceIte, Lib.Range_at_0_8, Lib.Range_next_0_8, pure_bind,
       checkedMul_small (show i < 2 ^ 256 by omega) (show 8 < 2 ^ 256 by decide)
@@ -145,21 +145,21 @@ theorem h_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Ho
 theorem m_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World} (h : Holds b d w.memory)
     (hd : d.size = 213) r0 r2 r3 r4 r5 r6 r7 r8 :
     ∀ n i, i + n = 16 →
-      (compress_MemBuffer.b5.b9 b r0
+      (compress_MemBuffer.loop.loop_1 b r0
           (toV (wOf fun k => if k < i then BLAKE2.word d (68 + 8 * k) else 0)) r2 r3 r4 r5 r6 r7 r8
           (UInt256.ofNat i)).exec I w =
-        (compress_MemBuffer.b5.b9.b13 b r0 (toV (wOf fun k => BLAKE2.word d (68 + 8 * k)))
+        (compress_MemBuffer.loop.loop_1.loop_2 b r0 (toV (wOf fun k => BLAKE2.word d (68 + 8 * k)))
           (Vector.replicate 16 (UInt256.ofNat 0)) r3 r4 r5 (Range_Known_0_Known_8.mk () ()) r7 r8
           (UInt256.ofNat 0)).exec I w
   | 0, i, hi => by
     subst hi
-    rw [compress_MemBuffer.b5.b9.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.eq_1]
     simp only [has16 _ (show 0 + 16 < 2 ^ 256 by decide), Lib.Range_start_0_8, pure_bind]
     simp only [show ¬ (0 ≤ 0 + 16 ∧ 0 + 16 < 16) by omega, decide_false, Bool.false_eq_true,
       ↓reduceIte]
     rw [wOf_congr (fun k hk => if_pos hk)]
   | n + 1, i, hi => by
-    rw [compress_MemBuffer.b5.b9.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.eq_1]
     simp only [has16 _ (show i < 2 ^ 256 by omega),
       decide_eq_true (show 0 ≤ i ∧ i < 16 from ⟨by omega, by omega⟩), ↓reduceIte,
       Lib.Range_at_0_16, Lib.Range_next_0_16, pure_bind,
@@ -191,13 +191,13 @@ def vPart (H : ℕ → UInt64) (i : ℕ) (k : ℕ) : UInt64 :=
 /-- The loop initialising `v` from `h` and `IV`, from word `i`. -/
 theorem v_loop (H : ℕ → UInt64) (b : Lib.MemBuffer) r1 r3 r4 r5 r6 r7 r8 :
     ∀ n i, i + n = 8 →
-      compress_MemBuffer.b5.b9.b13 b (Vector.ofFn fun j : Fin 8 => lw (H j.val)) r1
+      compress_MemBuffer.loop.loop_1.loop_2 b (Vector.ofFn fun j : Fin 8 => lw (H j.val)) r1
           (toV (wOf (vPart H i))) r3 r4 r5 r6 r7 r8 (UInt256.ofNat i) =
-        compress_MemBuffer.b5.b9.b13 b (Vector.ofFn fun j : Fin 8 => lw (H j.val)) r1
+        compress_MemBuffer.loop.loop_1.loop_2 b (Vector.ofFn fun j : Fin 8 => lw (H j.val)) r1
           (toV (wOf (vPart H 8))) r3 r4 r5 r6 r7 r8 (UInt256.ofNat 8)
   | 0, i, hi => by subst hi; rfl
   | n + 1, i, hi => by
-    rw [compress_MemBuffer.b5.b9.b13.eq_1]
+    rw [compress_MemBuffer.loop.loop_1.loop_2.eq_1]
     simp only [has8 _ (show i < 2 ^ 256 by omega),
       decide_eq_true (show 0 ≤ i ∧ i < 8 from ⟨by omega, by omega⟩), ↓reduceIte,
       Lib.Range_at_0_8, Lib.Range_next_0_8, pure_bind, IV_eq,
@@ -269,7 +269,7 @@ theorem compress_spec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     show Vector.replicate 16 (UInt256.ofNat 0) = toV (wOf (vPart (hOf d) 0)) from rfl,
     show (Vector.ofFn fun j : Fin 8 => lw (BLAKE2.word d (4 + 8 * j.val))) =
       Vector.ofFn fun j : Fin 8 => lw (hOf d j.val) from rfl,
-    v_loop (hOf d) b _ _ _ _ _ _ _ 8 0 rfl, compress_MemBuffer.b5.b9.b13.eq_1]
+    v_loop (hOf d) b _ _ _ _ _ _ _ 8 0 rfl, compress_MemBuffer.loop.loop_1.loop_2.eq_1]
   have hdec : decide (UInt256.ofNat (byteAt d 212) = UInt256.ofNat 1) = decide (byteAt d 212 = 1) := by
     apply decide_eq_decide.mpr
     constructor
@@ -290,7 +290,7 @@ theorem compress_spec {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
   rw [show (wOf fun k => BLAKE2.word d (68 + 8 * k)) = mOf d from rfl]
   have tail : (do
       let v115 ← rounds_MemBuffer b
-      compress_MemBuffer.b5.b9.b13.b20 v115 (Vector.ofFn fun j : Fin 8 => lw (hOf d j.val))
+      compress_MemBuffer.loop.loop_1.loop_2.loop_3 v115 (Vector.ofFn fun j : Fin 8 => lw (hOf d j.val))
         (toV (mOf d)) (toV (vOf d)) (UInt256.ofNat 0) ⟨(), ()⟩ ⟨(), ()⟩ ⟨(), ()⟩ default
         default).exec I w =
       some (.ok (Vector.ofFn fun j : Fin 8 =>

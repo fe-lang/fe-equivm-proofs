@@ -47,7 +47,7 @@ theorem mul_one_word (h : Nat) (hh : h < 2 ^ 64) : UInt256.ofNat h * UInt256.ofN
 
 /-- `branch[h]` is slot `h`. -/
 theorem branchPlace (h : Nat) (hh : h < 2 ^ 64) :
-    (Field.store.field Layout.DepositStore 0).index 1 (UInt256.ofNat h) = .storage (UInt256.ofNat h) := by
+    Field.store.branch.index 1 (UInt256.ofNat h) = .storage (UInt256.ofNat h) := by
   simp only [Place.index, Place.field, Field.store, Layout.DepositStore, Place.storage,
     mul_one_word h hh, List.getD_cons_zero]
   rw [show UInt256.ofNat 0 + UInt256.ofNat 0 = UInt256.ofNat 0 from rfl, ofNat_add_ofNat (by
@@ -55,7 +55,7 @@ theorem branchPlace (h : Nat) (hh : h < 2 ^ 64) :
 
 /-- `zero_hashes[h]` is slot `33 + h`. -/
 theorem zeroPlace (h : Nat) (hh : h < 2 ^ 64) :
-    (Field.store.field Layout.DepositStore 2).index 1 (UInt256.ofNat h) =
+    Field.store.zero_hashes.index 1 (UInt256.ofNat h) =
       .storage (UInt256.ofNat (33 + h)) := by
   simp only [Place.index, Place.field, Field.store, Layout.DepositStore, Place.storage,
     mul_one_word h hh]
@@ -63,7 +63,7 @@ theorem zeroPlace (h : Nat) (hh : h < 2 ^ 64) :
     ofNat_add_ofNat (by rw [show UInt256.size = 2 ^ 256 from rfl]; omega)]
 
 /-- `deposit_count` is slot 32. -/
-theorem countPlace : Field.store.field Layout.DepositStore 1 = .storage (UInt256.ofNat 32) := rfl
+theorem countPlace : Field.store.deposit_count = .storage (UInt256.ofNat 32) := rfl
 
 variable (I : ExecutionEnv)
 
@@ -108,7 +108,7 @@ theorem div2_exec (w : World) {q : Nat} (hq : q < 2 ^ 64) :
 theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L) :
     ∀ k h (r1 : UInt256) (w w' : World) (v : UInt256), h + k = 32 →
       SameStorage σ0 w.accounts → r1.toByteArray = subtree (leafAt L) h (L.length / 2 ^ h) →
-      (recv_GetDepositRoot.b1 r1 (UInt256.ofNat (L.length / 2 ^ h)) ⟨(), UInt256.ofNat 32⟩
+      (recv_GetDepositRoot.loop r1 (UInt256.ofNat (L.length / 2 ^ h)) ⟨(), UInt256.ofNat 32⟩
           (UInt256.ofNat h)).exec I w = some (.ok (v, w')) →
       v.toByteArray = depositRoot L := by
   intro k
@@ -117,7 +117,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     intro h r1 w w' v hk hs hr hx
     obtain rfl : h = 32 := by omega
     have hl := hinv.len
-    rw [recv_GetDepositRoot.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
+    rw [recv_GetDepositRoot.loop.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (le_refl _)),
       if_neg (by decide), countPlace, load_storage, Lib.exec_bind_ok I w (exec_sload _ I w),
       hs.slotWord, hinv.count, Lib.exec_bind_ok I w (truncate64_exec I w (by omega))] at hx
     simp only [bind_pure] at hx
@@ -129,7 +129,7 @@ theorem rootLoop {L : List ByteArray} {σ0 : AccountMap} (hinv : TreeInv I σ0 L
     rfl
   | succ k ih =>
     intro h r1 w w' v hk hs hr hx
-    rw [recv_GetDepositRoot.b1.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (by omega))] at hx
+    rw [recv_GetDepositRoot.loop.eq_1, Lib.exec_bind_ok I w (rangeHas_exec I w (by omega))] at hx
     simp only [show h < 32 by omega, decide_true, if_true] at hx
     have hl := hinv.len
     have hsz : UInt256.size = 2 ^ 256 := rfl

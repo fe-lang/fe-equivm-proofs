@@ -24,7 +24,7 @@ variable {m : Module} (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
 attribute [local simp] Exported.recv_TotalSupply_entry Exported.recv_TotalSupply Exported.recv_Deposit_entry
-  Exported.recv_Deposit Exported.recv1_arm0_entry Exported.recv1_arm0
+  Exported.recv_Deposit Exported.recv_fallback_entry Exported.recv_fallback
   Exported.deposit_Weth9Store_Evm_Evm Exported.recv_Decimals_entry Exported.recv_BalanceOf_entry
   Exported.recv_BalanceOf Exported.recv_Allowance_entry Exported.recv_Allowance Exported.recv_Approve_entry
   Exported.recv_Approve Exported.balanceOfField Exported.allowanceField Place.storage store load
@@ -74,7 +74,7 @@ set_option maxHeartbeats 4000000 in
 theorem arm_fallback (hdep : m.func? "deposit" = some depositFunc)
     (hmem : w.memory.size + 256 < UInt256.size) (M : ByteArray) (E : Sonatina.Env)
     (p : Option Nat) :
-    EndsAs ((entry Exported.recv1_arm0_entry).exec I w)
+    EndsAs ((entry Exported.recv_fallback_entry).exec I w)
       (Check.endRun ((runBlocks m ic runtimeFunc E p 4).exec I { w with memory := M })) := by
   have hr : w.reserved.memory.size + 256 < UInt256.size :=
     reserveMemory_room hmem (by decide)

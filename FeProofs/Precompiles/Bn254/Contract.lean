@@ -118,7 +118,7 @@ theorem shift_or_byte {x y : ℕ} (hx : x < 2 ^ 248) (hy : y < 256) :
 theorem word_at_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
     (h : Holds b d w.memory) {off : ℕ} (hoff : off + 32 < UInt256.size) (k t : ℕ)
     (hkt : k + t = 32) :
-    (word_at_MemBuffer.b4 b (UInt256.ofNat (beAt d off t))
+    (word_at_MemBuffer.loop b (UInt256.ofNat (beAt d off t))
         ⟨UInt256.ofNat off, UInt256.ofNat (off + 32)⟩ (UInt256.ofNat (off + t))).exec I w =
       some (.ok (UInt256.ofNat (beAt d off 32), w)) := by
   have hl : ∀ k, k ≤ 32 → (UInt256.ofNat (off + k)).toNat = off + k := fun k hk =>
@@ -127,10 +127,10 @@ theorem word_at_loop {b : Lib.MemBuffer} {d : ByteArray} {I : Env} {w : World}
   induction k generalizing t with
   | zero =>
     obtain rfl : t = 32 := by omega
-    rw [word_at_MemBuffer.b4.eq_1]
+    rw [word_at_MemBuffer.loop.eq_1]
     simp [Lib.Range_Unknown_Unknown_has, Lib.range_has, hl 32 le_rfl, hn]
   | succ k ih =>
-    rw [word_at_MemBuffer.b4.eq_1]
+    rw [word_at_MemBuffer.loop.eq_1]
     have hlt := beAt_lt d off t
     have hstep := shift_or_byte (x := beAt d off t) (y := byteAt d (off + t))
       (lt_of_lt_of_le hlt (Nat.pow_le_pow_right (by decide) (by omega))) (byteAt_lt _ _)
@@ -213,10 +213,10 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
     let d := I.calldata
     let r := BN254.Spec.add (BN254.Spec.word d 0) (BN254.Spec.word d 1) (BN254.Spec.word d 2)
       (BN254.Spec.word d 3)
-    recv0_arm0.exec I w = none ∨
+    recv_fallback.exec I w = none ∨
       (∃ o, r = some o ∧ ∃ memory,
-        recv0_arm0.exec I w = some (.error (.stop o { w with memory := memory }))) ∨
-      (r = none ∧ recv0_arm0.exec I w = some (.error (.revert ByteArray.empty))) := by
+        recv_fallback.exec I w = some (.error (.stop o { w with memory := memory }))) ∨
+      (r = none ∧ recv_fallback.exec I w = some (.error (.revert ByteArray.empty))) := by
   intro d r
   have hin : input_Evm.exec I w = _ := input_exec I w hfits (by omega)
   have hh := input_holds w.memory I.calldata (by omega)
@@ -238,17 +238,17 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
     { w with memory := inputMemory w.memory I.calldata } (hw 0 (by omega)) (hw 1 (by omega))
     (hw 2 (by omega)) (hw 3 (by omega)) with ha | ⟨v, ha, hr⟩
   · left
-    simp [recv0_arm0, hin, ha]
+    simp [recv_fallback, hin, ha]
   · rw [hl 0 (by omega), hl 1 (by omega), hl 2 (by omega), hl 3 (by omega)] at hr
     rcases v with _ | v
     · right; right
       refine ⟨hr, ?_⟩
-      simp [recv0_arm0, hin, ha, alloc, toNatMax, toNatU64, toNat0, hmax, hM, hroom0, revertData,
+      simp [recv_fallback, hin, ha, alloc, toNatMax, toNatU64, toNat0, hmax, hM, hroom0, revertData,
         byteArray_readWithPadding_zero]
     · obtain ⟨a, b, rfl, hap, hbp, hspec⟩ := hr
       right; left
       refine ⟨_, hspec, ?_⟩
-      simp [recv0_arm0, hin, ha, checkIndex, alloc, zeroMem, mstore, returnData, toNatMax, toNatU64,
+      simp [recv_fallback, hin, ha, checkIndex, alloc, zeroMem, mstore, returnData, toNatMax, toNatU64,
         toNat64, toNat0, toNat32, t1, s64, s64', a32, a64, hmax, hM, hroom, hp, Fe.EVM.add_zero]
       have hs32 : (UInt256.ofNat (w.memory.size + I.calldata.size) + UInt256.ofNat 32).toNat =
           w.memory.size + I.calldata.size + 32 := by
@@ -263,20 +263,20 @@ theorem arm_exec (I : Env) (w : World) (hfits : I.calldata.size < 2 ^ 64)
 
 /-! ## The contract -/
 
-theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.exec I w := by
+theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv_fallback_entry.exec I w := by
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 /-- Without call value the entry ends as the arm does. -/
 theorem entry_runtime_none (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩)
-    (h : recv0_arm0.exec I w.reserved = none) : (entry runtime).exec I w = none := by
-  simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv0_arm0_entry, exec_nonPayable,
+    (h : recv_fallback.exec I w.reserved = none) : (entry runtime).exec I w = none := by
+  simp only [entry, M.exec_bind, exec_reserve, runtime_eq, recv_fallback_entry, exec_nonPayable,
     if_pos hv, h]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
+  simp only [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_pos hv, h]
 
 /-- **The contract `Bn254Add` is ECADD.**  On call data `d` shorter than `2 ^ 64` bytes, with
     room in memory for the input and the 64-byte output, and no call value, the exported runtime
@@ -321,6 +321,6 @@ theorem precompile_eq (σ : AccountMap) (g : UInt256) (A : Substate) (I : Execut
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv0_arm0_entry, M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv_fallback_entry, M.exec_bind, exec_nonPayable, if_neg hv]
 
 end FeProofs.Bn254Add

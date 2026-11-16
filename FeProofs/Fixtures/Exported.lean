@@ -28,24 +28,36 @@ def Field.store : Place :=
 def Layout.Store : Layout :=
   { storage := [0, 1] }
 
+/-- `store.total` -/
+abbrev Field.store.total : Place :=
+  Field.store.field Layout.Store 0
+
+/-- `store.hits` -/
+abbrev Field.store.hits : Place :=
+  Field.store.field Layout.Store 1
+
 /-- The `init` of contract `Counter`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
 /-- `helper_call::add<Store>` -/
 def add_Store («by» : UInt256) : FeM UInt256 := do
-  let v1 ← load (Field.store.field Layout.Store 0)
+  -- let next = store.total + by
+  let v1 ← load Field.store.total
   let next ← checkedAdd v1 «by»
-  store (Field.store.field Layout.Store 0) next
-  let l0 ← StorageMap_locate_u256_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot «by»
-  let v8 ← load (Place.mk .storage l0.slot)
+  -- store.total = next
+  store Field.store.total next
+  -- store.hits[by] += 1
+  let hits_by ← StorageMap_locate_u256_u256 Field.store.hits Field.store.hits.slot «by»
+  let v8 ← load (Place.mk .storage hits_by.slot)
   let v9 ← checkedAdd v8 (UInt256.ofNat 1)
-  let l1 ← StorageMap_locate_u256_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot «by»
-  store (Place.mk .storage l1.slot) v9
+  let hits_by_1 ← StorageMap_locate_u256_u256 Field.store.hits Field.store.hits.slot «by»
+  store (Place.mk .storage hits_by_1.slot) v9
   return next
 
 /-- `Bump { by } -> u256`, selector `0xb20eb4c4` (`bump(uint256)`) -/
 def recv_Bump («by» : UInt256) : FeM UInt256 := do
+  -- add(by)
   let v1 ← add_Store «by»
   return v1
 
@@ -72,32 +84,45 @@ def Field.store : Place :=
 def Layout.Store : Layout :=
   { storage := [0, 1] }
 
+/-- `store.total` -/
+abbrev Field.store.total : Place :=
+  Field.store.field Layout.Store 0
+
+/-- `store.hits` -/
+abbrev Field.store.hits : Place :=
+  Field.store.field Layout.Store 1
+
 /-- The `init` of contract `Counter`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
 /-- `join::add<Store>` -/
 def add_Store («by» : UInt256) : FeM UInt256 := do
-  let v4 := decide ((UInt256.ofNat 10).toNat < «by».toNat)
-  let b3 : UInt256 → FeM UInt256 := fun next => do
-    store (Field.store.field Layout.Store 0) next
-    let l0 ← StorageMap_locate_u256_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot «by»
-    let v17 ← load (Place.mk .storage l0.slot)
+  let join : UInt256 → FeM UInt256 := fun next => do
+    -- store.total = next
+    store Field.store.total next
+    -- store.hits[by] += 1
+    let hits_by ← StorageMap_locate_u256_u256 Field.store.hits Field.store.hits.slot «by»
+    let v17 ← load (Place.mk .storage hits_by.slot)
     let v18 ← checkedAdd v17 (UInt256.ofNat 1)
-    let l1 ← StorageMap_locate_u256_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot «by»
-    store (Place.mk .storage l1.slot) v18
+    let hits_by_1 ← StorageMap_locate_u256_u256 Field.store.hits Field.store.hits.slot «by»
+    store (Place.mk .storage hits_by_1.slot) v18
     return next
-  if v4 then
-    let v5 ← load (Field.store.field Layout.Store 0)
+  -- let next = if by > 10 { store.total + 10 } else { store.total + by }
+  if decide ((UInt256.ofNat 10).toNat < «by».toNat) then
+    -- store.total + 10
+    let v5 ← load Field.store.total
     let v7 ← checkedAdd v5 (UInt256.ofNat 10)
-    b3 v7
+    join v7
   else
-    let v9 ← load (Field.store.field Layout.Store 0)
+    -- store.total + by
+    let v9 ← load Field.store.total
     let v11 ← checkedAdd v9 «by»
-    b3 v11
+    join v11
 
 /-- `Bump { by } -> u256`, selector `0xb20eb4c4` (`bump(uint256)`) -/
 def recv_Bump («by» : UInt256) : FeM UInt256 := do
+  -- add(by)
   let v1 ← add_Store «by»
   return v1
 
@@ -166,7 +191,9 @@ def init : FeM Unit := do
 /-- `Cursor::advance` -/
 def Cursor_advance (self : Cursor) («by» : UInt256) : FeM (UInt256 × Cursor) := do
   let mut self := self
+  -- let at = self.pos
   let «at» := self.pos
+  -- self.pos = at + by
   let v5 ← checkedAdd «at» «by»
   self := { self with pos := v5 }
   return («at», self)
@@ -174,44 +201,48 @@ def Cursor_advance (self : Cursor) («by» : UInt256) : FeM (UInt256 × Cursor) 
 /-- `Cursor::skip` -/
 def Cursor_skip (self : Cursor) («by» : UInt256) : FeM (Unit × Cursor) := do
   let mut self := self
-  let v4 := decide ((UInt256.ofNat 32).toNat < «by».toNat)
-  let b3 : Cursor → FeM (Unit × Cursor) := fun self => do
+  let join : Cursor → FeM (Unit × Cursor) := fun self => do
     let mut self := self
-    let v10 := self.pos
-    self := { self with base := v10 }
+    -- self.base = self.pos
+    self := { self with base := self.pos }
     return ((), self)
-  if v4 then
+  -- if by > 32 {
+  if decide ((UInt256.ofNat 32).toNat < «by».toNat) then
+    -- self.advance(by: 32)
     let (v6, v6_0) ← Cursor_advance self (UInt256.ofNat 32)
     self := v6_0
-    b3 self
+    join self
   else
+    -- self.advance(by)
     let (v8, v8_0) ← Cursor_advance self «by»
     self := v8_0
-    b3 self
+    join self
 
 /-- `Cursor::end` -/
 def Cursor_end (self : Cursor) : FeM UInt256 := do
-  let v1 := self.pos
-  let v2 := self.base
-  let v3 ← checkedAdd v1 v2
+  -- self.pos + self.base
+  let v3 ← checkedAdd self.pos self.base
   return v3
 
 /-- `Sum { step } -> u256`, selector `0x188b85b4` (`sum(uint256)`) -/
 def recv_Sum (step : UInt256) : FeM UInt256 := do
   let mut c : Cursor := default
   let mut s : Span := default
-  let c_3 := (Cursor.mk (UInt256.ofNat 0) (UInt256.ofNat 4))
-  c := c_3
+  -- var c = Cursor { pos: 0, base: 4 }
+  c := (Cursor.mk (UInt256.ofNat 0) (UInt256.ofNat 4))
+  -- let a = c.advance(by: step)
   let (a, a_0) ← Cursor_advance c step
   c := a_0
+  -- c.skip(by: step)
   let (v9, v9_0) ← Cursor_skip c step
   c := v9_0
-  let c_10 := c
-  let s_12 := (Span.mk c_10 step)
-  s := s_12
+  -- var s = Span { start: c, len: step }
+  s := (Span.mk c step)
+  -- let b = s.start.advance(by: s.len)
   let v14 := s.len
   let (b, b_0) ← Cursor_advance s.start v14
   s := { s with start := b_0 }
+  -- a + b + s.start.end()
   let v18 ← checkedAdd a b
   let v21 ← Cursor_end s.start
   let v22 ← checkedAdd v18 v21
@@ -219,13 +250,16 @@ def recv_Sum (step : UInt256) : FeM UInt256 := do
 
 /-- `Cursor::advance` -/
 def Cursor_advance_1 (self : Place) («by» : UInt256) : FeM UInt256 := do
+  -- let at = self.pos
   let «at» ← load (self.field Layout.Cursor 0)
+  -- self.pos = at + by
   let v5 ← checkedAdd «at» «by»
   store (self.field Layout.Cursor 0) v5
   return «at»
 
 /-- `Bump { step } -> u256`, selector `0xb20eb4c4` (`bump(uint256)`) -/
 def recv_Bump (step : UInt256) : FeM UInt256 := do
+  -- saved.advance(by: step)
   let v1 := Field.saved
   let v2 ← Cursor_advance_1 v1 step
   return v2
@@ -284,35 +318,30 @@ def init : FeM Unit := do
 
 /-- `tuple::swap` -/
 def swap (pair : (UInt256 × UInt256 × Bool)) : FeM (UInt256 × UInt256 × Bool) := do
-  let v1 := pair.snd.fst
-  let v2 := pair.fst
-  let v3 := pair.snd.snd
-  let v4 := (v1, v2, v3)
-  return v4
+  return (pair.snd.fst, pair.fst, pair.snd.snd)
 
 /-- `Swap { a, b } -> u256`, selector `0xd96073cf` (`swap(uint256,uint256)`) -/
 def recv_Swap (a : UInt256) (b : UInt256) : FeM UInt256 := do
   let mut pair : (UInt256 × UInt256 × Bool) := default
   let mut r1 : (UInt256 × UInt256 × Bool) := default
-  let v4 := (a, b, true)
-  r1 := v4
+  -- var pair = swap(pair: (a, b, true))
+  r1 := (a, b, true)
   let pair_6 ← swap r1
   pair := pair_6
-  let v8 := pair.snd.fst
-  let v10 ← checkedAdd v8 (UInt256.ofNat 1)
+  -- pair.1 = pair.1 + 1
+  let v10 ← checkedAdd pair.snd.fst (UInt256.ofNat 1)
   pair := { pair with snd := { pair.snd with fst := v10 } }
-  let v12 := pair.snd.snd
-  let b3 : (UInt256 × UInt256 × Bool) → (UInt256 × UInt256 × Bool) → UInt256 → FeM UInt256 := fun pair r1 v2 => do
+  let join : (UInt256 × UInt256 × Bool) → (UInt256 × UInt256 × Bool) → UInt256 → FeM UInt256 := fun pair r1 v2 => do
     let mut pair := pair
     let mut r1 := r1
     return v2
-  if v12 then
-    let v13 := pair.fst
-    let v14 := pair.snd.fst
-    let v15 ← checkedSub v13 v14
-    b3 pair r1 v15
+  -- if pair.2 {
+  if pair.snd.snd then
+    -- pair.0 - pair.1
+    let v15 ← checkedSub pair.fst pair.snd.fst
+    join pair r1 v15
   else
-    b3 pair r1 (UInt256.ofNat 0)
+    join pair r1 (UInt256.ofNat 0)
 
 -- END fe-lean-export
 
@@ -350,26 +379,27 @@ def init : FeM Unit := do
 
 /-- `param_slot::make` -/
 def make (pos : UInt256) : FeM Cursor := do
-  let v3 := (Cursor.mk pos (UInt256.ofNat 4))
-  return v3
+  return Cursor.mk pos (UInt256.ofNat 4)
 
 /-- `Cursor::end` -/
 def Cursor_end (self : Cursor) : FeM UInt256 := do
-  let v1 := self.pos
-  let v2 := self.base
-  let v3 ← checkedAdd v1 v2
+  -- self.pos + self.base
+  let v3 ← checkedAdd self.pos self.base
   return v3
 
 /-- `Cursor::advance` -/
 def Cursor_advance (self : Cursor) («by» : UInt256) : FeM (UInt256 × Cursor) := do
   let mut self := self
+  -- let at = self.pos
   let «at» := self.pos
+  -- self.pos = at + by
   let v5 ← checkedAdd «at» «by»
   self := { self with pos := v5 }
   return («at», self)
 
 /-- `param_slot::c_end` -/
 def c_end (c : Cursor) : FeM UInt256 := do
+  -- c.end()
   let v1 ← Cursor_end c
   return v1
 
@@ -377,6 +407,7 @@ def c_end (c : Cursor) : FeM UInt256 := do
 def consume (c : Cursor) («by» : UInt256) : FeM UInt256 := do
   let mut c := c
   let mut r1 : Cursor := default
+  -- c.advance(by) + c_end(c: make(pos: by))
   let (v2, v2_0) ← Cursor_advance c «by»
   c := v2_0
   let v3 ← make «by»
@@ -388,15 +419,15 @@ def consume (c : Cursor) («by» : UInt256) : FeM UInt256 := do
 /-- `param_slot::bump` -/
 def bump («by» : UInt256) : FeM UInt256 := do
   let mut «by» := «by»
-  let by_1 := «by»
-  let by_2 ← checkedAdd by_1 (UInt256.ofNat 1)
+  -- by += 1
+  let by_2 ← checkedAdd «by» (UInt256.ofNat 1)
   «by» := by_2
-  let by_5 := «by»
-  return by_5
+  return «by»
 
 /-- `Sum { step } -> u256`, selector `0x188b85b4` (`sum(uint256)`) -/
 def recv_Sum (step : UInt256) : FeM UInt256 := do
   let mut r0 : Cursor := default
+  -- make(pos: step).end() + consume(make(pos: 1), by: step) + bump(by: step)
   let v1 ← make step
   r0 := v1
   let v3 ← Cursor_end r0
@@ -444,10 +475,10 @@ def init : FeM Unit := do
 
 /-- `Probe -> u256`, selector `0xb74af5a9` (`probe()`) -/
 def recv_Probe : FeM UInt256 := do
+  -- let args: (u256, u256) = evm.decode_args()
   let args ← Evm_decode_args_tuple_u256_u256
-  let v3 := args.fst
-  let v4 := args.snd
-  let v5 ← checkedAdd v3 v4
+  -- args.0 + args.1
+  let v5 ← checkedAdd args.fst args.snd
   return v5
 
 -- END fe-lean-export
@@ -473,6 +504,7 @@ def init : FeM Unit := do
 
 /-- `Probe { value } -> u256`, selector `0xdb082440` (`probe(uint256)`) -/
 def recv_Probe (value : UInt256) : FeM UInt256 := do
+  -- revert(value)
   let v1 ← revert_u256 value
   let v1 : UInt256 := nomatch v1
   return v1
@@ -500,10 +532,10 @@ def init : FeM Unit := do
 
 /-- `Narrow { a, b } -> u8`, selector `0x741ef9d5` (`narrow(uint8,uint8)`) -/
 def recv_Narrow (a : UInt256) (b : UInt256) : FeM UInt256 := do
+  -- let sum = a + b
   let sum ← IntTy.add (.u 8) a b
-  let v5 := sum >>> (UInt256.ofNat 1)
-  let low := v5 &&& (UInt256.ofNat 15)
-  let v9 ← IntTy.sub (.u 8) sum low
+  -- (sum - low) * 2 / b % 7
+  let v9 ← IntTy.sub (.u 8) sum ((sum >>> (UInt256.ofNat 1)) &&& (UInt256.ofNat 15))
   let v11 ← IntTy.mul (.u 8) v9 (UInt256.ofNat 2)
   let v12 ← checkedDiv v11 b
   let v14 ← checkedRem v12 (UInt256.ofNat 7)
@@ -511,17 +543,19 @@ def recv_Narrow (a : UInt256) (b : UInt256) : FeM UInt256 := do
 
 /-- `ints::wrapping` -/
 def wrapping (a : UInt256) (b : UInt256) : FeM UInt256 := do
-  let v4 := IntTy.mulW (.i 32) a b
-  let v6 := IntTy.shl (.i 32) v4 (UInt256.ofNat 3)
+  -- (a * b) << 3
+  let v6 := IntTy.shl (.i 32) (IntTy.mulW (.i 32) a b) (UInt256.ofNat 3)
   return v6
 
 /-- `Signed { a, b } -> i32`, selector `0x6effafad` (`signed(int32,int32)`) -/
 def recv_Signed (a : UInt256) (b : UInt256) : FeM UInt256 := do
-  let v2 := UInt256.sltBool a b
-  if v2 then
+  -- if a < b {
+  if UInt256.sltBool a b then
+    -- return -a
     let v3 ← IntTy.neg (.i 32) a
     return v3
   else
+    -- wrapping(a, b) + (a / b) - (a % b) + -5
     let v6 ← wrapping a b
     let v7 ← IntTy.div (.i 32) a b
     let v8 ← IntTy.add (.i 32) v6 v7
@@ -532,16 +566,15 @@ def recv_Signed (a : UInt256) (b : UInt256) : FeM UInt256 := do
 
 /-- `Mixed { a, b } -> i256`, selector `0x728ac8e2` (`mixed(int256,uint16)`) -/
 def recv_Mixed (a : UInt256) (b : UInt256) : FeM UInt256 := do
-  let wide := b
+  -- let small: i8 = a.downcast_truncate()
   let small ← downcast_truncate_i256_i8 a
-  let bits ← downcast_unchecked_u256_i256 wide
-  let v9 := IntTy.shr (.i 256) a (UInt256.ofNat 2)
-  let v11 ← IntTy.pow (.i 256) v9 (UInt256.ofNat 2)
-  let v12 := small
-  let v13 ← IntTy.add (.i 256) v11 v12
+  -- let bits: i256 = wide.downcast_unchecked()
+  let bits ← downcast_unchecked_u256_i256 b
+  -- (a >> 2) ** 2 + (small as i256) + bits + (!a)
+  let v11 ← IntTy.pow (.i 256) (IntTy.shr (.i 256) a (UInt256.ofNat 2)) (UInt256.ofNat 2)
+  let v13 ← IntTy.add (.i 256) v11 small
   let v14 ← IntTy.add (.i 256) v13 bits
-  let v15 := IntTy.not (.i 256) a
-  let v16 ← IntTy.add (.i 256) v14 v15
+  let v16 ← IntTy.add (.i 256) v14 (IntTy.not (.i 256) a)
   return v16
 
 /-- `Context -> u256`, selector `0xd0496d6a` (`context()`) -/
@@ -549,23 +582,18 @@ def recv_Context : FeM UInt256 := do
   let mut r1 : UInt256 := default
   let mut r2 : Wei := default
   let mut r3 : UInt256 := default
+  -- evm.address().word() ^ evm.value().as_wei() ^ evm.origin().word() ^ evm.block_number()
   let v1 ← Evm_address
   r1 := v1
-  let v2 := r1
-  let v3 ← Address_word v2
+  let v3 ← Address_word r1
   let v5 ← Evm_value
   r2 := v5
-  let v6 := r2
-  let v7 ← Wei_as_wei v6
-  let v8 := v3 ^^^ v7
+  let v7 ← Wei_as_wei r2
   let v10 ← Evm_origin
   r3 := v10
-  let v11 := r3
-  let v12 ← Address_word v11
-  let v13 := v8 ^^^ v12
+  let v12 ← Address_word r3
   let v15 ← Evm_block_number
-  let v16 := v13 ^^^ v15
-  return v16
+  return ((v3 ^^^ v7) ^^^ v12) ^^^ v15
 
 -- END fe-lean-export
 
@@ -628,92 +656,92 @@ def init : FeM Unit := do
 
 /-- `enums::shape` -/
 def shape (width : UInt256) (height : UInt256) : FeM Shape := do
-  let v6 := decide (width = (UInt256.ofNat 0))
-  let b3 : Shape → FeM Shape := fun v2 => do
+  let join : Shape → FeM Shape := fun v2 => do
     return v2
-  if v6 then
-    let v7 := Shape.Empty
-    b3 v7
+  -- if width == 0 {
+  if decide (width = (UInt256.ofNat 0)) then
+    join Shape.Empty
   else
-    let v11 := decide (width = height)
-    let b6 : Shape → FeM Shape := fun v3 => do
-      b3 v3
-    if v11 then
-      let v13 := Shape.Square width
-      b6 v13
+    let join_1 : Shape → FeM Shape := fun v3 => do
+      join v3
+    -- if width == 0 {
+    if decide (width = height) then
+      join_1 (Shape.Square width)
     else
-      let v17 := Shape.Rect width height
-      b6 v17
+      join_1 (Shape.Rect width height)
 
 /-- `Area { width, height } -> u256`, selector `0x15529a52` (`area(uint256,uint256)`) -/
 def recv_Area (width_0 : UInt256) (height_1 : UInt256) : FeM UInt256 := do
+  -- match shape(width, height) {
   let v3 ← shape width_0 height_1
-  let b1 : UInt256 → FeM UInt256 := fun v2 => do
+  let join : UInt256 → FeM UInt256 := fun v2 => do
     return v2
+  -- match shape(width, height) {
   match v3 with
   | .Empty =>
-    b1 (UInt256.ofNat 0)
+    join (UInt256.ofNat 0)
   | .Square .. =>
+    -- match shape(width, height) {
     let side := v3.Square_0
     let v8 ← checkedMul side side
-    b1 v8
+    join v8
   | .Rect .. =>
-    let width_10 := v3.Rect_0
-    let height_12 := v3.Rect_1
-    let v14 ← checkedMul width_10 height_12
-    b1 v14
+    -- match shape(width, height) {
+    let v14 ← checkedMul v3.Rect_0 v3.Rect_1
+    join v14
 
 /-- `enums::halve` -/
 def halve (value : UInt256) : FeM Option_u256 := do
+  -- if value % 2 == 0 {
   let v4 ← checkedRem value (UInt256.ofNat 2)
-  let v6 := decide (v4 = (UInt256.ofNat 0))
-  let b3 : Option_u256 → FeM Option_u256 := fun v1 => do
+  let join : Option_u256 → FeM Option_u256 := fun v1 => do
     return v1
-  if v6 then
+  -- if value % 2 == 0 {
+  if decide (v4 = (UInt256.ofNat 0)) then
+    -- Option::Some(value / 2)
     let v9 ← checkedDiv value (UInt256.ofNat 2)
-    let v10 := Option_u256.Some v9
-    b3 v10
+    join (Option_u256.Some v9)
   else
-    let v12 := Option_u256.None
-    b3 v12
+    join Option_u256.None
 
 /-- `Half { value } -> u256`, selector `0xdee6088b` (`half(uint256)`) -/
 def recv_Half (value : UInt256) : FeM UInt256 := do
+  -- match halve(value) {
   let v2 ← halve value
-  let b1 : UInt256 → FeM UInt256 := fun v1 => do
+  let join : UInt256 → FeM UInt256 := fun v1 => do
     return v1
+  -- match halve(value) {
   match v2 with
   | .Some .. =>
-    let half := v2.Some_0
-    b1 half
+    join v2.Some_0
   | _ =>
-    b1 value
+    join value
 
 /-- `Grow { side } -> u256`, selector `0x28531f06` (`grow(uint256)`) -/
 def recv_Grow (side_0 : UInt256) : FeM UInt256 := do
   let mut current : Shape := default
-  let current_2 := Shape.Square side_0
-  current := current_2
-  let b3 : Shape → FeM UInt256 := fun current => do
+  -- var current = Shape::Square(side)
+  current := (Shape.Square side_0)
+  let join : Shape → FeM UInt256 := fun current => do
     let mut current := current
-    let v13 := current
-    let b6 : Shape → UInt256 → FeM UInt256 := fun current v1 => do
+    let join_1 : Shape → UInt256 → FeM UInt256 := fun current v1 => do
       let mut current := current
       return v1
-    match v13 with
+    -- match current {
+    match current with
     | .Square .. =>
-      let side_14 := current.Square_0
-      b6 current side_14
+      join_1 current current.Square_0
     | _ =>
-      b6 current (UInt256.ofNat 0)
+      join_1 current (UInt256.ofNat 0)
+  -- if let Shape::Square(mut inner) = current {
   match current with
   | .Square .. =>
-    let v7 := current.Square_0
-    let v8 ← checkedAdd v7 (UInt256.ofNat 1)
+    -- inner += 1
+    let v8 ← checkedAdd current.Square_0 (UInt256.ofNat 1)
     current := (current.set_Square_0 v8)
-    b3 current
+    join current
   | _ =>
-    b3 current
+    join current
 
 -- END fe-lean-export
 
@@ -757,80 +785,79 @@ def init : FeM Unit := do
 def recv_Triangle (n : UInt256) : FeM UInt256 := do
   let mut total : UInt256 := default
   let mut i : UInt256 := default
+  -- var total: u256 = 0
   total := (UInt256.ofNat 0)
+  -- var i: u256 = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (total : UInt256) (i : UInt256) : FeM UInt256 := do
+  let rec loop (total : UInt256) (i : UInt256) : FeM UInt256 := do
     let mut total := total
     let mut i := i
-    let i_5 := i
-    let v7 := decide (i_5.toNat < n.toNat)
-    if v7 then
-      let i_9 := i
-      let i_10 ← checkedAdd i_9 (UInt256.ofNat 1)
+    -- while i < n {
+    if decide (i.toNat < n.toNat) then
+      -- i += 1
+      let i_10 ← checkedAdd i (UInt256.ofNat 1)
       i := i_10
-      let i_13 := i
-      let total_15 := total
-      let total_16 ← checkedAdd total_15 i_13
+      -- total += i
+      let total_16 ← checkedAdd total i
       total := total_16
-      b1 total i
+      loop total i
     else
-      let total_19 := total
-      return total_19
+      return total
   partial_fixpoint
-  b1 total i
+  loop total i
 
 /-- `loops::step` -/
 def step (value : UInt256) : FeM Option_u256 := do
-  let v5 := decide (value = (UInt256.ofNat 1))
-  let b3 : Option_u256 → FeM Option_u256 := fun v1 => do
+  let join : Option_u256 → FeM Option_u256 := fun v1 => do
     return v1
-  if v5 then
-    let v6 := Option_u256.None
-    b3 v6
+  -- if value == 1 {
+  if decide (value = (UInt256.ofNat 1)) then
+    join Option_u256.None
   else
+    -- if value == 1 {
     let v10 ← checkedRem value (UInt256.ofNat 2)
-    let v12 := decide (v10 = (UInt256.ofNat 0))
-    let b6 : Option_u256 → FeM Option_u256 := fun v2 => do
-      b3 v2
-    if v12 then
+    let join_1 : Option_u256 → FeM Option_u256 := fun v2 => do
+      join v2
+    -- if value == 1 {
+    if decide (v10 = (UInt256.ofNat 0)) then
+      -- Option::Some(value / 2)
       let v15 ← checkedDiv value (UInt256.ofNat 2)
-      let v16 := Option_u256.Some v15
-      b6 v16
+      join_1 (Option_u256.Some v15)
     else
+      -- Option::Some(3 * value + 1)
       let v20 ← checkedMul (UInt256.ofNat 3) value
       let v22 ← checkedAdd v20 (UInt256.ofNat 1)
-      let v23 := Option_u256.Some v22
-      b6 v23
+      join_1 (Option_u256.Some v22)
 
 /-- `Collatz { start, limit } -> u256`, selector `0xea732925` (`collatz(uint256,uint256)`) -/
 def recv_Collatz (start : UInt256) (limit : UInt256) : FeM UInt256 := do
   let mut value : UInt256 := default
   let mut steps : UInt256 := default
+  -- var value = start
   value := start
+  -- var steps: u256 = 0
   steps := (UInt256.ofNat 0)
-  let rec b1 (value : UInt256) (steps : UInt256) : FeM UInt256 := do
+  let rec loop (value : UInt256) (steps : UInt256) : FeM UInt256 := do
     let mut value := value
     let mut steps := steps
-    let steps_5 := steps
-    let v7 := decide (steps_5 = limit)
-    if v7 then
+    -- if steps == limit {
+    if decide (steps = limit) then
       return limit
     else
-      let value_10 := value
-      let v12 ← step value_10
+      -- match step(value) {
+      let v12 ← step value
       match (← pure v12) with
       | .Some .. =>
-        let next := v12.Some_0
-        value := next
-        let steps_18 := steps
-        let steps_19 ← checkedAdd steps_18 (UInt256.ofNat 1)
+        -- value = next
+        value := v12.Some_0
+        -- steps += 1
+        let steps_19 ← checkedAdd steps (UInt256.ofNat 1)
         steps := steps_19
-        b1 value steps
+        loop value steps
       | .None =>
-        let steps_23 := steps
-        return steps_23
+        return steps
   partial_fixpoint
-  b1 value steps
+  loop value steps
 
 -- END fe-lean-export
 
@@ -840,7 +867,7 @@ end
 theorem triangle_three (I : ExecutionEnv) (w : World) :
     (recv_Triangle (UInt256.ofNat 3)).exec I w = some (.ok (UInt256.ofNat 6, w)) := by
   simp [recv_Triangle]
-  iterate 4 (rw [recv_Triangle.b1]; simp +decide [checkedAdd])
+  iterate 4 (rw [recv_Triangle.loop]; simp +decide [checkedAdd])
 
 end FeProofs.Fixtures.Loops
 
@@ -870,91 +897,97 @@ def windows (n : UInt256) (width : UInt256) : FeM UInt256 := do
   let mut index : UInt256 := default
   let mut started : Bool := default
   let mut r3 : Range_Unknown_Unknown := default
+  -- var acc: u256 = 1
   acc := (UInt256.ofNat 1)
+  -- var index: usize = 0
   index := (UInt256.ofNat 0)
+  -- var started = false
   started := false
-  let rec b1 (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) : FeM UInt256 := do
+  let rec loop (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) : FeM UInt256 := do
     let mut acc := acc
     let mut index := index
     let mut started := started
     let mut r3 := r3
-    let index_10 := index
-    let v13 := decide (index_10.toNat < n.toNat)
-    if v13 then
-      let index_14 := index
-      let v17 ← checkedAdd index_14 width
+    -- while index < n {
+    if decide (index.toNat < n.toNat) then
+      -- let end = if index + width + 1 < n { index + width + 1 } else { n }
+      let v17 ← checkedAdd index width
       let v19 ← checkedAdd v17 (UInt256.ofNat 1)
-      let v21 := decide (v19.toNat < n.toNat)
-      let b6 : UInt256 → UInt256 → Bool → Range_Unknown_Unknown → UInt256 → FeM UInt256 := fun acc index started r3 «end» => do
+      let join : UInt256 → UInt256 → Bool → Range_Unknown_Unknown → UInt256 → FeM UInt256 := fun acc index started r3 «end» => do
         let mut acc := acc
         let mut index := index
         let mut started := started
         let mut r3 := r3
-        let started_32 := started
-        let rec b9 (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) : FeM UInt256 := do
+        let rec loop_1 (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) : FeM UInt256 := do
           let mut acc := acc
           let mut index := index
           let mut started := started
           let mut r3 := r3
+          -- if end % 2 == 1 {
           let v60 ← checkedRem «end» (UInt256.ofNat 2)
-          let v62 := decide (v60 = (UInt256.ofNat 1))
-          let b16 : UInt256 → UInt256 → Bool → Range_Unknown_Unknown → FeM UInt256 := fun acc index started r3 => do
+          let join_1 : UInt256 → UInt256 → Bool → Range_Unknown_Unknown → FeM UInt256 := fun acc index started r3 => do
             let mut acc := acc
             let mut index := index
             let mut started := started
             let mut r3 := r3
+            -- index = end
             index := «end»
-            b1 acc index started r3
-          if v62 then
-            let acc_63 := acc
-            let v65 := «end»
-            let acc_66 ← checkedAdd acc_63 v65
+            loop acc index started r3
+          -- if end % 2 == 1 {
+          if decide (v60 = (UInt256.ofNat 1)) then
+            -- acc = acc + end as u256
+            let acc_66 ← checkedAdd acc «end»
             acc := acc_66
+            -- started = true
             started := true
-            b16 acc index started r3
+            join_1 acc index started r3
           else
-            b16 acc index started r3
+            join_1 acc index started r3
         partial_fixpoint
-        if started_32 then
-          let index_33 := index
-          let v36 := (Range_Unknown_Unknown.mk index_33 «end»)
-          r3 := v36
+        -- if started {
+        if started then
+          -- for _ in index..end { acc = acc * 2 % 1000003 }
+          r3 := (Range_Unknown_Unknown.mk index «end»)
           let v38 ← Range_Unknown_Unknown_start r3
-          let rec b10 (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) (v3 : UInt256) : FeM UInt256 := do
+          let rec loop_2 (acc : UInt256) (index : UInt256) (started : Bool) (r3 : Range_Unknown_Unknown) (v3 : UInt256) : FeM UInt256 := do
             let mut acc := acc
             let mut index := index
             let mut started := started
             let mut r3 := r3
+            -- for _ in index..end { acc = acc * 2 % 1000003 }
             let v41 ← Range_Unknown_Unknown_has r3 v3
             if v41 then
+              -- for _ in index..end { acc = acc * 2 % 1000003 }
               let _ ← Range_Unknown_Unknown_at r3 v3
-              let acc_44 := acc
-              let v47 ← checkedMul acc_44 (UInt256.ofNat 2)
+              -- acc = acc * 2 % 1000003
+              let v47 ← checkedMul acc (UInt256.ofNat 2)
               let acc_49 ← checkedRem v47 (UInt256.ofNat 1000003)
               acc := acc_49
+              -- for _ in index..end { acc = acc * 2 % 1000003 }
               let v53 ← Range_Unknown_Unknown_next r3 v3
-              b10 acc index started r3 v53
+              loop_2 acc index started r3 v53
             else
-              b9 acc index started r3
+              loop_1 acc index started r3
           partial_fixpoint
-          b10 acc index started r3 v38
+          loop_2 acc index started r3 v38
         else
-          b9 acc index started r3
-      if v21 then
-        let index_22 := index
-        let v25 ← checkedAdd index_22 width
+          loop_1 acc index started r3
+      -- let end = if index + width + 1 < n { index + width + 1 } else { n }
+      if decide (v19.toNat < n.toNat) then
+        -- index + width + 1
+        let v25 ← checkedAdd index width
         let v27 ← checkedAdd v25 (UInt256.ofNat 1)
-        b6 acc index started r3 v27
+        join acc index started r3 v27
       else
-        b6 acc index started r3 n
+        join acc index started r3 n
     else
-      let acc_77 := acc
-      return acc_77
+      return acc
   partial_fixpoint
-  b1 acc index started r3
+  loop acc index started r3
 
 /-- `Windows { n, width } -> u256`, selector `0x6a39ed49` (`windows(uint256,uint256)`) -/
 def recv_Windows (n : UInt256) (width : UInt256) : FeM UInt256 := do
+  -- windows(n.downcast_truncate(), width.downcast_truncate())
   let v2 ← downcast_truncate_u256_usize n
   let v3 ← downcast_truncate_u256_usize width
   let v4 ← windows v2 v3
@@ -966,75 +999,74 @@ def break_both (n : UInt256) : FeM UInt256 := do
   let mut found : UInt256 := default
   let mut done : Bool := default
   let mut j : UInt256 := default
+  -- var i: u256 = 0
   i := (UInt256.ofNat 0)
+  -- var found: u256 = 0
   found := (UInt256.ofNat 0)
+  -- var done = false
   done := false
-  let rec b1 (i : UInt256) (found : UInt256) (done : Bool) (j : UInt256) : FeM UInt256 := do
+  let rec loop (i : UInt256) (found : UInt256) (done : Bool) (j : UInt256) : FeM UInt256 := do
     let mut i := i
     let mut found := found
     let mut done := done
     let mut j := j
-    let i_7 := i
-    let v10 := decide (i_7.toNat < n.toNat)
-    let b3 : UInt256 → UInt256 → Bool → UInt256 → FeM UInt256 := fun i found done j => do
+    let join : UInt256 → UInt256 → Bool → UInt256 → FeM UInt256 := fun i found done j => do
       let mut i := i
       let mut found := found
       let mut done := done
       let mut j := j
-      let found_49 := found
-      return found_49
-    if v10 then
+      return found
+    -- while i < n {
+    if decide (i.toNat < n.toNat) then
+      -- var j: u256 = 0
       j := (UInt256.ofNat 0)
-      let rec b4 (i : UInt256) (found : UInt256) (done : Bool) (j : UInt256) : FeM UInt256 := do
+      let rec loop_1 (i : UInt256) (found : UInt256) (done : Bool) (j : UInt256) : FeM UInt256 := do
         let mut i := i
         let mut found := found
         let mut done := done
         let mut j := j
-        let j_13 := j
-        let i_15 := i
-        let v16 := decide (j_13.toNat < i_15.toNat)
-        let b6 : UInt256 → UInt256 → Bool → UInt256 → FeM UInt256 := fun i found done j => do
+        let join_1 : UInt256 → UInt256 → Bool → UInt256 → FeM UInt256 := fun i found done j => do
           let mut i := i
           let mut found := found
           let mut done := done
           let mut j := j
-          let done_41 := done
-          if done_41 then
-            b3 i found done j
+          -- if done { break }
+          if done then
+            join i found done j
           else
-            let i_45 := i
-            let i_46 ← checkedAdd i_45 (UInt256.ofNat 1)
+            -- i += 1
+            let i_46 ← checkedAdd i (UInt256.ofNat 1)
             i := i_46
-            b1 i found done j
-        if v16 then
-          let i_17 := i
-          let j_19 := j
-          let v20 ← checkedMul i_17 j_19
-          let v22 := decide (v20 = (UInt256.ofNat 12))
-          if v22 then
-            let i_23 := i
-            let v26 ← checkedMul i_23 (UInt256.ofNat 100)
-            let j_27 := j
-            let found_28 ← checkedAdd v26 j_27
+            loop i found done j
+        -- while j < i {
+        if decide (j.toNat < i.toNat) then
+          -- if i * j == 12 {
+          let v20 ← checkedMul i j
+          if decide (v20 = (UInt256.ofNat 12)) then
+            -- found = i * 100 + j
+            let v26 ← checkedMul i (UInt256.ofNat 100)
+            let found_28 ← checkedAdd v26 j
             found := found_28
+            -- done = true
             done := true
-            b6 i found done j
+            join_1 i found done j
           else
-            let j_37 := j
-            let j_38 ← checkedAdd j_37 (UInt256.ofNat 1)
+            -- j += 1
+            let j_38 ← checkedAdd j (UInt256.ofNat 1)
             j := j_38
-            b4 i found done j
+            loop_1 i found done j
         else
-          b6 i found done j
+          join_1 i found done j
       partial_fixpoint
-      b4 i found done j
+      loop_1 i found done j
     else
-      b3 i found done j
+      join i found done j
   partial_fixpoint
-  b1 i found done j
+  loop i found done j
 
 /-- `BreakBoth { n } -> u256`, selector `0x17ea0cd5` (`breakBoth(uint256)`) -/
 def recv_BreakBoth (n : UInt256) : FeM UInt256 := do
+  -- break_both(n)
   let v1 ← break_both n
   return v1
 
@@ -1044,66 +1076,66 @@ def continue_outer (n : UInt256) : FeM UInt256 := do
   let mut total : UInt256 := default
   let mut j : UInt256 := default
   let mut skip : Bool := default
+  -- var i: u256 = 0
   i := (UInt256.ofNat 0)
+  -- var total: u256 = 0
   total := (UInt256.ofNat 0)
-  let rec b1 (i : UInt256) (total : UInt256) (j : UInt256) (skip : Bool) : FeM UInt256 := do
+  let rec loop (i : UInt256) (total : UInt256) (j : UInt256) (skip : Bool) : FeM UInt256 := do
     let mut i := i
     let mut total := total
     let mut j := j
     let mut skip := skip
-    let i_5 := i
-    let v8 := decide (i_5.toNat < n.toNat)
-    if v8 then
-      let i_10 := i
-      let i_11 ← checkedAdd i_10 (UInt256.ofNat 1)
+    -- while i < n {
+    if decide (i.toNat < n.toNat) then
+      -- i += 1
+      let i_11 ← checkedAdd i (UInt256.ofNat 1)
       i := i_11
+      -- var j: u256 = 0
       j := (UInt256.ofNat 0)
+      -- var skip = false
       skip := false
-      let rec b4 (i : UInt256) (total : UInt256) (j : UInt256) (skip : Bool) : FeM UInt256 := do
+      let rec loop_1 (i : UInt256) (total : UInt256) (j : UInt256) (skip : Bool) : FeM UInt256 := do
         let mut i := i
         let mut total := total
         let mut j := j
         let mut skip := skip
-        let j_18 := j
-        let i_20 := i
-        let v21 := decide (j_18.toNat < i_20.toNat)
-        let b6 : UInt256 → UInt256 → UInt256 → Bool → FeM UInt256 := fun i total j skip => do
+        let join : UInt256 → UInt256 → UInt256 → Bool → FeM UInt256 := fun i total j skip => do
           let mut i := i
           let mut total := total
           let mut j := j
           let mut skip := skip
-          let skip_36 := skip
-          if skip_36 then
-            b1 i total j skip
+          -- if skip { continue }
+          if skip then
+            loop i total j skip
           else
-            let i_39 := i
-            let total_41 := total
-            let total_42 ← checkedAdd total_41 i_39
+            -- total += i
+            let total_42 ← checkedAdd total i
             total := total_42
-            b1 i total j skip
-        if v21 then
-          let j_22 := j
-          let v25 := decide (j_22 = (UInt256.ofNat 3))
-          if v25 then
+            loop i total j skip
+        -- while j < i {
+        if decide (j.toNat < i.toNat) then
+          -- if j == 3 {
+          if decide (j = (UInt256.ofNat 3)) then
+            -- skip = true
             skip := true
-            b6 i total j skip
+            join i total j skip
           else
-            let j_32 := j
-            let j_33 ← checkedAdd j_32 (UInt256.ofNat 1)
+            -- j += 1
+            let j_33 ← checkedAdd j (UInt256.ofNat 1)
             j := j_33
-            b4 i total j skip
+            loop_1 i total j skip
         else
-          b6 i total j skip
+          join i total j skip
       partial_fixpoint
-      b4 i total j skip
+      loop_1 i total j skip
     else
-      let total_45 := total
-      return total_45
+      return total
   partial_fixpoint
-  b1 i total j skip
+  loop i total j skip
 
 /-- `ContinueOuter { n } -> u256`, selector `0x0dec9eef` (`continueOuter(uint256)`) -/
 def recv_ContinueOuter (n : UInt256) : FeM UInt256 := do
+  -- continue_outer(n)
   let v1 ← continue_outer n
   return v1
 
@@ -1111,49 +1143,47 @@ def recv_ContinueOuter (n : UInt256) : FeM UInt256 := do
 def return_inner (n : UInt256) : FeM UInt256 := do
   let mut i : UInt256 := default
   let mut j : UInt256 := default
+  -- var i: u256 = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (i : UInt256) (j : UInt256) : FeM UInt256 := do
+  let rec loop (i : UInt256) (j : UInt256) : FeM UInt256 := do
     let mut i := i
     let mut j := j
-    let i_3 := i
-    let v6 := decide (i_3.toNat < n.toNat)
-    if v6 then
+    -- while i < n {
+    if decide (i.toNat < n.toNat) then
+      -- var j: u256 = 0
       j := (UInt256.ofNat 0)
-      let rec b4 (i : UInt256) (j : UInt256) : FeM UInt256 := do
+      let rec loop_1 (i : UInt256) (j : UInt256) : FeM UInt256 := do
         let mut i := i
         let mut j := j
-        let j_9 := j
-        let v12 := decide (j_9.toNat < n.toNat)
-        if v12 then
-          let i_13 := i
-          let j_15 := j
-          let v16 ← checkedAdd i_13 j_15
-          let v18 := decide (v16 = (UInt256.ofNat 7))
-          if v18 then
-            let i_19 := i
-            let v22 ← checkedMul i_19 (UInt256.ofNat 10)
-            let j_23 := j
-            let v24 ← checkedAdd v22 j_23
+        -- while j < n {
+        if decide (j.toNat < n.toNat) then
+          -- if i + j == 7 { return i * 10 + j }
+          let v16 ← checkedAdd i j
+          if decide (v16 = (UInt256.ofNat 7)) then
+            -- return i * 10 + j
+            let v22 ← checkedMul i (UInt256.ofNat 10)
+            let v24 ← checkedAdd v22 j
             return v24
           else
-            let j_28 := j
-            let j_29 ← checkedAdd j_28 (UInt256.ofNat 1)
+            -- j += 1
+            let j_29 ← checkedAdd j (UInt256.ofNat 1)
             j := j_29
-            b4 i j
+            loop_1 i j
         else
-          let i_33 := i
-          let i_34 ← checkedAdd i_33 (UInt256.ofNat 1)
+          -- i += 1
+          let i_34 ← checkedAdd i (UInt256.ofNat 1)
           i := i_34
-          b1 i j
+          loop i j
       partial_fixpoint
-      b4 i j
+      loop_1 i j
     else
-      return (UInt256.ofNat 0)
+      return UInt256.ofNat 0
   partial_fixpoint
-  b1 i j
+  loop i j
 
 /-- `ReturnInner { n } -> u256`, selector `0x92ba46ad` (`returnInner(uint256)`) -/
 def recv_ReturnInner (n : UInt256) : FeM UInt256 := do
+  -- return_inner(n)
   let v1 ← return_inner n
   return v1
 
@@ -1163,96 +1193,104 @@ def three_levels (n : UInt256) : FeM UInt256 := do
   let mut k : UInt256 := default
   let mut r2 : Range_Known_0_Unknown := default
   let mut r3 : Range_Known_0_Unknown := default
+  -- var total: u256 = 0
   total := (UInt256.ofNat 0)
-  let v8 := (Range_Known_0_Unknown.mk () n)
-  r2 := v8
+  -- for i in 0..n {
+  r2 := (Range_Known_0_Unknown.mk () n)
   let v10 ← Range_start_0 r2
-  let rec b1 (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) (v1 : UInt256) : FeM UInt256 := do
+  let rec loop (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) (v1 : UInt256) : FeM UInt256 := do
     let mut total := total
     let mut k := k
     let mut r2 := r2
     let mut r3 := r3
+    -- for i in 0..n {
     let v13 ← Range_has_0 r2 v1
     if v13 then
+      -- for i in 0..n {
       let v15 ← Range_at_0 r2 v1
       let i := v15
-      let v19 := (Range_Known_0_Unknown.mk () i)
-      r3 := v19
+      -- for j in 0..i {
+      r3 := (Range_Known_0_Unknown.mk () i)
       let v21 ← Range_start_0 r3
-      let rec b5 (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) (v2 : UInt256) : FeM UInt256 := do
+      let rec loop_1 (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) (v2 : UInt256) : FeM UInt256 := do
         let mut total := total
         let mut k := k
         let mut r2 := r2
         let mut r3 := r3
+        -- for j in 0..i {
         let v24 ← Range_has_0 r3 v2
         if v24 then
+          -- for j in 0..i {
           let v26 ← Range_at_0 r3 v2
           let j := v26
+          -- var k: usize = 0
           k := (UInt256.ofNat 0)
-          let rec b9 (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) : FeM UInt256 := do
+          let rec loop_2 (total : UInt256) (k : UInt256) (r2 : Range_Known_0_Unknown) (r3 : Range_Known_0_Unknown) : FeM UInt256 := do
             let mut total := total
             let mut k := k
             let mut r2 := r2
             let mut r3 := r3
-            let k_30 := k
-            let v32 := decide (k_30.toNat < j.toNat)
-            if v32 then
+            -- while k < j {
+            if decide (k.toNat < j.toNat) then
+              -- if (i + j + k) % 3 == 0 { total += 1 } else { total += 2 }
               let v33 ← checkedAdd i j
-              let k_34 := k
-              let v35 ← checkedAdd v33 k_34
+              let v35 ← checkedAdd v33 k
               let v37 ← checkedRem v35 (UInt256.ofNat 3)
-              let v39 := decide (v37 = (UInt256.ofNat 0))
-              let b14 : UInt256 → UInt256 → Range_Known_0_Unknown → Range_Known_0_Unknown → FeM UInt256 := fun total k r2 r3 => do
+              let join : UInt256 → UInt256 → Range_Known_0_Unknown → Range_Known_0_Unknown → FeM UInt256 := fun total k r2 r3 => do
                 let mut total := total
                 let mut k := k
                 let mut r2 := r2
                 let mut r3 := r3
-                let k_53 := k
-                let k_54 ← checkedAdd k_53 (UInt256.ofNat 1)
+                -- k += 1
+                let k_54 ← checkedAdd k (UInt256.ofNat 1)
                 k := k_54
-                b9 total k r2 r3
-              if v39 then
-                let total_41 := total
-                let total_42 ← checkedAdd total_41 (UInt256.ofNat 1)
+                loop_2 total k r2 r3
+              -- if (i + j + k) % 3 == 0 { total += 1 } else { total += 2 }
+              if decide (v37 = (UInt256.ofNat 0)) then
+                -- total += 1
+                let total_42 ← checkedAdd total (UInt256.ofNat 1)
                 total := total_42
-                b14 total k r2 r3
+                join total k r2 r3
               else
-                let total_47 := total
-                let total_48 ← checkedAdd total_47 (UInt256.ofNat 2)
+                -- total += 2
+                let total_48 ← checkedAdd total (UInt256.ofNat 2)
                 total := total_48
-                b14 total k r2 r3
+                join total k r2 r3
             else
+              -- if j % 2 == 0 { total += 10 }
               let v58 ← checkedRem j (UInt256.ofNat 2)
-              let v60 := decide (v58 = (UInt256.ofNat 0))
-              let b17 : UInt256 → UInt256 → Range_Known_0_Unknown → Range_Known_0_Unknown → FeM UInt256 := fun total k r2 r3 => do
+              let join_1 : UInt256 → UInt256 → Range_Known_0_Unknown → Range_Known_0_Unknown → FeM UInt256 := fun total k r2 r3 => do
                 let mut total := total
                 let mut k := k
                 let mut r2 := r2
                 let mut r3 := r3
+                -- for j in 0..i {
                 let v70 ← Range_next_0 r3 v2
-                b5 total k r2 r3 v70
-              if v60 then
-                let total_62 := total
-                let total_63 ← checkedAdd total_62 (UInt256.ofNat 10)
+                loop_1 total k r2 r3 v70
+              -- if j % 2 == 0 { total += 10 }
+              if decide (v58 = (UInt256.ofNat 0)) then
+                -- total += 10
+                let total_63 ← checkedAdd total (UInt256.ofNat 10)
                 total := total_63
-                b17 total k r2 r3
+                join_1 total k r2 r3
               else
-                b17 total k r2 r3
+                join_1 total k r2 r3
           partial_fixpoint
-          b9 total k r2 r3
+          loop_2 total k r2 r3
         else
+          -- for i in 0..n {
           let v74 ← Range_next_0 r2 v1
-          b1 total k r2 r3 v74
+          loop total k r2 r3 v74
       partial_fixpoint
-      b5 total k r2 r3 v21
+      loop_1 total k r2 r3 v21
     else
-      let total_76 := total
-      return total_76
+      return total
   partial_fixpoint
-  b1 total k r2 r3 v10
+  loop total k r2 r3 v10
 
 /-- `ThreeLevels { n } -> u256`, selector `0x81037424` (`threeLevels(uint256)`) -/
 def recv_ThreeLevels (n : UInt256) : FeM UInt256 := do
+  -- three_levels(n.downcast_truncate())
   let v1 ← downcast_truncate_u256_usize n
   let v2 ← three_levels v1
   return v2
@@ -1294,9 +1332,9 @@ def init : FeM Unit := do
 /-- `arrays::bump` -/
 def bump (items : (Vector UInt256 4)) («at» : UInt256) («by» : UInt256) : FeM (Unit × (Vector UInt256 4)) := do
   let mut items := items
+  -- items[at] += by
   checkIndex «at» 4
-  let v5 := items[«at».toNat]!
-  let v6 ← checkedAdd v5 «by»
+  let v6 ← checkedAdd items[«at».toNat]! «by»
   checkIndex «at» 4
   items := (items.set! «at».toNat v6)
   return ((), items)
@@ -1304,19 +1342,20 @@ def bump (items : (Vector UInt256 4)) («at» : UInt256) («by» : UInt256) : Fe
 /-- `Pick { index, value } -> u256`, selector `0xa62f4550` (`pick(uint256,uint256)`) -/
 def recv_Pick (index : UInt256) (value : UInt256) : FeM UInt256 := do
   let mut items : (Vector UInt256 4) := default
-  let items_2 := Vector.replicate 4 value
-  items := items_2
+  -- var items: [u256; 4] = [value; 4]
+  items := (Vector.replicate 4 value)
+  -- items[0] = 7
   let v5 := (UInt256.ofNat 0)
   checkIndex v5 4
   items := (items.set! v5.toNat (UInt256.ofNat 7))
+  -- bump(mut items, at: index, by: 1)
   let (v9, v9_0) ← bump items index (UInt256.ofNat 1)
   items := v9_0
+  -- items[index] + items[3]
   checkIndex index 4
-  let v10 := items[index.toNat]!
   let v11 := (UInt256.ofNat 3)
   checkIndex v11 4
-  let v12 := items[v11.toNat]!
-  let v13 ← checkedAdd v10 v12
+  let v13 ← checkedAdd items[index.toNat]! items[v11.toNat]!
   return v13
 
 /-- `arrays::WEIGHTS` -/
@@ -1328,34 +1367,32 @@ def WEIGHTS : FeM (Vector UInt256 3) := do
 def recv_Weigh (values : (Vector UInt256 3)) : FeM UInt256 := do
   let mut total : UInt256 := default
   let mut i : UInt256 := default
+  -- var total: u256 = 0
   total := (UInt256.ofNat 0)
+  -- var i: usize = 0
   i := (UInt256.ofNat 0)
-  let rec b1 (total : UInt256) (i : UInt256) : FeM UInt256 := do
+  let rec loop (total : UInt256) (i : UInt256) : FeM UInt256 := do
     let mut total := total
     let mut i := i
-    let i_5 := i
-    let v8 := decide (i_5.toNat < (UInt256.ofNat 3).toNat)
-    if v8 then
+    -- while i < 3 {
+    if decide (i.toNat < (UInt256.ofNat 3).toNat) then
+      -- total += values[i] * WEIGHTS[i]
       let i_9 := i
       checkIndex i_9 3
-      let v10 := values[i_9.toNat]!
       let v11 ← WEIGHTS
       let i_12 := i
       checkIndex i_12 3
-      let v13 := v11[i_12.toNat]!
-      let v14 ← checkedMul v10 v13
-      let total_15 := total
-      let total_16 ← checkedAdd total_15 v14
+      let v14 ← checkedMul values[i_9.toNat]! v11[i_12.toNat]!
+      let total_16 ← checkedAdd total v14
       total := total_16
-      let i_20 := i
-      let i_21 ← checkedAdd i_20 (UInt256.ofNat 1)
+      -- i += 1
+      let i_21 ← checkedAdd i (UInt256.ofNat 1)
       i := i_21
-      b1 total i
+      loop total i
     else
-      let total_24 := total
-      return total_24
+      return total
   partial_fixpoint
-  b1 total i
+  loop total i
 
 -- END fe-lean-export
 
@@ -1405,6 +1442,10 @@ def Field.packed : Place :=
 
 def Layout.Packed : Layout :=
   { storage := [0, 0, 0, 0, 1] }
+
+/-- `packed.delta` -/
+abbrev Field.packed.delta : Place :=
+  Field.packed.field Layout.Packed 2
 
 structure Packed where
   flag : Bool
@@ -1513,58 +1554,70 @@ def init : FeM Unit := do
 
 /-- `SetDelta { delta } -> i16`, selector `0x36899e92` (`setDelta(int16)`) -/
 def recv_SetDelta (delta : UInt256) : FeM UInt256 := do
-  let old ← loadIntAt (.i 16) (Field.packed.field Layout.Packed 2) ⟨2, 2, true⟩
-  storeIntAt (.i 16) (Field.packed.field Layout.Packed 2) ⟨2, 2, true⟩ delta
+  -- let old = packed.delta
+  let old ← loadIntAt (.i 16) Field.packed.delta ⟨2, 2, true⟩
+  -- packed.delta = delta
+  storeIntAt (.i 16) Field.packed.delta ⟨2, 2, true⟩ delta
   return old
 
 /-- `Replace { flag, small, delta, owner, total } -> u256`, selector `0x1e84534a` (`replace(bool,uint8,int16,address,uint256)`) -/
 def recv_Replace (flag : Bool) (small : UInt256) (delta : UInt256) (owner : UInt256) (total : UInt256) : FeM UInt256 := do
+  -- let old = packed
   let packed_1 ← load_Packed Field.packed
-  let v7 := (Packed.mk flag small delta owner total)
-  store_Packed Field.packed v7
-  let v9 := packed_1.total
-  return v9
+  -- packed = Packed { flag, small, delta, owner, total }
+  store_Packed Field.packed (Packed.mk flag small delta owner total)
+  return packed_1.total
 
 /-- `Advance { by } -> u256`, selector `0x71d6ddd6` (`advance(uint256)`) -/
 def recv_Advance («by» : UInt256) : FeM UInt256 := do
+  -- match phase {
   let v3 ← load_Phase Field.phase
-  let b1 : UInt256 → FeM UInt256 := fun v1 => do
+  let join : UInt256 → FeM UInt256 := fun v1 => do
     return v1
+  -- match phase {
   match v3 with
   | .Idle =>
-    let v5 := Phase.Running (UInt256.ofNat 1) «by»
-    store_Phase Field.phase v5
-    b1 (UInt256.ofNat 0)
+    -- phase = Phase::Running(1, by)
+    store_Phase Field.phase (Phase.Running (UInt256.ofNat 1) «by»)
+    join (UInt256.ofNat 0)
   | .Running .. =>
+    -- match phase {
     let count ← loadInt (.u 64) (Field.phase.offset 1)
     let sum ← load (Field.phase.offset 2)
-    let v11 := decide («by».toNat < sum.toNat)
-    let v12 := Phase.Done v11
-    store_Phase Field.phase v12
-    b1 sum
+    -- phase = Phase::Done { ok: sum > by }
+    store_Phase Field.phase (Phase.Done (decide («by».toNat < sum.toNat)))
+    join sum
   | .Done .. =>
+    -- match phase {
     let ok ← loadBool (Field.phase.offset 1)
-    let b7 : UInt256 → FeM UInt256 := fun v2 => do
-      b1 v2
+    let join_1 : UInt256 → FeM UInt256 := fun v2 => do
+      join v2
+    -- if ok { 1 } else { 2 }
     if ok then
-      b7 (UInt256.ofNat 1)
+      join_1 (UInt256.ofNat 1)
     else
-      b7 (UInt256.ofNat 2)
+      join_1 (UInt256.ofNat 2)
 
 /-- `Mark { at, level } -> u8`, selector `0x0a774e1e` (`mark(uint256,uint8)`) -/
 def recv_Mark («at» : UInt256) (level : UInt256) : FeM UInt256 := do
+  -- let old = levels[at]
   checkIndex «at» 3
   let old ← loadInt (.u 8) (Field.levels.index 1 «at»)
+  -- levels[at] = level
   checkIndex «at» 3
   storeInt (.u 8) (Field.levels.index 1 «at») level
+  -- narrow = old
   storeIntAt (.u 8) Field.narrow ⟨1, 1, true⟩ old
   let narrow ← loadIntAt (.u 8) Field.narrow ⟨1, 1, true⟩
   return narrow
 
 /-- `Lock -> bool`, selector `0xf83d08ba` (`lock()`) -/
 def recv_Lock : FeM Bool := do
+  -- let was = lock.value
   let was ← loadBoolAt ((Field.lock.pin .transient).field Layout.TSlot_bool 0) ⟨0, 1, false⟩
+  -- lock.value = true
   storeBoolAt ((Field.lock.pin .transient).field Layout.TSlot_bool 0) ⟨0, 1, false⟩ true
+  -- alone = was
   storeBoolAt Field.alone ⟨0, 1, true⟩ was
   let alone ← loadBoolAt Field.alone ⟨0, 1, true⟩
   return alone
@@ -1592,29 +1645,39 @@ def Field.store : Place :=
 def Layout.Store : Layout :=
   { storage := [0, 1] }
 
+/-- `store.voted` -/
+abbrev Field.store.voted : Place :=
+  Field.store.field Layout.Store 0
+
+/-- `store.flags` -/
+abbrev Field.store.flags : Place :=
+  Field.store.field Layout.Store 1
+
 /-- The `init` of contract `Entries`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
 /-- `Vote { voter, proposal } -> bool`, selector `0xb384abef` (`vote(uint256,uint256)`) -/
 def recv_Vote (voter : UInt256) (proposal : UInt256) : FeM Bool := do
-  let v2 := (voter, proposal)
-  let l0 ← StorageMap_locate_tuple_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v2
-  let before ← loadBool (Place.mk .storage l0.slot)
-  let v6 := (voter, proposal)
-  let l1 ← StorageMap_locate_tuple_u256_u256_bool (Field.store.field Layout.Store 0) (Field.store.field Layout.Store 0).slot v6
-  storeBool (Place.mk .storage l1.slot) true
+  -- let before = store.voted[(voter, proposal)]
+  let voted_entry ← StorageMap_locate_tuple_u256_u256_bool Field.store.voted Field.store.voted.slot (voter, proposal)
+  let before ← loadBool (Place.mk .storage voted_entry.slot)
+  -- store.voted[(voter, proposal)] = true
+  let voted_entry_1 ← StorageMap_locate_tuple_u256_u256_bool Field.store.voted Field.store.voted.slot (voter, proposal)
+  storeBool (Place.mk .storage voted_entry_1.slot) true
   return before
 
 /-- `Flag { on } -> u256`, selector `0xa92a4c3b` (`flag(bool)`) -/
 def recv_Flag (on : Bool) : FeM UInt256 := do
-  let l0 ← StorageMap_locate_bool_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot on
-  let v2 ← load (Place.mk .storage l0.slot)
+  -- store.flags[on] += 1
+  let flags_on ← StorageMap_locate_bool_u256 Field.store.flags Field.store.flags.slot on
+  let v2 ← load (Place.mk .storage flags_on.slot)
   let v3 ← checkedAdd v2 (UInt256.ofNat 1)
-  let l1 ← StorageMap_locate_bool_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot on
-  store (Place.mk .storage l1.slot) v3
-  let l2 ← StorageMap_locate_bool_u256 (Field.store.field Layout.Store 1) (Field.store.field Layout.Store 1).slot on
-  let v5 ← load (Place.mk .storage l2.slot)
+  let flags_on_1 ← StorageMap_locate_bool_u256 Field.store.flags Field.store.flags.slot on
+  store (Place.mk .storage flags_on_1.slot) v3
+  -- store.flags[on]
+  let flags_on_2 ← StorageMap_locate_bool_u256 Field.store.flags Field.store.flags.slot on
+  let v5 ← load (Place.mk .storage flags_on_2.slot)
   return v5
 
 -- END fe-lean-export
@@ -1653,6 +1716,7 @@ def init : FeM Unit := do
 
 /-- `Sum { a, b, c, d, e, f, g, h, i, j } -> u256`, selector `0x460e9674` (`sum(uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256,uint256)`) -/
 def recv_Sum (a : UInt256) (b : UInt256) (c : UInt256) (d : UInt256) (e : UInt256) (f : UInt256) (g : UInt256) (h : UInt256) (i : UInt256) (j : UInt256) : FeM UInt256 := do
+  -- a + b + c + d + e + f + g + h + i + j
   let v10 ← checkedAdd a b
   let v11 ← checkedAdd v10 c
   let v12 ← checkedAdd v11 d
@@ -1688,16 +1752,15 @@ def Sum_HEAD_SIZE : FeM UInt256 := do
   let v20 ← checkedAdd v18 v19
   return v20
 
-def Sum_decode_from_CallData_k5 (__fe_field_0 : UInt256) (__fe_field_1 : UInt256) (__fe_field_2 : UInt256) (__fe_field_3 : UInt256) (__fe_field_4 : UInt256) (__fe_field_5 : UInt256) (__fe_field_6 : UInt256) (__fe_field_7 : UInt256) (__fe_field_8 : UInt256) (__fe_field_9 : UInt256) : FeM Sum := do
-  let v123 := (Sum.mk __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3 __fe_field_4 __fe_field_5 __fe_field_6 __fe_field_7 __fe_field_8 __fe_field_9)
-  return v123
+def Sum_decode_from_CallData_k5 (v4 : UInt256) (v9 : UInt256) (v16 : UInt256) (v25 : UInt256) (v36 : UInt256) (v49 : UInt256) (v64 : UInt256) (v81 : UInt256) (v100 : UInt256) (v121 : UInt256) : FeM Sum := do
+  return Sum.mk v4 v9 v16 v25 v36 v49 v64 v81 v100 v121
 
-def Sum_decode_from_CallData_k4 (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) (__fe_msg_decode_input_len : UInt256) (__fe_field_0 : UInt256) (__fe_field_1 : UInt256) (__fe_field_2 : UInt256) (__fe_field_3 : UInt256) (__fe_field_4 : UInt256) (__fe_field_5 : UInt256) (__fe_field_6 : UInt256) (__fe_field_7 : UInt256) (v97 : UInt256) : FeM Sum := do
+def Sum_decode_from_CallData_k4 (v0 : CallData) (v1 : UInt256) (v2 : UInt256) (v4 : UInt256) (v9 : UInt256) (v16 : UInt256) (v25 : UInt256) (v36 : UInt256) (v49 : UInt256) (v64 : UInt256) (v81 : UInt256) (v97 : UInt256) : FeM Sum := do
   let v98 ← abi_field_head_size_u256
   let v99 ← checkedAdd v97 v98
-  let __fe_field_8 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v99 __fe_msg_decode_input_len
+  let v100 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v99 v2
   let v103 ← abi_field_head_size_u256
-  let v104 ← checkedAdd __fe_msg_decode_base v103
+  let v104 ← checkedAdd v1 v103
   let v105 ← abi_field_head_size_u256
   let v106 ← checkedAdd v104 v105
   let v107 ← abi_field_head_size_u256
@@ -1714,10 +1777,10 @@ def Sum_decode_from_CallData_k4 (__fe_msg_decode_input : CallData) (__fe_msg_dec
   let v118 ← checkedAdd v116 v117
   let v119 ← abi_field_head_size_u256
   let v120 ← checkedAdd v118 v119
-  let __fe_field_9 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v120 __fe_msg_decode_input_len
-  Sum_decode_from_CallData_k5 __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3 __fe_field_4 __fe_field_5 __fe_field_6 __fe_field_7 __fe_field_8 __fe_field_9
+  let v121 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v120 v2
+  Sum_decode_from_CallData_k5 v4 v9 v16 v25 v36 v49 v64 v81 v100 v121
 
-def Sum_decode_from_CallData_k3 (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) (__fe_msg_decode_input_len : UInt256) (__fe_field_0 : UInt256) (__fe_field_1 : UInt256) (__fe_field_2 : UInt256) (__fe_field_3 : UInt256) (__fe_field_4 : UInt256) (__fe_field_5 : UInt256) (__fe_field_6 : UInt256) (v72 : UInt256) (v73 : UInt256) : FeM Sum := do
+def Sum_decode_from_CallData_k3 (v0 : CallData) (v1 : UInt256) (v2 : UInt256) (v4 : UInt256) (v9 : UInt256) (v16 : UInt256) (v25 : UInt256) (v36 : UInt256) (v49 : UInt256) (v64 : UInt256) (v72 : UInt256) (v73 : UInt256) : FeM Sum := do
   let v74 ← checkedAdd v72 v73
   let v75 ← abi_field_head_size_u256
   let v76 ← checkedAdd v74 v75
@@ -1725,9 +1788,9 @@ def Sum_decode_from_CallData_k3 (__fe_msg_decode_input : CallData) (__fe_msg_dec
   let v78 ← checkedAdd v76 v77
   let v79 ← abi_field_head_size_u256
   let v80 ← checkedAdd v78 v79
-  let __fe_field_7 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v80 __fe_msg_decode_input_len
+  let v81 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v80 v2
   let v84 ← abi_field_head_size_u256
-  let v85 ← checkedAdd __fe_msg_decode_base v84
+  let v85 ← checkedAdd v1 v84
   let v86 ← abi_field_head_size_u256
   let v87 ← checkedAdd v85 v86
   let v88 ← abi_field_head_size_u256
@@ -1740,11 +1803,11 @@ def Sum_decode_from_CallData_k3 (__fe_msg_decode_input : CallData) (__fe_msg_dec
   let v95 ← checkedAdd v93 v94
   let v96 ← abi_field_head_size_u256
   let v97 ← checkedAdd v95 v96
-  Sum_decode_from_CallData_k4 __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_input_len __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3 __fe_field_4 __fe_field_5 __fe_field_6 __fe_field_7 v97
+  Sum_decode_from_CallData_k4 v0 v1 v2 v4 v9 v16 v25 v36 v49 v64 v81 v97
 
-def Sum_decode_from_CallData_k2 (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) (__fe_msg_decode_input_len : UInt256) (__fe_field_0 : UInt256) (__fe_field_1 : UInt256) (__fe_field_2 : UInt256) (__fe_field_3 : UInt256) (__fe_field_4 : UInt256) (__fe_field_5 : UInt256) : FeM Sum := do
+def Sum_decode_from_CallData_k2 (v0 : CallData) (v1 : UInt256) (v2 : UInt256) (v4 : UInt256) (v9 : UInt256) (v16 : UInt256) (v25 : UInt256) (v36 : UInt256) (v49 : UInt256) : FeM Sum := do
   let v52 ← abi_field_head_size_u256
-  let v53 ← checkedAdd __fe_msg_decode_base v52
+  let v53 ← checkedAdd v1 v52
   let v54 ← abi_field_head_size_u256
   let v55 ← checkedAdd v53 v54
   let v56 ← abi_field_head_size_u256
@@ -1755,28 +1818,28 @@ def Sum_decode_from_CallData_k2 (__fe_msg_decode_input : CallData) (__fe_msg_dec
   let v61 ← checkedAdd v59 v60
   let v62 ← abi_field_head_size_u256
   let v63 ← checkedAdd v61 v62
-  let __fe_field_6 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v63 __fe_msg_decode_input_len
+  let v64 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v63 v2
   let v67 ← abi_field_head_size_u256
-  let v68 ← checkedAdd __fe_msg_decode_base v67
+  let v68 ← checkedAdd v1 v67
   let v69 ← abi_field_head_size_u256
   let v70 ← checkedAdd v68 v69
   let v71 ← abi_field_head_size_u256
   let v72 ← checkedAdd v70 v71
   let v73 ← abi_field_head_size_u256
-  Sum_decode_from_CallData_k3 __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_input_len __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3 __fe_field_4 __fe_field_5 __fe_field_6 v72 v73
+  Sum_decode_from_CallData_k3 v0 v1 v2 v4 v9 v16 v25 v36 v49 v64 v72 v73
 
-def Sum_decode_from_CallData_k1 (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) (__fe_msg_decode_input_len : UInt256) (__fe_field_0 : UInt256) (__fe_field_1 : UInt256) (__fe_field_2 : UInt256) (__fe_field_3 : UInt256) : FeM Sum := do
+def Sum_decode_from_CallData_k1 (v0 : CallData) (v1 : UInt256) (v2 : UInt256) (v4 : UInt256) (v9 : UInt256) (v16 : UInt256) (v25 : UInt256) : FeM Sum := do
   let v28 ← abi_field_head_size_u256
-  let v29 ← checkedAdd __fe_msg_decode_base v28
+  let v29 ← checkedAdd v1 v28
   let v30 ← abi_field_head_size_u256
   let v31 ← checkedAdd v29 v30
   let v32 ← abi_field_head_size_u256
   let v33 ← checkedAdd v31 v32
   let v34 ← abi_field_head_size_u256
   let v35 ← checkedAdd v33 v34
-  let __fe_field_4 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v35 __fe_msg_decode_input_len
+  let v36 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v35 v2
   let v39 ← abi_field_head_size_u256
-  let v40 ← checkedAdd __fe_msg_decode_base v39
+  let v40 ← checkedAdd v1 v39
   let v41 ← abi_field_head_size_u256
   let v42 ← checkedAdd v40 v41
   let v43 ← abi_field_head_size_u256
@@ -1785,47 +1848,51 @@ def Sum_decode_from_CallData_k1 (__fe_msg_decode_input : CallData) (__fe_msg_dec
   let v46 ← checkedAdd v44 v45
   let v47 ← abi_field_head_size_u256
   let v48 ← checkedAdd v46 v47
-  let __fe_field_5 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v48 __fe_msg_decode_input_len
-  Sum_decode_from_CallData_k2 __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_input_len __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3 __fe_field_4 __fe_field_5
+  let v49 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v48 v2
+  Sum_decode_from_CallData_k2 v0 v1 v2 v4 v9 v16 v25 v36 v49
 
 /-- `<Sum as Decode>::decode_from<CallData>` -/
-def Sum_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Sum := do
-  let __fe_msg_decode_input_len ← len_CallData __fe_msg_decode_input
-  let __fe_field_0 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_base __fe_msg_decode_input_len
+def Sum_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Sum := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_u256
-  let v8 ← checkedAdd __fe_msg_decode_base v7
-  let __fe_field_1 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v8 __fe_msg_decode_input_len
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v2
   let v12 ← abi_field_head_size_u256
-  let v13 ← checkedAdd __fe_msg_decode_base v12
+  let v13 ← checkedAdd v1 v12
   let v14 ← abi_field_head_size_u256
   let v15 ← checkedAdd v13 v14
-  let __fe_field_2 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v15 __fe_msg_decode_input_len
+  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v2
   let v19 ← abi_field_head_size_u256
-  let v20 ← checkedAdd __fe_msg_decode_base v19
+  let v20 ← checkedAdd v1 v19
   let v21 ← abi_field_head_size_u256
   let v22 ← checkedAdd v20 v21
   let v23 ← abi_field_head_size_u256
   let v24 ← checkedAdd v22 v23
-  let __fe_field_3 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v24 __fe_msg_decode_input_len
-  Sum_decode_from_CallData_k1 __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_input_len __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3
+  let v25 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v24 v2
+  Sum_decode_from_CallData_k1 v0 v1 v2 v4 v9 v16 v25
 
 /-- `core::abi::Decode::decode_from_prechecked_head<Sum, Sol, CallData>` -/
 def decode_from_prechecked_head_Sum_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Sum := do
+  -- Self::decode_from(input, pos)
   let v3 ← Sum_decode_from_CallData input pos
   return v3
 
 /-- `core::contracts::decode_runtime_args<Evm, Sol, Sum>` -/
 def decode_runtime_args_Evm_Sol_Sum : FeM Sum := do
   let mut input : CallData := default
+  -- let input = host.input()
   let input_2 ← Evm_input
   input := input_2
+  -- let base = A::SELECTOR_SIZE
   let base ← Sol_SELECTOR_SIZE
-  let input_6 := input
-  let len ← len_CallData input_6
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Sum_HEAD_SIZE
   let _ ← Sol_validate_runtime_head len base v9
-  let input_11 := input
-  let v12 ← decode_from_prechecked_head_Sum_Sol_CallData input_11 base len
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Sum_Sol_CallData input base len
   return v12
 
 /-- The entry of `recv_Sum`, for `wide::WideMsg::Sum` -/
@@ -1881,60 +1948,70 @@ def Field.cell : Place :=
 def Layout.Cell : Layout :=
   { storage := [0] }
 
+/-- `cell.v` -/
+abbrev Field.cell.v : Place :=
+  Field.cell.field Layout.Cell 0
+
 /-- The `init` of contract `Projections`, which its source leaves out -/
 def init : FeM Unit := do
   return ()
 
 /-- `Cell::slot` -/
 def Cell_slot (self : Place) : FeM Place := do
+  -- mut self.v
   let v1 := (self.field Layout.Cell 0)
   return v1
 
 /-- `Direct { by } -> u256`, selector `0x9bbc59f9` (`direct(uint256)`) -/
 def recv_Direct («by» : UInt256) : FeM UInt256 := do
+  -- cell.slot() += by
   let v1 := Field.cell
   let v2 ← Cell_slot v1
   let v3 ← load v2
   let v4 ← checkedAdd v3 «by»
   store v2 v4
-  let v6 ← load (Field.cell.field Layout.Cell 0)
+  -- cell.v
+  let v6 ← load Field.cell.v
   return v6
 
 /-- `Cell::get` -/
 def Cell_get (self : Place) : FeM UInt256 := do
+  -- self.v
   let v1 ← load (self.field Layout.Cell 0)
   return v1
 
 /-- `Cell::set` -/
 def Cell_set (self : Place) (v : UInt256) : FeM Unit := do
+  -- self.v = v
   store (self.field Layout.Cell 0) v
   return ()
 
 /-- `Cell::cached` -/
 def Cell_cached (self_0 : Place) : FeM (UInt256 × (UInt256 → FeM Unit)) := do
   let mut tmp : UInt256 := default
-  let self_1 := self_0
-  let tmp_2 ← Cell_get self_1
+  -- var tmp = self.get()
+  let tmp_2 ← Cell_get self_0
   tmp := tmp_2
   let slide : UInt256 → FeM Unit := fun g => do
     let mut tmp := tmp
     tmp := g
-    let tmp_5 := tmp
-    let _ ← Cell_set self_0 tmp_5
+    -- self.set(tmp)
+    let _ ← Cell_set self_0 tmp
     return ()
   return (tmp, slide)
 
 /-- `Slide { by } -> u256`, selector `0x235361d9` (`slide(uint256)`) -/
 def recv_Slide («by» : UInt256) : FeM UInt256 := do
   let mut v2 : UInt256 := default
+  -- cell.cached() += by
   let v1 := Field.cell
   let (v2_g, v2_k) ← Cell_cached v1
   v2 := v2_g
-  let v3 := v2
-  let v4 ← checkedAdd v3 «by»
+  let v4 ← checkedAdd v2 «by»
   v2 := v4
   let _ ← v2_k v2
-  let v6 ← load (Field.cell.field Layout.Cell 0)
+  -- cell.v
+  let v6 ← load Field.cell.v
   return v6
 
 /-- `projections::first` -/
@@ -1950,17 +2027,16 @@ def first (pair : (UInt256 × UInt256)) : FeM (UInt256 × (UInt256 → FeM (UInt
 def recv_Local (a : UInt256) (b : UInt256) : FeM UInt256 := do
   let mut pair : (UInt256 × UInt256) := default
   let mut v5 : UInt256 := default
-  let pair_2 := (a, b)
-  pair := pair_2
+  -- var pair = (a, b)
+  pair := (a, b)
+  -- first(mut pair) += b
   let (v5_g, v5_k) ← first pair
   v5 := v5_g
-  let v6 := v5
-  let v7 ← checkedAdd v6 b
+  let v7 ← checkedAdd v5 b
   v5 := v7
   let v5_0 ← v5_k v5
   pair := v5_0
-  let v9 := pair.fst
-  return v9
+  return pair.fst
 
 -- END fe-lean-export
 
@@ -1978,3 +2054,628 @@ theorem local_exec (a b : UInt256) (I : ExecutionEnv) (w : World) :
   simp [recv_Local, first]
 
 end FeProofs.Fixtures.Projections
+
+/-! ## `collide`: binders spelled like what the body names
+
+Locals named like a function, a constant and the prelude's `load` and `store` that the body
+calls, top-level names spelled like the exporter's own binders (`v3`, `size`, `b1`), two msgs
+with a `Run` variant, and a field a pattern destructures.  The exporter names every binder apart
+from what its definition names: the call of the Fe function `b1` inside the loop stays a call of
+it. -/
+
+namespace FeProofs.Fixtures.Collide
+
+section
+set_option linter.unusedVariables false
+
+-- BEGIN fe-lean-export: collide
+
+export Lib (CallData Evm_input Evm_return_value_Sol_u256 Sol_SELECTOR_SIZE Sol_validate_runtime_head abi_field_head_size_tuple_u256_u256 abi_field_head_size_u256 decode_msg_field_from_Sol_tuple_u256_u256_CallData decode_msg_field_from_Sol_u256_CallData len_CallData)
+
+def Field.count : Place :=
+  .storage (UInt256.ofNat 0)
+
+structure Run where
+  x : UInt256
+deriving Inhabited
+
+structure Spin where
+  n : UInt256
+deriving Inhabited
+
+structure Pairs where
+  t : (UInt256 × UInt256)
+deriving Inhabited
+
+/-- The `init` of contract `Collide`, which its source leaves out -/
+def init : FeM Unit := do
+  return ()
+
+/-- `collide::double` -/
+def double (x : UInt256) : FeM UInt256 := do
+  -- x * 2
+  let v3_1 ← checkedMul x (UInt256.ofNat 2)
+  return v3_1
+
+/-- `collide::v3` -/
+def v3 (x : UInt256) : FeM UInt256 := do
+  -- x + 3
+  let v3_1 ← checkedAdd x (UInt256.ofNat 3)
+  return v3_1
+
+/-- `collide::bounds::limit` -/
+def limit : FeM UInt256 := do
+  return UInt256.ofNat 10
+
+/-- `collide::size` -/
+def size : FeM UInt256 := do
+  return UInt256.ofNat 4
+
+/-- `Run { x } -> u256`, selector `0xa444f5e9` (`run(uint256)`) -/
+def recv_CollideMsg_Run (x : UInt256) : FeM UInt256 := do
+  -- let limit = x * 2
+  let limit_1 ← checkedMul x (UInt256.ofNat 2)
+  -- let double = limit + 1
+  let double_1 ← checkedAdd limit_1 (UInt256.ofNat 1)
+  -- let load = double + count
+  let count_7 ← load Field.count
+  let load_1 ← checkedAdd double_1 count_7
+  -- let store = load + 1
+  let store_1 ← checkedAdd load_1 (UInt256.ofNat 1)
+  -- count = total
+  store Field.count store_1
+  -- v3(double(total)) + bounds::limit + size + count
+  let v15 ← double store_1
+  let v16 ← v3 v15
+  let v17 ← limit
+  let v18 ← checkedAdd v16 v17
+  let v19 ← size
+  let v20 ← checkedAdd v18 v19
+  let count_21 ← load Field.count
+  let v22 ← checkedAdd v20 count_21
+  return v22
+
+/-- `collide::b1` -/
+def b1 (total : UInt256) (i : UInt256) : FeM UInt256 := do
+  -- total + i
+  let v4 ← checkedAdd total i
+  return v4
+
+/-- `Spin { n } -> u256`, selector `0xa5b6ea8f` (`spin(uint256)`) -/
+def recv_Spin (n : UInt256) : FeM UInt256 := do
+  let mut total : UInt256 := default
+  let mut i : UInt256 := default
+  -- var total: u256 = 0
+  total := (UInt256.ofNat 0)
+  -- var i: u256 = 0
+  i := (UInt256.ofNat 0)
+  let rec loop (total : UInt256) (i : UInt256) : FeM UInt256 := do
+    let mut total := total
+    let mut i := i
+    -- while i < n {
+    if decide (i.toNat < n.toNat) then
+      -- i += 1
+      let i_10 ← checkedAdd i (UInt256.ofNat 1)
+      i := i_10
+      -- total = b1(total, i)
+      let total_17 ← b1 total i
+      total := total_17
+      loop total i
+    else
+      return total
+  partial_fixpoint
+  loop total i
+
+/-- `Run { x } -> u256`, selector `0xeb034fa7` (`rerun(uint256)`) -/
+def recv_OtherMsg_Run (x : UInt256) : FeM UInt256 := do
+  return x
+
+/-- `Pairs { t: (a, b) } -> u256`, selector `0x6a530d0d` (`pairs((uint256,uint256))`) -/
+def recv_Pairs (v0 : (UInt256 × UInt256)) : FeM UInt256 := do
+  -- a + b
+  let v5 ← checkedAdd v0.fst v0.snd
+  return v5
+
+/-- `<Run as AbiSize>::HEAD_SIZE` -/
+def Run_HEAD_SIZE : FeM UInt256 := do
+  let v1 ← abi_field_head_size_u256
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
+  return v2
+
+/-- `<Run as Decode>::decode_from<CallData>` -/
+def Run_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Run := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Run.mk v4
+
+/-- `core::abi::Decode::decode_from_prechecked_head<Run, Sol, CallData>` -/
+def decode_from_prechecked_head_Run_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Run := do
+  -- Self::decode_from(input, pos)
+  let v3_1 ← Run_decode_from_CallData input pos
+  return v3_1
+
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Run>` -/
+def decode_runtime_args_Evm_Sol_Run : FeM Run := do
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
+  let v9 ← Run_HEAD_SIZE
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Run_Sol_CallData input base len
+  return v12
+
+/-- The entry of `recv_CollideMsg_Run`, for `collide::CollideMsg::Run` -/
+def recv_CollideMsg_Run_entry : FeM Empty := do
+  nonPayable
+  let message ← decode_runtime_args_Evm_Sol_Run
+  let result ← recv_CollideMsg_Run message.x
+  Evm_return_value_Sol_u256 result
+
+/-- `<Spin as AbiSize>::HEAD_SIZE` -/
+def Spin_HEAD_SIZE : FeM UInt256 := do
+  let v1 ← abi_field_head_size_u256
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
+  return v2
+
+/-- `<Spin as Decode>::decode_from<CallData>` -/
+def Spin_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Spin := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Spin.mk v4
+
+/-- `core::abi::Decode::decode_from_prechecked_head<Spin, Sol, CallData>` -/
+def decode_from_prechecked_head_Spin_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Spin := do
+  -- Self::decode_from(input, pos)
+  let v3_1 ← Spin_decode_from_CallData input pos
+  return v3_1
+
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Spin>` -/
+def decode_runtime_args_Evm_Sol_Spin : FeM Spin := do
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
+  let v9 ← Spin_HEAD_SIZE
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Spin_Sol_CallData input base len
+  return v12
+
+/-- The entry of `recv_Spin`, for `collide::CollideMsg::Spin` -/
+def recv_Spin_entry : FeM Empty := do
+  nonPayable
+  let message ← decode_runtime_args_Evm_Sol_Spin
+  let result ← recv_Spin message.n
+  Evm_return_value_Sol_u256 result
+
+/-- The entry of `recv_OtherMsg_Run`, for `collide::OtherMsg::Run` -/
+def recv_OtherMsg_Run_entry : FeM Empty := do
+  nonPayable
+  let message ← decode_runtime_args_Evm_Sol_Run
+  let result ← recv_OtherMsg_Run message.x
+  Evm_return_value_Sol_u256 result
+
+/-- `<Pairs as AbiSize>::HEAD_SIZE` -/
+def Pairs_HEAD_SIZE : FeM UInt256 := do
+  let v1 ← abi_field_head_size_tuple_u256_u256
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
+  return v2
+
+/-- `<Pairs as Decode>::decode_from<CallData>` -/
+def Pairs_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Pairs := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_tuple_u256_u256_CallData v0 v1 v1 v2
+  return Pairs.mk v4
+
+/-- `core::abi::Decode::decode_from_prechecked_head<Pairs, Sol, CallData>` -/
+def decode_from_prechecked_head_Pairs_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Pairs := do
+  -- Self::decode_from(input, pos)
+  let v3_1 ← Pairs_decode_from_CallData input pos
+  return v3_1
+
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Pairs>` -/
+def decode_runtime_args_Evm_Sol_Pairs : FeM Pairs := do
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
+  let v9 ← Pairs_HEAD_SIZE
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Pairs_Sol_CallData input base len
+  return v12
+
+/-- The entry of `recv_Pairs`, for `collide::OtherMsg::Pairs` -/
+def recv_Pairs_entry : FeM Empty := do
+  nonPayable
+  let message ← decode_runtime_args_Evm_Sol_Pairs
+  let result ← recv_Pairs message.t
+  Evm_return_value_Sol_u256 result
+
+/-- The runtime entry of contract `Collide`: the entry of the arm the call's selector picks -/
+def runtime : FeM Empty := do
+  let size_1 ← calldatasize
+  if size_1.toNat < 4 then
+    revertEmpty
+  else
+    let selector ← calldataSelector
+    if selector = UInt256.ofNat 0x6a530d0d then
+      recv_Pairs_entry
+    else if selector = UInt256.ofNat 0xa444f5e9 then
+      recv_CollideMsg_Run_entry
+    else if selector = UInt256.ofNat 0xa5b6ea8f then
+      recv_Spin_entry
+    else if selector = UInt256.ofNat 0xeb034fa7 then
+      recv_OtherMsg_Run_entry
+    else
+      revertEmpty
+
+/-- The deployment entry of contract `Collide`: `init` on the arguments after the creation code -/
+def init_entry (args : ByteArray) : FeM ByteArray := do
+  nonPayable
+  let _ ← init
+  return ByteArray.empty
+
+-- END fe-lean-export
+
+end
+
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: collide.checks
+
+set_option maxRecDepth 10000 in
+example : limit = pure (UInt256.ofNat 10) := rfl
+set_option maxRecDepth 10000 in
+example : size = pure (UInt256.ofNat 4) := rfl
+set_option maxRecDepth 10000 in
+example : Run_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : Spin_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+set_option maxRecDepth 10000 in
+example : Pairs_HEAD_SIZE = pure (UInt256.ofNat 64) := rfl
+-- END fe-lean-export
+
+end FeProofs.Fixtures.Collide
+
+/-! ## `names`: top-level names the exporter makes, spelled by the program
+
+A function named like the loader of a stored struct (`load_Pair`), one named like a piece of a
+long function (`long_k1`), and a struct named like a Lean keyword (`Prop`). -/
+
+namespace FeProofs.Fixtures.Names
+
+section
+set_option linter.unusedVariables false
+
+-- BEGIN fe-lean-export: names
+
+export Lib (CallData Evm_input Evm_return_value_Sol_u256 Sol_SELECTOR_SIZE Sol_validate_runtime_head abi_field_head_size_u256 decode_msg_field_from_Sol_u256_CallData len_CallData)
+
+structure Pair where
+  a : UInt256
+  b : UInt256
+deriving Inhabited
+
+def Field.pair : Place :=
+  .storage (UInt256.ofNat 0)
+
+def store_Pair (p : Place) (v : Pair) : FeM Unit := do
+  store (p.offset 0) v.a
+  store (p.offset 1) v.b
+
+structure Prop_1 where
+  flag : Bool
+  n : UInt256
+deriving Inhabited
+
+def Field.prop : Place :=
+  .storage (UInt256.ofNat 2)
+
+def store_Prop (p : Place) (v : Prop_1) : FeM Unit := do
+  let b0 ← Lane.pack ⟨0, 1, false⟩ (.u 8) (Bool.toUInt256 v.flag)
+  store (p.offset 0) (packed [(0, b0)])
+  store (p.offset 1) v.n
+
+def load_Pair_1 (p : Place) : FeM Pair := do
+  let f0 ← load (p.offset 0)
+  let f1 ← load (p.offset 1)
+  return (Pair.mk f0 f1)
+
+def load_Prop (p : Place) : FeM Prop_1 := do
+  let f0 ← loadBoolAt (p.offset 0) ⟨0, 1, false⟩
+  let f1 ← load (p.offset 1)
+  return (Prop_1.mk f0 f1)
+
+structure Run where
+  x : UInt256
+deriving Inhabited
+
+/-- The `init` of contract `Names`, which its source leaves out -/
+def init : FeM Unit := do
+  return ()
+
+/-- `names::load_Pair` -/
+def load_Pair (x : UInt256) : FeM UInt256 := do
+  -- x + 1
+  let v3 ← checkedAdd x (UInt256.ofNat 1)
+  return v3
+
+/-- `names::long_k1` -/
+def long_k1 (x : UInt256) : FeM UInt256 := do
+  -- x + 2
+  let v3 ← checkedAdd x (UInt256.ofNat 2)
+  return v3
+
+def long_k9 (v216 : UInt256) : FeM UInt256 := do
+  let a43 ← checkedAdd v216 (UInt256.ofNat 43)
+  -- let a44 = a43 * 3 + 44
+  let v221 ← checkedMul a43 (UInt256.ofNat 3)
+  let a44 ← checkedAdd v221 (UInt256.ofNat 44)
+  return a44
+
+def long_k8 (v191 : UInt256) : FeM UInt256 := do
+  let a38 ← checkedAdd v191 (UInt256.ofNat 38)
+  -- let a39 = a38 * 3 + 39
+  let v196 ← checkedMul a38 (UInt256.ofNat 3)
+  let a39 ← checkedAdd v196 (UInt256.ofNat 39)
+  -- let a40 = a39 * 3 + 40
+  let v201 ← checkedMul a39 (UInt256.ofNat 3)
+  let a40 ← checkedAdd v201 (UInt256.ofNat 40)
+  -- let a41 = a40 * 3 + 41
+  let v206 ← checkedMul a40 (UInt256.ofNat 3)
+  let a41 ← checkedAdd v206 (UInt256.ofNat 41)
+  -- let a42 = a41 * 3 + 42
+  let v211 ← checkedMul a41 (UInt256.ofNat 3)
+  let a42 ← checkedAdd v211 (UInt256.ofNat 42)
+  -- let a43 = a42 * 3 + 43
+  let v216 ← checkedMul a42 (UInt256.ofNat 3)
+  long_k9 v216
+
+def long_k7 (a33 : UInt256) : FeM UInt256 := do
+  -- let a34 = a33 * 3 + 34
+  let v171 ← checkedMul a33 (UInt256.ofNat 3)
+  let a34 ← checkedAdd v171 (UInt256.ofNat 34)
+  -- let a35 = a34 * 3 + 35
+  let v176 ← checkedMul a34 (UInt256.ofNat 3)
+  let a35 ← checkedAdd v176 (UInt256.ofNat 35)
+  -- let a36 = a35 * 3 + 36
+  let v181 ← checkedMul a35 (UInt256.ofNat 3)
+  let a36 ← checkedAdd v181 (UInt256.ofNat 36)
+  -- let a37 = a36 * 3 + 37
+  let v186 ← checkedMul a36 (UInt256.ofNat 3)
+  let a37 ← checkedAdd v186 (UInt256.ofNat 37)
+  -- let a38 = a37 * 3 + 38
+  let v191 ← checkedMul a37 (UInt256.ofNat 3)
+  long_k8 v191
+
+def long_k6 (a28 : UInt256) : FeM UInt256 := do
+  -- let a29 = a28 * 3 + 29
+  let v146 ← checkedMul a28 (UInt256.ofNat 3)
+  let a29 ← checkedAdd v146 (UInt256.ofNat 29)
+  -- let a30 = a29 * 3 + 30
+  let v151 ← checkedMul a29 (UInt256.ofNat 3)
+  let a30 ← checkedAdd v151 (UInt256.ofNat 30)
+  -- let a31 = a30 * 3 + 31
+  let v156 ← checkedMul a30 (UInt256.ofNat 3)
+  let a31 ← checkedAdd v156 (UInt256.ofNat 31)
+  -- let a32 = a31 * 3 + 32
+  let v161 ← checkedMul a31 (UInt256.ofNat 3)
+  let a32 ← checkedAdd v161 (UInt256.ofNat 32)
+  -- let a33 = a32 * 3 + 33
+  let v166 ← checkedMul a32 (UInt256.ofNat 3)
+  let a33 ← checkedAdd v166 (UInt256.ofNat 33)
+  long_k7 a33
+
+def long_k5 (a23 : UInt256) : FeM UInt256 := do
+  -- let a24 = a23 * 3 + 24
+  let v121 ← checkedMul a23 (UInt256.ofNat 3)
+  let a24 ← checkedAdd v121 (UInt256.ofNat 24)
+  -- let a25 = a24 * 3 + 25
+  let v126 ← checkedMul a24 (UInt256.ofNat 3)
+  let a25 ← checkedAdd v126 (UInt256.ofNat 25)
+  -- let a26 = a25 * 3 + 26
+  let v131 ← checkedMul a25 (UInt256.ofNat 3)
+  let a26 ← checkedAdd v131 (UInt256.ofNat 26)
+  -- let a27 = a26 * 3 + 27
+  let v136 ← checkedMul a26 (UInt256.ofNat 3)
+  let a27 ← checkedAdd v136 (UInt256.ofNat 27)
+  -- let a28 = a27 * 3 + 28
+  let v141 ← checkedMul a27 (UInt256.ofNat 3)
+  let a28 ← checkedAdd v141 (UInt256.ofNat 28)
+  long_k6 a28
+
+def long_k4 (v96 : UInt256) : FeM UInt256 := do
+  let a19 ← checkedAdd v96 (UInt256.ofNat 19)
+  -- let a20 = a19 * 3 + 20
+  let v101 ← checkedMul a19 (UInt256.ofNat 3)
+  let a20 ← checkedAdd v101 (UInt256.ofNat 20)
+  -- let a21 = a20 * 3 + 21
+  let v106 ← checkedMul a20 (UInt256.ofNat 3)
+  let a21 ← checkedAdd v106 (UInt256.ofNat 21)
+  -- let a22 = a21 * 3 + 22
+  let v111 ← checkedMul a21 (UInt256.ofNat 3)
+  let a22 ← checkedAdd v111 (UInt256.ofNat 22)
+  -- let a23 = a22 * 3 + 23
+  let v116 ← checkedMul a22 (UInt256.ofNat 3)
+  let a23 ← checkedAdd v116 (UInt256.ofNat 23)
+  long_k5 a23
+
+def long_k3 (v71 : UInt256) : FeM UInt256 := do
+  let a14 ← checkedAdd v71 (UInt256.ofNat 14)
+  -- let a15 = a14 * 3 + 15
+  let v76 ← checkedMul a14 (UInt256.ofNat 3)
+  let a15 ← checkedAdd v76 (UInt256.ofNat 15)
+  -- let a16 = a15 * 3 + 16
+  let v81 ← checkedMul a15 (UInt256.ofNat 3)
+  let a16 ← checkedAdd v81 (UInt256.ofNat 16)
+  -- let a17 = a16 * 3 + 17
+  let v86 ← checkedMul a16 (UInt256.ofNat 3)
+  let a17 ← checkedAdd v86 (UInt256.ofNat 17)
+  -- let a18 = a17 * 3 + 18
+  let v91 ← checkedMul a17 (UInt256.ofNat 3)
+  let a18 ← checkedAdd v91 (UInt256.ofNat 18)
+  -- let a19 = a18 * 3 + 19
+  let v96 ← checkedMul a18 (UInt256.ofNat 3)
+  long_k4 v96
+
+def long_k2 (a9 : UInt256) : FeM UInt256 := do
+  -- let a10 = a9 * 3 + 10
+  let v51 ← checkedMul a9 (UInt256.ofNat 3)
+  let a10 ← checkedAdd v51 (UInt256.ofNat 10)
+  -- let a11 = a10 * 3 + 11
+  let v56 ← checkedMul a10 (UInt256.ofNat 3)
+  let a11 ← checkedAdd v56 (UInt256.ofNat 11)
+  -- let a12 = a11 * 3 + 12
+  let v61 ← checkedMul a11 (UInt256.ofNat 3)
+  let a12 ← checkedAdd v61 (UInt256.ofNat 12)
+  -- let a13 = a12 * 3 + 13
+  let v66 ← checkedMul a12 (UInt256.ofNat 3)
+  let a13 ← checkedAdd v66 (UInt256.ofNat 13)
+  -- let a14 = a13 * 3 + 14
+  let v71 ← checkedMul a13 (UInt256.ofNat 3)
+  long_k3 v71
+
+def long_k1_1 (a4 : UInt256) : FeM UInt256 := do
+  -- let a5 = a4 * 3 + 5
+  let v26 ← checkedMul a4 (UInt256.ofNat 3)
+  let a5 ← checkedAdd v26 (UInt256.ofNat 5)
+  -- let a6 = a5 * 3 + 6
+  let v31 ← checkedMul a5 (UInt256.ofNat 3)
+  let a6 ← checkedAdd v31 (UInt256.ofNat 6)
+  -- let a7 = a6 * 3 + 7
+  let v36 ← checkedMul a6 (UInt256.ofNat 3)
+  let a7 ← checkedAdd v36 (UInt256.ofNat 7)
+  -- let a8 = a7 * 3 + 8
+  let v41 ← checkedMul a7 (UInt256.ofNat 3)
+  let a8 ← checkedAdd v41 (UInt256.ofNat 8)
+  -- let a9 = a8 * 3 + 9
+  let v46 ← checkedMul a8 (UInt256.ofNat 3)
+  let a9 ← checkedAdd v46 (UInt256.ofNat 9)
+  long_k2 a9
+
+/-- `names::long` -/
+def long (x : UInt256) : FeM UInt256 := do
+  -- let a0 = x + 1
+  let a0 ← checkedAdd x (UInt256.ofNat 1)
+  -- let a1 = a0 * 3 + 1
+  let v6 ← checkedMul a0 (UInt256.ofNat 3)
+  let a1 ← checkedAdd v6 (UInt256.ofNat 1)
+  -- let a2 = a1 * 3 + 2
+  let v11 ← checkedMul a1 (UInt256.ofNat 3)
+  let a2 ← checkedAdd v11 (UInt256.ofNat 2)
+  -- let a3 = a2 * 3 + 3
+  let v16 ← checkedMul a2 (UInt256.ofNat 3)
+  let a3 ← checkedAdd v16 (UInt256.ofNat 3)
+  -- let a4 = a3 * 3 + 4
+  let v21 ← checkedMul a3 (UInt256.ofNat 3)
+  let a4 ← checkedAdd v21 (UInt256.ofNat 4)
+  long_k1_1 a4
+
+/-- `Run { x } -> u256`, selector `0xa444f5e9` (`run(uint256)`) -/
+def recv_Run (x : UInt256) : FeM UInt256 := do
+  -- pair = Pair { a: x, b: load_Pair(x) }
+  let v1 ← load_Pair x
+  store_Pair Field.pair (Pair.mk x v1)
+  -- prop = Prop { flag: true, n: long_k1(x) }
+  let v5 ← long_k1 x
+  store_Prop Field.prop (Prop_1.mk true v5)
+  -- let stored = pair
+  let pair ← load_Pair_1 Field.pair
+  -- let p = prop
+  let prop ← load_Prop Field.prop
+  -- stored.a + stored.b + p.n + long(x)
+  let v14 ← checkedAdd pair.a pair.b
+  let v16 ← checkedAdd v14 prop.n
+  let v17 ← long x
+  let v18 ← checkedAdd v16 v17
+  return v18
+
+/-- `<Run as AbiSize>::HEAD_SIZE` -/
+def Run_HEAD_SIZE : FeM UInt256 := do
+  let v1 ← abi_field_head_size_u256
+  let v2 ← checkedAdd (UInt256.ofNat 0) v1
+  return v2
+
+/-- `<Run as Decode>::decode_from<CallData>` -/
+def Run_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Run := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Run.mk v4
+
+/-- `core::abi::Decode::decode_from_prechecked_head<Run, Sol, CallData>` -/
+def decode_from_prechecked_head_Run_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Run := do
+  -- Self::decode_from(input, pos)
+  let v3 ← Run_decode_from_CallData input pos
+  return v3
+
+/-- `core::contracts::decode_runtime_args<Evm, Sol, Run>` -/
+def decode_runtime_args_Evm_Sol_Run : FeM Run := do
+  let mut input : CallData := default
+  -- let input = host.input()
+  let input_2 ← Evm_input
+  input := input_2
+  -- let base = A::SELECTOR_SIZE
+  let base ← Sol_SELECTOR_SIZE
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
+  let v9 ← Run_HEAD_SIZE
+  let _ ← Sol_validate_runtime_head len base v9
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Run_Sol_CallData input base len
+  return v12
+
+/-- The entry of `recv_Run`, for `names::NamesMsg::Run` -/
+def recv_Run_entry : FeM Empty := do
+  nonPayable
+  let message ← decode_runtime_args_Evm_Sol_Run
+  let result ← recv_Run message.x
+  Evm_return_value_Sol_u256 result
+
+/-- The runtime entry of contract `Names`: the entry of the arm the call's selector picks -/
+def runtime : FeM Empty := do
+  let size ← calldatasize
+  if size.toNat < 4 then
+    revertEmpty
+  else
+    let selector ← calldataSelector
+    if selector = UInt256.ofNat 0xa444f5e9 then
+      recv_Run_entry
+    else
+      revertEmpty
+
+/-- The deployment entry of contract `Names`: `init` on the arguments after the creation code -/
+def init_entry (args : ByteArray) : FeM ByteArray := do
+  nonPayable
+  let _ ← init
+  return ByteArray.empty
+
+-- END fe-lean-export
+
+end
+
+/- The constants the compiler folded: each is the value the exporter printed in its place. -/
+-- BEGIN fe-lean-export: names.checks
+
+set_option maxRecDepth 10000 in
+example : Run_HEAD_SIZE = pure (UInt256.ofNat 32) := rfl
+-- END fe-lean-export
+
+end FeProofs.Fixtures.Names

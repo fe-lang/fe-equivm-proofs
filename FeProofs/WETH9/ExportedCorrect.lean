@@ -178,14 +178,14 @@ variable (I : ExecutionEnv) (w : World)
 
 /-! The exported layout places the fields of `Weth9Store` at the model's slots. -/
 
-theorem namePlace : Field.store.field Layout.Weth9Store 0 = .storage Model.nameSlot := rfl
-theorem symbolPlace : Field.store.field Layout.Weth9Store 1 = .storage Model.symbolSlot := rfl
+theorem namePlace : Field.store.name = .storage Model.nameSlot := rfl
+theorem symbolPlace : Field.store.symbol = .storage Model.symbolSlot := rfl
 theorem decimalsPlace :
-    Field.store.field Layout.Weth9Store 2 = .storage Model.decimalsSlot := rfl
+    Field.store.decimals = .storage Model.decimalsSlot := rfl
 theorem balanceOfPlace :
-    Field.store.field Layout.Weth9Store 3 = .storage Model.balanceOfRoot := rfl
+    Field.store.balance_of = .storage Model.balanceOfRoot := rfl
 theorem allowancePlace :
-    Field.store.field Layout.Weth9Store 4 = .storage Model.allowanceRoot := rfl
+    Field.store.allowance = .storage Model.allowanceRoot := rfl
 
 /-- The room a step of an arm needs, from the room the arm has and the buffers made before. -/
 macro "room" : tactic =>

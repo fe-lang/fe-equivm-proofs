@@ -116,11 +116,11 @@ theorem ofNat0 : UInt256.ofNat 0 = ⟨0⟩ := rfl
 /-! The exported layout places the three fields of `TokenStore` at the model's slots. -/
 
 theorem balancesPlace :
-    Field.store.field Layout.TokenStore 0 = .storage Model.balancesRoot := rfl
+    Field.store.balances = .storage Model.balancesRoot := rfl
 theorem allowancesPlace :
-    Field.store.field Layout.TokenStore 1 = .storage Model.allowancesRoot := rfl
+    Field.store.allowances = .storage Model.allowancesRoot := rfl
 theorem totalSupplyPlace :
-    Field.store.field Layout.TokenStore 2 = .storage Model.totalSupplySlot := rfl
+    Field.store.total_supply = .storage Model.totalSupplySlot := rfl
 
 /-- Close an agreement goal after unfolding: split every branch of both runs, and discharge each
     case by reflexivity, by contradictory bounds, or by simplification. -/

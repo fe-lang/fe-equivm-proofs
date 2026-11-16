@@ -6,8 +6,8 @@ import Lean
 The exporter emits `small_power<L>` and its helpers four times, for `L = 1 … 4`, as the same text
 with `L` a constant and the names suffixed by `L`.  `limb_family [k, …] … end_limb_family`
 elaborates the commands between once per `k`, after replacing in every identifier each `ℓ` by the
-digits of `k`, and the identifier `ℓ` itself by the numeral `k`.  So `small_power_ℓ.b1.eq_1`
-names `small_power_2.b1.eq_1` at `k = 2`, and `smul ℓ m inv a b` is `smul 2 m inv a b`.
+digits of `k`, and the identifier `ℓ` itself by the numeral `k`.  So `small_power_ℓ.loop.eq_1`
+names `small_power_2.loop.eq_1` at `k = 2`, and `smul ℓ m inv a b` is `smul 2 m inv a b`.
 -/
 
 namespace FeProofs.Modexp

@@ -31,18 +31,18 @@ theorem limb_eq_zero_w (x : Limb) : (x.w = UInt256.ofNat 0) = (x = 0) := by
 theorem scan_loop {w : World} {a : Lib.MemArray_u64} {ls : List Limb} (h : ArrayAt a ls w.memory)
     {total : ℕ} (htot : total < 2 ^ 64) (hv : val ls < 2 ^ total) (I : Env) :
     ∀ c, c ≤ ls.length → (∀ j (hj : j < ls.length), c ≤ j → ls[j] = 0) →
-      (Exponent_try_read_MemBuffer.b3 (UInt256.ofNat total) a (UInt256.ofNat c)).exec I w =
+      (Exponent_try_read_MemBuffer.loop (UInt256.ofNat total) a (UInt256.ofNat c)).exec I w =
         some (.ok (.Some ⟨a, UInt256.ofNat (topOf (val ls) total), UInt256.ofNat total⟩, w))
   | 0, _, hz => by
     have h0 : val ls = 0 := by rw [val_take_of_zero ls 0 hz]; simp [val]
-    rw [Exponent_try_read_MemBuffer.b3.eq_1]
+    rw [Exponent_try_read_MemBuffer.loop.eq_1]
     simp [topOf, h0]
   | c + 1, hc, hz => by
     have hS : UInt256.size = 2 ^ 256 := rfl
     have hcl : c < ls.length := by omega
     have hb := h.addr_lt hcl
     have hs := h.small
-    rw [Exponent_try_read_MemBuffer.b3.eq_1]
+    rw [Exponent_try_read_MemBuffer.loop.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by norm_num), toNat_lit (show c + 1 < 2 ^ 256 by omega),
       show 0 < c + 1 by omega, decide_true, if_true,
       checkedSub_lit (show c + 1 < 2 ^ 256 by omega) (show 1 ≤ c + 1 by omega), Nat.add_sub_cancel,

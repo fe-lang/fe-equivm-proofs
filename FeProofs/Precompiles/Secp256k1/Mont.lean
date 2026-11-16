@@ -122,13 +122,13 @@ open Precompiles.Exported.Shared Precompiles.Exported.Ecrecover
 /-- The exported loop of `pow`, with `k` bits to go, is `powLoop`. -/
 theorem pow_loop_Base (a : L4) (e : UInt256) :
     ∀ k ≤ 256, ∀ (r : L4) (r2 r3 : Mont_Base),
-      Mont_pow_Base.b1 (toB a) e (toB r) (UInt256.ofNat k) r2 r3 =
+      Mont_pow_Base.loop (toB a) e (toB r) (UInt256.ofNat k) r2 r3 =
         pure (toB (Mont.powLoop KB a e.toNat k r))
   | 0, _, r, r2, r3 => by
-    rw [Mont_pow_Base.b1.eq_1]
+    rw [Mont_pow_Base.loop.eq_1]
     simp [toNat_lit (show 0 < 2 ^ 256 by decide), Mont.powLoop]
   | k + 1, hk, r, r2, r3 => by
-    rw [Mont_pow_Base.b1.eq_1]
+    rw [Mont_pow_Base.loop.eq_1]
     simp only [toNat_lit (show 0 < 2 ^ 256 by decide), toNat_lit (show k + 1 < 2 ^ 256 by omega),
       show 0 < k + 1 by omega, decide_true, if_true, sub_one_u64 (show k + 1 < 2 ^ 64 by omega),
       pure_bind, square_Base, bit_test e (show k < 256 by omega), Mont.powLoop]

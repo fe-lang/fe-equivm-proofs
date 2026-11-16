@@ -363,10 +363,10 @@ theorem deposit_endsAs (hw : w.memory = ByteArray.empty) :
     (by rw [World.reserved_size, hw]; decide)
 
 theorem fallback_endsAs (hw : w.memory = ByteArray.empty) :
-    EndsAs ((entry recv1_arm0_entry).exec I w) (Model.depositArm.exec I w) := by
-  have eg : (entry recv1_arm0_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
+    EndsAs ((entry recv_fallback_entry).exec I w) (Model.depositArm.exec I w) := by
+  have eg : (entry recv_fallback_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
       fun _ => returnData (UInt256.ofNat 0) (UInt256.ofNat 0))).exec I w := by
-    simp [entry, recv1_arm0_entry, recv1_arm0]
+    simp [entry, recv_fallback_entry, recv_fallback]
   have eh : Model.depositArm.exec I w =
       (Model.deposit >>= fun _ => pure ByteArray.empty).exec I w := by
     simp [Model.depositArm]
@@ -434,7 +434,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
   by_cases hsz : 4 ≤ I.calldata.size
   swap
   · have hlt : I.calldata.size < 4 := by omega
-    have eg : (entry runtime).exec I w = (entry recv1_arm0_entry).exec I w := by
+    have eg : (entry runtime).exec I w = (entry recv_fallback_entry).exec I w := by
       simp [entry, runtime, hn, hlt]
     have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by
       simp [Model.runtime, hlt]
@@ -628,7 +628,7 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hw : w.memory = ByteArray
   have n10 := miss 10 h10
   have w10 : selWord I.calldata ≠ UInt256.ofNat 0xdd62ed3e :=
     selWord_miss (allowanceEvmSelector hsz) n10
-  have eg : (entry runtime).exec I w = (entry recv1_arm0_entry).exec I w := by
+  have eg : (entry runtime).exec I w = (entry recv_fallback_entry).exec I w := by
     simp [entry, runtime, hn, hn4, selector_exec, w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10]
   have eh : Model.runtime.exec I w = Model.depositArm.exec I w := by
     simp [Model.runtime, hn4,

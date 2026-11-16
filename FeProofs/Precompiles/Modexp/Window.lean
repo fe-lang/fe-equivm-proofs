@@ -68,14 +68,14 @@ theorem checkedSub_lit {a b : ℕ} (ha : a < 2 ^ 256) (h : b ≤ a) :
 
 /-- One pass of `window_width`'s loop. -/
 theorem ww_b1_step (bits best cost w : ℕ) (hb : bits < 2 ^ 64) (hcost : cost < 2 ^ 64) (hw : 2 ≤ w ∧ w ≤ 7) :
-    window_width.b1 (UInt256.ofNat bits) (UInt256.ofNat best) (UInt256.ofNat cost)
+    window_width.loop (UInt256.ofNat bits) (UInt256.ofNat best) (UInt256.ofNat cost)
         (UInt256.ofNat w) =
-      window_width.b1 (UInt256.ofNat bits) (UInt256.ofNat (wwStep bits (best, cost) w).1)
+      window_width.loop (UInt256.ofNat bits) (UInt256.ofNat (wwStep bits (best, cost) w).1)
         (UInt256.ofNat (wwStep bits (best, cost) w).2) (UInt256.ofNat (w + 1)) := by
   have hp : 2 ^ (w - 1) ≤ 64 := by
     rcases hw with ⟨h1, h2⟩; interval_cases w <;> norm_num
   have hdiv : bits / (w + 1) < 2 ^ 64 := lt_of_le_of_lt (Nat.div_le_self _ _) hb
-  rw [window_width.b1.eq_1]
+  rw [window_width.loop.eq_1]
   simp only [toNat_lit (show w < 2 ^ 256 by omega), toNat_lit (show 7 < 2 ^ 256 by norm_num),
     show w ≤ 7 from hw.2, decide_true, if_true,
     checkedSub_lit (show w < 2 ^ 256 by omega) (show 1 ≤ w by omega),
@@ -94,7 +94,7 @@ theorem wwStep_snd_le (bits : ℕ) (st : ℕ × ℕ) (w : ℕ) : (wwStep bits st
 theorem ww_b1_fold (bits : ℕ) (hb : bits < 2 ^ 64) :
     ∀ (l : List ℕ) (st : ℕ × ℕ) (w : ℕ), l = List.range' w (8 - w) → 2 ≤ w → w ≤ 8 →
       st.2 < 2 ^ 64 →
-      window_width.b1 (UInt256.ofNat bits) (UInt256.ofNat st.1) (UInt256.ofNat st.2)
+      window_width.loop (UInt256.ofNat bits) (UInt256.ofNat st.1) (UInt256.ofNat st.2)
           (UInt256.ofNat w) =
         pure (UInt256.ofNat (l.foldl (wwStep bits) st).1)
   | [], st, w, hl, hw2, hw8, hst => by
@@ -102,7 +102,7 @@ theorem ww_b1_fold (bits : ℕ) (hb : bits < 2 ^ 64) :
       by_contra h; have : 8 - w ≠ 0 := by omega
       have := congrArg List.length hl; simp at this; omega
     subst this
-    rw [window_width.b1.eq_1]
+    rw [window_width.loop.eq_1]
     simp [toNat_lit (show 8 < 2 ^ 256 by norm_num), toNat_lit (show 7 < 2 ^ 256 by norm_num)]
   | v :: l, st, w, hl, hw2, hw8, hst => by
     have hw8' : w < 8 := by

@@ -6,8 +6,8 @@ import FeProofs.Precompiles.Exported.Shared
 The definitions between the markers are the output of `fe-lean-export` on the contract `Ecrecover`
 of the ingot `FeProofs/Precompiles` (Fe branch `fevm-precompiles`, golden file
 `tests/golden/precompiles_ecrecover.lean`), copied in by `scripts/sync_exported.py`: the arm
-`recover` (`recv0_arm0`), which checks its arguments and calls `secp256k1::recover`, the runtime
-entry (`recv0_arm0_entry`, `runtime`) and the deployment entry (`init_entry`). The key recovery
+`recover` (`recv_Recover`), which checks its arguments and calls `secp256k1::recover`, the runtime
+entry (`recv_Recover_entry`, `runtime`) and the deployment entry (`init_entry`). The key recovery
 itself is shared with `EcrecoverPrecompile`. `FeProofs/Precompiles/Secp256k1` proves the contract
 against `Secp256k1.Spec.recover`, and `FeProofs/Precompiles/Secp256k1/Main.lean` runs it as
 ECDSARECOVER for EVMLean. The definitions the ingot's contracts share are in `Shared.lean`, which
@@ -39,44 +39,44 @@ def init : FeM Unit := do
 
 /-- `Recover { hash, recovery_id, r, s } -> (bool, u256, u256)`, selector `0x2aa6d351` (`recover(uint256,uint256,uint256,uint256)`) -/
 def recv_Recover (hash : UInt256) (recovery_id : UInt256) (r : UInt256) (s : UInt256) : FeM (Bool × UInt256 × UInt256) := do
+  -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
   let v6 := decide ((UInt256.ofNat 1).toNat < recovery_id.toNat)
-  let b1 : FeM (Bool × UInt256 × UInt256) := do
-    let v33 := (false, (UInt256.ofNat 0), (UInt256.ofNat 0))
-    return v33
+  let join : FeM (Bool × UInt256 × UInt256) := do
+    return (false, (UInt256.ofNat 0), (UInt256.ofNat 0))
+  -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
   if v6 then
-    b1
+    join
   else
-    let v8 := decide (r = (UInt256.ofNat 0))
-    if v8 then
-      b1
+    -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
+    if decide (r = (UInt256.ofNat 0)) then
+      join
     else
+      -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
       let v9 ← N
-      let v10 := decide (v9.toNat ≤ r.toNat)
-      if v10 then
-        b1
+      if decide (v9.toNat ≤ r.toNat) then
+        join
       else
-        let v12 := decide (s = (UInt256.ofNat 0))
-        if v12 then
-          b1
+        -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
+        if decide (s = (UInt256.ofNat 0)) then
+          join
         else
+          -- if recovery_id > 1 || r == 0 || r >= secp256k1::N || s == 0 || s >= secp256k1::N {
           let v13 ← N
-          let v14 := decide (v13.toNat ≤ s.toNat)
-          if v14 then
-            b1
+          if decide (v13.toNat ≤ s.toNat) then
+            join
           else
+            -- match secp256k1::recover(hash, recovery_id, r, s) {
             let v17 ← recover hash recovery_id r s
-            let b8 : (Bool × UInt256 × UInt256) → FeM (Bool × UInt256 × UInt256) := fun v4 => do
+            let join_1 : (Bool × UInt256 × UInt256) → FeM (Bool × UInt256 × UInt256) := fun v4 => do
               return v4
+            -- match secp256k1::recover(hash, recovery_id, r, s) {
             match v17 with
             | .Some .. =>
+              -- match secp256k1::recover(hash, recovery_id, r, s) {
               let key := v17.Some_0
-              let v21 := key.x
-              let v22 := key.y
-              let v23 := (true, v21, v22)
-              b8 v23
+              join_1 (true, key.x, key.y)
             | .None =>
-              let v28 := (false, (UInt256.ofNat 0), (UInt256.ofNat 0))
-              b8 v28
+              join_1 (false, (UInt256.ofNat 0), (UInt256.ofNat 0))
 
 /-- `<Recover as AbiSize>::HEAD_SIZE` -/
 def Recover_HEAD_SIZE : FeM UInt256 := do
@@ -91,44 +91,47 @@ def Recover_HEAD_SIZE : FeM UInt256 := do
   return v8
 
 /-- `<Recover as Decode>::decode_from<CallData>` -/
-def Recover_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Recover := do
-  let __fe_msg_decode_input_len ← len_CallData __fe_msg_decode_input
-  let __fe_field_0 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_base __fe_msg_decode_input_len
+def Recover_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Recover := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
   let v7 ← abi_field_head_size_u256
-  let v8 ← checkedAdd __fe_msg_decode_base v7
-  let __fe_field_1 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v8 __fe_msg_decode_input_len
+  let v8 ← checkedAdd v1 v7
+  let v9 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v8 v2
   let v12 ← abi_field_head_size_u256
-  let v13 ← checkedAdd __fe_msg_decode_base v12
+  let v13 ← checkedAdd v1 v12
   let v14 ← abi_field_head_size_u256
   let v15 ← checkedAdd v13 v14
-  let __fe_field_2 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v15 __fe_msg_decode_input_len
+  let v16 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v15 v2
   let v19 ← abi_field_head_size_u256
-  let v20 ← checkedAdd __fe_msg_decode_base v19
+  let v20 ← checkedAdd v1 v19
   let v21 ← abi_field_head_size_u256
   let v22 ← checkedAdd v20 v21
   let v23 ← abi_field_head_size_u256
   let v24 ← checkedAdd v22 v23
-  let __fe_field_3 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base v24 __fe_msg_decode_input_len
-  let v27 := (Recover.mk __fe_field_0 __fe_field_1 __fe_field_2 __fe_field_3)
-  return v27
+  let v25 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v24 v2
+  return Recover.mk v4 v9 v16 v25
 
 /-- `core::abi::Decode::decode_from_prechecked_head<Recover, Sol, CallData>` -/
 def decode_from_prechecked_head_Recover_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Recover := do
+  -- Self::decode_from(input, pos)
   let v3 ← Recover_decode_from_CallData input pos
   return v3
 
 /-- `core::contracts::decode_runtime_args<Evm, Sol, Recover>` -/
 def decode_runtime_args_Evm_Sol_Recover : FeM Recover := do
   let mut input : CallData := default
+  -- let input = host.input()
   let input_2 ← Evm_input
   input := input_2
+  -- let base = A::SELECTOR_SIZE
   let base ← Sol_SELECTOR_SIZE
-  let input_6 := input
-  let len ← len_CallData input_6
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Recover_HEAD_SIZE
   let _ ← Sol_validate_runtime_head len base v9
-  let input_11 := input
-  let v12 ← decode_from_prechecked_head_Recover_Sol_CallData input_11 base len
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Recover_Sol_CallData input base len
   return v12
 
 /-- The entry of `recv_Recover`, for `lib::EcrecoverMsg::Recover` -/

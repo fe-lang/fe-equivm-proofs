@@ -23,7 +23,7 @@ theorem walk_exitℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt 
     (I : Env) (m : L4) (inv : Limb) (p : L4) (wd : UInt256) (h0 : 0 < w.memory.size)
     (hroom : w.memory.size + 8 * ℓ < UInt256.size) r0 r2 r3 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17
     r18 r19 r20 r21 :
-    (small_power_ℓ.b1.b12 x wd r0 ⟨toW m, inv.w⟩ r2 r3 (toW p) (UInt256.ofNat total) true r7 r8 r9
+    (small_power_ℓ.loop.loop_1 x wd r0 ⟨toW m, inv.w⟩ r2 r3 (toW p) (UInt256.ofNat total) true r7 r8 r9
         r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21).exec I w =
       some (.ok (.Some ⟨UInt256.ofNat w.memory.size, UInt256.ofNat ℓ⟩,
         { w with memory := storeL ℓ (w.memory ++ zeros (8 * ℓ)) w.memory.size (smul ℓ m inv p one4) })) := by
@@ -31,7 +31,7 @@ theorem walk_exitℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt 
   have hS : UInt256.size = 2 ^ 256 := rfl
   have hal := try_new_zeroed_exec (n := ℓ) I w h0 hroom (by norm_num)
   have hq : ∀ k, k < ℓ → w.memory.size + 8 * k < UInt256.size := fun k hk => by omega
-  rw [small_power_ℓ.b1.b12.eq_1]
+  rw [small_power_ℓ.loop.loop_1.eq_1]
   simp only [hx.total_eq, Nat.lt_irrefl, decide_false, Bool.false_eq_true, if_false, one4_w,
     smulℓ_eq, pure_bind, Fe.M.exec_bind, hal]
   simp only [if_true, Lib.Option_MemArray_u64.Some_0]
@@ -50,7 +50,7 @@ theorem walk_fullℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt 
     (hroom : w.memory.size + 8 * ℓ < UInt256.size) r0 r3 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
     r19 r20 r21 :
     ∃ p' : L4, MRep (2 ^ (64 * ℓ)) m p' (b ^ e) ∧
-      (small_power_ℓ.b1.b12 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩ (tabV (tbl ℓ m inv t0) c) r3
+      (small_power_ℓ.loop.loop_1 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩ (tabV (tbl ℓ m inv t0) c) r3
           (toW t0) (UInt256.ofNat top) false r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20
           r21).exec I w =
         some (.ok (.Some ⟨UInt256.ofNat w.memory.size, UInt256.ofNat ℓ⟩,
@@ -102,7 +102,7 @@ theorem small_power_ℓ_exec {x : Exponent} {e total top : ℕ} {base value : Li
     (by have := hv.addr_lt (i := 0) (by omega); omega), pure_bind, Lib.Range_start_0_5]
   simp only [Fe.M.exec_bind, hld]
   rw [← hadef, newton_loopℓ x base value a _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 5 0 a rfl,
-    small_power_ℓ.b1.eq_1]
+    small_power_ℓ.loop.eq_1]
   have hwlt : total - top < 2 ^ 64 := by omega
   have hww1 : ww (total - top) - 1 < 255 := by omega
   simp only [has05_eq _ (show 5 < 2 ^ 256 by norm_num), show (0 ≤ 5 ∧ 5 < 5) = False from
@@ -128,7 +128,7 @@ theorem small_power_ℓ_exec {x : Exponent} {e total top : ℕ} {base value : Li
   by_cases hE : 1 < 2 ^ (ww (total - top) - 1)
   · simp only [hE, decide_true, if_true, smulℓ_eq, pure_bind, Lib.Range_start_1]
     obtain ⟨r14', h8⟩ := table_loopℓ (fun r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16
-        r17 r18 r19 r20 r21 => small_power_ℓ.b1.b12 x (UInt256.ofNat (ww (total - top))) r0 r1 r2
+        r17 r18 r19 r20 r21 => small_power_ℓ.loop.loop_1 x (UInt256.ofNat (ww (total - top))) r0 r1 r2
         r3 r2[0]! (UInt256.ofNat top) false r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21)
       m (minv a) (smul ℓ m (minv a) bw (r2 ℓ m (minv a))) _ hE64 ((newton a)^[5] a).w default default
       default default ⟨(), ()⟩ (toW bw) (toW (r2 ℓ m (minv a)))

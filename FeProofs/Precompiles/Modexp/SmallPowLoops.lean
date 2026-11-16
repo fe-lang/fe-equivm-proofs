@@ -10,10 +10,10 @@ its start to its exit, as an equation of model computations, for any values of t
 does not read.  The four copies `L = 1 … 4` are the same text, so each lemma is stated and proved
 once by `limb_family` (`ℓ` stands for `L`):
 
-- `newton_loopℓ`: `small_power_ℓ.b1`, the Newton steps of the inverse (`newton`);
-- `table_loopℓ`: `small_power_ℓ.b1.b8`, the table of odd powers (`tbl`), held in the vector `tabV`;
-- `square_loopℓ`: `small_power_ℓ.b1.b12.b18`, the squarings before a window (`ssq`);
-- `walkℓ`: `small_power_ℓ.b1.b12`, the window walk, with invariant `WInv`.
+- `newton_loopℓ`: `small_power_ℓ.loop`, the Newton steps of the inverse (`newton`);
+- `table_loopℓ`: `small_power_ℓ.loop.loop_4`, the table of odd powers (`tbl`), held in the vector `tabV`;
+- `square_loopℓ`: `small_power_ℓ.loop.loop_1.loop_3`, the squarings before a window (`ssq`);
+- `walkℓ`: `small_power_ℓ.loop.loop_1`, the window walk, with invariant `WInv`.
 -/
 
 open Ethereum Fe Fe.EVM Reasoning.Theory
@@ -29,13 +29,13 @@ limb_family [1, 2, 3, 4]
 theorem newton_loopℓ (x : Exponent) (base value : Lib.MemArray_u64) (a : Limb) r1 r2 r3 r4 r5 r6
     r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 :
     ∀ n i (y : Limb), i + n = 5 →
-      small_power_ℓ.b1 x base value a.w y.w r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16
+      small_power_ℓ.loop x base value a.w y.w r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16
           r17 r18 r19 r20 r21 (UInt256.ofNat i) =
-        small_power_ℓ.b1 x base value a.w ((newton a)^[n] y).w r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
+        small_power_ℓ.loop x base value a.w ((newton a)^[n] y).w r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11
           r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 (UInt256.ofNat 5)
   | 0, i, y, h => by rw [show i = 5 by omega]; rfl
   | n + 1, i, y, h => by
-    rw [small_power_ℓ.b1.eq_1]
+    rw [small_power_ℓ.loop.eq_1]
     simp only [has05_eq r8 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 5) = True from
       eq_true (by omega), decide_true, if_true, Lib.Range_at_0_5, Lib.Range_next_0_5,
       next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, mulW64_eq, two_w, subW64_eq]
@@ -48,20 +48,20 @@ theorem newton_loopℓ (x : Exponent) (base value : Lib.MemArray_u64) (a : Limb)
 theorem square_loopℓ (x : Exponent) (wd : UInt256) (wn : Window) (m : L4) (inv : Limb) (i j : ℕ)
     (hj : j < 2 ^ 256) r0 r2 r3 r5 r6 r7 r8 r9 r10 r11 r12 r13 r14 r18 r19 r20 r21 :
     ∀ n k (p : L4) (r16 r17 : Wide), k + n = j → i ≤ k →
-      ∃ r16' r17', small_power_ℓ.b1.b12.b18 x wd wn r0 ⟨toW m, inv.w⟩ r2 r3 (toW p) r5 r6 r7 r8 r9
+      ∃ r16' r17', small_power_ℓ.loop.loop_1.loop_3 x wd wn r0 ⟨toW m, inv.w⟩ r2 r3 (toW p) r5 r6 r7 r8 r9
           r10 r11 r12 r13 r14 ⟨UInt256.ofNat i, UInt256.ofNat j⟩ r16 r17 r18 r19 r20 r21
           (UInt256.ofNat k) =
-        small_power_ℓ.b1.b12.b17 x wd wn r0 ⟨toW m, inv.w⟩ r2 r3 (toW ((ssq ℓ m inv)^[n] p)) r5 r6
+        small_power_ℓ.loop.loop_1.loop_2 x wd wn r0 ⟨toW m, inv.w⟩ r2 r3 (toW ((ssq ℓ m inv)^[n] p)) r5 r6
           r7 r8 r9 r10 r11 r12 r13 r14 ⟨UInt256.ofNat i, UInt256.ofNat j⟩ r16' r17' r18 r19 r20 r21
   | 0, k, p, r16, r17, h, hik => by
     refine ⟨r16, r17, ?_⟩
-    rw [small_power_ℓ.b1.b12.b18.eq_1]
+    rw [small_power_ℓ.loop.loop_1.loop_3.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) hj (show k < 2 ^ 256 by omega),
       show (i ≤ k ∧ k < j) = False from eq_false (by omega), decide_false, Bool.false_eq_true,
       if_false, pure_bind]
     rfl
   | n + 1, k, p, r16, r17, h, hik => by
-    rw [small_power_ℓ.b1.b12.b18.eq_1]
+    rw [small_power_ℓ.loop.loop_1.loop_3.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) hj (show k < 2 ^ 256 by omega),
       show (i ≤ k ∧ k < j) = True from eq_true (by omega), decide_true, if_true,
       Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
@@ -78,20 +78,20 @@ theorem table_loopℓ (K : UInt256 → Small_ℓ → Vector Wide 64 → Wide →
     (m : L4) (inv : Limb) (t0 : L4) (E : ℕ) (hE : E ≤ 64) r0 r4 r5 r6 r7 r8 r9 r10 r11 r12 r15
     r16 r17 r18 r19 r20 r21 :
     ∀ n k (r14 : Wide), k + n = E → 1 ≤ k →
-      ∃ r14', small_power_ℓ.b1.b8 K r0 ⟨toW m, inv.w⟩ (tabV (tbl ℓ m inv t0) k)
+      ∃ r14', small_power_ℓ.loop.loop_4 K r0 ⟨toW m, inv.w⟩ (tabV (tbl ℓ m inv t0) k)
           (toW (smul ℓ m inv t0 t0)) r4 r5 r6 r7 r8 r9 r10 r11 r12 ⟨(), UInt256.ofNat E⟩ r14 r15 r16
           r17 r18 r19 r20 r21 (UInt256.ofNat k) =
         K r0 ⟨toW m, inv.w⟩ (tabV (tbl ℓ m inv t0) E) (toW (smul ℓ m inv t0 t0)) r4 r5 r6 r7 r8 r9
           r10 r11 r12 ⟨(), UInt256.ofNat E⟩ r14' r15 r16 r17 r18 r19 r20 r21
   | 0, k, r14, h, hk => by
     refine ⟨r14, ?_⟩
-    rw [small_power_ℓ.b1.b8.eq_1]
+    rw [small_power_ℓ.loop.loop_4.eq_1]
     simp only [has1_eq E (by omega) (show k < 2 ^ 256 by omega),
       show (1 ≤ k ∧ k < E) = False from eq_false (by omega), decide_false, Bool.false_eq_true,
       if_false, pure_bind]
     rw [show k = E by omega]
   | n + 1, k, r14, h, hk => by
-    rw [small_power_ℓ.b1.b8.eq_1]
+    rw [small_power_ℓ.loop.loop_4.eq_1]
     simp only [has1_eq E (by omega) (show k < 2 ^ 256 by omega),
       show (1 ≤ k ∧ k < E) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_1,
       Lib.Range_next_1, next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind,
@@ -109,12 +109,12 @@ theorem table_loopℓ (K : UInt256 → Small_ℓ → Vector Wide 64 → Wide →
 theorem b17_oddℓ (x : Exponent) (wd : UInt256) (m : L4) (inv : Limb) (t : ℕ → L4) (c j k : ℕ)
     (hk : k < c) (hc : c ≤ 64) (p : L4) r0 r3 r5 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19
     r20 r21 :
-    small_power_ℓ.b1.b12.b17 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 ⟨toW m, inv.w⟩
+    small_power_ℓ.loop.loop_1.loop_2 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 ⟨toW m, inv.w⟩
         (tabV t c) r3 (toW p) r5 true r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
-      small_power_ℓ.b1.b12 x wd r0 ⟨toW m, inv.w⟩ (tabV t c) r3 (toW (smul ℓ m inv p (t k)))
+      small_power_ℓ.loop.loop_1 x wd r0 ⟨toW m, inv.w⟩ (tabV t c) r3 (toW (smul ℓ m inv p (t k)))
         (UInt256.ofNat j) true r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 (toW p) (toW (t k)) r20
         r21 := by
-  rw [small_power_ℓ.b1.b12.b17.eq_1]
+  rw [small_power_ℓ.loop.loop_1.loop_2.eq_1]
   simp only [if_true, checkIndex_ok (show k < 64 by omega) (by norm_num),
     toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind, smulℓ_eq]
 
@@ -122,22 +122,22 @@ theorem b17_oddℓ (x : Exponent) (wd : UInt256) (m : L4) (inv : Limb) (t : ℕ 
 theorem b17_firstℓ (x : Exponent) (wd : UInt256) (sm : Small_ℓ) (t : ℕ → L4) (c j k : ℕ)
     (hk : k < c) (hc : c ≤ 64) (r4 : Wide) r0 r3 r5 r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18
     r19 r20 r21 :
-    small_power_ℓ.b1.b12.b17 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 sm (tabV t c) r3 r4
+    small_power_ℓ.loop.loop_1.loop_2 x wd ⟨UInt256.ofNat j, UInt256.ofNat k, true⟩ r0 sm (tabV t c) r3 r4
         r5 false r7 r8 r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
-      small_power_ℓ.b1.b12 x wd r0 sm (tabV t c) r3 (toW (t k)) (UInt256.ofNat j) true r7 r8 r9 r10
+      small_power_ℓ.loop.loop_1 x wd r0 sm (tabV t c) r3 (toW (t k)) (UInt256.ofNat j) true r7 r8 r9 r10
         r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 := by
-  rw [small_power_ℓ.b1.b12.b17.eq_1]
+  rw [small_power_ℓ.loop.loop_1.loop_2.eq_1]
   simp only [if_true, Bool.false_eq_true, if_false, checkIndex_ok (show k < 64 by omega)
     (by norm_num), toNat_lit (show k < 2 ^ 256 by omega), tabV_get t hk (by omega), pure_bind]
 
 /-- A zero bit: on to the next. -/
 theorem b17_evenℓ (x : Exponent) (wd : UInt256) (j : ℕ) (e : UInt256) r0 r1 r2 r3 r4 r5 r6 r7 r8
     r9 r10 r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 :
-    small_power_ℓ.b1.b12.b17 x wd ⟨UInt256.ofNat j, e, false⟩ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10
+    small_power_ℓ.loop.loop_1.loop_2 x wd ⟨UInt256.ofNat j, e, false⟩ r0 r1 r2 r3 r4 r5 r6 r7 r8 r9 r10
         r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21 =
-      small_power_ℓ.b1.b12 x wd r0 r1 r2 r3 r4 (UInt256.ofNat j) r6 r7 r8 r9 r10 r11 r12 r13 r14
+      small_power_ℓ.loop.loop_1 x wd r0 r1 r2 r3 r4 (UInt256.ofNat j) r6 r7 r8 r9 r10 r11 r12 r13 r14
         r15 r16 r17 r18 r19 r20 r21 := by
-  rw [small_power_ℓ.b1.b12.b17.eq_1]
+  rw [small_power_ℓ.loop.loop_1.loop_2.eq_1]
   simp only [Bool.false_eq_true, if_false]
 
 /-- **The walk of `small_power<L>`**, from bit `i` to the end of the exponent: the power ends
@@ -150,10 +150,10 @@ theorem walkℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e t
     ∀ n i (st : Bool) (p : L4) r15 r16 r17 r18 r19, total - i ≤ n → i ≤ total →
       WInv ℓ m e total b i st p →
       ∃ (p' : L4) (r15' : Lib.Range_Unknown_Unknown) (r16' r17' r18' r19' : Wide), MRep (2 ^ (64 * ℓ)) m p' (b ^ e) ∧
-        (small_power_ℓ.b1.b12 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
+        (small_power_ℓ.loop.loop_1 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
             (tabV (tbl ℓ m inv t0) (2 ^ (width - 1))) r3 (toW p) (UInt256.ofNat i) st r7 r8 r9 r10
             r11 r12 r13 r14 r15 r16 r17 r18 r19 r20 r21).exec I w =
-          (small_power_ℓ.b1.b12 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
+          (small_power_ℓ.loop.loop_1 x (UInt256.ofNat width) r0 ⟨toW m, inv.w⟩
             (tabV (tbl ℓ m inv t0) (2 ^ (width - 1))) r3 (toW p') (UInt256.ofNat total) true r7 r8
             r9 r10 r11 r12 r13 r14 r15' r16' r17' r18' r19' r20 r21).exec I w
   | n, i, st, p, r15, r16, r17, r18, r19, hn, hit, hst => by
@@ -169,7 +169,7 @@ theorem walkℓ {x : Exponent} {e total top : ℕ} {w : World} (hx : ExpAt x e t
       have : width - 1 ≤ 6 := by omega
       exact le_trans (Nat.pow_le_pow_right (by norm_num) this) (by norm_num)
     have hR := mrep_mul ℓ (by omega) m
-    rw [small_power_ℓ.b1.b12.eq_1]
+    rw [small_power_ℓ.loop.loop_1.eq_1]
     simp only [hx.total_eq, toNat_lit (show i < 2 ^ 256 by omega),
       toNat_lit (show total < 2 ^ 256 by omega), show (i < total) = True from eq_true hlt,
       decide_true, if_true, Fe.M.exec_bind, window_exec hx I hlt (show 1 ≤ width ∧ width ≤ 64 by omega)]

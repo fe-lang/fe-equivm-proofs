@@ -33,6 +33,7 @@ deriving Inhabited
 
 /-- `init(initial: u256)` of contract `FeScalarStore` -/
 def init (initial : UInt256) : FeM Unit := do
+  -- stored = initial
   store Field.stored initial
   return ()
 
@@ -43,35 +44,39 @@ def recv_Get : FeM UInt256 := do
 
 /-- `Set { value }`, selector `0x60fe47b1` (`set(uint256)`) -/
 def recv_Set (value : UInt256) : FeM Unit := do
+  -- stored = value
   store Field.stored value
   return ()
 
 /-- `<Get as AbiSize>::HEAD_SIZE` -/
 def Get_HEAD_SIZE : FeM UInt256 := do
-  return (UInt256.ofNat 0)
+  return UInt256.ofNat 0
 
 /-- `<Get as Decode>::decode_from<CallData>` -/
-def Get_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Get := do
-  let v2 := (Get.mk)
-  return v2
+def Get_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
+  return Get.mk
 
 /-- `core::abi::Decode::decode_from_prechecked_head<Get, Sol, CallData>` -/
 def decode_from_prechecked_head_Get_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Get := do
+  -- Self::decode_from(input, pos)
   let v3 ← Get_decode_from_CallData input pos
   return v3
 
 /-- `core::contracts::decode_runtime_args<Evm, Sol, Get>` -/
 def decode_runtime_args_Evm_Sol_Get : FeM Get := do
   let mut input : CallData := default
+  -- let input = host.input()
   let input_2 ← Evm_input
   input := input_2
+  -- let base = A::SELECTOR_SIZE
   let base ← Sol_SELECTOR_SIZE
-  let input_6 := input
-  let len ← len_CallData input_6
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Get_HEAD_SIZE
   let _ ← Sol_validate_runtime_head len base v9
-  let input_11 := input
-  let v12 ← decode_from_prechecked_head_Get_Sol_CallData input_11 base len
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Get_Sol_CallData input base len
   return v12
 
 /-- The entry of `recv_Get`, for `scalar_store::FeScalarStoreMsg::Get` -/
@@ -88,29 +93,32 @@ def Set_HEAD_SIZE : FeM UInt256 := do
   return v2
 
 /-- `<Set as Decode>::decode_from<CallData>` -/
-def Set_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Set := do
-  let __fe_msg_decode_input_len ← len_CallData __fe_msg_decode_input
-  let __fe_field_0 ← decode_msg_field_from_Sol_u256_CallData __fe_msg_decode_input __fe_msg_decode_base __fe_msg_decode_base __fe_msg_decode_input_len
-  let v6 := (Set.mk __fe_field_0)
-  return v6
+def Set_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Set := do
+  let v2 ← len_CallData v0
+  let v4 ← decode_msg_field_from_Sol_u256_CallData v0 v1 v1 v2
+  return Set.mk v4
 
 /-- `core::abi::Decode::decode_from_prechecked_head<Set, Sol, CallData>` -/
 def decode_from_prechecked_head_Set_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Set := do
+  -- Self::decode_from(input, pos)
   let v3 ← Set_decode_from_CallData input pos
   return v3
 
 /-- `core::contracts::decode_runtime_args<Evm, Sol, Set>` -/
 def decode_runtime_args_Evm_Sol_Set : FeM Set := do
   let mut input : CallData := default
+  -- let input = host.input()
   let input_2 ← Evm_input
   input := input_2
+  -- let base = A::SELECTOR_SIZE
   let base ← Sol_SELECTOR_SIZE
-  let input_6 := input
-  let len ← len_CallData input_6
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Set_HEAD_SIZE
   let _ ← Sol_validate_runtime_head len base v9
-  let input_11 := input
-  let v12 ← decode_from_prechecked_head_Set_Sol_CallData input_11 base len
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Set_Sol_CallData input base len
   return v12
 
 /-- The entry of `recv_Set`, for `scalar_store::FeScalarStoreMsg::Set` -/

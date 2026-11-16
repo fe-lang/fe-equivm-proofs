@@ -119,7 +119,7 @@ theorem norm_limb (M : ℕ) {s k : ℕ} (hs : s < 64) :
 theorem try_new_exit {value : Lib.MemArray_u64} {w : World} {N n s : ℕ} (hn : 0 < n)
     (hN : N < 2 ^ (64 * n)) (htop : 2 ^ (64 * n - 1) ≤ N) (hn64 : 8 * n < 2 ^ 64)
     (hroom : w.memory.size + 8 * n < UInt256.size) (I : Env) :
-    (Modulus_try_new.b8 value (UInt256.ofNat n) (UInt256.ofNat n) (UInt256.ofNat s)
+    (Modulus_try_new.loop value (UInt256.ofNat n) (UInt256.ofNat n) (UInt256.ofNat s)
         ⟨UInt256.ofNat w.memory.size, UInt256.ofNat n⟩ ⟨(), UInt256.ofNat n⟩ (UInt256.ofNat n)).exec I
         { w with memory := w.memory ++ limbBytes (limbsOf N n) } =
       some (.ok (.Some ⟨⟨UInt256.ofNat w.memory.size, UInt256.ofNat n⟩, UInt256.ofNat n,
@@ -130,7 +130,7 @@ theorem try_new_exit {value : Lib.MemArray_u64} {w : World} {N n s : ℕ} (hn : 
     limbsAt_limbBytes _ _
   have hsz : (w.memory ++ limbBytes (limbsOf N n)).size < UInt256.size := by
     simp [ByteArray.size_append]; omega
-  rw [Modulus_try_new.b8.eq_1]
+  rw [Modulus_try_new.loop.eq_1]
   simp only [has0_eq' n (by omega) (show n < 2 ^ 256 by omega),
     show (0 ≤ n ∧ n < n) = False from eq_false (by omega), decide_false, pure_bind,
     Bool.false_eq_true, if_false, ofNat_eq_iff (show n < 2 ^ 256 by omega) (show 1 < 2 ^ 256 by norm_num)]
@@ -169,7 +169,7 @@ theorem try_new_loop {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
     (hs : s < 64) (hn : 0 < n) (hN : M * 2 ^ s < 2 ^ (64 * n)) (htop : 2 ^ (64 * n - 1) ≤ M * 2 ^ s)
     (hn64 : 8 * n < 2 ^ 64) (hroom : w.memory.size + 8 * n < UInt256.size) (I : Env) :
     ∀ m k, k + m = n →
-      (Modulus_try_new.b8 value (UInt256.ofNat n) (UInt256.ofNat n) (UInt256.ofNat s)
+      (Modulus_try_new.loop value (UInt256.ofNat n) (UInt256.ofNat n) (UInt256.ofNat s)
           ⟨UInt256.ofNat w.memory.size, UInt256.ofNat n⟩ ⟨(), UInt256.ofNat n⟩ (UInt256.ofNat k)).exec I
           { w with memory := limbsMem w.memory (M * 2 ^ s) n k } =
         some (.ok (.Some ⟨⟨UInt256.ofNat w.memory.size, UInt256.ofNat n⟩, UInt256.ofNat n,
@@ -193,7 +193,7 @@ theorem try_new_loop {value : Lib.MemArray_u64} {vs : List Limb} {w : World}
       (i := k) (by omega) hvk.small I
     rw [hg k hkn] at hl
     have e := norm_limb M (k := k) hs
-    rw [Modulus_try_new.b8.eq_1]
+    rw [Modulus_try_new.loop.eq_1]
     simp only [has0_eq' n (by omega) (show k < 2 ^ 256 by omega), show (0 ≤ k ∧ k < n) = True from
       eq_true (by omega), decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0,
       next_eq (show k + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,

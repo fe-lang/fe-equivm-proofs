@@ -25,43 +25,46 @@ structure Get where
 deriving Inhabited
 
 /-- `init(initial: u256)` of contract `FeCodeScalar` -/
-def init (initial : UInt256) (e0 : UInt256) : FeM (Unit × UInt256) := do
-  let mut e0 := e0
-  e0 := initial
-  return ((), e0)
+def init (initial : UInt256) (value : UInt256) : FeM (Unit × UInt256) := do
+  let mut value := value
+  -- value = initial
+  value := initial
+  return ((), value)
 
 /-- `Get -> u256`, selector `0x6d4ce63c` (`get()`) -/
 def recv_Get : FeM UInt256 := do
-  let e0 ← cload (← immutableAt 1 0)
-  let value := e0
+  let value ← cload (← immutableAt 1 0)
   return value
 
 /-- `<Get as AbiSize>::HEAD_SIZE` -/
 def Get_HEAD_SIZE : FeM UInt256 := do
-  return (UInt256.ofNat 0)
+  return UInt256.ofNat 0
 
 /-- `<Get as Decode>::decode_from<CallData>` -/
-def Get_decode_from_CallData (__fe_msg_decode_input : CallData) (__fe_msg_decode_base : UInt256) : FeM Get := do
-  let v2 := (Get.mk)
-  return v2
+def Get_decode_from_CallData (v0 : CallData) (v1 : UInt256) : FeM Get := do
+  return Get.mk
 
 /-- `core::abi::Decode::decode_from_prechecked_head<Get, Sol, CallData>` -/
 def decode_from_prechecked_head_Get_Sol_CallData (input : CallData) (pos : UInt256) (input_len : UInt256) : FeM Get := do
+  -- Self::decode_from(input, pos)
   let v3 ← Get_decode_from_CallData input pos
   return v3
 
 /-- `core::contracts::decode_runtime_args<Evm, Sol, Get>` -/
 def decode_runtime_args_Evm_Sol_Get : FeM Get := do
   let mut input : CallData := default
+  -- let input = host.input()
   let input_2 ← Evm_input
   input := input_2
+  -- let base = A::SELECTOR_SIZE
   let base ← Sol_SELECTOR_SIZE
-  let input_6 := input
-  let len ← len_CallData input_6
+  -- let len = input.len()
+  let len ← len_CallData input
+  -- A::validate_runtime_head(input_len: len, base, head_size: T::HEAD_SIZE)
   let v9 ← Get_HEAD_SIZE
   let _ ← Sol_validate_runtime_head len base v9
-  let input_11 := input
-  let v12 ← decode_from_prechecked_head_Get_Sol_CallData input_11 base len
+  -- T::decode_from_prechecked_head(input, base, len)
+  let v12 ← decode_from_prechecked_head_Get_Sol_CallData input base len
   return v12
 
 /-- The entry of `recv_Get`, for `code_scalar::FeCodeScalarMsg::Get` -/
@@ -92,8 +95,8 @@ def init_entry (args : ByteArray) : FeM ByteArray := do
   let decoder ← Sol_decoder_new
   let (decoded, _) ← tuple_decode_payload_Sol_u256_SolDecoder_MemSlice_u8 decoder (MemSlice_u8.mk tail size)
   let words ← alloc (UInt256.ofNat 32)
-  let (_, e0) ← init decoded default
-  mstore (words + UInt256.ofNat (0 * 32)) e0
+  let (_, value) ← init decoded default
+  mstore (words + UInt256.ofNat (0 * 32)) value
   memoryBytes words (UInt256.ofNat 32)
 
 -- END fe-lean-export

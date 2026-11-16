@@ -7,8 +7,8 @@ import FeProofs.Precompiles.LimbArray
 # Modexp: the exported `Small<L>::r2` is `r2`
 
 Each copy `Small_r2_1` … `Small_r2_4` is `pure` of `r2` at its `L`, for a modulus whose top limb is
-not zero: the top bit by `leading_zeros` (`clz`), the doubling loop (`Small_r2_L.b22`), the six
-squarings (`Small_r2_L.b22.b26`).  The loop lemmas are stated and proved once per copy by the
+not zero: the top bit by `leading_zeros` (`clz`), the doubling loop (`Small_r2_L.loop`), the six
+squarings (`Small_r2_L.loop.loop_1`).  The loop lemmas are stated and proved once per copy by the
 same text.
 -/
 
@@ -61,15 +61,15 @@ macro "lbranch" : tactic => `(tactic| (
 theorem r2_sq1 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide)
     (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r4 r5 : Wide), i + n = 6 →
-      Small_r2_1.b22.b26 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_1.loop.loop_1 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 1 m inv)^[n] x))
   | 0, i, x, r4, r5, h => by
-    rw [Small_r2_1.b22.b26.eq_1]
+    rw [Small_r2_1.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = False from eq_false (by omega),
       decide_false]
     rfl
   | n + 1, i, x, r4, r5, h => by
-    rw [Small_r2_1.b22.b26.eq_1]
+    rw [Small_r2_1.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0_6, Lib.Range_next_0_6, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, smul1_eq]
@@ -78,15 +78,15 @@ theorem r2_sq1 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide
 
 theorem r2_dbl1 (m : L4) (inv : Limb) (N : ℕ) (hN : N < 2 ^ 256) (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r2 r4 r5 : Wide), i + n = N →
-      Small_r2_1.b22 ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_1.loop ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 1 m inv)^[6] ((sdouble m)^[n] x)))
   | 0, i, x, r2, r4, r5, h => by
-    rw [Small_r2_1.b22.eq_1]
+    rw [Small_r2_1.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, Lib.Range_start_0_6, pure_bind]
     exact r2_sq1 m inv _ _ _ 6 0 x _ _ rfl
   | n + 1, i, x, r2, r4, r5, h => by
-    rw [Small_r2_1.b22.eq_1]
+    rw [Small_r2_1.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, sdouble1_eq]
@@ -118,15 +118,15 @@ theorem r2_1_eq (m : L4) (inv : Limb) (htop : 0 < (topLimb 1 m).val) :
 theorem r2_sq2 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide)
     (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r4 r5 : Wide), i + n = 6 →
-      Small_r2_2.b22.b26 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_2.loop.loop_1 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 2 m inv)^[n] x))
   | 0, i, x, r4, r5, h => by
-    rw [Small_r2_2.b22.b26.eq_1]
+    rw [Small_r2_2.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = False from eq_false (by omega),
       decide_false]
     rfl
   | n + 1, i, x, r4, r5, h => by
-    rw [Small_r2_2.b22.b26.eq_1]
+    rw [Small_r2_2.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0_6, Lib.Range_next_0_6, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, smul2_eq]
@@ -135,15 +135,15 @@ theorem r2_sq2 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide
 
 theorem r2_dbl2 (m : L4) (inv : Limb) (N : ℕ) (hN : N < 2 ^ 256) (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r2 r4 r5 : Wide), i + n = N →
-      Small_r2_2.b22 ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_2.loop ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 2 m inv)^[6] ((sdouble m)^[n] x)))
   | 0, i, x, r2, r4, r5, h => by
-    rw [Small_r2_2.b22.eq_1]
+    rw [Small_r2_2.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, Lib.Range_start_0_6, pure_bind]
     exact r2_sq2 m inv _ _ _ 6 0 x _ _ rfl
   | n + 1, i, x, r2, r4, r5, h => by
-    rw [Small_r2_2.b22.eq_1]
+    rw [Small_r2_2.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, sdouble2_eq]
@@ -175,15 +175,15 @@ theorem r2_2_eq (m : L4) (inv : Limb) (htop : 0 < (topLimb 2 m).val) :
 theorem r2_sq3 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide)
     (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r4 r5 : Wide), i + n = 6 →
-      Small_r2_3.b22.b26 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_3.loop.loop_1 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 3 m inv)^[n] x))
   | 0, i, x, r4, r5, h => by
-    rw [Small_r2_3.b22.b26.eq_1]
+    rw [Small_r2_3.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = False from eq_false (by omega),
       decide_false]
     rfl
   | n + 1, i, x, r4, r5, h => by
-    rw [Small_r2_3.b22.b26.eq_1]
+    rw [Small_r2_3.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0_6, Lib.Range_next_0_6, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, smul3_eq]
@@ -192,15 +192,15 @@ theorem r2_sq3 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide
 
 theorem r2_dbl3 (m : L4) (inv : Limb) (N : ℕ) (hN : N < 2 ^ 256) (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r2 r4 r5 : Wide), i + n = N →
-      Small_r2_3.b22 ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_3.loop ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 3 m inv)^[6] ((sdouble m)^[n] x)))
   | 0, i, x, r2, r4, r5, h => by
-    rw [Small_r2_3.b22.eq_1]
+    rw [Small_r2_3.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, Lib.Range_start_0_6, pure_bind]
     exact r2_sq3 m inv _ _ _ 6 0 x _ _ rfl
   | n + 1, i, x, r2, r4, r5, h => by
-    rw [Small_r2_3.b22.eq_1]
+    rw [Small_r2_3.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, sdouble3_eq]
@@ -232,15 +232,15 @@ theorem r2_3_eq (m : L4) (inv : Limb) (htop : 0 < (topLimb 3 m).val) :
 theorem r2_sq4 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide)
     (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r4 r5 : Wide), i + n = 6 →
-      Small_r2_4.b22.b26 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_4.loop.loop_1 ⟨toW m, inv.w⟩ (toW x) r1 r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 4 m inv)^[n] x))
   | 0, i, x, r4, r5, h => by
-    rw [Small_r2_4.b22.b26.eq_1]
+    rw [Small_r2_4.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = False from eq_false (by omega),
       decide_false]
     rfl
   | n + 1, i, x, r4, r5, h => by
-    rw [Small_r2_4.b22.b26.eq_1]
+    rw [Small_r2_4.loop.loop_1.eq_1]
     simp only [has06_eq r3 (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < 6) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0_6, Lib.Range_next_0_6, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, smul4_eq]
@@ -249,15 +249,15 @@ theorem r2_sq4 (m : L4) (inv : Limb) (r1 : Lib.Range_Known_0_Unknown) (r2 : Wide
 
 theorem r2_dbl4 (m : L4) (inv : Limb) (N : ℕ) (hN : N < 2 ^ 256) (r3 : Lib.Range_Known_0_Known_6) :
     ∀ n i (x : L4) (r2 r4 r5 : Wide), i + n = N →
-      Small_r2_4.b22 ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
+      Small_r2_4.loop ⟨toW m, inv.w⟩ (toW x) ⟨(), UInt256.ofNat N⟩ r2 r3 r4 r5 (UInt256.ofNat i) =
         pure (toW ((ssq 4 m inv)^[6] ((sdouble m)^[n] x)))
   | 0, i, x, r2, r4, r5, h => by
-    rw [Small_r2_4.b22.eq_1]
+    rw [Small_r2_4.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = False from eq_false (by omega),
       decide_false, Bool.false_eq_true, if_false, Lib.Range_start_0_6, pure_bind]
     exact r2_sq4 m inv _ _ _ 6 0 x _ _ rfl
   | n + 1, i, x, r2, r4, r5, h => by
-    rw [Small_r2_4.b22.eq_1]
+    rw [Small_r2_4.loop.eq_1]
     simp only [has0_eq N hN (show i < 2 ^ 256 by omega), show (0 ≤ i ∧ i < N) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_at_0, Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega),
       pure_bind, sdouble4_eq]

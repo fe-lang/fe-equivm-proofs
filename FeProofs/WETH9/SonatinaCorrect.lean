@@ -109,7 +109,7 @@ theorem runtime_endsAs (hw : w.memory = ByteArray.empty) (hfits : I.calldata.siz
     Reasoning.Theory.ulit_toNat' _ (by unfold UInt256.size; omega)
   apply ir_runtime_endsAs
   intro m ic hdep hl hs hr hrv htf
-  have fb : (entry Exported.runtime).exec I w = (entry Exported.recv1_arm0_entry).exec I w →
+  have fb : (entry Exported.runtime).exec I w = (entry Exported.recv_fallback_entry).exec I w →
       (I.calldata.size < 4 ∨ ∀ k ∈ armTable.map (·.1), sel I ≠ k) →
       EndsAs ((entry Exported.runtime).exec I w) (Check.endRun ((runBlocks m ic runtimeFunc ∅
         none 0).exec I { w with memory := runtimeMem w.memory })) := by
@@ -148,7 +148,7 @@ theorem runtime_endsAs (hw : w.memory = ByteArray.empty) (hfits : I.calldata.siz
         else if UInt256.ofNat k = UInt256.ofNat 0xa9059cbb then Exported.recv_Transfer_entry
         else if UInt256.ofNat k = UInt256.ofNat 0xd0e30db0 then Exported.recv_Deposit_entry
         else if UInt256.ofNat k = UInt256.ofNat 0xdd62ed3e then Exported.recv_Allowance_entry
-        else Exported.recv1_arm0_entry)).exec I w := by
+        else Exported.recv_fallback_entry)).exec I w := by
     intro k hk
     simp only [Exported.runtime, entry, Fe.M.exec_bind]
     simp [hn, hn4, selector_exec, hk]

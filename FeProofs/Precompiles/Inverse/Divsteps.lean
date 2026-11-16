@@ -30,7 +30,7 @@ structure DS where
 
 /-- The exported loop at a state; its last argument, the bit mask, is overwritten before use. -/
 abbrev DS.run (s : DS) (bits : UInt256) : FeM (UInt256 × Transition) :=
-  divsteps.b1 s.u.w s.v.w s.q.w s.r.w s.f.w s.g.w (I s.eta) s.left.w bits
+  divsteps.loop s.u.w s.v.w s.q.w s.r.w s.f.w s.g.w (I s.eta) s.left.w bits
 
 /-- The number of zeros `shift` removes: the trailing zeros of `g`, at most `left`. -/
 def DS.zeros (s : DS) : Limb := (s.g ||| Limb.shl 18446744073709551615 s.left.val).tz
@@ -109,7 +109,7 @@ theorem b1_step (s : DS) (bits : UInt256) (he : s.eta.bmod (2 ^ 64) = s.eta) :
       if s.shift.left = 0 then pure s.shift.out
       else if s.shift.eta < 0 then (s.shift.swap.cancel 63).run (Limb.w 63)
       else (s.shift.cancel 15).run (Limb.w 15) := by
-  rw [DS.run, divsteps.b1.eq_1, ← he]
+  rw [DS.run, divsteps.loop.eq_1, ← he]
   simp only [lit_max, lit_64, lit_63, lit_15, lit_4, lit_2, lit_1, lit_0, shl_w, shr_w, lor_w, tz_w, land_w, addW_w, subW_w, mulW_w,
     downcast_u64_i64_w, Limb.sgn, pure_bind, subW_i64, subW_i64_zero, addW_i64_one, sltBool_i64,
     downcast_i64_u64_I, Limb.toNat_w, Limb.w_inj, decide_true, if_true]

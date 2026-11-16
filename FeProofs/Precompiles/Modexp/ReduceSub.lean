@@ -5,8 +5,8 @@ import FeProofs.Precompiles.Modexp.Knuth
 # Modexp: the multiply-subtract and the add-back of `Modulus::reduce`
 
 One step of Knuth division at limb `j` subtracts `q̂ D` from the window of limbs `[j, j + n]`
-(`Modulus_reduce.b25.b32`), and adds `D` back once when that borrows
-(`Modulus_reduce.b25.b32.b39`).  `D` is the normalised modulus, the limbs `limbAt Dn` of an array
+(`Modulus_reduce.loop_2.loop_3`), and adds `D` back once when that borrows
+(`Modulus_reduce.loop_2.loop_3.loop_5`).  `D` is the normalised modulus, the limbs `limbAt Dn` of an array
 at `mp` apart from the work array.  The invariants are identities of window values:
 
 - `mulsub_loop`: after `i` limbs, `S_i + q̂ D_i = W_i + (carry + borrow) β^i`;
@@ -68,10 +68,10 @@ theorem mulsub_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw :
       wv f j i + q.val * wv (limbAt Dn) 0 i = wv f0 j i + (c.val + b.val) * 2 ^ (64 * i) →
       ∃ (f' : ℕ → Limb) (c' b' : Limb), b'.val ≤ 1 ∧ (∀ k, k < j ∨ j + n ≤ k → f' k = f0 k) ∧
         wv f' j n + q.val * wv (limbAt Dn) 0 n = wv f0 j n + (c'.val + b'.val) * 2 ^ (64 * n) ∧
-        (Modulus_reduce.b25.b32 md cnt nW wp mp sh d1w d0w hw q.w r0 r1 r2 (UInt256.ofNat j) rc rb r6
+        (Modulus_reduce.loop_2.loop_3 md cnt nW wp mp sh d1w d0w hw q.w r0 r1 r2 (UInt256.ofNat j) rc rb r6
             r7 ⟨(), UInt256.ofNat n⟩ r9 r10 r11 v1 (UInt256.ofNat i)).exec I
             { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-          (Modulus_reduce.b25.b32 md cnt nW wp mp sh d1w d0w hw q.w r0 r1 r2 (UInt256.ofNat j) c'.w
+          (Modulus_reduce.loop_2.loop_3 md cnt nW wp mp sh d1w d0w hw q.w r0 r1 r2 (UInt256.ofNat j) c'.w
             b'.w r6 r7 ⟨(), UInt256.ofNat n⟩ r9 r10 r11 v1 (UInt256.ofNat n)).exec I
             { w with memory := putLimbs Mem wp.toNat (lf f' K) }
   | 0, i, f, c, b, rc, rb, hrc, hrb, hm0, hb, hout, hid => by
@@ -105,7 +105,7 @@ theorem mulsub_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw :
         zify at h1 h2 hid ⊢
         linear_combination hid + (2 : ℤ) ^ (64 * i) * h1 - (2 : ℤ) ^ (64 * i) * h2)
     refine ⟨f', c', b', hb'', hout', hid', ?_⟩
-    rw [Modulus_reduce.b25.b32.eq_1]
+    rw [Modulus_reduce.loop_2.loop_3.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
       show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,
@@ -129,10 +129,10 @@ theorem addback_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw 
       wv f j i + a.val * 2 ^ (64 * i) = wv f0 j i + wv (limbAt Dn) 0 i →
       ∃ (f' : ℕ → Limb) (a' : Limb), a'.val ≤ 1 ∧ (∀ k, k < j ∨ j + n ≤ k → f' k = f0 k) ∧
         wv f' j n + a'.val * 2 ^ (64 * n) = wv f0 j n + wv (limbAt Dn) 0 n ∧
-        (Modulus_reduce.b25.b32.b39 md cnt nW wp mp sh d1w d0w hw qw r0 r1 r2 (UInt256.ofNat j) r4 r5 ra
+        (Modulus_reduce.loop_2.loop_3.loop_5 md cnt nW wp mp sh d1w d0w hw qw r0 r1 r2 (UInt256.ofNat j) r4 r5 ra
             r7 r8 ⟨(), UInt256.ofNat n⟩ r10 r11 v1 (UInt256.ofNat i)).exec I
             { w with memory := putLimbs Mem wp.toNat (lf f K) } =
-          (Modulus_reduce.b25.b32.b39 md cnt nW wp mp sh d1w d0w hw qw r0 r1 r2 (UInt256.ofNat j) r4 r5
+          (Modulus_reduce.loop_2.loop_3.loop_5 md cnt nW wp mp sh d1w d0w hw qw r0 r1 r2 (UInt256.ofNat j) r4 r5
             a'.w r7 r8 ⟨(), UInt256.ofNat n⟩ r10 r11 v1 (UInt256.ofNat n)).exec I
             { w with memory := putLimbs Mem wp.toNat (lf f' K) }
   | 0, i, f, a, ra, hra, hm0, ha, hout, hid => by
@@ -167,7 +167,7 @@ theorem addback_loop (md : Exported.Modexp.Modulus) (cnt nW wp mp sh d1w d0w hw 
         zify at h1 hid ⊢
         linear_combination hid + (2 : ℤ) ^ (64 * i) * h1)
     refine ⟨f', a', ha'', hout', hid', ?_⟩
-    rw [Modulus_reduce.b25.b32.b39.eq_1]
+    rw [Modulus_reduce.loop_2.loop_3.loop_5.eq_1]
     simp only [has0_eq' n (by omega) (show i < 2 ^ 256 by omega),
       show (0 ≤ i ∧ i < n) = True from eq_true (by omega), decide_true, if_true, Lib.Range_at_0,
       Lib.Range_next_0, next_eq (show i + 1 < 2 ^ 256 by omega), pure_bind, Fe.M.exec_bind,

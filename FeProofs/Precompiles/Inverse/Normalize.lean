@@ -95,7 +95,7 @@ theorem is_zero_5_eq (a : ℕ → ℤ) (ha : ∀ i, R64 (a i)) :
   have a3 : checkedAdd (UInt256.ofNat 3) (UInt256.ofNat 1) = pure (UInt256.ofNat 4) := hadd 3 (by decide)
   have a4 : checkedAdd (UInt256.ofNat 4) (UInt256.ofNat 1) = pure (UInt256.ofNat 5) := hadd 4 (by decide)
   iterate 6
-    rw [is_zero_5.b1.eq_1]
+    rw [is_zero_5.loop.eq_1]
     simp only [vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, if_true, decide_true, decide_false,
       if_false, ne_eq, I_eq_zero_iff (ha _), decide_not, a0, a1, a2, a3, a4]
   by_cases h0 : a 0 = 0 <;> by_cases h1 : a 1 = 0 <;> by_cases h2 : a 2 = 0 <;>
@@ -146,7 +146,7 @@ theorem add_if_negative_eq (r m : ℕ → ℤ) (hr : Small r) (hm : Small m) :
   simp only [add_if_negative_5, vec5, idx_lits, vget5, lt5, checkIndex, pure_bind, if_true,
     sign63 (R64_of_small (hr 4 le_rfl))]
   iterate 6
-    rw [add_if_negative_5.b1.eq_1]
+    rw [add_if_negative_5.loop.eq_1]
     simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, I_land_if, hs 0 (by decide), hs 1 (by decide),
       hs 2 (by decide), hs 3 (by decide), hs 4 (by decide), set5]
@@ -182,7 +182,7 @@ theorem carry_5_eq (r : ℕ → ℤ) (hr : Mid r) : carry_5 (vec5 r) = pure (vec
   have h0 : I (r 0) = I (carryT r 0) := rfl
   simp only [carry_5, vec5, h0]
   iterate 5
-    rw [carry_5.b1.eq_1]
+    rw [carry_5.loop.eq_1]
     simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, hs 0 (by decide), hs 1 (by decide),
       hs 2 (by decide), hs 3 (by decide), set5, M62_SIGNED_eq, I_land_M62]
@@ -228,7 +228,7 @@ theorem normalize_5_eq (r m : ℕ → ℤ) (s : ℤ) (hr : Small r) (hm : Small 
   simp only [normalize_5, add_if_negative_eq r m hr hm, pure_bind, sign63 hs]
   simp only [vec5] at hc1 ha2 hc2 ⊢
   iterate 6
-    rw [normalize_5.b1.eq_1]
+    rw [normalize_5.loop.eq_1]
     simp only [idx_lits, zero_add_one_lit, vget5, lt5, checkIndex, pure_bind, if_true, if_false,
       decide_true, decide_false, Bool.false_eq_true, hn 0 (by decide), hn 1 (by decide),
       hn 2 (by decide), hn 3 (by decide), hn 4 (by decide), set5]

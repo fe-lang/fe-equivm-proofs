@@ -188,7 +188,7 @@ set_option maxHeartbeats 2000000 in
 /-- **The byte loop**: from byte `k` on, with the first `k` bytes copied, it copies the rest. -/
 theorem bytes_exec (t : ℕ) : ∀ (k : ℕ) (v : World), k + t = d.size →
     v.memory = M ++ region d k →
-    (copied_MemBuffer.b5.b8 b (UInt256.ofNat 0) (UInt256.ofNat d.size) (out M d.size)
+    (copied_MemBuffer.loop.loop_1 b (UInt256.ofNat 0) (UInt256.ofNat d.size) (out M d.size)
         (UInt256.ofNat k)).exec I v =
       some (.ok (⟨UInt256.ofNat 0, UInt256.ofNat 0, out M d.size⟩,
         { v with memory := M ++ d })) := by
@@ -199,7 +199,7 @@ theorem bytes_exec (t : ℕ) : ∀ (k : ℕ) (v : World), k + t = d.size →
   | zero =>
     intro k v hk hv
     obtain rfl : k = d.size := by omega
-    rw [copied_MemBuffer.b5.b8.eq_1]
+    rw [copied_MemBuffer.loop.loop_1.eq_1]
     simp [hn, SUCCESS]
     rw [region_full] at hv
     cases v; simp_all
@@ -221,7 +221,7 @@ theorem bytes_exec (t : ℕ) : ∀ (k : ℕ) (v : World), k + t = d.size →
         (by simp only [ByteArray.extract_extract, Nat.add_zero, show min (31 + 1) 32 = 32 from rfl]
             exact low_byte d k (by omega))
         (by rw [ByteArray.size_extract, toByteArray_size]; omega)]
-    rw [copied_MemBuffer.b5.b8.eq_1]
+    rw [copied_MemBuffer.loop.loop_1.eq_1]
     simp only [hkn, hn, show k < d.size by omega, decide_true, if_true, Fe.M.exec_bind, hbyte,
       Lib.MemBuffer_index_mut, out, show ¬ d.size ≤ k by omega, decide_false, Bool.false_eq_true,
       if_false, Fe.M.exec_pure, mstoreInt, Fe.M.exec_modify, IntTy.bits, hpk]
@@ -234,7 +234,7 @@ set_option maxHeartbeats 2000000 in
     at a time while eight are left, then the rest one at a time. -/
 theorem lanes_exec (t : ℕ) :
     ∀ (k : ℕ) (v : World), k ≤ d.size → d.size < k + 8 * (t + 1) → v.memory = M ++ region d k →
-    (copied_MemBuffer.b5 b (UInt256.ofNat 0) (UInt256.ofNat d.size) (out M d.size)
+    (copied_MemBuffer.loop b (UInt256.ofNat 0) (UInt256.ofNat d.size) (out M d.size)
         (UInt256.ofNat k)).exec I v =
       some (.ok (⟨UInt256.ofNat 0, UInt256.ofNat 0, out M d.size⟩,
         { v with memory := M ++ d })) := by
@@ -244,14 +244,14 @@ theorem lanes_exec (t : ℕ) :
   induction t with
   | zero =>
     intro k v hk hlt hv
-    rw [copied_MemBuffer.b5.eq_1]
+    rw [copied_MemBuffer.loop.eq_1]
     simp only [Fe.M.exec_bind, checkedAdd_ofNat I v (show k + 8 < UInt256.size by
       unfold UInt256.size; omega), toNat_lit (show k + 8 < 2 ^ 256 by omega),
       hn, show ¬ k + 8 ≤ d.size by omega, decide_false, Bool.false_eq_true, if_false]
     exact bytes_exec I d M b hb hroom hfits (d.size - k) k v (by omega) hv
   | succ t ih =>
     intro k v hk hlt hv
-    rw [copied_MemBuffer.b5.eq_1]
+    rw [copied_MemBuffer.loop.eq_1]
     simp only [Fe.M.exec_bind, checkedAdd_ofNat I v (show k + 8 < UInt256.size by
       unfold UInt256.size; omega), toNat_lit (show k + 8 < 2 ^ 256 by omega), hn]
     by_cases h8 : k + 8 ≤ d.size
@@ -309,7 +309,7 @@ set_option maxHeartbeats 2000000 in
 /-- **The arm**: on memory that is not empty, it stops with the call data. -/
 theorem arm_exec (I : Env) (w : World) (hpos : 0 < w.memory.size)
     (hfits : I.calldata.size < 2 ^ 64) (hmem : w.memory.size + 2 * I.calldata.size < UInt256.size) :
-    recv0_arm0.exec I w = some (.error (.stop I.calldata
+    recv_fallback.exec I w = some (.error (.stop I.calldata
       { w with memory := inputMemory w.memory I.calldata ++ I.calldata })) := by
   have hM1 := inputMemory_size w.memory I.calldata
   have hin := input_exec I w hfits (by omega)
@@ -319,7 +319,7 @@ theorem arm_exec (I : Env) (w : World) (hpos : 0 < w.memory.size)
       (inputMemory w.memory I.calldata).size := toNat_lit
         (by rw [hM1]; unfold UInt256.size at hmem; omega)
   have hn : (UInt256.ofNat I.calldata.size).toNat = I.calldata.size := toNat_lit (by omega)
-  simp only [recv0_arm0, Fe.M.exec_bind, input_eq, hin, hc, Fe.M.exec_pure, Lib.MemBuffer_drop,
+  simp only [recv_fallback, Fe.M.exec_bind, input_eq, hin, hc, Fe.M.exec_pure, Lib.MemBuffer_drop,
     Lib.dealloc_u8, Lib.cast_u8_u8, SUCCESS, ne_eq, not_true_eq_false, decide_false,
     Bool.false_eq_true, if_false, Lib.MemBuffer_span_ref, Lib.MemSlice_from_raw_parts_ref_u8,
     Lib.Evm_return_data, Lib.MemSlice_ptr_u8, Lib.MemSlice_len_u8, out, returnData, hp, hn,
@@ -327,14 +327,14 @@ theorem arm_exec (I : Env) (w : World) (hpos : 0 < w.memory.size)
 
 /-! ## The contract -/
 
-theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv0_arm0_entry.exec I w := by
+theorem runtime_eq (I : Env) (w : World) : runtime.exec I w = recv_fallback_entry.exec I w := by
   by_cases h : (UInt256.ofNat I.calldata.size).toNat < 4 <;> simp [runtime, h, selector_exec]
 
 theorem entry_runtime_error (I : Env) (w : World) (hv : I.weiValue = ⟨0⟩) {f : Exit World}
-    (h : recv0_arm0.exec I w.reserved = some (.error f)) :
+    (h : recv_fallback.exec I w.reserved = some (.error f)) :
     (entry runtime).exec I w = some (.error f) := by
   apply entry_exec
-  simp only [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv, h]
+  simp only [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_pos hv, h]
 
 /-- **The contract `Identity` is IDENTITY.**  On call data shorter than `2 ^ 64` bytes, with room
     in memory for the input and the output, and no call value, the exported runtime entry stops
@@ -354,7 +354,7 @@ theorem feIdentityContractCorrect (I : ExecutionEnv) (w : World) (hfits : Callda
 theorem runtime_value (I : ExecutionEnv) (w : World) (hv : I.weiValue ≠ ⟨0⟩) :
     (entry runtime).exec I w = some (.error (.revert ByteArray.empty)) := by
   apply entry_exec
-  rw [runtime_eq, recv0_arm0_entry, Fe.M.exec_bind, exec_nonPayable, if_neg hv]
+  rw [runtime_eq, recv_fallback_entry, Fe.M.exec_bind, exec_nonPayable, if_neg hv]
 
 /-- **The contract and the precompile.**  With at least the gas IDENTITY charges, the precompile
     returns what the contract stops with and keeps the account map. -/

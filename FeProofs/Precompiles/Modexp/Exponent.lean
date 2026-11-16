@@ -223,7 +223,7 @@ theorem digit_loop {x : Exponent} {e total top : ℕ} {w : World} (h : ExpAt x e
     (I : Env) {i j : ℕ} (hij : i < j) (hj : j ≤ total) (hw : j ≤ i + 64)
     (hb : bitOf e total (j - 1) = 1) :
     ∀ n k, k + n = j → i ≤ k →
-      (Exponent_window.b7.b10 x (UInt256.ofNat j) (UInt256.ofNat (digitOf e total i k))
+      (Exponent_window.loop.loop_1 x (UInt256.ofNat j) (UInt256.ofNat (digitOf e total i k))
           ⟨UInt256.ofNat i, UInt256.ofNat j⟩ (UInt256.ofNat k)).exec I w =
         some (.ok (⟨UInt256.ofNat j, UInt256.ofNat ((digitOf e total i j - 1) / 2), true⟩, w))
   | 0, k, hk, hik => by
@@ -233,7 +233,7 @@ theorem digit_loop {x : Exponent} {e total top : ℕ} {w : World} (h : ExpAt x e
     have hd := digit_lt e total i k
     have hodd := digit_odd e total i k (by omega) hj hb
     have h64 : 2 ^ (k - i) ≤ 2 ^ 64 := Nat.pow_le_pow_right (by norm_num) (by omega)
-    rw [Exponent_window.b7.b10.eq_1]
+    rw [Exponent_window.loop.loop_1.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) (show k < 2 ^ 256 by omega)
       (show k < 2 ^ 256 by omega), show (i ≤ k ∧ k < k) = False from
       eq_false (by omega), decide_false, Bool.false_eq_true, if_false, pure_bind,
@@ -244,7 +244,7 @@ theorem digit_loop {x : Exponent} {e total top : ℕ} {w : World} (h : ExpAt x e
     have ht := h.total_lt
     have hd := digit_lt e total i k
     have h64 : 2 ^ (k - i) ≤ 2 ^ 64 := Nat.pow_le_pow_right (by norm_num) (by omega)
-    rw [Exponent_window.b7.b10.eq_1]
+    rw [Exponent_window.loop.loop_1.eq_1]
     simp only [has_uu (show i < 2 ^ 256 by omega) (show j < 2 ^ 256 by omega)
       (show k < 2 ^ 256 by omega), show (i ≤ k ∧ k < j) = True from eq_true (by omega),
       decide_true, if_true, Lib.Range_Unknown_Unknown_at, Lib.Range_Unknown_Unknown_next,
@@ -257,13 +257,13 @@ theorem digit_loop {x : Exponent} {e total top : ℕ} {w : World} (h : ExpAt x e
 theorem trim_loop {x : Exponent} {e total top : ℕ} {w : World} (h : ExpAt x e total top w.memory)
     (I : Env) {i : ℕ} (hb : bitOf e total i = 1) (r1 : UInt256) (r2 : Lib.Range_Unknown_Unknown) :
     ∀ k, i < k → k ≤ total → k ≤ i + 64 →
-      (Exponent_window.b7 x (UInt256.ofNat i) (UInt256.ofNat k) r1 r2).exec I w =
+      (Exponent_window.loop x (UInt256.ofNat i) (UInt256.ofNat k) r1 r2).exec I w =
         some (.ok (⟨UInt256.ofNat (trimEnd e total k),
           UInt256.ofNat ((digitOf e total i (trimEnd e total k) - 1) / 2), true⟩, w))
   | 0, hk, _, _ => absurd hk (by omega)
   | k + 1, hk, hkt, hkw => by
     have ht := h.total_lt
-    rw [Exponent_window.b7.eq_1]
+    rw [Exponent_window.loop.eq_1]
     simp only [sub_lit (show k + 1 < 2 ^ 256 by omega) (show 1 ≤ k + 1 by omega),
       Nat.add_sub_cancel, Fe.M.exec_bind, bit_exec h (show k < total by omega),
       ofNat_eq_iff (show bitOf e total k < 2 ^ 256 by have := bitOf_lt e total k; omega)
