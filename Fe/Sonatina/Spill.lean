@@ -180,7 +180,7 @@ theorem admissible : Lean.Order.admissible (fun x : FeM α => NoPanic x) :=
     (fun _ y => ∀ w code, y w ≠ some (.error (.panic code))) fun _ =>
   Lean.Order.admissible_pi_apply (β := fun _ => ExceptT (Exit World) Option (α × World))
     (fun _ y => ∀ code, y ≠ some (.error (.panic code))) fun _ =>
-  Lean.Order.admissible_pi _ fun _ => Lean.Order.admissible_flatOrder _ (by simp)
+  Lean.Order.admissible_pi _ fun _ => Lean.Order.admissible_flatOrder _ (fun h => by cases h)
 
 theorem admissible_fun {γ : Type} :
     Lean.Order.admissible (fun F : γ → FeM α => ∀ x, NoPanic (F x)) :=

@@ -1699,9 +1699,10 @@ theorem func_facts {code : CodeSection} {low : Lowering} {plan : SpillPlan} {G :
     · obtain ⟨⟨v, a⟩, hva, hvid⟩ := List.mem_map.mp h1
       simp only at hvid
       subst hvid
-      simp only [funcSpill, FuncSpill.spillIn] at hva
-      split_ifs at hva
-      all_goals try (simp [Live.at] at hva; done)
+      unfold FuncSpill.spillIn at hva
+      split at hva
+      · simp at hva
+      simp only [funcSpill] at hva
       obtain ⟨v', -, hv'⟩ := List.mem_filterMap.mp hva
       cases hl : List.lookup v' ((plan.lookup hint.name).getD []).words with
       | none => rw [hl] at hv'; cases hv'
@@ -1739,7 +1740,7 @@ theorem callees_some {low : Lowering} {entry g : String} {ce : Callee}
   · simp [hg] at h
   · simp only [hg, Bool.false_eq_true, ite_false] at h
     simp only [Option.pure_def, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
-    obtain ⟨_, -, hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
+    obtain ⟨hint, hh, f, hf, eb, he, o, ho, hce⟩ := h
     cases hce
     exact ⟨by simpa using hg, hint, f, eb, hh, hf, he, ho, rfl, rfl, rfl⟩
 
