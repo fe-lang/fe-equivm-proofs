@@ -29,7 +29,7 @@ def staticT (I : ExecutionEnv) (σ : AccountMap) (g : UInt256) (s : Supply) (a :
   s := I.codeOwner
   o := I.sender
   r := AccountAddress.ofUInt256 a
-  c := toExecute σ (AccountAddress.ofUInt256 a)
+  c := toExecute I.header.fork σ (AccountAddress.ofUInt256 a)
   g := forwardedGas s.gas g ⟨0⟩
   p := .ofNat I.gasPrice
   v := ⟨0⟩
@@ -95,10 +95,10 @@ theorem staticcall_nil {I : ExecutionEnv} {w : World} (hfeed : w.feed = [])
 theorem ofUInt256_two : AccountAddress.ofUInt256 (UInt256.ofNat 2) = (2 : AccountAddress) := rfl
 
 /-- Address 2 is a precompile's, whatever the accounts. -/
-theorem sha256_toExecute (σ : AccountMap) :
-    toExecute σ (2 : AccountAddress) = .Precompiled 2 := by
+theorem sha256_toExecute (fork : Fork) (σ : AccountMap) :
+    toExecute fork σ (2 : AccountAddress) = .Precompiled 2 := by
   unfold toExecute
-  rw [ite_eq_left (by decide +kernel)]
+  rw [ite_eq_left (by cases fork <;> decide +kernel)]
 
 /-- `Θ`'s dispatch on a precompile's address, at address 2. -/
 theorem theta_match_two {β : AccountAddress → Sort u}
@@ -107,8 +107,9 @@ theorem theta_match_two {β : AccountAddress → Sort u}
     (f5 : (h : 5 < AccountAddress.size) → β ⟨5, h⟩) (f6 : (h : 6 < AccountAddress.size) → β ⟨6, h⟩)
     (f7 : (h : 7 < AccountAddress.size) → β ⟨7, h⟩) (f8 : (h : 8 < AccountAddress.size) → β ⟨8, h⟩)
     (f9 : (h : 9 < AccountAddress.size) → β ⟨9, h⟩)
-    (f10 : (h : 10 < AccountAddress.size) → β ⟨10, h⟩) (fd : (x : AccountAddress) → β x) :
-    Θ.match_3 β 2 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 fd = f2 (by decide) := rfl
+    (f10 : (h : 10 < AccountAddress.size) → β ⟨10, h⟩)
+    (f256 : (h : 256 < AccountAddress.size) → β ⟨256, h⟩) (fd : (x : AccountAddress) → β x) :
+    Θ.match_5 β 2 f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f256 fd = f2 (by decide) := rfl
 
 set_option maxHeartbeats 1000000 in
 /-- A call of the SHA-256 precompile that succeeds returns the digest of its input. -/

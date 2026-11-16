@@ -134,7 +134,7 @@ def messageFrame (s : State) (m : Message) : Option (AccountMap × Nat × Substa
   let I := s.executionEnv
   if ¬ (m.value ≤ balanceOf σ I.codeOwner ∧ I.depth < 1024) then none
   else
-    match toExecute σ m.t with
+    match toExecute I.header.fork σ m.t with
     | .Precompiled _ => none
     | .Code code =>
       let credited :=

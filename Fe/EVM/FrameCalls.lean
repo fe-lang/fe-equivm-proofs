@@ -77,7 +77,7 @@ def callArgs (gas source recipient t value value' inOffset inSize : UInt256) (pe
   s := AccountAddress.ofUInt256 source
   o := evmState.executionEnv.sender
   r := AccountAddress.ofUInt256 recipient
-  c := toExecute evmState.accountMap (AccountAddress.ofUInt256 t)
+  c := toExecute evmState.executionEnv.header.fork evmState.accountMap (AccountAddress.ofUInt256 t)
   g := .ofNat (Ccallgas (AccountAddress.ofUInt256 t) (AccountAddress.ofUInt256 recipient) value
     gas evmState.accountMap evmState.machineState evmState.substate)
   p := .ofNat evmState.executionEnv.gasPrice

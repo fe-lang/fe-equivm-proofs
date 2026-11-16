@@ -128,7 +128,7 @@ theorem callValueMade_forwardedGas {code : ByteArray} {ee : ExecutionEnv} {g : S
       (∃ (g'' : UInt256) (A' : Substate),
         (σ', g'', A', z, o) = Ethereum.EVM.Θ σ s0.σ₀ A_in
           (AccountAddress.ofUInt256 (UInt256.ofNat ee.codeOwner)) ee.sender
-          (AccountAddress.ofUInt256 target) (toExecute σ (AccountAddress.ofUInt256 target))
+          (AccountAddress.ofUInt256 target) (toExecute ee.header.fork σ (AccountAddress.ofUInt256 target))
           (forwardedGas cap gasArg valueWord) (UInt256.ofNat ee.gasPrice) valueWord valueWord
           (mem.readWithPadding inOffset.toNat inSize.toNat) (ee.depth + 1) ee.header
           ee.blobVersionedHashes ee.blocks ee.perm)
@@ -211,7 +211,7 @@ theorem callValueMade_forwardedGas {code : ByteArray} {ee : ExecutionEnv} {g : S
       set θs := Θ s.accountMap s.σ₀
         (s.addAccessedAccount (AccountAddress.ofUInt256 target)).substate
         (AccountAddress.ofUInt256 (UInt256.ofNat ↑s.executionEnv.codeOwner)) s.executionEnv.sender
-        (AccountAddress.ofUInt256 target) (toExecute s.accountMap (AccountAddress.ofUInt256 target))
+        (AccountAddress.ofUInt256 target) (toExecute s.executionEnv.header.fork s.accountMap (AccountAddress.ofUInt256 target))
         cg (UInt256.ofNat s.executionEnv.gasPrice) valueWord valueWord
         (s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
         (s.executionEnv.depth + 1) s.executionEnv.header s.executionEnv.blobVersionedHashes
@@ -226,7 +226,7 @@ theorem callValueMade_forwardedGas {code : ByteArray} {ee : ExecutionEnv} {g : S
           (s.addAccessedAccount (AccountAddress.ofUInt256 target)).substate
           (AccountAddress.ofUInt256 (UInt256.ofNat ↑s.executionEnv.codeOwner)) s.executionEnv.sender
           (AccountAddress.ofUInt256 target)
-          (toExecute s.accountMap (AccountAddress.ofUInt256 target)) cg
+          (toExecute s.executionEnv.header.fork s.accountMap (AccountAddress.ofUInt256 target)) cg
           (UInt256.ofNat s.executionEnv.gasPrice) valueWord valueWord
           (s.machineState.memory.readWithPadding inOffset.toNat inSize.toNat)
           (s.executionEnv.depth + 1) s.executionEnv.header s.executionEnv.blobVersionedHashes

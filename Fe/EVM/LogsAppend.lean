@@ -346,18 +346,36 @@ theorem precompile_substate_PointEval (σ : AccountMap) (g : UInt256) (A : Subst
   repeat' split
   all_goals rfl
 
+theorem precompile_substate_P256VERIFY (σ : AccountMap) (g : UInt256) (A : Substate)
+    (I : ExecutionEnv) :
+    (Ξ_P256VERIFY σ g A I).2.2.1 = A := by
+  simp only [Ξ_P256VERIFY]
+  repeat' split
+  all_goals rfl
+
 /-- What a precompile returns. -/
 abbrev PreResult := AccountMap × UInt256 × Substate × ByteArray
+
+/-- P256VERIFY, which `Θ` runs at `0x100` only under `Osaka`, returns the substate it was given,
+    and otherwise `Θ` gives `default`, whose accounts are empty. -/
+theorem precompile_choice_P256VERIFY (c : Prop) [Decidable c] (σ : AccountMap) (g : UInt256)
+    (A : Substate) (I : ExecutionEnv) :
+    (if c then Ξ_P256VERIFY σ g A I else (default : PreResult)).2.2.1 = A ∨
+      (if c then Ξ_P256VERIFY σ g A I else (default : PreResult)).1 = ∅ := by
+  split
+  · exact Or.inl (precompile_substate_P256VERIFY _ _ _ _)
+  · exact Or.inr rfl
 
 /-- Stated over the results as variables: with the precompiles' results in place of the variables,
     the kernel check of the same proof recurses too deep. -/
 theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
-    (r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 : PreResult) (h1 : r1.2.2.1 = A) (h2 : r2.2.2.1 = A)
+    (r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r256 : PreResult) (h1 : r1.2.2.1 = A) (h2 : r2.2.2.1 = A)
     (h3 : r3.2.2.1 = A) (h4 : r4.2.2.1 = A) (h5 : r5.2.2.1 = A) (h6 : r6.2.2.1 = A)
-    (h7 : r7.2.2.1 = A) (h8 : r8.2.2.1 = A) (h9 : r9.2.2.1 = A) (h10 : r10.2.2.1 = A) :
-    (let R := Θ.match_3 (fun _ => PreResult) pc (fun _ => r1) (fun _ => r2) (fun _ => r3)
+    (h7 : r7.2.2.1 = A) (h8 : r8.2.2.1 = A) (h9 : r9.2.2.1 = A) (h10 : r10.2.2.1 = A)
+    (h256 : r256.2.2.1 = A ∨ r256.1 = ∅) :
+    (let R := Θ.match_5 (fun _ => PreResult) pc (fun _ => r1) (fun _ => r2) (fun _ => r3)
       (fun _ => r4) (fun _ => r5) (fun _ => r6) (fun _ => r7) (fun _ => r8) (fun _ => r9)
-      (fun _ => r10) (fun _ => default)
+      (fun _ => r10) (fun _ => r256) (fun _ => default)
      if R.1 == ∅ then A else R.2.2.1) = A := by
   have key : ∀ R : PreResult, R.2.2.1 = A ∨ R.1 = ∅ →
       (if R.1 == ∅ then A else R.2.2.1) = A := by
@@ -367,7 +385,7 @@ theorem precompiled_choice_substate (pc : AccountAddress) (A : Substate)
     · rw [ite_eq_left (by rw [h]; exact accountMap_empty_beq_empty)]
   dsimp only
   apply key
-  split <;> first | exact Or.inl ‹_› | exact Or.inr rfl
+  split <;> first | exact Or.inl ‹_› | exact Or.inr rfl | exact h256
 
 /-- A precompile returns the substate it was given. -/
 theorem precompiled_Theta_substate (σ σ₀ : AccountMap) (A : Substate) (s o r pc : AccountAddress)
@@ -375,12 +393,13 @@ theorem precompiled_Theta_substate (σ σ₀ : AccountMap) (A : Substate) (s o r
     (blocks : ProcessedBlocks) (w : Bool) :
     (Θ σ σ₀ A s o r (.Precompiled pc) g p v v' d e H bvh blocks w).2.2.1 = A := by
   unfold Θ
-  exact precompiled_choice_substate pc A _ _ _ _ _ _ _ _ _ _
+  exact precompiled_choice_substate pc A _ _ _ _ _ _ _ _ _ _ _
     (precompile_substate_ECREC _ _ _ _) (precompile_substate_SHA256 _ _ _ _)
     (precompile_substate_RIP160 _ _ _ _) (precompile_substate_ID _ _ _ _)
     (precompile_substate_EXPMOD _ _ _ _) (precompile_substate_BN_ADD _ _ _ _)
     (precompile_substate_BN_MUL _ _ _ _) (precompile_substate_SNARKV _ _ _ _)
     (precompile_substate_BLAKE2_F _ _ _ _) (precompile_substate_PointEval _ _ _ _)
+    (precompile_choice_P256VERIFY _ _ _ _ _)
 
 
 /-- A message call at depth `e` keeps `R` when every message call and creation below `e` does. -/

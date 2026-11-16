@@ -74,7 +74,7 @@ def messageCall (I : Env) (w : World) (s : Supply) (gasArg : UInt256)
   s := source
   o := I.sender
   r := recipient
-  c := toExecute w.accounts t
+  c := toExecute I.header.fork w.accounts t
   g := forwardedGas s.gas gasArg value
   p := .ofNat I.gasPrice
   v := value
@@ -326,7 +326,7 @@ theorem message_made {I : Env} {w : World} {s : Supply} {rest : List Supply}
     {o : ByteArray} (hfeed : w.feed = s :: rest)
     (hmade : value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024)
     (hΘ : (σ', g', A', z, o) =
-      Θ w.accounts s.orig s.substate source I.sender recipient (toExecute w.accounts t)
+      Θ w.accounts s.orig s.substate source I.sender recipient (toExecute I.header.fork w.accounts t)
         (forwardedGas s.gas gasArg value) (.ofNat I.gasPrice) value value'
         (w.memory.readWithPadding argsPtr.toNat argsLen.toNat) (I.depth + 1) I.header
         I.blobVersionedHashes I.blocks perm) :
@@ -479,7 +479,7 @@ theorem message_static_keeps_storage {I : Env} {w w' : World}
   | cons s rest =>
     by_cases hmade :
         value ≤ (w.accounts.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth < 1024
-    · rcases hr : Θ w.accounts s.orig s.substate source I.sender recipient (toExecute w.accounts t)
+    · rcases hr : Θ w.accounts s.orig s.substate source I.sender recipient (toExecute I.header.fork w.accounts t)
           (forwardedGas s.gas gasArg value) (.ofNat I.gasPrice) value value'
           (w.memory.readWithPadding argsPtr.toNat argsLen.toNat) (I.depth + 1) I.header
           I.blobVersionedHashes I.blocks false with ⟨σ', g', A', z, o⟩
