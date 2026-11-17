@@ -185,6 +185,17 @@ def Module.func? (m : Module) (name : String) : Option Func := m.funcs.find? (·
 
 def Func.block? (f : Func) (id : Nat) : Option Block := f.blocks.find? (·.id == id)
 
+/-- The block the first `br_table` case of `f` on the value `k` goes to, or block 0 if no case
+    is `k`: where a dispatcher's table sends selector `k`.  Proofs name an arm's block by its
+    selector this way, not by the block's number, which the compiler is free to change;
+    `sonatina_func` states its value for each case, as a `simp` lemma. -/
+def Func.caseBlock (f : Func) (k : Nat) : Nat :=
+  (f.blocks.findSome? fun b => match b.term with
+    | .brTable _ _ cases => cases.findSome? fun (o, t) => match o with
+      | .imm _ v => if v == k then some t else none
+      | _ => none
+    | _ => none).getD 0
+
 /-- A slot of a block's entry stack. -/
 inductive Slot where
   | value (id : Nat)

@@ -532,8 +532,11 @@ elab "sonatina_sidecar " name:ident path:str : command => do
 /-- `sonatina_func name "path" "section" "entry"`: define `name : Func` as the machine IR's
     function `entry` of section `section` of the sidecar at `path`, for proofs that run it, and
     for each block `b` of it a `simp` lemma `name.block_b : name.block? b = some …`, so that a run
-    finds its blocks without unfolding the whole function, and a `simp` lemma
-    `name.params_eq : name.params = […]`, so that a call binds its arguments. -/
+    finds its blocks without unfolding the whole function, a `simp` lemma
+    `name.params_eq : name.params = […]`, so that a call binds its arguments, and for each value
+    `k` a `br_table` case of the function tests a `simp` lemma
+    `name.caseBlock_k : name.caseBlock k = b`, so that a proof names a dispatcher's arm by its
+    selector, not by its block's number. -/
 elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
   let text ← IO.FS.readFile path.getString
   match Parse.parseSidecar text with
@@ -580,5 +583,24 @@ elab "sonatina_func " name:ident path:str sec:str fn:str : command => do
     liftTermElabM do
       Lean.Meta.addSimpTheorem Lean.Meta.simpExtension thm (post := true) (inv := false)
         .global (eval_prio default)
+    -- The block each `br_table` case value goes to, as `Func.caseBlock` finds it.
+    let keys := (f.blocks.flatMap fun b => match b.term with
+      | .brTable _ _ cases => cases.filterMap fun (o, _) => match o with
+        | .imm _ v => some v
+        | _ => none
+      | _ => []).eraseDups
+    for k in keys do
+      let lhs := mkApp2 (mkConst ``Func.caseBlock) (mkConst declName) (toExpr k)
+      let rhs := toExpr (f.caseBlock k)
+      let thm := declName ++ Name.mkSimple s!"caseBlock_{k}"
+      liftCoreM do
+        addDecl (.thmDecl {
+          name := thm
+          levelParams := []
+          type := mkApp3 (mkConst ``Eq [1]) (mkConst ``Nat) lhs rhs
+          value := mkApp2 (mkConst ``Eq.refl [1]) (mkConst ``Nat) rhs })
+      liftTermElabM do
+        Lean.Meta.addSimpTheorem Lean.Meta.simpExtension thm (post := true) (inv := false)
+          .global (eval_prio default)
 
 end Fe.Sonatina
