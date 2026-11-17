@@ -504,6 +504,7 @@ macro "no_stop_core" : tactic =>
     | with_reducible exact NoStop.read
     | with_reducible exact NoStop.get
     | with_reducible exact NoStop.modify _
+    | with_reducible exact NoStop.unwind _
     | assumption
     | with_reducible apply NoStop.ite
     | with_reducible apply NoStop.bind
@@ -542,6 +543,7 @@ macro "no_stop" : tactic =>
     | with_reducible exact NoStop.pure _
     | with_reducible exact NoStop.revert _
     | with_reducible exact NoStop.panic _
+    | with_reducible exact NoStop.unwind _
     | assumption
     | with_reducible apply NoStop.ite
     | with_reducible apply NoStop.bind
@@ -694,6 +696,17 @@ theorem KeepsCalls.dite {α : Type} (c : Prop) [Decidable c] {a : c → FeM α} 
   · exact ha _
   · exact hb _
 
+/-- An unwound run returns where the run returned or stopped, so it keeps the calls of both. -/
+theorem KeepsCalls.unwind {α : Type} {m : FeM α} (hm : KeepsCalls m) :
+    KeepsCalls (Fe.M.unwind m) := by
+  intro I w
+  constructor <;> intro x w' h <;> rw [M.exec_unwind] at h <;> split at h <;>
+    simp only [Option.some.injEq, Except.ok.injEq, Except.error.injEq, Prod.mk.injEq,
+      reduceCtorEq] at h
+  · rw [← h.2]; exact (hm I w).1 _ _ (by assumption)
+  · rw [← h.2]; exact (hm I w).2 _ _ (by assumption)
+  · rename_i hf _; exact absurd h (hf _ _)
+
 theorem keepsCalls_sload (slot : UInt256) : KeepsCalls (sload slot) := by
   unfold sload; exact KeepsCalls.bind KeepsCalls.read fun _ =>
     KeepsCalls.bind KeepsCalls.get fun _ => KeepsCalls.pure _
@@ -751,6 +764,7 @@ macro "keeps_calls" : tactic =>
     | assumption
     | with_reducible apply KeepsCalls.ite
     | with_reducible apply KeepsCalls.dite
+    | with_reducible apply KeepsCalls.unwind
     | with_reducible apply KeepsCalls.bind
     | intro (_ : _))
 
