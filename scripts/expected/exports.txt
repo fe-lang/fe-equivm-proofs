@@ -1,8 +1,8 @@
-contracts: 257, exported: 257, files skipped: [], not compiled: []
+contracts: 260, exported: 260, files skipped: [], not compiled: []
 blocked: 0
 lean failures: 0
-differential: 181 files, 752 tests, 2998 calls agree, 0 disagree, 0 out of gas, 0 out of stack; 237 of 248 contracts with tests compared
-generated: 257 contracts, 1026 of 1028 sequences deployed, 33804 creations and calls agree (19986 calls returned), 0 disagree, 43 out of gas, 31 out of stack
+differential: 184 files, 777 tests, 3087 calls agree, 0 disagree, 0 out of gas, 0 out of stack; 240 of 251 contracts with tests compared
+generated: 260 contracts, 1038 of 1040 sequences deployed, 34200 creations and calls agree (20270 calls returned), 0 disagree, 43 out of gas, 31 out of stack
 
 GEN Case44Bank Case44Bank sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=69
 GEN FeCodeScalar FeCodeScalar sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=98
@@ -360,6 +360,11 @@ TEST dynamic_offset_overflow::field_end_offset_overflow_is_abi_error returns ; 2
 TEST dynamic_offset_overflow::cursor_offset_overflow_is_abi_error returns ; 2 compared
 DIFF dynamic_offset_overflow tests=5 agree=16 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN dynamic_offset_overflow OffsetProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=19
+TEST effect_aliasing_lanes::one_lane_for_two_effects returns ; 3 compared
+TEST effect_aliasing_lanes::snapshot_effects_copy_storage returns ; 3 compared
+TEST effect_aliasing_lanes::one_lane_for_two_effects_on_an_element_field returns ; 0 compared
+DIFF effect_aliasing_lanes tests=3 agree=6 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
+GEN effect_aliasing_lanes Packed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=84
 TEST effect_handle_field_deref::test_effect_handle_field_deref returns ; 6 compared
 DIFF effect_handle_field_deref tests=1 agree=6 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN effect_handle_field_deref C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=100
@@ -525,6 +530,19 @@ GEN immutable_aggregate_forwarding Snapshot sequences=4 deployed=4 agree=132 dis
 TEST known_product_destructure_storage::test_parts_in_storage returns ; 4 compared
 DIFF known_product_destructure_storage tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN known_product_destructure_storage Store sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=104
+TEST lane_holds_before_halts::argument_reaches_storage_before_halt returns ; 3 compared
+TEST lane_holds_before_halts::effect_reaches_storage_before_halt returns ; 3 compared
+TEST lane_holds_before_halts::callee_that_may_halt returns ; 5 compared
+TEST lane_holds_before_halts::copy_passed_through_frames returns ; 7 compared
+TEST lane_holds_before_halts::every_frame_stores_its_copies returns ; 3 compared
+TEST lane_holds_before_halts::grants_of_copies returns ; 5 compared
+TEST lane_holds_before_halts::copies_held_across_a_yield returns ; 5 compared
+TEST lane_holds_before_halts::copies_of_the_yield_site_taken returns ; 10 compared
+TEST lane_holds_before_halts::packed_struct_field_effect returns ; 3 compared
+TEST lane_holds_before_halts::collection_elements returns ; 8 compared
+TEST lane_holds_before_halts::halt_returns_its_data returns ; 3 compared
+DIFF lane_holds_before_halts tests=11 agree=55 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
+GEN lane_holds_before_halts C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=91
 TEST lane_pattern_writes::let_write returns ; 2 compared
 TEST lane_pattern_writes::compound_write returns ; 2 compared
 TEST lane_pattern_writes::alias_write returns ; 2 compared
@@ -1124,6 +1142,19 @@ TEST time_units::durations_and_timestamps_cross_the_abi returns ; 4 compared
 TEST time_units::time_units_are_snapshots returns ; 0 compared
 DIFF time_units tests=14 agree=4 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN time_units Vesting sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=96
+TEST trait_effect_lane_writes::keyed_provider returns ; 3 compared
+TEST trait_effect_lane_writes::unkeyed_provider returns ; 3 compared
+TEST trait_effect_lane_writes::forwarded returns ; 3 compared
+TEST trait_effect_lane_writes::forwarded_twice returns ; 3 compared
+TEST trait_effect_lane_writes::provider_from_param returns ; 3 compared
+TEST trait_effect_lane_writes::provider_from_type_effect returns ; 3 compared
+TEST trait_effect_lane_writes::stored_struct_field returns ; 3 compared
+TEST trait_effect_lane_writes::read_only returns ; 4 compared
+TEST trait_effect_lane_writes::field_written_between_calls returns ; 3 compared
+TEST trait_effect_lane_writes::local_providers returns ; 0 compared
+TEST trait_effect_lane_writes::value_provider returns ; 0 compared
+DIFF trait_effect_lane_writes tests=11 agree=28 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
+GEN trait_effect_lane_writes Packed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=109
 TEST tslot_values::multi_word_values_keep_their_words returns ; 2 compared
 DIFF tslot_values tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 targets=1 covered=1
 GEN tslot_values Cells sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 returned=104
