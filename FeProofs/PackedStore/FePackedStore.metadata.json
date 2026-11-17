@@ -1,7 +1,7 @@
 {
   "compiler": {
-    "commit": "22b156fff",
-    "version": "26.5.0"
+    "commit": "2f85116a5",
+    "version": "26.6.0"
   },
   "language": "Fe",
   "output": {
@@ -87,7 +87,7 @@
           "std": "std"
         },
         "dependencyArithmetic": "defer",
-        "name": "FePackedStore",
+        "name": "PackedStore",
         "namespace": "",
         "version": null
       }

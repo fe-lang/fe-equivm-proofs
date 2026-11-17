@@ -1,6 +1,6 @@
 {
   "compiler": {
-    "commit": "aa5244d43",
+    "commit": "2f85116a5",
     "version": "26.6.0"
   },
   "language": "Fe",
@@ -45,7 +45,7 @@
           "std": "std"
         },
         "dependencyArithmetic": "defer",
-        "name": "FeCodeScalar",
+        "name": "CodeScalar",
         "namespace": "",
         "version": null
       }
