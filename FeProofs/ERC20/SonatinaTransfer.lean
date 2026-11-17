@@ -40,7 +40,8 @@ set_option maxHeartbeats 8000000 in
 theorem arm_transfer (hmem : w.memory.size + 512 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv_Transfer_entry).exec I w)
-      (Check.endRun ((runBlocks m ic runtimeFunc E p 40).exec I w)) := by
+      (Check.endRun ((runBlocks m ic runtimeFunc E p
+        (runtimeFunc.caseBlock 0xa9059cbb)).exec I w)) := by
   have hr : w.reserved.memory.size + 512 < UInt256.size :=
     reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits

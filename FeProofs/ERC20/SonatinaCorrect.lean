@@ -67,15 +67,14 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size)
     exact .exit _
   have hn4 : ¬ I.calldata.size < 4 := by omega
   -- An arm: the exported dispatcher goes to its entry, the machine IR to its block.
-  have arm : ∀ {k b : Nat} {e : FeM Empty}, (k, b) ∈ [(0x095ea7b3, 5), (0x18160ddd, 12),
-      (0x23b872dd, 15), (0x70a08231, 33), (0xa9059cbb, 40), (0xdd62ed3e, 54)] →
+  have arm : ∀ {k : Nat} {e : FeM Empty}, k ∈ selectors →
       k < UInt256.size → selWord I.calldata = UInt256.ofNat k →
       (entry Exported.runtime).exec I w = (entry e).exec I w →
       (∀ E p, EndsAs ((entry e).exec I w)
-        (Check.endRun ((runBlocks m ic runtimeFunc E p b).exec I w))) →
+        (Check.endRun ((runBlocks m ic runtimeFunc E p (runtimeFunc.caseBlock k)).exec I w))) →
       EndsAs ((entry Exported.runtime).exec I w)
         (Check.endRun ((runBlocks m ic runtimeFunc ∅ none 0).exec I w)) := by
-    intro k b e hk hkb hs he harm
+    intro k e hk hkb hs he harm
     obtain ⟨E, p, hr⟩ := ir_dispatch m ic I w hsz hfits hk ((selWord_eq_iff hkb).mp hs)
     rw [he, hr]
     exact harm E p
@@ -88,29 +87,29 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size)
       (UInt256.ofNat a = UInt256.ofNat b) = False := fun a b hab ha hb =>
     eq_false (hne hab ha hb)
   by_cases h1 : selWord I.calldata = UInt256.ofNat 0x095ea7b3
-  · exact arm (by simp) (by decide) h1 (by
+  · exact arm (by decide) (by decide) h1 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h1])
       (arm_approve m ic w hsz hfits (by omega))
   by_cases h2 : selWord I.calldata = UInt256.ofNat 0x18160ddd
-  · exact arm (by simp) (by decide) h2 (by
+  · exact arm (by decide) (by decide) h2 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h2,
         hd 0x18160ddd 0x095ea7b3 (by decide) (by decide) (by decide)])
       (arm_totalSupply m ic I w (by omega))
   by_cases h3 : selWord I.calldata = UInt256.ofNat 0x23b872dd
-  · exact arm (by simp) (by decide) h3 (by
+  · exact arm (by decide) (by decide) h3 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h3,
         hd 0x23b872dd 0x095ea7b3 (by decide) (by decide) (by decide),
         hd 0x23b872dd 0x18160ddd (by decide) (by decide) (by decide)])
       (arm_transferFrom m ic w hsz hfits hmem)
   by_cases h4 : selWord I.calldata = UInt256.ofNat 0x70a08231
-  · exact arm (by simp) (by decide) h4 (by
+  · exact arm (by decide) (by decide) h4 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h4,
         hd 0x70a08231 0x095ea7b3 (by decide) (by decide) (by decide),
         hd 0x70a08231 0x18160ddd (by decide) (by decide) (by decide),
         hd 0x70a08231 0x23b872dd (by decide) (by decide) (by decide)])
       (arm_balanceOf m ic w hsz hfits (by omega))
   by_cases h5 : selWord I.calldata = UInt256.ofNat 0xa9059cbb
-  · exact arm (by simp) (by decide) h5 (by
+  · exact arm (by decide) (by decide) h5 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h5,
         hd 0xa9059cbb 0x095ea7b3 (by decide) (by decide) (by decide),
         hd 0xa9059cbb 0x18160ddd (by decide) (by decide) (by decide),
@@ -118,7 +117,7 @@ theorem runtime_endsAs (hmem : w.memory.size + 1024 < UInt256.size)
         hd 0xa9059cbb 0x70a08231 (by decide) (by decide) (by decide)])
       (arm_transfer m ic w hsz hfits (by omega))
   by_cases h6 : selWord I.calldata = UInt256.ofNat 0xdd62ed3e
-  · exact arm (by simp) (by decide) h6 (by
+  · exact arm (by decide) (by decide) h6 (by
       simp [Exported.runtime, entry, hn, hn4, selector_exec, h6,
         hd 0xdd62ed3e 0x095ea7b3 (by decide) (by decide) (by decide),
         hd 0xdd62ed3e 0x18160ddd (by decide) (by decide) (by decide),
@@ -160,7 +159,7 @@ theorem init_bind_eq (args : ByteArray) (g : ByteArray → FeM ByteArray) :
     the init function runs from its entry block, with the symbols of the init section. -/
 theorem ir_init_endsAs {X : Option (Except (Fe.Exit World) (ByteArray × World))}
     {args : ByteArray}
-    (h : ∀ m ic, ic.symbol "." = some (0, 986) → ic.symbol "&FeERC20_runtime" = some (124, 862) →
+    (h : ∀ m ic, ic.symbol "." = some (0, 989) → ic.symbol "&FeERC20_runtime" = some (124, 865) →
       EndsAs X (Check.endRun ((runBlocks m ic initFunc ∅ none 0).exec I
         { w with memory := (UInt256.ofNat 160).toByteArray.write 0 w.memory 64 32 }))) :
     EndsAs X (((sidecar.model .machine).init args).exec I w) := by
@@ -182,14 +181,14 @@ theorem init_endsAs (v : UInt256) (hroom : w.memory.size + 256 < UInt256.size)
         pure (ByteArray.empty ++ tail)).exec I w) := by
   obtain ⟨hrt, hcs⟩ := creation_runtime
   have hts : (ctorTail v).size = 32 := Reasoning.Theory.word_toBytesBE_toByteArray_size v
-  have hsize : I.code.size = 1018 := by rw [hcode, ByteArray.size_append, hcs, hts]
-  have harg : I.code.extract 986 1018 = v.toByteArray := by
+  have hsize : I.code.size = 1021 := by rw [hcode, ByteArray.size_append, hcs, hts]
+  have harg : I.code.extract 989 1021 = v.toByteArray := by
     rw [hcode, Reasoning.Theory.extract_append_right_window _ _ _ _ (by omega), hcs]
     show (ctorTail v).extract 0 32 = _
     rw [← hts, Reasoning.Theory.byteArray_extract_self, Exported.ctorTail_eq]
-  have hcopy : ∀ M, I.code.write 986 M 160 32 = v.toByteArray.write 0 M 160 32 := fun M => by
+  have hcopy : ∀ M, I.code.write 989 M 160 32 = v.toByteArray.write 0 M 160 32 := fun M => by
     rw [write_window _ _ _ _ _ (by decide) (by omega), harg]
-  have hret : ∀ M, (I.code.write 124 M 0 862).readWithPadding 0 862 = feERC20Bytecode := by
+  have hret : ∀ M, (I.code.write 124 M 0 865).readWithPadding 0 865 = feERC20Bytecode := by
     intro M
     rw [Reasoning.Theory.write0_read_back_from_gen _ _ _ _ (by decide) (by omega) (by decide),
       hcode, Reasoning.Theory.extract_append_left _ _ _ _ (by omega), hrt]

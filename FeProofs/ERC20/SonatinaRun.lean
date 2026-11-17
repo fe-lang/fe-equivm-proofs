@@ -28,27 +28,30 @@ theorem ir_short (h : I.calldata.size < 4) :
   simp only [UInt256.size] at h'
   repeat ir_step
 
+/-- The selectors of the runtime's arms. -/
+abbrev selectors : List Nat :=
+  [0x095ea7b3, 0x18160ddd, 0x23b872dd, 0x70a08231, 0xa9059cbb, 0xdd62ed3e]
+
 set_option maxHeartbeats 4000000 in
-/-- The dispatcher: on a selector of the table, the run goes on at the arm's entry block. -/
-theorem ir_dispatch (hsz : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) {k b : Nat}
-    (hk : (k, b) ∈ [(0x095ea7b3, 5), (0x18160ddd, 12), (0x23b872dd, 15), (0x70a08231, 33),
-      (0xa9059cbb, 40), (0xdd62ed3e, 54)]) (hsel : sel I = k) :
+/-- The dispatcher: on a selector of the table, the run goes on at the arm's entry block, the
+    block the machine IR's `br_table` sends the selector to. -/
+theorem ir_dispatch (hsz : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64) {k : Nat}
+    (hk : k ∈ selectors) (hsel : sel I = k) :
     ∃ E p, (runBlocks m ic runtimeFunc ∅ none 0).exec I w =
-      (runBlocks m ic runtimeFunc E p b).exec I w := by
+      (runBlocks m ic runtimeFunc E p (runtimeFunc.caseBlock k)).exec I w := by
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
   unfold sel at hsel
-  simp only [List.mem_cons, List.mem_nil_iff, or_false, Prod.mk.injEq] at hk
-  rcases hk with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+  simp only [selectors, List.mem_cons, List.mem_nil_iff, or_false] at hk
+  rcases hk with rfl | rfl | rfl | rfl | rfl | rfl <;>
     exact ⟨_, _, by ir_step; ir_step; ir_step; rfl⟩
 
 set_option maxHeartbeats 4000000 in
 /-- A selector of no arm: the machine IR reverts with no data. -/
 theorem ir_noMatch (hsz : 4 ≤ I.calldata.size) (hfits : I.calldata.size < 2 ^ 64)
-    (h : ∀ k ∈ [0x095ea7b3, 0x18160ddd, 0x23b872dd, 0x70a08231, 0xa9059cbb, 0xdd62ed3e],
-      sel I ≠ k) :
+    (h : ∀ k ∈ selectors, sel I ≠ k) :
     (runBlocks m ic runtimeFunc ∅ none 0).exec I w = some (.error (.revert ByteArray.empty)) := by
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
-  simp only [List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq] at h
+  simp only [selectors, List.mem_cons, List.mem_nil_iff, or_false, forall_eq_or_imp, forall_eq] at h
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := h
   unfold sel at h1 h2 h3 h4 h5 h6
   have := Ne.symm h1; have := Ne.symm h2; have := Ne.symm h3

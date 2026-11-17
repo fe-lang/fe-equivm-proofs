@@ -38,7 +38,8 @@ set_option maxHeartbeats 4000000 in
 theorem arm_totalSupply (hmem : w.memory.size + 32 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv_TotalSupply_entry).exec I w)
-      (Check.endRun ((runBlocks m ic runtimeFunc E p 12).exec I w)) := by
+      (Check.endRun ((runBlocks m ic runtimeFunc E p
+        (runtimeFunc.caseBlock 0x18160ddd)).exec I w)) := by
   have hr : w.reserved.memory.size + 32 < UInt256.size :=
     reserveMemory_room hmem (by decide)
   by_cases hwv : I.weiValue = ⟨0⟩
@@ -59,7 +60,8 @@ set_option maxHeartbeats 4000000 in
 theorem arm_balanceOf (hmem : w.memory.size + 96 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv_BalanceOf_entry).exec I w)
-      (Check.endRun ((runBlocks m ic runtimeFunc E p 33).exec I w)) := by
+      (Check.endRun ((runBlocks m ic runtimeFunc E p
+        (runtimeFunc.caseBlock 0x70a08231)).exec I w)) := by
   have hr : w.reserved.memory.size + 96 < UInt256.size :=
     reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
@@ -97,7 +99,8 @@ set_option maxHeartbeats 4000000 in
 theorem arm_allowance (hmem : w.memory.size + 160 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv_Allowance_entry).exec I w)
-      (Check.endRun ((runBlocks m ic runtimeFunc E p 54).exec I w)) := by
+      (Check.endRun ((runBlocks m ic runtimeFunc E p
+        (runtimeFunc.caseBlock 0xdd62ed3e)).exec I w)) := by
   have hr : w.reserved.memory.size + 160 < UInt256.size :=
     reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits
@@ -144,7 +147,8 @@ set_option maxHeartbeats 8000000 in
 theorem arm_approve (hmem : w.memory.size + 256 < UInt256.size) (E : Sonatina.Env)
     (p : Option Nat) :
     EndsAs ((entry Exported.recv_Approve_entry).exec I w)
-      (Check.endRun ((runBlocks m ic runtimeFunc E p 5).exec I w)) := by
+      (Check.endRun ((runBlocks m ic runtimeFunc E p
+        (runtimeFunc.caseBlock 0x095ea7b3)).exec I w)) := by
   have hr : w.reserved.memory.size + 256 < UInt256.size :=
     reserveMemory_room hmem (by decide)
   obtain ⟨k1, k2, k3, k4, k5, k6⟩ := calldata_facts hsz hfits

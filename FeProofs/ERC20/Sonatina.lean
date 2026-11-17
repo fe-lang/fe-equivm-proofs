@@ -35,9 +35,9 @@ theorem sidecar_init : sidecar.code "init" = feERC20CreationBytecode :=
   ByteArray.ext (Array.toList_inj.mp (by decide +kernel))
 
 /-- The creation bytecode holds the runtime bytecode at offset 124, as the init section's symbol
-    `&FeERC20_runtime` says, and is 986 bytes long, its symbol `.`. -/
-theorem creation_runtime : feERC20CreationBytecode.extract 124 986 = feERC20Bytecode
-    ∧ feERC20CreationBytecode.size = 986 := by
+    `&FeERC20_runtime` says, and is 989 bytes long, its symbol `.`. -/
+theorem creation_runtime : feERC20CreationBytecode.extract 124 989 = feERC20Bytecode
+    ∧ feERC20CreationBytecode.size = 989 := by
   refine ⟨ByteArray.ext (Array.toList_inj.mp ?_), by decide +kernel⟩
   rw [ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop]
   decide +kernel
