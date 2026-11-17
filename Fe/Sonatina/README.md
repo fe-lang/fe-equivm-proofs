@@ -53,10 +53,10 @@ files the two are the same text. FeConstant and FeScalarStore have no committed 
 `fe build --emit sidecar` (Fe branch `lean-export`) closes the gap: it captures the module from the
 `EvmCompile` that produces the bytecode, right before `compile()`, and writes it with the bytes and
 symbol table of each section of the result (`<Contract>.sidecar.json`). The fixtures here are such
-files, written by Fe's `sonatina_corpus` test at the commit `fe.pin` names (`2f85116a5`, Sonatina
-`1f042432`): FeConstant, FeScalarStore, FeERC20, WETH9 and Case44Bank compile to their pinned
-bytecode. The deposit contract's is that compiler's, not FeDeposit's pinned bytes, which are of an
-earlier commit.
+files, written by Fe's `sonatina_corpus` test at `2f85116a5` (Sonatina `1f042432`), which compiles
+as the commit `fe.pin` names (`f2a6f520d`) does: the commits between change the exporter only.
+FeConstant, FeScalarStore, FeERC20, WETH9 and Case44Bank compile to their pinned bytecode. The
+deposit contract's is that compiler's, not FeDeposit's pinned bytes, which are of an earlier commit.
 
 ## The subset and its semantics
 

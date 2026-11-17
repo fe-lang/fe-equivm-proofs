@@ -8,7 +8,7 @@ specification written in EquiVM's specification language, Stele.
 ## Contracts
 
 Compiled with the Sonatina backend, `-O 1`, Osaka. The bytes of every contract but two are what
-the Fe commit `fe.pin` names compiles (`2f85116a5`, branch `lean-export`, Sonatina `1f042432`), as
+the Fe commit `fe.pin` names compiles (`f2a6f520d`, branch `lean-export`, Sonatina `1f042432`), as
 their `*.build.json` record. FeDeposit's certificate is of the bytes of the earlier commit
 `d1761942b4` (Sonatina `490c3325`): Sonatina #534 renumbers values, which changes runtime bytes
 770 to 804 (and their copy in the creation code) with no instruction added or removed, and
