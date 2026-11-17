@@ -31,6 +31,22 @@ inductive Exit (σ : Type) where
   | .revert _ | .panic _ => true
   | .static | .trap | .oob | .stop _ _ => false
 
+/-- How a run that unwinds ends: it returns `a`, or it reaches a successful halt with `data`,
+    which its caller makes once it has stored back the lane copies it holds. -/
+inductive Unwound (α : Type) where
+  | ret (a : α)
+  | halt (data : ByteArray)
+
+/-- The value an unwound run returned, if it returned. -/
+def Unwound.ret? {α : Type} : Unwound α → Option α
+  | .ret a => some a
+  | .halt _ => none
+
+/-- The data of the successful halt an unwound run reached; empty if it returned. -/
+def Unwound.data {α : Type} : Unwound α → ByteArray
+  | .ret _ => .empty
+  | .halt data => data
+
 /-- The model monad over an environment `ρ` and a world `σ`.  A run that does not terminate is
     `none`, the bottom of `Option`, so recursive definitions can use `partial_fixpoint`. -/
 abbrev M (ρ σ : Type) := ReaderT ρ (StateT σ (ExceptT (Exit σ) Option))
@@ -121,6 +137,23 @@ theorem exec_ite (c : Prop) [Decidable c] (a b : M ρ σ α) (env : ρ) (w : σ)
   rw [map_eq_pure_bind, exec_bind]
   rfl
 
+/-- Run `m`, giving a successful halt it reaches as `.halt data`, in the world it halted with:
+    a run that holds lane copies stores them back before it halts as recorded. -/
+def unwind (m : M ρ σ α) : M ρ σ (Unwound α) := fun env w =>
+  match m.exec env w with
+  | none => none
+  | some (.ok (a, w')) => some (.ok (.ret a, w'))
+  | some (.error (.stop data w')) => some (.ok (.halt data, w'))
+  | some (.error f) => some (.error f)
+
+@[simp] theorem exec_unwind (m : M ρ σ α) (env : ρ) (w : σ) :
+    (unwind m).exec env w =
+      match m.exec env w with
+      | none => none
+      | some (.ok (a, w')) => some (.ok (.ret a, w'))
+      | some (.error (.stop data w')) => some (.ok (.halt data, w'))
+      | some (.error f) => some (.error f) := rfl
+
 /-! ## Runs that never stop from inside -/
 
 /-- The computation never ends the run from inside: it returns, fails or diverges.  A model
@@ -162,6 +195,12 @@ theorem NoStop.bind {m : M ρ σ α} {k : α → M ρ σ β} (hm : NoStop m) (hk
     cases r with
     | error f => rw [hr] at h; injection h with h; injection h with h; exact hm env w data w' (by rw [hr, h])
     | ok p => rw [hr] at h; exact hk p.1 env p.2 data w' h
+
+/-- An unwound run never stops: it gives the halt as its result. -/
+theorem NoStop.unwind (m : M ρ σ α) : NoStop (unwind m) := by
+  intro env w data w' h
+  rw [exec_unwind] at h
+  split at h <;> simp_all
 
 theorem NoStop.ite (c : Prop) [Decidable c] {a b : M ρ σ α} (ha : NoStop a) (hb : NoStop b) :
     NoStop (if c then a else b) := by
