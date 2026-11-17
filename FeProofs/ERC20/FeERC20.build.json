@@ -1,1 +1,1 @@
-{"contract": "FeERC20", "compiler": {"kind": "fe", "commit": "78be342aa4", "branch": "lean-export", "repository": "https://github.com/sbillig/fe", "sonatina": "490c3325", "optimize": 1, "evmVersion": "osaka"}}
+{"contract": "FeERC20", "compiler": {"kind": "fe", "commit": "d1761942b4", "branch": "lean-export", "repository": "https://github.com/sbillig/fe", "sonatina": "490c3325", "optimize": 1, "evmVersion": "osaka"}}
