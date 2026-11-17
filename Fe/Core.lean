@@ -47,6 +47,14 @@ def Unwound.data {α : Type} : Unwound α → ByteArray
   | .ret _ => .empty
   | .halt data => data
 
+@[simp] theorem Unwound.ret?_ret {α : Type} (a : α) : (Unwound.ret a).ret? = some a := rfl
+
+@[simp] theorem Unwound.ret?_halt {α : Type} (data : ByteArray) :
+    (Unwound.halt data : Unwound α).ret? = none := rfl
+
+@[simp] theorem Unwound.data_halt {α : Type} (data : ByteArray) :
+    (Unwound.halt data : Unwound α).data = data := rfl
+
 /-- The model monad over an environment `ρ` and a world `σ`.  A run that does not terminate is
     `none`, the bottom of `Option`, so recursive definitions can use `partial_fixpoint`. -/
 abbrev M (ρ σ : Type) := ReaderT ρ (StateT σ (ExceptT (Exit σ) Option))
