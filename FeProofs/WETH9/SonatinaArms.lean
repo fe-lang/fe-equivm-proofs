@@ -25,7 +25,7 @@ variable {m : Module} (ic : Fe.Sonatina.Ctx) (I : ExecutionEnv) (w : World)
 /- The exported entries, their arms and the primitives they reach unfold under `simp` here. -/
 attribute [local simp] Exported.recv_TotalSupply_entry Exported.recv_TotalSupply Exported.recv_Deposit_entry
   Exported.recv_Deposit Exported.recv_fallback_entry Exported.recv_fallback
-  Exported.deposit_Weth9Store_Evm_Evm Exported.recv_Decimals_entry Exported.recv_BalanceOf_entry
+  Exported.deposit_Evm_Evm Exported.recv_Decimals_entry Exported.recv_BalanceOf_entry
   Exported.recv_BalanceOf Exported.recv_Allowance_entry Exported.recv_Allowance Exported.recv_Approve_entry
   Exported.recv_Approve Exported.balanceOfField Exported.allowanceField Place.storage store load
   sload entry exec_nonPayable exec_sstore

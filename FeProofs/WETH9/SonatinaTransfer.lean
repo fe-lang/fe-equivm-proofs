@@ -21,7 +21,7 @@ attribute [-simp] Filter.bind_def List.bind_eq_flatMap Part.bind_eq_bind Set.bin
 variable {m : Module} (ic : Fe.Sonatina.Ctx) {I : ExecutionEnv} (w : World)
 
 attribute [local simp] Exported.recv_TransferFrom_entry Exported.recv_TransferFrom Exported.recv_Transfer_entry
-  Exported.recv_Transfer Exported.transfer_from_Weth9Store_Evm_Evm Exported.balanceOfField
+  Exported.recv_Transfer Exported.transfer_from_Evm_Evm Exported.balanceOfField
   Exported.allowanceField Exported.ne_Address_Address Exported.Address_eq Exported.u256_max
   Place.storage store load sload entry exec_nonPayable exec_sstore M.exec_ite
 

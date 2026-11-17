@@ -56,7 +56,7 @@ theorem alike_allowance (owner guy : UInt256) (hmem : w.memory.size + 128 < UInt
   alike_withMemory (allowance_exec I w owner guy hmem) (by rw [keyedAll_size]; simp)
 
 theorem alike_deposit (hmem : w.memory.size + 160 < UInt256.size) :
-    Alike 160 w (deposit_Weth9Store_Evm_Evm.exec I w) (Model.deposit.exec I w) :=
+    Alike 160 w (deposit_Evm_Evm.exec I w) (Model.deposit.exec I w) :=
   alike_withMemory (deposit_exec I w hmem) (by rw [returned_size, keyedAll_size]; simp)
 
 end Alike
@@ -349,7 +349,7 @@ theorem transfer_endsAs (hw : w.memory = ByteArray.empty) (hlo : 4 ≤ I.calldat
 
 theorem deposit_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv_Deposit_entry).exec I w) (Model.depositArm.exec I w) := by
-  have eg : (entry recv_Deposit_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
+  have eg : (entry recv_Deposit_entry).exec I w = (entry (deposit_Evm_Evm >>=
       fun _ => returnData (UInt256.ofNat 0) (UInt256.ofNat 0))).exec I w := by
     simp [entry, recv_Deposit_entry, decodeDeposit_exec, recv_Deposit]
   have eh : Model.depositArm.exec I w =
@@ -364,7 +364,7 @@ theorem deposit_endsAs (hw : w.memory = ByteArray.empty) :
 
 theorem fallback_endsAs (hw : w.memory = ByteArray.empty) :
     EndsAs ((entry recv_fallback_entry).exec I w) (Model.depositArm.exec I w) := by
-  have eg : (entry recv_fallback_entry).exec I w = (entry (deposit_Weth9Store_Evm_Evm >>=
+  have eg : (entry recv_fallback_entry).exec I w = (entry (deposit_Evm_Evm >>=
       fun _ => returnData (UInt256.ofNat 0) (UInt256.ofNat 0))).exec I w := by
     simp [entry, recv_fallback_entry, recv_fallback]
   have eh : Model.depositArm.exec I w =

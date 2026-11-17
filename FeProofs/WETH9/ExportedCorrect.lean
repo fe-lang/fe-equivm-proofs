@@ -233,12 +233,12 @@ theorem decimals_exec : recv_Decimals.exec I w = Model.decimals.exec I w := by
 
 set_option maxHeartbeats 4000000 in
 theorem deposit_exec (hmem : w.memory.size + 160 < UInt256.size) :
-    deposit_Weth9Store_Evm_Evm.exec I w =
+    deposit_Evm_Evm.exec I w =
       withMemory (returned (keyedAll w.memory [(sender I, Model.balanceOfRoot),
           (sender I, Model.balanceOfRoot)]) I.weiValue)
         (Model.deposit.exec I w) := by
   by_cases hp : I.perm = true <;>
-    simp (disch := room) [balanceOfPlace, Evm_caller, deposit_Weth9Store_Evm_Evm, Model.deposit,
+    simp (disch := room) [balanceOfPlace, Evm_caller, deposit_Evm_Evm, Model.deposit,
       Model.balanceSlot, Model.balanceOfRoot, locateAddress_exec, emitDeposit_exec, callvalue,
       hp, exec_sstore, exec_emit]
 
@@ -252,14 +252,14 @@ macro "alike" : tactic =>
 
 section TransferFrom
 
-attribute [local simp] balanceOfPlace allowancePlace transfer_from_Weth9Store_Evm_Evm
+attribute [local simp] balanceOfPlace allowancePlace transfer_from_Evm_Evm
   Model.transferFrom Model.balanceSlot Model.balanceOfRoot Model.allowanceSlot Model.allowanceRoot
   locateAddress_exec locateAddressMap_exec emitTransfer_exec exec_sstore exec_emit M.exec_ite
 
 set_option maxHeartbeats 4000000 in
 /-- Fe's `transfer_from`.  It reads an entry again where the model reuses the word it read. -/
 theorem transferFrom_alike (src dst wad : UInt256) (hmem : w.memory.size + 864 < UInt256.size) :
-    Alike 864 w ((transfer_from_Weth9Store_Evm_Evm src dst wad).exec I w)
+    Alike 864 w ((transfer_from_Evm_Evm src dst wad).exec I w)
       ((Model.transferFrom src dst wad).exec I w) := by
   by_cases hb : (slotWord I w.accounts (Fe.EVM.mapSlot src ⟨3⟩)).toNat < wad.toNat
   · simp (maxSteps := 4000000) (disch := room) [hb, Nat.not_le.mpr hb]

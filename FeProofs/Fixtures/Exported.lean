@@ -153,9 +153,9 @@ def addSpec (amount : UInt256) : FeM UInt256 := do
 
 /-- The exported join block runs after either branch, with that branch's value. -/
 theorem add_exec (amount : UInt256) (I : ExecutionEnv) (w : World) :
-    (add_Store amount).exec I w = (addSpec amount).exec I w := by
+    (add amount).exec I w = (addSpec amount).exec I w := by
   have h10 : (UInt256.ofNat 10).toNat = 10 := rfl
-  by_cases h : 10 < amount.toNat <;> simp [add_Store, addSpec, h, h10]
+  by_cases h : 10 < amount.toNat <;> simp [add, addSpec, h, h10]
 
 end FeProofs.Fixtures.Join
 
