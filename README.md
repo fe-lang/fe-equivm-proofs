@@ -7,8 +7,13 @@ specification written in EquiVM's specification language, Stele.
 
 ## Contracts
 
-Compiled with the Sonatina backend, `-O 1`, Osaka: FeDeposit and WETH9 with Fe 26.6.0
-(`aa5244d43`), the others with Fe 26.5.0 (`22b156fff`).
+Compiled with the Sonatina backend, `-O 1`, Osaka. The bytes of every contract but two are what
+the Fe commit `fe.pin` names compiles (`2f85116a5`, branch `lean-export`, Sonatina `1f042432`), as
+their `*.build.json` record. FeDeposit's certificate is of the bytes of the earlier commit
+`d1761942b4` (Sonatina `490c3325`): Sonatina #534 renumbers values, which changes runtime bytes
+770 to 804 (and their copy in the creation code) with no instruction added or removed, and
+redoing the block proofs over them is deferred. FeIndexedPackedStore's is of the bytes of Fe 26.5.0
+(`22b156fff`), which no later commit makes (its runtime is 343 bytes now, 333 pinned).
 
 | Module | Contract | Theorem |
 | --- | --- | --- |
@@ -392,8 +397,10 @@ fe build FeDeposit.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-by
 fe build FeProofs/WETH9 --contract WETH9 -O 1 --out-dir out --emit bytecode,runtime-bytecode
 ```
 
-FeERC20's, FeDeposit's and WETH9's bytecode is what the Fe commit `fe.pin` names compiles, which
-their `*.build.json` record (`scripts/check_bytecode.sh` checks it). A record's `contract` is the
+Every contract's bytecode but FeDeposit's and FeIndexedPackedStore's is what the Fe commit
+`fe.pin` names compiles, which their `*.build.json` record (`scripts/check_bytecode.sh` checks
+each contract whose record names that commit; the two others name the commits that make their
+bytes). A record's `contract` is the
 name of the contract's files here; where Fe's contract has another name, `compiler.feContract`
 gives it (`DepositContract`, `WETH9`):
 
@@ -406,8 +413,7 @@ fe build FeProofs/ERC20/FeERC20.fe --standalone -O 1 --out-dir out --emit byteco
 
 `FeProofs/Case44Bank` is the contract `Case44Bank` of Fe's `acceptance.fe` alone in a file, whose
 runtime calls an internal function twice, with its bytecode and exported model and no proof yet.
-Its bytecode is built with the Fe commit `Case44Bank.build.json` names, and is the same as the
-compiler of the IR checker's sidecar makes:
+Its bytecode is built with the Fe commit `Case44Bank.build.json` names, the one `fe.pin` names:
 
 ```sh
 fe build FeProofs/Case44Bank/Case44Bank.fe --standalone -O 1 --out-dir out --emit bytecode,runtime-bytecode

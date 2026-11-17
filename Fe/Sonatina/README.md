@@ -50,12 +50,13 @@ whole runtime package as one module (`emit_runtime_package_sonatina_ir_optimized
 compiles each object in its own module (`IsolatedObjectCompiler`). For these single-contract
 files the two are the same text. FeConstant and FeScalarStore have no committed `.sona`.
 
-`fe build --emit sidecar` (Fe branch `sidecar`) closes the gap: it captures the module from the
+`fe build --emit sidecar` (Fe branch `lean-export`) closes the gap: it captures the module from the
 `EvmCompile` that produces the bytecode, right before `compile()`, and writes it with the bytes and
 symbol table of each section of the result (`<Contract>.sidecar.json`). The fixtures here are such
-files, from the `sidecar` branch, whose Sonatina pin is `aa5244d43`'s: FeConstant, FeScalarStore
-and the deposit contract compile to the pinned bytecode, and FeERC20 to its pinned bytecode at the
-commit `fe.pin` names.
+files, written by Fe's `sonatina_corpus` test at the commit `fe.pin` names (`2f85116a5`, Sonatina
+`1f042432`): FeConstant, FeScalarStore, FeERC20, WETH9 and Case44Bank compile to their pinned
+bytecode. The deposit contract's is that compiler's, not FeDeposit's pinned bytes, which are of an
+earlier commit.
 
 ## The subset and its semantics
 
@@ -254,7 +255,7 @@ the sidecar's sections with an ordinary compile for all 248 contracts of the cor
 
 ## The sidecar
 
-JSON per object (version 2), from one compilation: `fe build --emit sidecar`, written by
+JSON per object (version 4, the only version the reader takes), from one compilation: `fe build --emit sidecar`, written by
 `crates/codegen/src/sonatina/sidecar.rs` of Fe from Sonatina's `SectionLowering`
 (`EvmCompile::with_lowering_record`, `crates/codegen/src/object/lowering.rs` and
 `isa/evm/lowering_record.rs` of Sonatina). Values are `v<n>` and blocks `block<n>` of the module
@@ -270,7 +271,7 @@ named; immediates are decimal strings.
 | `lowering.code_size`, `arena_base`, `dyn_base`, `entry_free_ptr` | where code ends; the memory plan's bases; the free pointer the section entry stores | `layout.code_end()`, `EvmSectionPlan`, `EvmMemoryPlacementPlan` |
 | `funcs[].offset` | where the function's code starts, null if merged into another | `ObjectLayout::func_offset` |
 | `funcs[].blocks[]` | per machine block: its source blocks, offset (null if not laid out), the block it is emitted as (jump-only blocks), entry stack top first (`value`, `imm`, `func_return`, `call_return`) | `FuncMachineMap`, `FuncLayout::block_offset`, `block_aliases`, `StackifyAlloc::entry_stacks` (recorded in `plan_block`) |
-| `funcs[].spills[]` | per value: memory address, frame slot or rematerialized | `StackifyAlloc::spill_storage`, `MachineFuncPlan::{obj_loc, spill_obj}` via `FinalAlloc` |
+| `funcs[].spills[]` | per value: memory address, frame slot or rematerialized; the points the code stores it and reloads it at (`stores`, `reloads`: function entry, before or after a machine instruction, or before a `br_table` case), in emission order | `StackifyAlloc::spill_storage`, `MachineFuncPlan::{obj_loc, spill_obj}` via `FinalAlloc`; the emitted spill actions (`VCode::spill_points`) |
 | `funcs[].frame`, `mallocs[]` | stable objects (none, at a base, dynamic frame) and word counts; each source-IR malloc's placement | `MachineFuncPlan`, `EvmFuncPlacementPlan::malloc_placements` |
 | `units[]`, `redirects[]` | outlined code units; every label the late merges redirected (block to block, block to unit, function to function) | `ObjectLayout::section_units`, `VCode::redirects` (recorded in `rewrite_labels` and for fallthrough blocks moved into units) |
 
@@ -582,6 +583,15 @@ FeERC20's (`FeProofs/ERC20/Sonatina*.lean`) is the same for the pinned bytecode 
 (`feERC20RefinesExportedP1`, `feERC20DeployRefinesExportedP1`). `ir_dispatch` takes the runtime
 from its entry to the block of the selector's arm, one lemma per arm runs that block to its end
 against the arm of the exported contract from any environment, and `runtime_endsAs` composes them.
+The proofs name no block and no value of the machine IR: an arm's block is
+`runtimeFunc.caseBlock k`, the block the dispatcher's `br_table` sends selector `k` to, which
+`sonatina_func` evaluates from the fixture (`caseBlock_k`, a `simp` lemma `ir_step` uses), and
+`ir_step` finds every other block and value itself. They build unchanged on a copy of the
+fixture whose machine IR has every block but the entry renumbered and every value shifted
+(`scripts/renumber_sidecar.py`), so a compiler change that only renumbers costs the
+fixture and the bytes, not the proofs. What they still write down are the selectors, the
+section sizes and the runtime's offset in the creation code (`Sonatina.lean`,
+`SonatinaCorrect.lean`), which change with the bytes.
 
 WETH9's (`FeProofs/WETH9/Sonatina*.lean`, in progress) is of the pinned `FeProofs/WETH9/runtime.hex`
 and `creation.hex` themselves: Fe `8a33d20257` (Sonatina `bd20fac3`, `-O 1`) compiles
@@ -636,7 +646,7 @@ frames. The certificates evaluate `check`, which reads no spill plan; its kernel
 
 **The class.** Functions may spill to memory words; frame spills, dynamic and lazy frames, the
 dynamic stack pointer and call preserves stay outside. `undef` operands are rejected as before (the
-instrumented model never takes `undef` for a word).
+instrumented model never takes `undef` for a word); since Sonatina #537 the machine IR has none.
 
 **The instrumented model** (`Spill.lean`, `Plan.lean`). A `SpillPlan` gives per function each
 spilled value, its word and its reload points; `Func.instrument` adds the stores the bytes make as
@@ -649,6 +659,19 @@ of each statement is the words of the values reload-live after it that it does n
 callers'; the runner (`runFuncG`) panics with `spillClobbered` where a statement changed one.
 `Sidecar.spillPlan` (`FrameSafe.lean`, untrusted, the only place the plan's source appears) finds
 the reload points by walking the bytes.
+
+The lowering record (version 4) states each spill's store and reload points too (`SpillHint`),
+which the reader keeps and the plan does not yet use. `scripts/SonatinaCheck.lean` compares them
+with the plan, by block: the values the record reloads in each block against those the walk
+found, and the words it stores to against those the instrumented machine IR stores to. On the
+corpus every section with spills agrees. Taking the plan from the record instead of the walk is
+not a change of one definition: a plan's point is a position in the instrumented block (before
+the next event), and the record's is a machine instruction. Where a block ends in a jump to a
+spilled phi, the bytes interleave the phi's edge stores with reloads of its operands, and the
+record gives each value's points in order but not their order among the other values' at one
+instruction, which the plan's position needs. The record would need one sequence over each
+point's spill actions (or the checker would read reload liveness at machine-instruction
+granularity); the walk could then go.
 
 **The checker** (`Check.lean`). Each function is checked against its instrumented machine IR
 (`checkSection code entry plan`, on `Module.instrument plan`), under the guard the model runs it
@@ -707,7 +730,17 @@ values the machine IR does not define (the values it gives `undef` operands, whi
 keeps as `undef`), 2 `br_table`s without a default and 1 dynamic frame. Of the 27 functions with
 memory spills of the precompile runtimes, 17 are accepted; the other 10 are Modexp's with `undef`
 operands. The corpus run of `scripts/SonatinaCheck.lean`, plans and fixed-slot check included,
-takes 2 min 14 s. The fixtures' verdicts are unchanged; `NestedArrayCaller`
+takes 2 min 14 s.
+
+`corpus-v6` is the corpus at Fe `2f85116a5` (Sonatina `sidecar-main` `1f042432`, on Sonatina
+`main` with #537, which gives `undef` operands as `PUSH0`, and #538, which gives every `br_table` a
+default), version 4, 257 sidecars, 514 sections, the machine IR without `undef`. `check` accepts
+504 and rejects 10, the 9 runtimes with memory spills and the dynamic frame;
+`checkSpills` accepts 513 and rejects 1, the dynamic frame (`storage_map_recursive_views.C`).
+`erc4337.Account`, `signature.Wallet` and `mem_replace_take.C` lost their spills with `undef`,
+`mul_div.MulDivProbe` and `msg_enum_field.Paymaster` have defaults now, and Modexp is accepted by
+`checkSpills`. In all 9 sections with spills the record's stores and reloads agree with the plan.
+The fixtures' verdicts are unchanged; `NestedArrayCaller`
 (`msg_nested_array_arg.Caller`) is a fixture with spills, accepted by `checkSpills` only, and its
 runtime takes the spill mutations, each rejected: two reload words swapped in the bytes, a spill
 store dropped from the bytes, a store to the wrong word, a spill word changed in the record only,
