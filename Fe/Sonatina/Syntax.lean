@@ -202,6 +202,26 @@ inductive SpillLocation where
   | rematerialized
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
+/-- A point of a function's machine IR at which its code runs the stack allocator's moves: the
+    function's entry, before or after the instruction at `index` of `block` (counting its phis
+    first and its terminator last), or before the comparison of case `case` of the `br_table`
+    at `index`. -/
+inductive CodePoint where
+  | entry
+  | before (block index : Nat)
+  | after (block index : Nat)
+  | case (block index case : Nat)
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
+/-- A value the stack does not always hold: where it is kept, and the points at which the code
+    stores it there and reloads it from there, each in emission order. -/
+structure SpillHint where
+  value : Nat
+  location : SpillLocation
+  stores : List CodePoint
+  reloads : List CodePoint
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
 /-- A block of the machine IR: the source blocks it comes from, where its code starts if it is
     laid out, the block it is emitted as if it is only a jump, and its entry stack, top first. -/
 structure BlockHint where
@@ -235,7 +255,7 @@ structure FuncHint where
   name : String
   offset : Option Nat
   blocks : List BlockHint
-  spills : List (Nat × SpillLocation)
+  spills : List SpillHint
   frame : FrameHint
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 

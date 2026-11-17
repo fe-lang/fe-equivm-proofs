@@ -858,7 +858,7 @@ def nodup : List Nat → Bool
 
 /-- Whether the function's code does nothing to memory beyond its machine IR. -/
 def inClass (f : FuncHint) : Bool :=
-  f.spills.all (fun (_, l) => !(l matches .frame _)) && !f.frame.dynamicFrame &&
+  f.spills.all (fun sp => !(sp.location matches .frame _)) && !f.frame.dynamicFrame &&
     !f.frame.lazyFrame && !f.frame.dynSpInit && f.frame.callPreserves == 0
 
 /-- The blocks from which the function may return: those that end in `ret`, and those with a

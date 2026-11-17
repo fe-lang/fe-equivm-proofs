@@ -417,6 +417,16 @@ def parseLocation (json : Json) : P SpillLocation := do
   | ("rematerialized", _) => return .rematerialized
   | (name, _) => throw s!"unknown spill location {name}"
 
+def parsePoint (json : Json) : P CodePoint := do
+  match ← variant json with
+  | ("entry", _) => return .entry
+  | ("before", v) => return .before (← v.getObjValAs? Nat "block") (← v.getObjValAs? Nat "index")
+  | ("after", v) => return .after (← v.getObjValAs? Nat "block") (← v.getObjValAs? Nat "index")
+  | ("case", v) =>
+    return .case (← v.getObjValAs? Nat "block") (← v.getObjValAs? Nat "index")
+      (← v.getObjValAs? Nat "case")
+  | (name, _) => throw s!"unknown code point {name}"
+
 def parseLabel (json : Json) : P CodeLabel := do
   match ← variant json with
   | ("block", v) =>
@@ -436,7 +446,12 @@ def parseLowering (json : Json) : P Lowering := do
                 entryStack := ← (← b.getObjValAs? (Array Json) "entry_stack").toList.mapM
                   parseSlot } : BlockHint)
     let spills ← (← f.getObjValAs? (Array Json) "spills").toList.mapM fun s => do
-      return (← s.getObjValAs? Nat "value", ← parseLocation (← s.getObjVal? "location"))
+      let points (key : String) : P (List CodePoint) := do
+        (← s.getObjValAs? (Array Json) key).toList.mapM parsePoint
+      return ({ value := ← s.getObjValAs? Nat "value"
+                location := ← parseLocation (← s.getObjVal? "location")
+                stores := ← points "stores"
+                reloads := ← points "reloads" } : SpillHint)
     let frame ← f.getObjVal? "frame"
     let (stable, _) ← variant (← frame.getObjVal? "stable")
     let frame : FrameHint :=
@@ -462,7 +477,7 @@ def parseLowering (json : Json) : P Lowering := do
            funcs, units, redirects }
 
 /-- The sidecar version this reader reads. -/
-def sidecarVersion : Nat := 3
+def sidecarVersion : Nat := 4
 
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
 def parseSidecar (text : String) : P Sidecar := do

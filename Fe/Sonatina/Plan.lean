@@ -42,8 +42,8 @@ def FuncPlan.words (p : FuncPlan) : List (Nat × Nat) := p.map fun sp => (sp.val
 
 /-- The memory spills of a function in the lowering record: each value and its word. -/
 def FuncHint.spillWords (h : FuncHint) : List (Nat × Nat) :=
-  h.spills.filterMap fun (v, l) => match l with
-    | .memory w => some (v, w)
+  h.spills.filterMap fun sp => match sp.location with
+    | .memory w => some (sp.value, w)
     | _ => none
 
 /-! ## The instrumented machine IR -/

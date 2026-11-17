@@ -10,8 +10,9 @@ of a factory's creation, of a leading-zeros probe's `CLZ` and of the memory spil
 `NestedArrayCaller`, which it must reject, and on every sidecar of a directory, as
 `SONATINA_CHECK_DIR` names, with a line per section (its verdict under `check` and under
 `checkSpills`, each section under its walked spill plan), per sidecar with spills (the fixed-slot
-check) and per sidecar the reader rejects, counting the sections each accepts and why
-`checkSpills` rejects the others.
+check), per section whose lowering record's spill stores and reloads disagree with its plan
+(`recordDisagreements`), and per sidecar the reader rejects, counting the sections each accepts
+and why `checkSpills` rejects the others.
 Run with `lake env lean scripts/SonatinaCheck.lean`.
 -/
 
@@ -162,8 +163,8 @@ def wordSites (c : CodeSection) (words : List Nat) (op : Ethereum.Operation) :
 /-- The section with the spill word of value `v` in the record `w`. -/
 def setSpillWord (v w : Nat) (c : CodeSection) : CodeSection :=
   { c with lowering := c.lowering.map fun l => { l with funcs := l.funcs.map fun f =>
-      { f with spills := f.spills.map fun (x, loc) =>
-        if x == v then (x, .memory w) else (x, loc) } } }
+      { f with spills := f.spills.map fun sp =>
+        if sp.value == v then { sp with location := .memory w } else sp } } }
 
 /-- The spill-aware checker's verdict on section `name` of `s` changed by `m`, its plan the
     walk's on the changed section, or `plan` if given. -/
@@ -251,6 +252,42 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
   [("NOT for CLZ in the bytes", clzBytes 0x19), ("ISZERO for CLZ in the bytes", clzBytes 0x15),
    ("not for clz in the IR", clzInsts .not), ("is_zero for clz in the IR", clzInsts .isZero)]
 
+/-- The block a code point is in; the entry block for the function's entry. -/
+def Fe.Sonatina.CodePoint.blockIn (entry : Nat) : CodePoint → Nat
+  | .entry => entry
+  | .before b _ | .after b _ | .case b _ _ => b
+
+/-- Where the lowering record and the spill plan of a section disagree, by block: the values the
+    record reloads in each block against those the walk of the bytes found
+    (`CodeSection.spillPlan`), and the words the record stores to in each block against those
+    its instrumented machine IR stores to (`Func.instrument`).  Stores are compared by word, as
+    a phi and its operand may share one: the store on the edge is then of both. -/
+def recordDisagreements (code : CodeSection) (plan : SpillPlan) : List String := Id.run do
+  let some low := code.lowering | return []
+  let mut out := []
+  for hint in low.funcs do
+    let some p := plan.lookup hint.name | continue
+    let some f := low.machine.func? hint.name | continue
+    let entry := (f.blocks.head?.map (·.id)).getD 0
+    let fi := f.instrument p.words
+    let reloads := normSet' (hint.spills.flatMap fun sp =>
+      sp.reloads.map fun pt => (sp.value, pt.blockIn entry))
+    let walked := normSet' (p.flatMap fun sp => sp.reloads.map fun (b, _) => (sp.value, b))
+    let stores := normSet' (hint.spills.flatMap fun sp => match p.words.lookup sp.value with
+      | some w => sp.stores.map fun pt => (w, pt.blockIn entry)
+      | none => [])
+    let stored := normSet' (fi.blocks.flatMap fun b =>
+      b.body.filterMap fun s => (storedValue fi p.words b s).map fun (w, _) => (w, b.id))
+    for (what, r, m) in [("reloads (value, block)", reloads, walked),
+        ("stores (word, block)", stores, stored)] do
+      unless r == m do
+        out := out ++ [s!"{hint.name} {what}: record only {r.filter (!m.contains ·)}, \
+          plan only {m.filter (!r.contains ·)}"]
+  return out
+where
+  normSet' (xs : List (Nat × Nat)) : List (Nat × Nat) :=
+    (xs.mergeSort fun a b => a.1 < b.1 || (a.1 == b.1 && a.2 ≤ b.2)).eraseDups
+
 #eval show IO Unit from do
   for f in ["FeConstant", "FeScalarStore", "FeERC20", "DepositContract", "Case44Bank",
       "TypedCallsTarget", "WETH9", "ReentrancyMutex", "Factory", "BitsProbe",
@@ -272,6 +309,8 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
             if Check.checkSection changed entry (changed.spillPlan entry) matches .ok () then
               IO.println s!"  MUTANT ACCEPTED {what}"
         if f == "NestedArrayCaller" && name == "runtime" then
+          for d in recordDisagreements code (code.spillPlan entry) do
+            IO.println s!"  RECORD {d}"
           for (what, v) in spillMutations s name entry do
             IO.println s!"  SPILL MUTANT {what}: {v}"
         if f == "Case44Bank" && name == "runtime" then
@@ -316,7 +355,8 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
 
 #eval show IO Unit from do
   let some dir ← IO.getEnv "SONATINA_CHECK_DIR" | return
-  let mut (accepted, acceptedS, rejected, unparsed) := (0, 0, (#[] : Array String), 0)
+  let mut (accepted, acceptedS, rejected, unparsed, spilled, agree) :=
+    (0, 0, (#[] : Array String), 0, 0, 0)
   for entry in (← System.FilePath.readDir dir).qsort (·.fileName < ·.fileName) do
     unless entry.fileName.endsWith ".sidecar.json" do continue
     match Parse.parseSidecar (← IO.FS.readFile entry.path) with
@@ -339,12 +379,18 @@ def clzMutations : List (String × (CodeSection → CodeSection)) :=
           | .ok () => "accepted"
           | .error e => s!"rejected: {e}"
         IO.println s!"SECTION {entry.fileName} {name} check={say plain} checkSpills={say withSpills}"
+        if spills then
+          let ds := recordDisagreements code (plan name)
+          spilled := spilled + 1
+          if ds.isEmpty then agree := agree + 1
+          for d in ds do IO.println s!"RECORD {entry.fileName} {name} {d}"
         if plain matches .ok () then accepted := accepted + 1
         if withSpills matches .ok () then acceptedS := acceptedS + 1
         match withSpills with
         | .error e => rejected := rejected.push e
         | .ok () => pure ()
   IO.println s!"sidecars unparsed {unparsed}; sections accepted by check {accepted}, by checkSpills {acceptedS}, rejected by checkSpills {rejected.size}"
+  IO.println s!"sections with spills {spilled}, their record's stores and reloads agreeing with the plan {agree}"
   let reasons := rejected.toList.map fun e =>
     String.ofList ((e.splitOn ": ").getLast!.toList.filter (!·.isDigit))
   for r in reasons.eraseDups do
