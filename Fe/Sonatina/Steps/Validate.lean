@@ -1,6 +1,7 @@
 import Fe.Sonatina.Steps.CfgCleanup
 import Fe.Sonatina.Steps.BranchCanon
 import Fe.Sonatina.Steps.Record
+import Fe.Sonatina.Steps.SchemasStep
 
 /-!
 # Validating a record of machine steps
@@ -60,6 +61,8 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .cfgCleanup, O, f, ids, s, F => noFacts F && checkCfgCleanup O f ids s
   | .branchCanonicalize, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
   | .branchConditions, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
+  | .knownBitsSimplify, _, f, ids, s, F => Schemas.checkKnownBitsSimplify f ids s F
+  | .sccpFold, _, f, ids, s, F => Schemas.checkSccpFold f ids s F
   | _, _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/
