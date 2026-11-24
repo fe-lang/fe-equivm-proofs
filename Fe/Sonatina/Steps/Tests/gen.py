@@ -387,3 +387,72 @@ write("cc_bad_unread.json", one("cfg_cleanup", "f", mg_in, mg_out(),
 # The reader keeps `"demanded_bits": []` (a demand round in which no value has a demanded bit).
 write("rd_demand_empty.json", one("known_bits_simplify", "f", es_in, es_in, with_facts(demanded_bits=[])))
 write("rd_demand_none.json", one("known_bits_simplify", "f", es_in, es_in))
+
+# coalesce_copies.
+def kc(blocks_in, blocks_out, params=(), rets=("i256",)):
+    """blocks: list of (id, lines, ids)."""
+    inp = snap("f", list(params), list(rets), [(b, ls) for b, ls, _ in blocks_in], [i for _, _, i in blocks_in])
+    out = snap("f", list(params), list(rets), [(b, ls) for b, ls, _ in blocks_out], [i for _, _, i in blocks_out])
+    return one("coalesce_copies", "f", inp, out)
+def ids_from(n, k=0): return list(range(k, k + n))
+L = lambda *xs: list(xs)
+RET = "return 0.i256"
+# Two words, constant ranges, all loads first (snapshot).
+copy2 = ["v1.i256 = evm_mload 256.i256", "v2.i256 = evm_mload 288.i256",
+         "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v2"]
+def run_in(lines): return [(0, lines + [RET], ids_from(len(lines) + 1))]
+def run_out(lines, ids): return [(0, lines + [RET], ids)]
+write("kc_const.json", kc(run_in(copy2), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 4])))
+# Interleaved, constant and disjoint.
+inter = ["v1.i256 = evm_mload 256.i256", "evm_mstore 512.i256 v1",
+         "v2.i256 = evm_mload 288.i256", "evm_mstore 544.i256 v2"]
+write("kc_interleaved.json", kc(run_in(inter), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 4])))
+# Addresses through add chains, the adds deleted; three words.
+arith = ["v1.i256 = evm_mload 256.i256", "v2.i256 = add 256.i256 32.i256",
+         "v3.i256 = evm_mload v2", "v4.i256 = add v2 32.i256", "v5.i256 = evm_mload v4",
+         "evm_mstore 512.i256 v1", "v6.i256 = add 512.i256 32.i256", "evm_mstore v6 v3",
+         "v8.i256 = add v6 64.i256", "v7.i256 = sub v8 32.i256", "evm_mstore v7 v5"]
+write("kc_arith.json", kc(run_in(arith), run_out(["evm_mcopy 512.i256 256.i256 96.i256"], [10, 11])))
+# An add of the window used after it stays.
+keep_in = [(0, copy2[:2] + ["v6.i256 = add 512.i256 32.i256"] + copy2[2:] + ["return v6"], ids_from(6))]
+keep_out = [(0, ["v6.i256 = add 512.i256 32.i256", "evm_mcopy 512.i256 256.i256 64.i256", "return v6"], [2, 4, 5])]
+write("kc_keep_add.json", kc(keep_in, keep_out))
+# Two runs in one block and one in another block.
+copyb = ["v11.i256 = evm_mload 1024.i256", "v12.i256 = evm_mload 1056.i256",
+         "evm_mstore 2048.i256 v11", "evm_mstore 2080.i256 v12"]
+copyc = ["v21.i256 = evm_mload 4096.i256", "v22.i256 = evm_mload 4128.i256",
+         "evm_mstore 8192.i256 v21", "evm_mstore 8224.i256 v22"]
+two_in = [(0, copy2 + copyb + ["jump block1"], ids_from(9)), (1, copyc + [RET], ids_from(5, 9))]
+two_out = [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "evm_mcopy 2048.i256 1024.i256 64.i256", "jump block1"], [3, 7, 8]),
+           (1, ["evm_mcopy 8192.i256 4096.i256 64.i256", RET], [12, 13])]
+write("kc_two_runs.json", kc(two_in, two_out))
+# Rejected: interleaved and overlapping; a length other than 32 n; store i not storing load i;
+# a load used twice; a base-relative run (stage 1); a store outside a run deleted; a changed
+# copy operand; addresses not contiguous; another instruction in the window; one word; a range
+# past 2^256; a kept add moved after the copy.
+over = ["v1.i256 = evm_mload 256.i256", "evm_mstore 288.i256 v1",
+        "v2.i256 = evm_mload 288.i256", "evm_mstore 320.i256 v2"]
+write("kc_bad_overlap.json", kc(run_in(over), run_out(["evm_mcopy 288.i256 256.i256 64.i256"], [3, 4])))
+write("kc_bad_len.json", kc(run_in(copy2), run_out(["evm_mcopy 512.i256 256.i256 96.i256"], [3, 4])))
+swap = copy2[:2] + ["evm_mstore 512.i256 v2", "evm_mstore 544.i256 v1"]
+write("kc_bad_order.json", kc(run_in(swap), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 4])))
+twouse = copy2[:2] + ["v9.i256 = add v1 0.i256"] + copy2[2:]
+write("kc_bad_twouse.json", kc(run_in(twouse), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [4, 5])))
+base = ["v1.i256 = evm_mload v0", "v2.i256 = add v0 32.i256", "v3.i256 = evm_mload v2",
+        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
+write("kc_bad_base.json", kc([(0, base + [RET], ids_from(6))],
+    [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256",)))
+outside = copy2 + ["evm_mstore 768.i256 7.i256"]
+write("kc_bad_store.json", kc(run_in(outside), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 5])))
+write("kc_bad_operand.json", kc(run_in(copy2), run_out(["evm_mcopy 512.i256 288.i256 64.i256"], [3, 4])))
+gap = ["v1.i256 = evm_mload 256.i256", "v2.i256 = evm_mload 320.i256",
+       "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v2"]
+write("kc_bad_gap.json", kc(run_in(gap), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 4])))
+other = copy2[:2] + ["evm_sstore 0.i256 1.i256"] + copy2[2:]
+write("kc_bad_other.json", kc(run_in(other), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [4, 5])))
+write("kc_bad_one.json", kc(run_in(copy2[:1] + copy2[2:3]), run_out(["evm_mcopy 512.i256 256.i256 32.i256"], [1, 2])))
+big = 2**256 - 32
+past = [f"v1.i256 = evm_mload {big}.i256", f"v2.i256 = add {big}.i256 32.i256", "v3.i256 = evm_mload v2",
+        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
+write("kc_bad_past.json", kc(run_in(past), run_out([f"evm_mcopy 512.i256 {big}.i256 64.i256"], [4, 5])))
+write("kc_bad_moved.json", kc(keep_in, [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "v6.i256 = add 512.i256 32.i256", "return v6"], [4, 2, 5])]))

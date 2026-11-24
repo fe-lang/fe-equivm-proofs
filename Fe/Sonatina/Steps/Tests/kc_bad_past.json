@@ -1,0 +1,54 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f() -> i256 {\n    block0:\n        v1.i256 = evm_mload 115792089237316195423570985008687907853269984665640564039457584007913129639904.i256;\n        v2.i256 = add 115792089237316195423570985008687907853269984665640564039457584007913129639904.i256 32.i256;\n        v3.i256 = evm_mload v2;\n        evm_mstore 512.i256 v1;\n        evm_mstore 544.i256 v3;\n        return 0.i256;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "coalesce_copies",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "coalesce_copies",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f() -> i256 {\n    block0:\n        evm_mcopy 512.i256 115792089237316195423570985008687907853269984665640564039457584007913129639904.i256 64.i256;\n        return 0.i256;\n}\n",
+        "insts": [
+         [
+          4,
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

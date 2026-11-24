@@ -45,11 +45,27 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
       return s!"block {ob.id}: {part}"
   return "instruction ids"
 
+/-- The kinds with a checker. -/
+def checked : List StepKind :=
+  [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies]
+
+/-- Why `checkCoalesce` rejects: a base-relative copy (stage 1), or the first block that fails. -/
+def kcReason (f f' : Func) : String := Id.run do
+  let X := KCtx.of f f'
+  if !(X.T.valid f && ssa f X.T) then return "input dominators or SSA rejected"
+  let base := f'.blocks.any fun b => b.body.any fun s => match s.inst with
+    | .evm .mcopy [d, src, _] => (X.norm d).1.isSome || (X.norm src).1.isSome
+    | _ => false
+  if base then return "base-relative copy (stage 1)"
+  for (b', b) in f'.blocks.zip f.blocks do
+    if !X.blockOk b' b then return s!"block {b.id}"
+  if !unusedOk' f f' then return "deleted value used"
+  return "function"
+
 /-- Why `checkStep` rejects a function step. -/
 def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : FuncStep) : String :=
-  if !(k == .edgeSplit || k == .cfgCleanup || k == .branchCanonicalize ||
-      k == .branchConditions) then "no checker"
+  if !checked.contains k then "no checker"
   else if !noFacts fs.facts then "facts present"
   else if !fs.out.func.machine then "output not machine IR"
   else if !fs.out.wf M.sig syms then "output not well formed"
@@ -60,10 +76,10 @@ def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M :
   else if k == .cfgCleanup then match M.func? fs.func with
     | some f => cfgReason O f (I.lookup fs.func) fs.out
     | none => "no such function"
+  else if k == .coalesceCopies then match M.func? fs.func with
+    | some f => kcReason f fs.out.func
+    | none => "no such function"
   else "check rejects"
-
-/-- The kinds with a checker. -/
-def checked : List StepKind := [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
 
 /-- Every function step's verdict, the replay trusting the record past rejected steps. -/
 def stepReport (syms : List String) (r : MachineSteps) (final : Module) : List String := Id.run do
