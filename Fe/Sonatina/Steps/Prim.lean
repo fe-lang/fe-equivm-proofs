@@ -239,10 +239,11 @@ macro_rules
 
 /-- An instruction of the machine IR run in an environment that binds less approximates it run
     in the larger one. -/
-theorem Approx.runInst {env' env : Env} (h : EnvSub env' env) (c : Ctx) (i : Inst)
-    (hi : i.machine = true) :
-    Approx Eq (Fe.Sonatina.runInst c env' i) (Fe.Sonatina.runInst c env i) := by
-  cases i <;> simp only [Inst.machine, Bool.false_eq_true] at hi <;> simp only [Fe.Sonatina.runInst] <;> approx_auto
+theorem Approx.runInst {env' env : Env} (h : EnvSub env' env) {c' c : Ctx}
+    (hc : c'.symbol = c.symbol) (i : Inst) (hi : i.machine = true) :
+    Approx Eq (Fe.Sonatina.runInst c' env' i) (Fe.Sonatina.runInst c env i) := by
+  cases i <;> simp only [Inst.machine, Bool.false_eq_true] at hi <;>
+    simp only [Fe.Sonatina.runInst, hc] <;> approx_auto
 
 theorem Approx.bindVals (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) :
     Approx Eq (Fe.Sonatina.bind env dsts vals) (Fe.Sonatina.bind env dsts vals) := by

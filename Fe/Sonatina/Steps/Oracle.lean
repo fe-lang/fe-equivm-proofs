@@ -112,35 +112,35 @@ def runFuncO (o : Oracle) (c : Ctx) (f : Option Func) (args : List Val) : FeM (L
 
 /-- Statements run with calls by an oracle that approximates another approximate them run with
     calls by it. -/
-theorem Approx.runBodyO {o' o : Oracle} (ho : o'.Le o) (c : Ctx) :
+theorem Approx.runBodyO {o' o : Oracle} (ho : o'.Le o) {c' c : Ctx} (hc : c'.symbol = c.symbol) :
     ∀ (env : Env) (stmts : List Stmt), (∀ s ∈ stmts, s.inst.machine = true) →
-      Approx Eq (Steps.runBodyO o' c env stmts) (Steps.runBodyO o c env stmts)
+      Approx Eq (Steps.runBodyO o' c' env stmts) (Steps.runBodyO o c env stmts)
   | env, [], _ => Approx.pure_eq _
   | env, s :: rest, hm => by
     unfold Steps.runBodyO
     have h := EnvSub.refl env
     have hs := hm s (List.mem_cons_self ..)
     refine Approx.bind (R := Eq) ?_ fun vals _ e => e ▸ Approx.bind_eq (Approx.bindVals _ _ _)
-      fun env' => Approx.runBodyO ho c env' rest fun s hs => hm s (List.mem_cons_of_mem _ hs)
+      fun env' => Approx.runBodyO ho hc env' rest fun s hs => hm s (List.mem_cons_of_mem _ hs)
     unfold runStmtO
     split
     · exact Approx.bind (R := Eq) (Approx.mapM' (Approx.evalOperand h) _) fun _ _ e => e ▸ ho _ _
-    · exact Approx.runInst h c _ hs
+    · exact Approx.runInst h hc _ hs
 
 theorem Approx.runTerm (env : Env) (t : Term) :
     Approx Eq (Steps.runTerm env t) (Steps.runTerm env t) := by
   have h := EnvSub.refl env
   cases t <;> unfold Steps.runTerm <;> approx_auto
 
-theorem Approx.stepBlock {o' o : Oracle} (ho : o'.Le o) (c : Ctx) {f : Func}
-    (hf : f.machine = true) (env : Env) (prev : Option Nat) (id : Nat) :
-    Approx Eq (Steps.stepBlock o' c f env prev id) (Steps.stepBlock o c f env prev id) := by
+theorem Approx.stepBlock {o' o : Oracle} (ho : o'.Le o) {c' c : Ctx} (hc : c'.symbol = c.symbol)
+    {f : Func} (hf : f.machine = true) (env : Env) (prev : Option Nat) (id : Nat) :
+    Approx Eq (Steps.stepBlock o' c' f env prev id) (Steps.stepBlock o c f env prev id) := by
   unfold Steps.stepBlock
   cases hb : f.block? id with
   | none => exact Approx.stuck _
   | some b =>
     exact Approx.bind_eq (Approx.enter _ _ _) fun env₁ =>
-      Approx.bind (R := Eq) (Approx.runBodyO ho c env₁ b.body (Func.machine_block hf hb))
+      Approx.bind (R := Eq) (Approx.runBodyO ho hc env₁ b.body (Func.machine_block hf hb))
         fun env₂ _ e => e ▸ Approx.runTerm _ _
 
 /-- The machine IR's run of a block is one `stepBlock` with the module's semantics as the oracle,
@@ -295,16 +295,17 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
 /-- The run of a module approximates an oracle if the iteration `TB` of `stepBlock` with calls
     by the oracle does, function by function.  By fixpoint induction over the module's mutual
     runner; the oracle is fixed throughout. -/
-theorem runFunc_approx {N : Module} (hN : N.machine = true) {c : Ctx} {o : Oracle}
+theorem runFunc_approx {N : Module} (hN : N.machine = true) {c' c : Ctx}
+    (hc : c'.symbol = c.symbol) {o : Oracle}
     {TB : Func → Env → Option Nat → Nat → FeM (List Val)}
     (hTB : ∀ f env prev id, TB f env prev id = (stepBlock o c f env prev id >>= fun
       | .goto env d => TB f env (some id) d | .done v => pure v))
     (hF : ∀ name args x, Approx Eq x (runFuncT TB (N.func? name) args) →
       Approx Eq x (o name args)) :
-    ∀ name args, Approx Eq (runFunc N c name args) (o name args) := by
+    ∀ name args, Approx Eq (runFunc N c' name args) (o name args) := by
   intro name args
   rw [← runFuncG_none]
-  refine runFuncG.fixpoint_induct Guard.none N c
+  refine runFuncG.fixpoint_induct Guard.none N c'
     (fun H => ∀ env stmts, (∀ s ∈ stmts, s.inst.machine = true) →
       Approx Eq (H [] [] env stmts) (runBodyO o c env stmts))
     (fun F => ∀ name args, Approx Eq (F [] name args) (o name args))
@@ -357,7 +358,7 @@ theorem runFunc_approx {N : Module} (hN : N.machine = true) {c : Ctx} {o : Oracl
       case call callee args =>
         exact Approx.bind (Approx.mapM (Approx.evalOperand (EnvSub.refl env)) _)
           fun _ _ e => e ▸ hF _ _
-      all_goals exact Approx.runInst (EnvSub.refl env) c _ hs
+      all_goals exact Approx.runInst (EnvSub.refl env) hc _ hs
   case s2 =>
     intro G hG name args
     simp only [guarded]
@@ -387,11 +388,16 @@ theorem runFunc_approx {N : Module} (hN : N.machine = true) {c : Ctx} {o : Oracl
         Approx.bind (hH env₁ b.body (Func.machine_block hf hb)) fun env₂ _ e => e ▸
           approx_termCont (fun env prev id => hG f env prev id hf) id env₂ b.term
 
-/-- Reflexivity: the run of a machine module approximates itself from related worlds. -/
-theorem runFunc_mono {M : Module} (hM : M.machine = true) (c : Ctx) :
-    Oracle.Le (runFunc M c) (runFunc M c) :=
-  runFunc_approx hM (TB := runBlocks M c) (fun f env prev id => runBlocks_iter M c f env prev id)
+/-- C0 and reflexivity: the run of a machine module approximates itself from related worlds,
+    under any context with the same symbols: the rest of a context is read only by
+    `evm_malloc` and `alloca`. -/
+theorem runFunc_ctx {M : Module} (hM : M.machine = true) {c' c : Ctx}
+    (hc : c'.symbol = c.symbol) : Oracle.Le (runFunc M c') (runFunc M c) :=
+  runFunc_approx hM hc (TB := runBlocks M c) (fun f env prev id => runBlocks_iter M c f env prev id)
     fun name args x hx => by rwa [runFunc_eq_runFuncT]
+
+theorem runFunc_mono {M : Module} (hM : M.machine = true) (c : Ctx) :
+    Oracle.Le (runFunc M c) (runFunc M c) := runFunc_ctx hM rfl
 
 /-- A function of a machine module, run with calls by the module's semantics, approximates its
     run in the module. -/
@@ -411,7 +417,7 @@ theorem runFuncO_approx {M : Module} (hM : M.machine = true) (c : Ctx) (name : S
           Approx Eq x (runBlocks M c f env prev id)) fun id => admissible_approx' _ _
     · intro G hG env prev id
       rw [runBlocks_iter]
-      exact Approx.bind (Approx.stepBlock (runFunc_mono hM c) c hf env prev id) fun n _ e => by
+      exact Approx.bind (Approx.stepBlock (runFunc_mono hM c) rfl hf env prev id) fun n _ e => by
         subst e
         cases n with
         | goto env' d => exact hG _ _ _
@@ -453,7 +459,7 @@ theorem FuncRef.trans {o : Oracle} {c : Ctx} {f'' f' f : Option Func} (h₁ : Fu
     per-function lemma therefore fixes one oracle, the semantics of the input module. -/
 theorem modRefines_of_funcs {M' M : Module} (hM : M.machine = true) (hM' : M'.machine = true)
     (h : ∀ c name, FuncRef (runFunc M c) c (M'.func? name) (M.func? name)) : ModRefines M' M :=
-  fun c => runFunc_approx hM' (TB := runBlocksO (runFunc M c) c)
+  fun c => runFunc_approx hM' rfl (TB := runBlocksO (runFunc M c) c)
     (fun f env prev id => by rw [runBlocksO])
     fun name args x hx => (hx.trans_eq (h c name args)).trans_eq (runFuncO_approx hM c name args)
 
