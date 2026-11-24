@@ -1,5 +1,6 @@
 import FeProofs.ScalarStore.SpecCorrect
 import FeSpecProofs.ScalarStoreInit
+import FeProofs.ScalarStore.SpecSource
 
 /-!
 # FeScalarStore: deployment refines the interpreter's `initEntry`
