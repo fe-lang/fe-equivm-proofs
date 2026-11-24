@@ -6,6 +6,11 @@ import Fe.Sonatina.Steps.Read
 version-5 sidecar, whether `validateWith` with the comma-separated step kinds accepts its
 record against its machine IR, and if not, the first step that fails and why.  Interpreted, not
 kernel-evaluated: the verdicts are `validateWith`'s, the reasons a diagnostic replay of it.
+
+With `steps` for the kinds: every function step of every section, its kind and its check's
+verdict (`ACCEPT`, `REJECT` with the reason, or `UNPROVED` for a kind with no checker), and every
+pass whose summary table fails (`SUMMARIES`); the replay goes on past rejected steps, trusting
+the record.
 -/
 
 open Fe.Sonatina Fe.Sonatina.Steps
@@ -15,7 +20,7 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
     (s : FuncSnap) : String := Id.run do
   let f' := s.func
   let X := CCtx.of O f f'
-  let some ids := ids | return "no input ids"
+  if ids.isNone then return "no input ids"
   let (some e, some e') := (f.blocks.head?, f'.blocks.head?) | return "no entry"
   if e.id != e'.id then return "entry changed"
   if f'.params != f.params then return "parameters changed"
@@ -40,6 +45,41 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
       return s!"block {ob.id}: {part}"
   return "instruction ids"
 
+/-- Why `checkStep` rejects a function step. -/
+def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
+    (I : IdTab) (fs : FuncStep) : String :=
+  if !fs.facts.isEmpty then "facts present"
+  else if !fs.out.func.machine then "output not machine IR"
+  else if !fs.out.wf M.sig syms then "output not well formed"
+  else if (M.func? fs.func).isNone then "no such function"
+  else if !((M.func? fs.func).any (sameSig · fs.out.func)) then "signature changed"
+  else if k == .edgeSplit && !((M.func? fs.func).any fun f =>
+      (domTree f).valid f && ssa f (domTree f)) then "input dominators or SSA rejected"
+  else if k == .cfgCleanup then match M.func? fs.func with
+    | some f => cfgReason O f (I.lookup fs.func) fs.out
+    | none => "no such function"
+  else "check rejects"
+
+/-- The kinds with a checker. -/
+def checked : List StepKind := [.edgeSplit, .cfgCleanup]
+
+/-- Every function step's verdict, the replay trusting the record past rejected steps. -/
+def stepReport (syms : List String) (r : MachineSteps) (final : Module) : List String := Id.run do
+  let mut M := r.module final.structs
+  let mut I := r.ids
+  let mut out := []
+  for p in r.passes do
+    if !SummariesOk p.funcBehavior M then out := out ++ [s!"{p.name}\t-\t-\tSUMMARIES"]
+    for st in p.steps do
+      for fs in st.funcs do
+        let v := if !checked.contains st.kind then "UNPROVED"
+          else if checkStep st.kind syms p.funcBehavior M I [fs] then "ACCEPT"
+          else s!"REJECT\t{stepWhy st.kind syms p.funcBehavior M I fs}"
+        out := out ++ [s!"{p.name}\t{st.kind.name}\t{fs.func}\t{v}"]
+      M := stepOut M st.funcs
+      I := stepIds I st.funcs
+  return out
+
 /-- The first reason `validateWith allowed syms r final` rejects, or `none` if it accepts. -/
 def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (final : Module) :
     Option String := Id.run do
@@ -59,18 +99,7 @@ def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (
         return some s!"{st.kind.name}: kind not allowed (pass {p.name}, step {i})"
       for fs in st.funcs do
         if !(checkStep st.kind syms p.funcBehavior M I [fs]) then
-          let why := if !fs.facts.isEmpty then "facts present"
-            else if !fs.out.func.machine then "output not machine IR"
-            else if !fs.out.wf M.sig syms then "output not well formed"
-            else if (M.func? fs.func).isNone then "no such function"
-            else if !((M.func? fs.func).any (sameSig · fs.out.func)) then "signature changed"
-            else if st.kind == .edgeSplit && !((M.func? fs.func).any fun f =>
-                (domTree f).valid f && ssa f (domTree f)) then "input dominators or SSA rejected"
-            else if st.kind == .cfgCleanup then match M.func? fs.func with
-              | some f => cfgReason p.funcBehavior f (I.lookup fs.func) fs.out
-              | none => "no such function"
-            else "check rejects"
-          return some s!"{st.kind.name}: {why} ({fs.func}, pass {p.name}, step {i})"
+          return some s!"{st.kind.name}: {stepWhy st.kind syms p.funcBehavior M I fs} ({fs.func}, pass {p.name}, step {i})"
       M := stepOut M st.funcs
       I := stepIds I st.funcs
       i := i + 1
@@ -91,6 +120,10 @@ def main (args : List String) : IO Unit := do
         | .error e => IO.println s!"{path}\t{sec.name}\tNOT READ\tmachine_steps: {e}"
         | .ok none => IO.println s!"{path}\t{sec.name}\tNO RECORD"
         | .ok (some r) =>
+          if kinds == "steps" then
+            for l in stepReport (sec.symbols.map (·.1)) r low.machine do
+              IO.println s!"{path}\t{sec.name}\t{l}"
+            continue
           let kindsPresent := (r.kinds.eraseDups.map (·.name))
           let syms := sec.symbols.map (·.1)
           let verdict := validateWith allowed syms r low.machine
