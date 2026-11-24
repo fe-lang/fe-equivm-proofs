@@ -47,6 +47,10 @@ msg DiffMsg {
     LoadThenMatch -> u256,
     #[selector = sol("matchField()")]
     MatchField -> u256,
+    #[selector = sol("deadLoadMut()")]
+    DeadLoadMut -> u256,
+    #[selector = sol("matchFieldMut()")]
+    MatchFieldMut -> u256,
     #[selector = sol("needsDropString()")]
     NeedsDropString -> bool,
     #[selector = sol("needsDropQuiet()")]
@@ -94,6 +98,19 @@ pub contract Differences {
             }
         }
 
+        // The same through `mut` effects, which are not snapshots taken at the call.
+        DeadLoadMut -> u256 uses (mut light) {
+            let unused = light
+            7
+        }
+
+        MatchFieldMut -> u256 uses (mut outer) {
+            match outer {
+                Outer::A(_) => 1,
+                Outer::B(_) => 2,
+            }
+        }
+
         // `DynString`'s `drop` only frees memory.
         NeedsDropString -> bool {
             core::mem::needs_drop<DynString>()
@@ -131,6 +148,8 @@ fn invalid_tags() uses (evm: mut Evm) {
     let _ = send(r, encode_msg_calldata(DiffMsg::DeadLoad {}))
     let _ = send(r, encode_msg_calldata(DiffMsg::LoadThenMatch {}))
     let _ = send(r, encode_msg_calldata(DiffMsg::MatchField {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::DeadLoadMut {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::MatchFieldMut {}))
 }
 
 /// `needs_drop` for a type whose `drop` only frees memory, and for an effect-free one.
