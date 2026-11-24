@@ -168,12 +168,12 @@ def moveConst (kb : Nat → KB) (value : Term) (k : Nat) (x' k' : Term) : Bool :
 def foldConstCmp (kb : Nat → KB) : Term → Term → Bool
   | .op2 .eq a b, .op2 .eq x' k' =>
     (match b.const? kb with
-      | some k => moveConst kb a k x' k'
+      | some k => moveConst kb a k x' k' || moveConst kb a k k' x'
       | none => false) ||
     (match a.const? kb with
-      | some k => moveConst kb b k x' k'
+      | some k => moveConst kb b k x' k' || moveConst kb b k k' x'
       | none => false)
-  | .op1 .isZero v, .op2 .eq x' k' => moveConst kb v 0 x' k'
+  | .op1 .isZero v, .op2 .eq x' k' => moveConst kb v 0 x' k' || moveConst kb v 0 k' x'
   | _, _ => false
 
 /-- `eq x 0`, `eq 0 x → is_zero x` (S9, and GVN's G4). -/
@@ -415,17 +415,29 @@ theorem foldConstCmp_sound {l r : Term} (h : foldConstCmp kb l r = true) :
     · split at h
       · next k hk =>
         rw [Term.const?_eval hf hk]
-        exact ofBool_beq_congr (moveConst_iff hf (exactVal?_lt hk) h)
+        try simp only [Bool.or_eq_true] at h
+        rcases h with h | h
+        · exact ofBool_beq_congr (moveConst_iff hf (exactVal?_lt hk) h)
+        · apply ofBool_beq_congr
+          rw [moveConst_iff hf (exactVal?_lt hk) h]; exact eq_comm
       · cases h
     · split at h
       · next k hk =>
         rw [Term.const?_eval hf hk]
+        try simp only [Bool.or_eq_true] at h
         apply ofBool_beq_congr
-        rw [eq_comm]; exact moveConst_iff hf (exactVal?_lt hk) h
+        rw [eq_comm]
+        rcases h with h | h
+        · exact moveConst_iff hf (exactVal?_lt hk) h
+        · rw [moveConst_iff hf (exactVal?_lt hk) h]; exact eq_comm
       · cases h
   · next v x' k' =>
     simp only [Term.eval, Op2.eval, Op1.eval]
-    exact ofBool_beq_congr (moveConst_iff hf (by decide) h)
+    try simp only [Bool.or_eq_true] at h
+    rcases h with h | h
+    · exact ofBool_beq_congr (moveConst_iff hf (by decide) h)
+    · apply ofBool_beq_congr
+      rw [moveConst_iff hf (by decide) h]; exact eq_comm
   · cases h
 
 theorem eqZero_sound {l r : Term} (h : eqZero kb l r = true) : l.eval ρ = r.eval ρ := by
