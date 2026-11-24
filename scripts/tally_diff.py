@@ -44,7 +44,7 @@ def interp(c):
     return (
         f"interpreter: {c['agree3']} agree three ways, {c['interpDisagree']} disagree, "
         f"{c['spec']} where it gives up, {c['notRun']} not run, "
-        f"{c['noModel']} on contracts without a model"
+        f"{c['noModel']} on contracts without a model ({c['agree2']} agreeing with the bytecode)"
     )
 
 

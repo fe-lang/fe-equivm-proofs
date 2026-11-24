@@ -516,6 +516,8 @@ structure Tally where
   spec : Nat := 0
   /-- The target has no model: compared with the interpreter only. -/
   noModel : Nat := 0
+  /-- On a target without a model, the interpreter agrees with the bytecode. -/
+  agree2 : Nat := 0
   /-- The interpreter did not run: the contract has no IR, or the harness could not rebuild the
       frame. -/
   notRun : Nat := 0
@@ -547,12 +549,14 @@ def Tally.add (t : Tally) (fixture : String) (r : Report) : IO Tally := do
         | .disagree why => [s!"interp≠bytecode ({why})"]
         | _ => [])
     if pairs.isEmpty then
-      return if modelBytecode.isEmpty then { t with agree3 := t.agree3 + 1 } else t
+      return match r.verdict with
+        | .noModel => { t with agree2 := t.agree2 + 1 }
+        | _ => if modelBytecode.isEmpty then { t with agree3 := t.agree3 + 1 } else t
     IO.println s!"DIFF3 {at_}: {"; ".intercalate (pairs ++ modelBytecode)}"
     return { t with interpDisagree := t.interpDisagree + 1 }
 
 def Tally.fields (t : Tally) : String :=
-  s!"agree={t.agree} disagree={t.disagree} outOfGas={t.outOfGas} stackOverflow={t.stackOverflow} agree3={t.agree3} interpDisagree={t.interpDisagree} spec={t.spec} notRun={t.notRun} noModel={t.noModel}"
+  s!"agree={t.agree} disagree={t.disagree} outOfGas={t.outOfGas} stackOverflow={t.stackOverflow} agree3={t.agree3} interpDisagree={t.interpDisagree} spec={t.spec} notRun={t.notRun} noModel={t.noModel} agree2={t.agree2}"
 
 /-- Print a line `NOIR <fixture> <target>: <why>` for each target meant to run on the
     interpreter that has no program. -/
