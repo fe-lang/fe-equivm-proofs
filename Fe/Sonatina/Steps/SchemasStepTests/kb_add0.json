@@ -1,0 +1,51 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) {\n    block0:\n        v1.i256 = add 0.i256 32.i256;\n        evm_mstore v1 v0;\n        return;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "known_bits_simplify",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "known_bits_simplify",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) {\n    block0:\n        evm_mstore 32.i256 v0;\n        return;\n}\n",
+        "insts": [
+         [
+          1,
+          2
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,82 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) {\n    block0:\n        br 1.i256 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        v2.i256 = phi (5.i256 block1) (7.i256 block2);\n        evm_mstore 0.i256 v2;\n        return;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3,
+     4,
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "sccp_fold",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "sccp_fold",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) {\n    block0:\n        br 1.i256 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        evm_mstore 0.i256 5.i256;\n        return;\n}\n",
+        "insts": [
+         [
+          0
+         ],
+         [
+          1
+         ],
+         [
+          2
+         ],
+         [
+          4,
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": {
+         "consts": [
+          [
+           2,
+           "5"
+          ]
+         ],
+         "dead_edges": [
+          [
+           0,
+           1
+          ]
+         ]
+        },
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
