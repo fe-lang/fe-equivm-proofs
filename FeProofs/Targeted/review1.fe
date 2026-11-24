@@ -1,0 +1,157 @@
+// The first fe-spec code review's scenarios (fe `crates/lean-export/tests/fixtures/ir/review.fe`),
+// with Fe tests that make the calls, so that the export audit compares each three ways.
+use core::ptr::MemBuffer
+use std::abi::sol
+use std::abi::sol::Bytes4
+use std::evm::{Call, Evm, RawStorage, encode_msg_calldata}
+
+msg ReviewMsg {
+    #[selector = sol("maybeWrite(bool)")]
+    MaybeWrite { w: bool },
+    #[selector = sol("bad()")]
+    Bad,
+    #[selector = sol("check()")]
+    Check -> u256,
+    #[selector = sol("sum3()")]
+    Sum3 -> u256,
+    #[selector = sol("flag()")]
+    Flag -> bool,
+    #[selector = sol("keep()")]
+    Keep,
+    #[selector = sol("keepArg()")]
+    KeepArg,
+}
+
+struct S { flag: bool, big: u256 }
+
+struct Box { x: u256 }
+
+fn read_x(_ b: Box) -> u256 {
+    b.x
+}
+
+fn read_flag(_ f: mut bool) -> bool {
+    f
+}
+
+/// Takes a packed lane as a `mut` effect and writes nothing.
+fn keep() uses (x: mut u8) {}
+
+/// Takes a packed lane as a `mut` argument and writes nothing.
+fn keep_arg(_ x: mut u8) {}
+
+pub contract Review {
+    mut a: u8,
+    mut b: u8,
+    mut s: S,
+    mut tag: Bytes4,
+    mut c: u8,
+
+    init(_ unused: u256, value: u8) uses (mut b) {
+        b = value
+    }
+
+    recv ReviewMsg {
+        MaybeWrite { w } uses (mut a) {
+            if w {
+                a = 1
+            }
+        }
+
+        Bad uses (mut tag) {
+            tag = Bytes4 { val: 1 << 32 }
+            let x: u8 = 255
+            let _ = x + 1
+        }
+
+        Check -> u256 uses (mut a, raw: RawStorage) {
+            a = 1
+            unsafe { raw.sload(0) }
+        }
+
+        Sum3 -> u256 {
+            var s: u256 = 0
+            var i: u256 = 0
+            while i < 3 {
+                s += read_x(Box { x: i })
+                i += 1
+            }
+            s
+        }
+
+        Flag -> bool uses (mut s, raw: mut RawStorage) {
+            unsafe { raw.sstore(slot: 1, value: 0x0100) }
+            read_flag(mut s.flag)
+        }
+
+        Keep uses (mut c) {
+            with (c) { keep() }
+        }
+
+        KeepArg uses (mut c) {
+            keep_arg(mut c)
+        }
+    }
+}
+
+fn deploy() -> Address uses (evm: mut Evm) {
+    evm.create2<Review>(value: Wei::zero(), args: (5, 7), salt: 0)
+}
+
+fn send(_ to: Address, _ data: MemBuffer) -> bool uses (evm: mut Evm) {
+    var ret = MemBuffer::empty()
+    evm.raw_call(addr: to, gas: 10000000, value: Wei::zero(), args: data.span(), ret: mut ret)
+        .success()
+}
+
+fn send_static(_ to: Address, _ data: MemBuffer) -> bool uses (evm: mut Evm) {
+    var ret = MemBuffer::empty()
+    evm.raw_staticcall(addr: to, gas: 10000000, args: data.span(), ret: mut ret).success()
+}
+
+/// D1: an arm with a `mut` packed field that writes nothing succeeds under a static call; one
+/// that writes fails.
+#[test]
+fn d1_static_without_write() uses (evm: mut Evm) {
+    let r = deploy()
+    assert(send_static(r, encode_msg_calldata(ReviewMsg::MaybeWrite { w: false })))
+    assert(!send_static(r, encode_msg_calldata(ReviewMsg::MaybeWrite { w: true })))
+}
+
+/// D1: a narrowed newtype's revert comes before the later overflow panic.
+#[test]
+fn d1_narrowed_revert_first() uses (evm: mut Evm) {
+    let r = deploy()
+    assert(!send(r, encode_msg_calldata(ReviewMsg::Bad {})))
+}
+
+/// D1: storage holds a direct lane store at once; D4: `init` ignores its first parameter.
+#[test]
+fn d1_sload_after_lane_store() uses (evm: mut Evm) {
+    let r = deploy()
+    assert(send(r, encode_msg_calldata(ReviewMsg::Check {})))
+}
+
+/// D2: a temporary made in a loop holds each iteration's value.
+#[test]
+fn d2_temporary_in_loop() uses (evm: mut Evm) {
+    let r = deploy()
+    assert(send(r, encode_msg_calldata(ReviewMsg::Sum3 {})))
+}
+
+/// D5: a borrow of a `bool` alone in its slot after a raw store of `0x0100`.
+#[test]
+fn d5_narrow_bool_borrow() uses (evm: mut Evm) {
+    let r = deploy()
+    let _ = send(r, encode_msg_calldata(ReviewMsg::Flag {}))
+}
+
+/// A lane a callee takes `mut` and does not write is still stored back: a static call fails.
+#[test]
+fn lane_copy_under_static_call() uses (evm: mut Evm) {
+    let r = deploy()
+    assert(!send_static(r, encode_msg_calldata(ReviewMsg::Keep {})))
+    assert(!send_static(r, encode_msg_calldata(ReviewMsg::KeepArg {})))
+    assert(send(r, encode_msg_calldata(ReviewMsg::Keep {})))
+    assert(send(r, encode_msg_calldata(ReviewMsg::KeepArg {})))
+}

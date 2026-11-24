@@ -1,0 +1,251 @@
+// The third fe-spec code review's scenarios (fe `crates/lean-export/tests/fixtures/ir/review3.fe`)
+// and the fourth's repeated packed-entry effect, with Fe tests that make the calls, so that the
+// export audit compares each three ways.
+use core::marker::{Pinned, Storage}
+use core::ops::{Drop, LaneCodec, Location, StateIndex}
+use std::abi::sol
+use core::ptr::MemBuffer
+use std::evm::{Call, Evm, RawStorage, SolArray, encode_msg_calldata}
+use std::evm::storage_bytes::encode_bytes_return_from_calldata
+
+/// Returns the 32 bytes after the selector.
+fn halt() -> ! {
+    encode_bytes_return_from_calldata(data_ptr: 4, len: 32)
+}
+
+struct PD { v: u8 }
+
+impl Drop for PD {
+    fn drop(own self) {
+        if self.v == 1 {
+            assert!(false, "one")
+        }
+    }
+}
+
+struct PDLanes {}
+
+impl LaneCodec<PD> for PDLanes {
+    const BITS: u256 = 8
+
+    fn get(_ word: u256, offset: u256) -> PD {
+        PD { v: ((word >> offset) & 0xff).downcast_truncate() }
+    }
+
+    fn set(_ word: u256, offset: u256, value: own PD) -> u256 {
+        let v = value.v
+        core::mem::forget(value)
+        (word & !(0xff << offset)) | ((v as u256) << offset)
+    }
+}
+
+/// Elements of type `PD`, packed into the slot `0x1000` above the collection's own.
+struct PDs { n: u256 }
+
+impl Pinned for PDs {
+    type Space = Storage
+}
+
+unsafe impl StateIndex for PDs {
+    type Key = u256
+    type Entry = PD
+    type Lanes = PDLanes
+
+    fn locate(self, _ root: u256, _ key: u256) -> Location {
+        Location { slot: root + 0x1000, offset: key * 8 }
+    }
+}
+
+/// A `u8` codec whose `set` halts when it writes `0xee`.
+struct HaltLanes {}
+
+impl LaneCodec<u8> for HaltLanes {
+    const BITS: u256 = 8
+
+    fn get(_ word: u256, offset: u256) -> u8 {
+        ((word >> offset) & 0xff).downcast_truncate()
+    }
+
+    fn set(_ word: u256, offset: u256, value: own u8) -> u256 {
+        if value == 0xee {
+            halt()
+        }
+        (word & !(0xff << offset)) | ((value as u256) << offset)
+    }
+}
+
+struct Hs { n: u256 }
+
+impl Pinned for Hs {
+    type Space = Storage
+}
+
+unsafe impl StateIndex for Hs {
+    type Key = u256
+    type Entry = u8
+    type Lanes = HaltLanes
+
+    fn locate(self, _ root: u256, _ key: u256) -> Location {
+        Location { slot: root + 0x1000, offset: key * 8 }
+    }
+}
+
+struct Small { a: u8, b: u8 }
+
+enum Inner { X, Y }
+
+enum E { A(PD), B(Inner) }
+
+fn set_halt(_ p: mut u8, _ q: mut u8) -> ! {
+    p = 0xee
+    q = 5
+    halt()
+}
+
+struct PackedPair { a: u8, b: u8 }
+
+trait Bump {
+    fn bump(mut self, _ by: u8)
+}
+
+impl Bump for u8 {
+    fn bump(mut self, _ by: u8) {
+        self += by
+    }
+}
+
+fn bump_twice<T: Bump, U: Bump>() uses (x: mut T, y: mut U) {
+    x.bump(1)
+    y.bump(10)
+}
+
+msg Review3Msg {
+    #[selector = sol("put(uint256,uint8)")]
+    Put { k: u256, v: u8 } -> u256,
+    #[selector = sol("both(uint8)")]
+    Both { x: u8 } -> u256,
+    #[selector = sol("replace()")]
+    Replace -> u256,
+    #[selector = sol("fail(uint256)")]
+    Fail { v: u256 } -> u256,
+    #[selector = sol("sweep()")]
+    Sweep -> u256,
+    #[selector = sol("corrupt()")]
+    Corrupt,
+    #[selector = sol("inspect()")]
+    Inspect -> u256,
+    #[selector = sol("aliased()")]
+    Aliased -> u256,
+}
+
+pub contract Review3 {
+    mut e: E,
+    mut pds: PDs,
+    mut hs: Hs,
+    mut small: Small,
+    mut bytes: SolArray<u8>,
+    mut pairs: SolArray<PackedPair>,
+
+    recv Review3Msg {
+        // Writing an element destroys the one it replaces, read with the codec's `get`.
+        Put { k, v } -> u256 uses (mut pds) {
+            pds[k] = PD { v }
+            0
+        }
+
+        // A halt stores back the lane copies held, the element's first: its `set` halts
+        // again, and the halt is that one, with `small.a` not stored back.
+        Both { x } -> u256 uses (mut hs, mut small) {
+            set_halt(mut hs[0], mut small.a)
+        }
+
+        // Destroying the value a write replaces reads its tag only: a variant without drop
+        // glue is not read, nor its payload's tag checked.
+        Replace -> u256 uses (mut e) {
+            e = E::B(Inner::X)
+            0
+        }
+
+        // Iterating a packed array: `mut` elements are copies stored back as each ends.
+        Sweep -> u256 uses (mut bytes) {
+            bytes.push(1)
+            bytes.push(2)
+            bytes.push(3)
+            for mut b in bytes {
+                b += 10
+            }
+            var sum: u256 = 0
+            for b in bytes {
+                sum += b as u256
+            }
+            sum * 1000 + (bytes.get(2) as u256)
+        }
+
+        // Store `E::B` with an invalid tag in its payload (`e` is at slots 0 and 1).
+        Corrupt uses (raw: mut RawStorage) {
+            unsafe { raw.sstore(slot: 0, value: 1) }
+            unsafe { raw.sstore(slot: 1, value: 99) }
+        }
+
+        // Inspect `e` without reading its payload.
+        Inspect -> u256 uses (e) {
+            match e {
+                E::A(_) => 1,
+                E::B(_) => 2,
+            }
+        }
+
+        // One mid-path packed element provides two `mut` effects (review 4, 3.2).
+        Aliased -> u256 uses (mut pairs) {
+            pairs.push(PackedPair { a: 1, b: 2 })
+            with (pairs[0].a) { bump_twice<u8, u8>() }
+            pairs[0].a as u256
+        }
+
+        // A panic with a value reverts with its encoding (`std::evm::revert`).
+        Fail { v } -> u256 {
+            core::panic_with_value(v)
+        }
+    }
+}
+
+fn send(_ to: Address, _ data: MemBuffer) -> bool uses (evm: mut Evm) {
+    var ret = MemBuffer::empty()
+    evm.raw_call(addr: to, gas: 10000000, value: Wei::zero(), args: data.span(), ret: mut ret)
+        .success()
+}
+
+/// Drop of a packed element: writing an element destroys the one it replaces.
+#[test]
+fn packed_element_drop() uses (evm: mut Evm) {
+    let r = evm.create2<Review3>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review3Msg::Put { k: 0, v: 1 }))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Put { k: 0, v: 3 }))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Put { k: 1, v: 4 }))
+}
+
+/// A halt inside a codec's `set` with another lane copy open.
+#[test]
+fn halt_in_codec_set() uses (evm: mut Evm) {
+    let r = evm.create2<Review3>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review3Msg::Both { x: 0 }))
+}
+
+/// Tag-only reads: an invalid tag in a payload that is not read.
+#[test]
+fn tag_only_reads() uses (evm: mut Evm) {
+    let r = evm.create2<Review3>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review3Msg::Corrupt {}))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Inspect {}))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Replace {}))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Inspect {}))
+}
+
+/// Packed iteration, a panic with a value, and a repeated packed-entry effect.
+#[test]
+fn sweep_fail_aliased() uses (evm: mut Evm) {
+    let r = evm.create2<Review3>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review3Msg::Sweep {}))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Fail { v: 7 }))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Aliased {}))
+}

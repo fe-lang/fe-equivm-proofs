@@ -43,7 +43,8 @@ for line in open(sys.argv[1]):
 def interp(c):
     return (
         f"interpreter: {c['agree3']} agree three ways, {c['interpDisagree']} disagree, "
-        f"{c['spec']} where it gives up, {c['notRun']} not run"
+        f"{c['spec']} where it gives up, {c['notRun']} not run, "
+        f"{c['noModel']} on contracts without a model"
     )
 
 

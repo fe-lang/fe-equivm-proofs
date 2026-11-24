@@ -24,7 +24,7 @@ def Sidecar.target (s : Sidecar) (interface : Interface) (level : Level := .post
   name := s.object
   creation := (s.section? "init").map (·.bytecode) |>.getD .empty
   runtime := .empty
-  model := s.model level
+  model := some (s.model level)
   interface := interface
 
 /-- The level `SONATINA_LEVEL` names (`post-opt`, `source` or `machine`), `post-opt` if unset. -/

@@ -87,7 +87,7 @@ def spillTargetsOf (file : String) (sidecars : List (String × Diff.Interface)) 
     IO (List Diff.Target) :=
   sidecars.filterMapM fun (path, interface) => do
     match Parse.parseSidecar (← IO.FS.readFile path) with
-    | .ok s => return some { s.target interface .machine with model := s.pairedModel }
+    | .ok s => return some { s.target interface .machine with model := some s.pairedModel }
     | .error e =>
       IO.println s!"UNSUPPORTED {file}::{path}: {e}"
       return none

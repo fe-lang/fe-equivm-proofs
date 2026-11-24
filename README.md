@@ -246,7 +246,17 @@ typing: …` when a value of the machine is not of its type, checked after every
 result within `interpFuel` steps of a call). A target the serializer refused, or whose IR
 does not read, has a `NOIR` line and is compared two ways only. Lines comparing model and
 bytecode (`DISAGREE`, `agree`, `disagree`) mean what they did before. `scripts/tally_diff.py`
-totals all of them, with the distinct `SPEC` reasons and their counts.
+totals all of them, with the distinct `SPEC` reasons and their counts. Each Fe-test call also has
+a `CALL3` line in its file's log (not in `diff.txt`) with the three outcomes side by side, for
+reading a scenario's result. The interpreter runs with fe-spec's `runBounded`; with
+`SPEC_CHECKED=1` it runs `runChecked`, which checks after every step that every value of the
+machine is of its type and reports a violation as `malformed typing: …`, several times slower
+(the Precompiles ingot takes over an hour).
+
+`FeProofs/Targeted/` has contracts whose Fe tests make the calls that reach what generated calls
+and the fixtures do not: the scenarios of fe-spec's code reviews (`review1.fe` to `review3.fe`)
+and of its table of differences from bytecode and its questions for the compiler
+(`differences.fe`).
 
 Run it with fe-spec checked out next to this repository and a Fe checkout whose
 `fe-lean-export` has the IR serializer (branch `ir-export` or later):

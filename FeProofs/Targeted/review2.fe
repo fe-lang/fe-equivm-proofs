@@ -1,0 +1,185 @@
+// The second fe-spec code review's scenarios (fe `crates/lean-export/tests/fixtures/ir/review2.fe`)
+// with more, and Fe tests that make the calls, so that the export audit compares each three ways.
+use core::abi::DynString
+use core::intrinsic::clear
+use core::ops::Drop
+use core::ptr::MemBuffer
+use std::abi::sol
+use std::evm::{Call, Evm, SolArray, encode_msg_calldata}
+
+struct D { v: u256 }
+
+impl Drop for D {
+    fn drop(own self) {
+        if self.v == 1 {
+            assert!(false, "one")
+        }
+        if self.v == 2 {
+            assert!(false, "two")
+        }
+    }
+}
+
+struct Two { a: D, b: D }
+
+fn inc(_ x: mut u8) {
+    x += 1
+}
+
+const MSG: DynString = "hello"
+const PAIR: (DynString, u256) = ("hi", 1)
+
+msg Review2Msg {
+    #[selector = sol("array()")]
+    Array -> u256,
+    #[selector = sol("fields(uint256)")]
+    Fields { first: u256 } -> u256,
+    #[selector = sol("forgotten()")]
+    Forgotten -> u256,
+    #[selector = sol("option(bool)")]
+    Option { some: bool } -> u256,
+    #[selector = sol("push(uint8)")]
+    Push { v: u8 } -> u256,
+    #[selector = sol("bump()")]
+    Bump -> u256,
+    #[selector = sol("pop()")]
+    Pop -> u256,
+    #[selector = sol("iterate()")]
+    Iterate -> u256,
+    #[selector = sol("clearOne()")]
+    ClearOne -> u256,
+    #[selector = sol("clearAll()")]
+    ClearAll -> u256,
+    #[selector = sol("index(uint256)")]
+    Index { i: u256 } -> u256,
+    #[selector = sol("message()")]
+    Message -> u256,
+    #[selector = sol("pair()")]
+    Pair -> u256,
+}
+
+pub contract Review2 {
+    mut arr: SolArray<u8>,
+
+    recv Review2Msg {
+        Array -> u256 {
+            let ds = [D { v: 1 }, D { v: 2 }]
+            0
+        }
+
+        Fields { first } -> u256 {
+            let t = Two { a: D { v: first }, b: D { v: 2 } }
+            0
+        }
+
+        Forgotten -> u256 {
+            let t = Two { a: D { v: 0 }, b: D { v: 1 } }
+            core::mem::forget(t.b)
+            0
+        }
+
+        Option { some } -> u256 {
+            let o = if some { Option::Some(D { v: 2 }) } else { Option::None }
+            0
+        }
+
+        Push { v } -> u256 uses (mut arr) {
+            arr.push(v)
+            arr.push(v + 1)
+            arr.len() * 1000 + (arr.get(1) as u256)
+        }
+
+        Bump -> u256 uses (mut arr) {
+            arr.push(5)
+            inc(mut arr[0])
+            arr.get(0) as u256
+        }
+
+        Pop -> u256 uses (mut arr) {
+            arr.push(1)
+            arr.push(2)
+            arr.pop()
+            arr.len() * 1000 + (arr.get(0) as u256)
+        }
+
+        Iterate -> u256 uses (mut arr) {
+            arr.push(7)
+            arr.push(8)
+            for mut b in arr {
+                b += 1
+            }
+            var sum: u256 = 0
+            for b in arr {
+                sum += b as u256
+            }
+            sum
+        }
+
+        ClearOne -> u256 uses (mut arr) {
+            arr.push(3)
+            arr.push(4)
+            unsafe { clear(mut arr[1]) }
+            arr.len() * 1000 + (arr.get(1) as u256)
+        }
+
+        ClearAll -> u256 uses (mut arr) {
+            arr.push(3)
+            arr.clear()
+            arr.len()
+        }
+
+        Index { i } -> u256 uses (mut arr) {
+            arr.push(9)
+            arr[i] as u256
+        }
+
+        Message -> u256 {
+            MSG.len() as u256
+        }
+
+        Pair -> u256 {
+            PAIR.0.len() as u256 + PAIR.1
+        }
+    }
+}
+
+fn send(_ to: Address, _ data: MemBuffer) -> bool uses (evm: mut Evm) {
+    var ret = MemBuffer::empty()
+    evm.raw_call(addr: to, gas: 10000000, value: Wei::zero(), args: data.span(), ret: mut ret)
+        .success()
+}
+
+/// Destructor order: array elements, struct fields, a forgotten field, a variant's payload.
+#[test]
+fn destructor_order() uses (evm: mut Evm) {
+    let r = evm.create2<Review2>(value: Wei::zero(), args: (), salt: 0)
+    assert(!send(r, encode_msg_calldata(Review2Msg::Array {})))
+    assert(send(r, encode_msg_calldata(Review2Msg::Fields { first: 0 }) ) == false)
+    let _ = send(r, encode_msg_calldata(Review2Msg::Fields { first: 1 }))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Forgotten {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Option { some: true }))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Option { some: false }))
+}
+
+/// Packed collection elements: push, borrow, pop, iterate, `clear`, index.
+#[test]
+fn packed_elements() uses (evm: mut Evm) {
+    let r = evm.create2<Review2>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review2Msg::Push { v: 3 }))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Push { v: 255 }))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Bump {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Pop {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Iterate {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::ClearOne {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::ClearAll {}))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Index { i: 0 }))
+    let _ = send(r, encode_msg_calldata(Review2Msg::Index { i: 100 }))
+}
+
+/// `const` strings.
+#[test]
+fn const_strings() uses (evm: mut Evm) {
+    let r = evm.create2<Review2>(value: Wei::zero(), args: (), salt: 0)
+    assert(send(r, encode_msg_calldata(Review2Msg::Message {})))
+    assert(send(r, encode_msg_calldata(Review2Msg::Pair {})))
+}

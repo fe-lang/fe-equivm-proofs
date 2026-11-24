@@ -222,6 +222,8 @@ inductive Verdict where
   /-- The EVM overflowed its stack: nothing is required of the model. -/
   | stackOverflow
   | disagree (why : String)
+  /-- The target has no model: the exporter stopped at a construct of the contract. -/
+  | noModel
 
 /-- Where two account maps differ, in a few words, the sides named `left` and `right`. -/
 def accountsDiff (evm model : AccountMap) (left := "EVM") (right := "model") : String := Id.run do
@@ -304,6 +306,15 @@ def compare (evm : Except ExecutionException (ExecutionResult State))
       | .error .InvalidMemoryAccess => .agree "oob"
       | _ => differ (describeExit .oob)
 
+/-- `compare`, for a target that may have no model. -/
+def compareModel (evm : Except ExecutionException (ExecutionResult State))
+    (model : Option (Option (Except (Exit World) (ByteArray × World)))) : Verdict :=
+  match model, evm with
+  | some m, _ => compare evm m
+  | none, .error .OutOfGass | none, .error .OutOfFuel => .outOfGas
+  | none, .error .StackOverflow => .stackOverflow
+  | none, _ => .noModel
+
 /-! ## The interpreter -/
 
 /-- How a run of the model, or of the interpreter, ends. -/
@@ -382,14 +393,14 @@ def interpOutcome : Option (Except (Exit World) (Except Fe.Sem.SpecError ByteArr
   | some (.ok (.ok out, w)) => .ok (some (.ok (out, w)))
 
 /-- Compare the interpreter's run, if there is one, with the bytecode's and the model's. -/
-def compareInterp (evm : Except ExecutionException (ExecutionResult State)) (model : Outcome)
-    (interp : Option (Unit → Except String Outcome)) : Interp :=
+def compareInterp (evm : Except ExecutionException (ExecutionResult State))
+    (model : Option Outcome) (interp : Option (Unit → Except String Outcome)) : Interp :=
   match evm, interp with
   | .error .OutOfGass, _ | .error .OutOfFuel, _ | .error .StackOverflow, _ | _, none => .notRun
   | _, some run =>
     match run () with
     | .error why => .spec why
-    | .ok i => .ran (compare evm i "interpreter") (differs model i) (observe i).describe
+    | .ok i => .ran (compare evm i "interpreter") (model.bind (differs · i)) (observe i).describe
 
 /-! ## Tests -/
 
@@ -407,8 +418,8 @@ structure Interface where
   initPayable : Bool := false
   arms : List Arm := []
 
-/-- A contract with an exported model: its creation code without arguments, its runtime code
-    without immutable fields, the model, and its interface.  `ir` is where the corpus driver
+/-- A contract: its creation code without arguments, its runtime code without immutable
+    fields, its exported model if the exporter exports it, and its interface.  `ir` is where the corpus driver
     wrote the contract's IR, `<ir>.ir.json`, or why it is not serialized, `<ir>.ir.refused`; empty
     when the interpreter is not run on the target.  `load` reads it into `spec`: the program, or
     why there is none. -/
@@ -416,7 +427,7 @@ structure Target where
   name : String
   creation : ByteArray
   runtime : ByteArray
-  model : ContractModel
+  model : Option ContractModel
   interface : Interface := {}
   ir : String := ""
   spec : Option (Except String Fe.IR.Program) := none
@@ -482,13 +493,14 @@ def describeEvmShort : Except ExecutionException (ExecutionResult State) → Str
   | .ok (.revert _ out) => s!"reverts with {shortHex out}"
 
 /-- The three outcomes of a creation or call, in a few words. -/
-def outcomes (evm : Except ExecutionException (ExecutionResult State)) (model : Outcome)
+def outcomes (evm : Except ExecutionException (ExecutionResult State)) (model : Option Outcome)
     (interp : Interp) : String :=
   let i := match interp with
     | .notRun => "not run"
     | .spec why => s!"gives up: {why}"
     | .ran _ _ shown => shown
-  s!"EVM {describeEvmShort evm} | model {(observe model).describe} | interp {i}"
+  let m := model.elim "none: not exported" (observe · |>.describe)
+  s!"EVM {describeEvmShort evm} | model {m} | interp {i}"
 
 /-- The comparisons of some calls, counted. -/
 structure Tally where
@@ -502,6 +514,8 @@ structure Tally where
   interpDisagree : Nat := 0
   /-- The specification gave up. -/
   spec : Nat := 0
+  /-- The target has no model: compared with the interpreter only. -/
+  noModel : Nat := 0
   /-- The interpreter did not run: the contract has no IR, or the harness could not rebuild the
       frame. -/
   notRun : Nat := 0
@@ -518,6 +532,7 @@ def Tally.add (t : Tally) (fixture : String) (r : Report) : IO Tally := do
   | .disagree why =>
     t := { t with disagree := t.disagree + 1 }
     IO.println s!"DISAGREE {at_}: {why}"
+  | .noModel => t := { t with noModel := t.noModel + 1 }
   let modelBytecode := match r.verdict with
     | .disagree why => [s!"model≠bytecode ({why})"]
     | _ => []
@@ -537,7 +552,7 @@ def Tally.add (t : Tally) (fixture : String) (r : Report) : IO Tally := do
     return { t with interpDisagree := t.interpDisagree + 1 }
 
 def Tally.fields (t : Tally) : String :=
-  s!"agree={t.agree} disagree={t.disagree} outOfGas={t.outOfGas} stackOverflow={t.stackOverflow} agree3={t.agree3} interpDisagree={t.interpDisagree} spec={t.spec} notRun={t.notRun}"
+  s!"agree={t.agree} disagree={t.disagree} outOfGas={t.outOfGas} stackOverflow={t.stackOverflow} agree3={t.agree3} interpDisagree={t.interpDisagree} spec={t.spec} notRun={t.notRun} noModel={t.noModel}"
 
 /-- Print a line `NOIR <fixture> <target>: <why>` for each target meant to run on the
     interpreter that has no program. -/
@@ -576,7 +591,7 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
         let r := run (fresh σ s.σ₀ g A I) stepBound
         let feed := r.events.toList.map supply
         let w := World.init σ A feed
-        let model := target.model.runtime.exec I w
+        let model := target.model.map (·.runtime.exec I w)
         -- The frame as rebuilt here must end as the one `Θ` ran inside the test.
         let made : Bool := match r.result with
           | .ok (.success s' _) => x == ⟨1⟩ && after.accountMap == s'.accountMap
@@ -584,7 +599,7 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
         let report : Report :=
           if made then
             let interp := compareInterp r.result model (target.interpRuntime I w)
-            ⟨test, target.name, Ethereum.toHex m.input, compare r.result model, interp,
+            ⟨test, target.name, Ethereum.toHex m.input, compareModel r.result model, interp,
               outcomes r.result model interp⟩
           else
             ⟨test, target.name, Ethereum.toHex m.input,
@@ -603,7 +618,8 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           let r := run (fresh σ s.σ₀ g A I) stepBound
           let feed := r.events.toList.map supply
           let w := World.init σ A feed
-          let model := (target.model.init args >>= fun tail => pure (target.runtime ++ tail)).exec I w
+          let model := target.model.map fun model =>
+            (model.init args >>= fun tail => pure (target.runtime ++ tail)).exec I w
           let made : Bool := match r.result with
             | .ok (.success _ _) => x == ⟨0⟩ || x == .ofNat a.val
             | _ => x == ⟨0⟩
@@ -611,7 +627,7 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           let report : Report :=
             if made then
               let interp := compareInterp r.result model (target.interpInit I w)
-              ⟨test, target.name, input, compare r.result model, interp,
+              ⟨test, target.name, input, compareModel r.result model, interp,
                 outcomes r.result model interp⟩
             else
               ⟨test, target.name, input,

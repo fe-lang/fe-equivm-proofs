@@ -1,0 +1,148 @@
+// Scenarios of fe-spec's table "Differences from the exporter's model and from bytecode" and of
+// its questions for the compiler, with Fe tests that make the calls, so that the export audit
+// compares each three ways.
+use core::abi::DynString
+use core::ops::Drop
+use core::ptr::MemBuffer
+use std::abi::sol
+use std::evm::{Call, Evm, RawStorage, encode_msg_calldata}
+
+enum Light { Red, Green }
+
+enum Inner { X, Y }
+
+enum Outer { A(Inner), B(u256) }
+
+impl Copy for Light {}
+impl Copy for Inner {}
+impl Copy for Outer {}
+
+/// A destructor that only loops.
+struct Spin {}
+
+impl Drop for Spin {
+    fn drop(own self) {
+        while true {}
+    }
+}
+
+/// A destructor with no effect but a checked multiplication.
+struct Quiet { v: u256 }
+
+impl Drop for Quiet {
+    fn drop(own self) {
+        let _ = self.v * 2
+    }
+}
+
+msg DiffMsg {
+    #[selector = sol("corrupt()")]
+    Corrupt,
+    #[selector = sol("deadLoad()")]
+    DeadLoad -> u256,
+    #[selector = sol("loadThenMatch()")]
+    LoadThenMatch -> u256,
+    #[selector = sol("matchField()")]
+    MatchField -> u256,
+    #[selector = sol("needsDropString()")]
+    NeedsDropString -> bool,
+    #[selector = sol("needsDropQuiet()")]
+    NeedsDropQuiet -> bool,
+    #[selector = sol("spin()")]
+    Spin -> u256,
+    #[selector = sol("quiet(uint256)")]
+    Quiet { v: u256 } -> u256,
+}
+
+pub contract Differences {
+    // Slot 0.
+    mut light: Light,
+    // Slots 1 and 2.
+    mut outer: Outer,
+
+    recv DiffMsg {
+        // An invalid tag in `light`, and `outer` as `A` with an invalid tag in its payload.
+        Corrupt uses (raw: mut RawStorage) {
+            unsafe { raw.sstore(slot: 0, value: 5) }
+            unsafe { raw.sstore(slot: 1, value: 0) }
+            unsafe { raw.sstore(slot: 2, value: 99) }
+        }
+
+        // A dead load of a storage enum whose tag is invalid.
+        DeadLoad -> u256 uses (light) {
+            let unused = light
+            7
+        }
+
+        // A load of the whole enum, then a match that reads only its tag.
+        LoadThenMatch -> u256 uses (outer) {
+            let v = outer
+            match v {
+                Outer::A(_) => 1,
+                Outer::B(_) => 2,
+            }
+        }
+
+        // A match on the field itself.
+        MatchField -> u256 uses (outer) {
+            match outer {
+                Outer::A(_) => 1,
+                Outer::B(_) => 2,
+            }
+        }
+
+        // `DynString`'s `drop` only frees memory.
+        NeedsDropString -> bool {
+            core::mem::needs_drop<DynString>()
+        }
+
+        NeedsDropQuiet -> bool {
+            core::mem::needs_drop<Quiet>()
+        }
+
+        // A destructor that only loops, then a return.
+        Spin -> u256 {
+            let s = Spin {}
+            42
+        }
+
+        // An effect-free destructor whose arithmetic overflows.
+        Quiet { v } -> u256 {
+            let q = Quiet { v }
+            1
+        }
+    }
+}
+
+fn send(_ to: Address, _ data: MemBuffer) -> bool uses (evm: mut Evm) {
+    var ret = MemBuffer::empty()
+    evm.raw_call(addr: to, gas: 10000000, value: Wei::zero(), args: data.span(), ret: mut ret)
+        .success()
+}
+
+/// Dead-load elision and eager enum loads, with invalid stored tags.
+#[test]
+fn invalid_tags() uses (evm: mut Evm) {
+    let r = evm.create2<Differences>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(DiffMsg::Corrupt {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::DeadLoad {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::LoadThenMatch {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::MatchField {}))
+}
+
+/// `needs_drop` for a type whose `drop` only frees memory, and for an effect-free one.
+#[test]
+fn needs_drop() uses (evm: mut Evm) {
+    let r = evm.create2<Differences>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(DiffMsg::NeedsDropString {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::NeedsDropQuiet {}))
+}
+
+/// Destructors the EVM may elide: one that only loops, one whose arithmetic overflows.
+#[test]
+fn elided_destructors() uses (evm: mut Evm) {
+    let r = evm.create2<Differences>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(DiffMsg::Spin {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 }))
+    let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 << 255 }))
+}

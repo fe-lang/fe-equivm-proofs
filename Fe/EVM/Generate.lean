@@ -213,7 +213,7 @@ def generatedSteps : Nat := 50000
 /-- Run a frame from the start of a transaction and compare it with `model`, and with the
     interpreter's run from the same world, `interp`.  Neither is run when the EVM runs out of gas
     or overflows its stack: nothing bounds them then. -/
-def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : FeM ByteArray)
+def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : Option (FeM ByteArray))
     (interp : Env → World → Option (Unit → Except String Outcome)) :
     Verdict × Interp × Except ExecutionException (ExecutionResult State) :=
   let r := run (fresh σ σ generatedGas A I) generatedSteps
@@ -222,8 +222,8 @@ def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : FeM ByteA
   | .error .StackOverflow => (.stackOverflow, .notRun, r.result)
   | _ =>
     let w := World.init σ A (r.events.toList.map supply)
-    let model := model.exec I w
-    (compare r.result model, compareInterp r.result model (interp I w), r.result)
+    let model := model.map (·.exec I w)
+    (compareModel r.result model, compareInterp r.result model (interp I w), r.result)
 
 /-- Deploy `target`, trying a few argument lists until its constructor returns, and send it
     `calls` calls.  Returns the comparisons and how many calls returned. -/
@@ -254,7 +254,8 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
           code := target.creation ++ args, perm := true }
     let (verdict, interp, result) :=
       frame σ₁ { A with createdAccounts := A.createdAccounts.insert address } I
-        (target.model.init args >>= fun tail => pure (target.runtime ++ tail)) target.interpInit
+        (target.model.map fun model => model.init args >>= fun tail => pure (target.runtime ++ tail))
+        target.interpInit
     reports := reports.push ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict, interp, ""⟩
     if let .ok (.success s code) := result then
       σ := s.accountMap.insert address { s.accountMap.getD address default with code := code }
@@ -283,7 +284,7 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
         { env with
             codeOwner := address, sender := sender, source := sender, weiValue := value,
             calldata := input, code := payee.code, perm := !static }
-      let (verdict, interp, result) := frame σ₁ A I target.model.runtime target.interpRuntime
+      let (verdict, interp, result) := frame σ₁ A I (target.model.map (·.runtime)) target.interpRuntime
       let how := if static then "static " else ""
       reports := reports.push
         ⟨test, target.name, s!"{how}{Ethereum.toHex input} value {value.toNat}", verdict, interp, ""⟩
