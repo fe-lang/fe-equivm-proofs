@@ -109,3 +109,29 @@ gain the divergence case, and `run_ends`/`section_run` for the invariant.  The l
 .OutOfGass`, is unproved; whether EVMLean's `X` checks the memory charge before any other
 failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read in
 `Semantics.lean` around line 674.
+
+## Measured
+
+- Kernel: `domTree` + `DomTree.valid` on the deposit contract's runtime root (fixture, 120
+  blocks, 461 lines), 1.14 s (15 s before the fixpoint stop).  `validateWith [.edgeSplit]` on
+  the real record of WETH9's `init` section at `-O0` (458 lines, one `edge_split` step), 3.91 s.
+- `scripts/MachineSteps.lean` with `edge_split,cfg_cleanup,branch_canonicalize` (interpreted),
+  on `corpus-v5/feproofs-O0` and `feproofs-O1` (copies on mb16; some precompile files were
+  truncated by the copy and are not read: 4 at `-O0`, 7 at `-O1`):
+  - `-O0`: 32 sections read; 15 accepted (every `init` but FeERC20's; 3 of them with real
+    `edge_split` steps: FeCodeScalar, FeScalarStore, WETH9), 17 rejected, all at their first
+    `coalesce_copies` step (no checker).  Counting with `coalesce_copies` as a hypothesis needs
+    its checker; not done.
+  - `-O1`: 26 sections read; 1 accepted (WETH9's Holder `init`, no steps), 25 rejected: 15 at
+    the first `cfg_cleanup` step, 10 at the first `branch_canonicalize` step (no checker for
+    either).
+
+## Not done
+
+- `cfg_cleanup` and `branch_canonicalize`: no checker, no soundness (enter as `StepSound`
+  hypotheses; `checkFunc` rejects them).  `cfg_cleanup` needs the definedness invariant and the
+  trivial-phi invariant (`TreeAnc B b → env[v] = env[x]`, preserved by steps given D1's edge
+  condition and `ssa`'s use-dominance); `branch_canonicalize` needs L2 at program points.
+- `wf` (C-6) and `ssa` with their soundness; `validate` taking symbol names.
+- Noreturn trims (rejected: no new instruction ids are accepted by any checker).
+- The `mcopy` gas lemma and semantics change (above).
