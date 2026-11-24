@@ -255,7 +255,7 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
     let (verdict, interp, result) :=
       frame σ₁ { A with createdAccounts := A.createdAccounts.insert address } I
         (target.model.init args >>= fun tail => pure (target.runtime ++ tail)) target.interpInit
-    reports := reports.push ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict, interp⟩
+    reports := reports.push ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict, interp, ""⟩
     if let .ok (.success s code) := result then
       σ := s.accountMap.insert address { s.accountMap.getD address default with code := code }
       deployed := true
@@ -286,7 +286,7 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
       let (verdict, interp, result) := frame σ₁ A I target.model.runtime target.interpRuntime
       let how := if static then "static " else ""
       reports := reports.push
-        ⟨test, target.name, s!"{how}{Ethereum.toHex input} value {value.toNat}", verdict, interp⟩
+        ⟨test, target.name, s!"{how}{Ethereum.toHex input} value {value.toNat}", verdict, interp, ""⟩
       if let .ok (.success s _) := result then
         σ := s.accountMap
         returned := returned + 1

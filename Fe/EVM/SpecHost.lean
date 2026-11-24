@@ -99,24 +99,29 @@ def specHost (regionLen : Nat) (creations : List (String × ByteArray)) :
       return some ((← initCodeOffset creation).toNat, (← initCodeLen creation).toNat)
 
 /-- An interpreter run in the model monad, from reserved memory: what it returns, or the error
-    the specification gives up with.  Each call of the entry code runs at most `fuel` steps,
-    checking after each that every value of the machine is of its type (`runChecked`); one that
-    does not finish within them does not terminate. -/
+    the specification gives up with. -/
 def interp {α : Type} (m : Fe.Sem.InterpM Env World α) : FeM (Except Fe.Sem.SpecError α) := do
   reserve
   return (← (m.run {}).run).map (·.1)
 
+/-- The runner of the entry calls: at most `fuel` steps each, after each of which `checked`
+    checks that every value of the machine is of its type (`runChecked`).  A call that does not
+    finish within them does not terminate. -/
+def specRunner (prog : Fe.IR.Program) (host : Fe.Host.Host Env World) (checked : Bool)
+    (fuel : Nat) : Fe.Sem.Runner Env World :=
+  if checked then Fe.Sem.runChecked prog host fuel else Fe.Sem.runBounded fuel prog host
+
 /-- The runtime entry of `prog`, whose runtime code is `regionLen` bytes. -/
 def specRuntime (prog : Fe.IR.Program) (regionLen : Nat) (creations : List (String × ByteArray))
-    (fuel : Nat) : FeM (Except Fe.Sem.SpecError Empty) :=
+    (checked : Bool) (fuel : Nat) : FeM (Except Fe.Sem.SpecError Empty) :=
   let host := specHost regionLen creations
-  interp (Fe.Sem.runtime prog host (Fe.Sem.runChecked prog host fuel))
+  interp (Fe.Sem.runtime prog host (specRunner prog host checked fuel))
 
 /-- The deployment entry of `prog`, whose creation code is `regionLen` bytes: the bytes of the
     immutable fields. -/
 def specInit (prog : Fe.IR.Program) (regionLen : Nat) (creations : List (String × ByteArray))
-    (fuel : Nat) : FeM (Except Fe.Sem.SpecError ByteArray) :=
+    (checked : Bool) (fuel : Nat) : FeM (Except Fe.Sem.SpecError ByteArray) :=
   let host := specHost regionLen creations
-  interp (Fe.Sem.initEntry prog host (Fe.Sem.runChecked prog host fuel))
+  interp (Fe.Sem.initEntry prog host (specRunner prog host checked fuel))
 
 end Fe.EVM

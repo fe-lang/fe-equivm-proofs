@@ -366,7 +366,7 @@ inductive Interp where
   /-- The specification gave up. -/
   | spec (why : String)
   /-- It ran: how it compares with the bytecode, and where it differs from the model. -/
-  | ran (bytecode : Verdict) (model : Option String)
+  | ran (bytecode : Verdict) (model : Option String) (shown : String)
 
 /-- The steps each call the entry code makes may take in the interpreter. -/
 def interpFuel : Nat := 10000000
@@ -389,7 +389,7 @@ def compareInterp (evm : Except ExecutionException (ExecutionResult State)) (mod
   | _, some run =>
     match run () with
     | .error why => .spec why
-    | .ok i => .ran (compare evm i "interpreter") (differs model i)
+    | .ok i => .ran (compare evm i "interpreter") (differs model i) (observe i).describe
 
 /-! ## Tests -/
 
@@ -422,6 +422,8 @@ structure Target where
   spec : Option (Except String Fe.IR.Program) := none
   /-- The creation codes of the contracts the contract may deploy, by name. -/
   creations : List (String × ByteArray) := []
+  /-- Whether the interpreter checks the machine's typing after every step (`runChecked`). -/
+  checked : Bool := false
 
 /-- Read the target's IR. -/
 def Target.load (t : Target) : IO Target := do
@@ -436,14 +438,14 @@ def Target.load (t : Target) : IO Target := do
     else if ← refused.pathExists then
       pure (.error s!"the serializer refused: {← IO.FS.readFile refused}")
     else pure (.error s!"no IR at {t.ir}")
-  return { t with spec := some spec }
+  return { t with spec := some spec, checked := (← IO.getEnv "SPEC_CHECKED").isSome }
 
 /-- The interpreter's runtime entry on the target, from the world `w`. -/
 def Target.interpRuntime (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specRuntime prog t.runtime.size t.creations interpFuel >>= fun r =>
+      ((specRuntime prog t.runtime.size t.creations t.checked interpFuel >>= fun r =>
         pure (r.map fun e => nomatch e)).exec I w)
   | _ => none
 
@@ -452,7 +454,7 @@ def Target.interpInit (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specInit prog t.creation.size t.creations interpFuel >>= fun r =>
+      ((specInit prog t.creation.size t.creations t.checked interpFuel >>= fun r =>
         pure (r.map (t.runtime ++ ·))).exec I w)
   | _ => none
 
@@ -470,6 +472,23 @@ structure Report where
   input : String
   verdict : Verdict
   interp : Interp := .notRun
+  /-- The three outcomes, in a few words. -/
+  outcomes : String := ""
+
+/-- The EVM's outcome, cut short. -/
+def describeEvmShort : Except ExecutionException (ExecutionResult State) → String
+  | .error e => s!"halts with {repr e}"
+  | .ok (.success _ out) => s!"returns {shortHex out}"
+  | .ok (.revert _ out) => s!"reverts with {shortHex out}"
+
+/-- The three outcomes of a creation or call, in a few words. -/
+def outcomes (evm : Except ExecutionException (ExecutionResult State)) (model : Outcome)
+    (interp : Interp) : String :=
+  let i := match interp with
+    | .notRun => "not run"
+    | .spec why => s!"gives up: {why}"
+    | .ran _ _ shown => shown
+  s!"EVM {describeEvmShort evm} | model {(observe model).describe} | interp {i}"
 
 /-- The comparisons of some calls, counted. -/
 structure Tally where
@@ -507,7 +526,7 @@ def Tally.add (t : Tally) (fixture : String) (r : Report) : IO Tally := do
   | .spec why =>
     IO.println s!"SPEC {at_}: {why}"
     return { t with spec := t.spec + 1 }
-  | .ran bytecode model =>
+  | .ran bytecode model _ =>
     let pairs := (model.map (s!"interp≠model ({·})")).toList
       ++ (match bytecode with
         | .disagree why => [s!"interp≠bytecode ({why})"]
@@ -564,12 +583,13 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           | _ => x == ⟨0⟩
         let report : Report :=
           if made then
-            ⟨test, target.name, Ethereum.toHex m.input, compare r.result model,
-              compareInterp r.result model (target.interpRuntime I w)⟩
+            let interp := compareInterp r.result model (target.interpRuntime I w)
+            ⟨test, target.name, Ethereum.toHex m.input, compare r.result model, interp,
+              outcomes r.result model interp⟩
           else
             ⟨test, target.name, Ethereum.toHex m.input,
               .disagree s!"harness: the rebuilt frame {describeEvm r.result}, the test's call gave {x.toNat}",
-              .notRun⟩
+              .notRun, ""⟩
         (some report, none)
       | _, _ => (none, none)
     | none =>
@@ -590,12 +610,13 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           let input := s!"init {Ethereum.toHex args}"
           let report : Report :=
             if made then
-              ⟨test, target.name, input, compare r.result model,
-                compareInterp r.result model (target.interpInit I w)⟩
+              let interp := compareInterp r.result model (target.interpInit I w)
+              ⟨test, target.name, input, compare r.result model, interp,
+                outcomes r.result model interp⟩
             else
               ⟨test, target.name, input,
                 .disagree s!"harness: the rebuilt creation {describeEvm r.result}, the test's gave {x.toNat}",
-                .notRun⟩
+                .notRun, ""⟩
           (some report, if x == ⟨0⟩ then none else some (AccountAddress.ofUInt256 x, target))
 
 /-- Deploy the tests' object with `suite`, its init code, and run the test, comparing at every
@@ -640,6 +661,7 @@ def main (fixture : String) (targets : List Target) (suite : ByteArray) (tests :
     for r in reports do
       if let .agree _ := r.verdict then
         if !covered.contains r.target then covered := r.target :: covered
+      IO.println s!"CALL3 {fixture}::{r.test} {r.target} {r.input}: {r.outcomes}"
       tally ← tally.add fixture r
   IO.println s!"DIFF {fixture} tests={tests.length} {tally.fields} targets={targets.length} covered={covered.length}"
 
