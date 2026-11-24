@@ -1018,6 +1018,7 @@ theorem cfgCleanup_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Or
 end sound
 
 theorem cfgCleanup_stepSound : StepSound .cfgCleanup :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => cfgCleanup_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    cfgCleanup_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 end Fe.Sonatina.Steps

@@ -48,7 +48,9 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
 /-- Why `checkStep` rejects a function step. -/
 def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : FuncStep) : String :=
-  if !fs.facts.isEmpty then "facts present"
+  if !(k == .edgeSplit || k == .cfgCleanup || k == .branchCanonicalize ||
+      k == .branchConditions) then "no checker"
+  else if !noFacts fs.facts then "facts present"
   else if !fs.out.func.machine then "output not machine IR"
   else if !fs.out.wf M.sig syms then "output not well formed"
   else if (M.func? fs.func).isNone then "no such function"

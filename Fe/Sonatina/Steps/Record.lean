@@ -1,4 +1,5 @@
 import Fe.Sonatina.Syntax
+import Fe.Sonatina.Steps.SchemasFacts
 
 /-!
 # The record of the machine pipeline's steps
@@ -51,12 +52,17 @@ structure FuncSnap where
   deriving Repr, Inhabited, Lean.ToExpr
 
 /-- A function a step changed: the whole function after the step and the step's facts on it,
-    each a key and its JSON, unread. -/
+    as `Schemas.readFacts` reads them. -/
 structure FuncStep where
   func : String
   out : FuncSnap
-  facts : List (String × String)
+  facts : Schemas.StepFacts
   deriving Repr, Inhabited, Lean.ToExpr
+
+/-- A step has no facts: no known bits, no demand round, no SCCP facts, no other key. -/
+def noFacts (F : Schemas.StepFacts) : Bool :=
+  F.knownBits.isEmpty && F.demanded.isNone && F.consts.isNone && F.deadEdges.isEmpty &&
+    F.unread.isEmpty
 
 structure Step where
   kind : StepKind

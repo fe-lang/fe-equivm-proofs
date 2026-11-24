@@ -52,25 +52,27 @@ theorem Module.update_func? (M : Module) (fs : List Func) (name : String) :
 abbrev IdTab := List (String × List (List Nat))
 
 /-- The check of one function by a step kind, given the pass's summary table, the input
-    function, its instruction ids, and the output snapshot.  Kinds without a checker reject. -/
+    function, its instruction ids, the output snapshot, and the step's facts on the function.
+    A kind that reads no facts rejects a step with any; kinds without a checker reject. -/
 def checkFunc : StepKind → Option (List Summary) → Func → Option (List (List Nat)) → FuncSnap →
-    Bool
-  | .edgeSplit, _, f, _, s => checkEdgeSplit f s.func
-  | .cfgCleanup, O, f, ids, s => checkCfgCleanup O f ids s
-  | .branchCanonicalize, _, f, ids, s => checkBranchCanon f ids s
-  | .branchConditions, _, f, ids, s => checkBranchCanon f ids s
-  | _, _, _, _, _ => false
+    Schemas.StepFacts → Bool
+  | .edgeSplit, _, f, _, s, F => noFacts F && checkEdgeSplit f s.func
+  | .cfgCleanup, O, f, ids, s, F => noFacts F && checkCfgCleanup O f ids s
+  | .branchCanonicalize, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
+  | .branchConditions, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
+  | _, _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/
 def sameSig (f g : Func) : Bool := decide (g.params = f.params) && decide (g.rets = f.rets)
 
 /-- A step: every function it lists exists in the input, is renamed to nothing, keeps its
-    signature, has no facts (no kind of this phase reads any), is well formed in the input
-    module (whose signatures it keeps) with its instruction ids, and passes its kind's check. -/
+    signature, is well formed in the input module (whose signatures it keeps) with its
+    instruction ids, and passes its kind's check, which reads the step's facts on it. -/
 def checkStep (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : List FuncStep) : Bool :=
-  fs.all fun s => s.facts.isEmpty && s.out.func.name == s.func && s.out.wf M.sig syms &&
-    (M.func? s.func).any fun f => sameSig f s.out.func && checkFunc k O f (I.lookup s.func) s.out
+  fs.all fun s => s.out.func.name == s.func && s.out.wf M.sig syms &&
+    (M.func? s.func).any fun f =>
+      sameSig f s.out.func && checkFunc k O f (I.lookup s.func) s.out s.facts
 
 /-- A step's output module. -/
 def stepOut (M : Module) (fs : List FuncStep) : Module := M.update (fs.map (·.out.func))
@@ -115,15 +117,14 @@ theorem FuncRef.none (o : Oracle) (c : Ctx) : FuncRef o c none none := fun _ _ =
 
 theorem checkStep_spec {k : StepKind} {syms : List String} {O : Option (List Summary)}
     {M : Module} {I : IdTab} {fs : List FuncStep} (h : checkStep k syms O M I fs = true) :
-    ∀ s ∈ fs, s.facts.isEmpty = true ∧ s.out.func.name = s.func ∧
-      s.out.func.wf M.sig syms = true ∧
+    ∀ s ∈ fs, s.out.func.name = s.func ∧ s.out.func.wf M.sig syms = true ∧
       ∃ f, M.func? s.func = some f ∧ sameSig f s.out.func = true ∧
-        checkFunc k O f (I.lookup s.func) s.out = true := by
+        checkFunc k O f (I.lookup s.func) s.out s.facts = true := by
   intro s hs
   have := List.all_eq_true.mp h s hs
   simp only [Bool.and_eq_true, beq_iff_eq, Option.any_eq_true, FuncSnap.wf] at this
-  obtain ⟨⟨⟨hf, hn⟩, hw, _⟩, f, hMf, hsig, hck⟩ := this
-  exact ⟨hf, hn, hw, f, hMf, hsig, hck⟩
+  obtain ⟨⟨hn, hw, _⟩, f, hMf, hsig, hck⟩ := this
+  exact ⟨hn, hw, f, hMf, hsig, hck⟩
 
 /-- A step's output function, if any, of the name of a function `g` of the input: one with the
     signature of `g`, well formed in the input. -/
@@ -133,7 +134,7 @@ theorem stepOut_func {k : StepKind} {syms : List String} {O : Option (List Summa
     (fs.map (·.out.func)).find? (·.name == g.name) = none ∨
       ∃ s ∈ fs, (fs.map (·.out.func)).find? (·.name == g.name) = some s.out.func ∧
         s.out.func.name = g.name ∧ sameSig g s.out.func = true ∧ s.out.func.wf M.sig syms = true ∧
-        checkFunc k O g (I.lookup s.func) s.out = true := by
+        checkFunc k O g (I.lookup s.func) s.out s.facts = true := by
   cases hr : (fs.map (·.out.func)).find? (·.name == g.name) with
   | none => exact Or.inl rfl
   | some r =>
@@ -141,7 +142,7 @@ theorem stepOut_func {k : StepKind} {syms : List String} {O : Option (List Summa
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hr)
     have hsn : s.out.func.name = g.name := by simpa using List.find?_some hr
     have hgname : g.name = name := by simpa using List.find?_some hg
-    obtain ⟨_, hname, hw, f, hf, hsig, hck⟩ := checkStep_spec h s hs
+    obtain ⟨hname, hw, f, hf, hsig, hck⟩ := checkStep_spec h s hs
     rw [← hname, hsn, hgname, hg] at hf
     cases hf
     exact ⟨s, hs, rfl, hsn, hsig, hw, hck⟩
@@ -176,13 +177,13 @@ theorem stepOut_wf {k : StepKind} {syms : List String} {O : Option (List Summary
   | none => exact List.all_eq_true.mp hM g hg
   | some r =>
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hr)
-    exact (checkStep_spec h s hs).2.2.1
+    exact (checkStep_spec h s hs).2.1
 
 /-- A step kind whose check of each function gives `FuncRef` is sound. -/
 theorem StepSound.of_func {k : StepKind}
     (h : ∀ (O : Option (List Summary)) (sig : Sigs) (syms : List String) (o : Oracle) (c : Ctx),
-      Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s, f.wf sig syms = true →
-        checkFunc k O f ids s = true → FuncRef o c (some s.func) (some f)) :
+      Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s F, f.wf sig syms = true →
+        checkFunc k O f ids s F = true → FuncRef o c (some s.func) (some f)) :
     StepSound k := by
   intro syms O M I fs hM hc o c _ ho hoi hnr name
   rw [stepOut, Module.update_func?]
@@ -193,10 +194,11 @@ theorem StepSound.of_func {k : StepKind}
     dsimp only [Option.map]
     rcases stepOut_func hc hg with hr | ⟨s, _, hr, _, _, _, hck⟩
     · rw [hr]; exact FuncRef.refl ho hoi c (Func.wf_machine hgw)
-    · rw [hr]; exact h O _ _ o c ho hoi hnr _ _ s.out hgw hck
+    · rw [hr]; exact h O _ _ o c ho hoi hnr _ _ s.out s.facts hgw hck
 
 theorem edgeSplit_stepSound : StepSound .edgeSplit :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => edgeSplit_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    edgeSplit_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 /-! ## Replaying a record -/
 

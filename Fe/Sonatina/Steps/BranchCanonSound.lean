@@ -585,9 +585,11 @@ theorem branchCanon_sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c 
 end sim
 
 theorem branchCanon_stepSound : StepSound .branchCanonicalize :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => branchCanon_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    branchCanon_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 theorem branchConditions_stepSound : StepSound .branchConditions :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => branchCanon_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    branchCanon_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 end Fe.Sonatina.Steps
