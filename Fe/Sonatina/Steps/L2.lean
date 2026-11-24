@@ -10,6 +10,7 @@ the tree reaches whose instruction is pure (`Inst.pure`: its values are a functi
 operands' values, `pureVals`, `runInst_pure`) and that comes before the point (`Before`: in a
 strict tree ancestor of `b`, or earlier in `b`) has its results bound to the instruction's values
 on the current environment, as their types (`Val.as`, as `bind` binds them) (`PureInv`).
+`evm_add_mod` and `evm_mul_mod` count as pure: total and without effects in the model.
 
 The argument: a statement's results are bound only by it (unique definitions); its operands'
 definitions come before it (`ssa`'s uses), so an operand is rebound only where the statement
@@ -22,10 +23,24 @@ namespace Fe.Sonatina.Steps
 
 open Ethereum Fe Fe.EVM
 
+/-- `evm_add_mod` and `evm_mul_mod`: total and without effects (a modulus `0` gives `0`). -/
+def _root_.Fe.Sonatina.EvmOp.isMod : EvmOp → Bool
+  | .addMod | .mulMod => true
+  | _ => false
+
 /-- An instruction whose values are a function of its operands' values. -/
 def _root_.Fe.Sonatina.Inst.pure : Inst → Bool
   | .bin .. | .cmp .. | .isZero _ | .not _ | .neg _ | .ctz _ | .ovf .. | .cast .. | .select .. => true
+  | .evm op args => op.isMod && args.length == 3
   | _ => false
+
+/-- The value of `evm_add_mod` or `evm_mul_mod` on its operands' integers. -/
+def modVals : EvmOp → List (Option (Nat × Nat)) → Option (List Val)
+  | .addMod, [some (_, x), some (_, y), some (_, z)] =>
+    some [word (UInt256.addMod (.ofNat x) (.ofNat y) (.ofNat z))]
+  | .mulMod, [some (_, x), some (_, y), some (_, z)] =>
+    some [word (UInt256.mulMod (.ofNat x) (.ofNat y) (.ofNat z))]
+  | _, _ => none
 
 /-- Two integer operands of one width. -/
 def pairOpt (env : Env) (a b : Operand) : Option (Nat × Nat × Nat) := do
@@ -50,12 +65,23 @@ def pureVals (env : Env) : Inst → Option (List Val)
   | .cast op a ty => (intVal env a).map fun (bits, x) => [.int ty.bits (op.eval bits x ty.bits)]
   | .select c a b => (intVal env c).bind fun (_, v) =>
       (opVal env (if v != 0 then a else b)).map fun x => [x]
+  | .evm op args => modVals op (args.map (intVal env))
   | _ => none
 
 /-- A pure instruction runs to its values, or is stuck. -/
 theorem runInst_pure (c : Ctx) (env : Env) (i : Inst) (h : i.pure = true) :
     runInst c env i = lift (pureVals env i) := by
   cases i <;> simp only [Inst.pure, Bool.false_eq_true] at h
+  case evm op args =>
+    simp only [Bool.and_eq_true, beq_iff_eq] at h
+    obtain ⟨hop, hl⟩ := h
+    match args, hl with
+    | [a, b, m], _ =>
+      simp only [runInst, pureVals, List.map_cons, List.map_nil, List.mapM_cons, List.mapM_nil,
+        evalWord, evalInt_eq]
+      cases op <;> simp only [EvmOp.isMod, Bool.false_eq_true] at hop <;>
+        rcases intVal env a with _ | ⟨_, x⟩ <;> rcases intVal env b with _ | ⟨_, y⟩ <;>
+        rcases intVal env m with _ | ⟨_, z⟩ <;> rfl
   case bin op a b =>
     simp only [runInst, pureVals]; rw [evalPair_opt, lift_bind]
     rcases pairOpt env a b with _ | ⟨bits, x, y⟩ <;> rfl
@@ -86,6 +112,9 @@ theorem pureVals_congr {env' env : Env} (i : Inst) (h : ∀ o ∈ i.args, opVal 
   have hi : ∀ o ∈ i.args, intVal env' o = intVal env o := fun o ho => by
     unfold intVal; rw [h o ho]
   cases i
+  case evm op args =>
+    simp only [Inst.args] at hi
+    simp only [pureVals, List.map_congr_left hi]
   case select c a b =>
     simp only [Inst.args, List.mem_cons, List.mem_singleton, forall_eq_or_imp, forall_eq,
       List.not_mem_nil, or_false] at h hi
