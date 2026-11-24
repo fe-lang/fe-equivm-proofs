@@ -241,7 +241,7 @@ reservation of low memory, and is compared with the bytecode and with the model 
 excepted: the interpreter keeps locals in cells of its own. A call agrees three ways (`agree3`
 in the totals), or the interpreter disagrees with one side (a `DIFF3` line naming the pairs that
 differ: `interp≠model`, `interp≠bytecode`, `model≠bytecode`, each with both outcomes), or the
-interpreter gives up (`SPEC`, with fe-spec's `unsupported` or `malformed` reason, `malformed
+interpreter gives up (`SPEC`, with fe-spec's `unsupported`, `malformed` or `obligation` reason, `malformed
 typing: …` when a value of the machine is not of its type, checked after every step, or no
 result within `interpFuel` steps of a call). A target the serializer refused, or whose IR
 does not read, has a `NOIR` line and is compared two ways only. Lines comparing model and
@@ -251,7 +251,15 @@ a `CALL3` line in its file's log (not in `diff.txt`) with the three outcomes sid
 reading a scenario's result. The interpreter runs with fe-spec's `runBounded`; with
 `SPEC_CHECKED=1` it runs `runChecked`, which checks after every step that every value of the
 machine is of its type and reports a violation as `malformed typing: …`, several times slower
-(the Precompiles ingot takes over an hour).
+(the Precompiles ingot takes over an hour). `SPEC_FUEL` sets the bound on the steps of an entry
+call (`interpFuel`, ten million, by default). A contract the exporter stops at is still a target,
+with no model (`model none: not exported` in `CALL3`): its calls are compared between the
+interpreter and the bytecode (`noModel` and `agree2` in the totals).
+
+The expected results of the three-way audit are `scripts/expected/exports3.txt`, checked by
+`EXPECTED=scripts/expected/exports3.txt scripts/check_corpus.sh <fe checkout>` (and recorded with
+`BLESS=1`); CI does not run it, as it needs fe-spec next to this repository and a Fe checkout
+with the IR serializer.
 
 `FeProofs/Targeted/` has contracts whose Fe tests make the calls that reach what generated calls
 and the fixtures do not: the scenarios of fe-spec's code reviews (`targeted_review1.fe` to

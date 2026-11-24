@@ -14,6 +14,7 @@ disagreements = []
 diff3 = []
 pairs = collections.Counter()
 spec = collections.Counter()
+spec_classes = collections.Counter()
 noir = []
 unfinished = []
 for line in open(sys.argv[1]):
@@ -33,7 +34,9 @@ for line in open(sys.argv[1]):
         for pair in re.findall(r"(?:^|; )(\w+≠\w+) \(", rest.partition(": ")[2]):
             pairs[pair] += 1
     elif kind == "SPEC":
-        spec[rest.partition(": ")[2]] += 1
+        reason = rest.partition(": ")[2]
+        spec[reason] += 1
+        spec_classes[reason.split(" ")[0]] += 1
     elif kind == "NOIR":
         noir.append(rest)
     elif kind == "TEST" and " returns " not in rest and " reverts " not in rest:
@@ -61,7 +64,12 @@ print(
     f"{generated['outOfGas']} out of gas, {generated['stackOverflow']} out of stack; "
     f"{interp(generated)}"
 )
-print(f"interpreter disagreements by pair: {dict(sorted(pairs.items()))}; targets without IR: {len(noir)}")
+print(
+    f"interpreter disagreements by pair: {dict(sorted(pairs.items()))}; gives up by class: "
+    f"unsupported {spec_classes['unsupported']}, malformed {spec_classes['malformed']}, "
+    f"obligation {spec_classes['obligation']}, no result {spec_classes['no']}; "
+    f"targets without IR: {len(noir)}"
+)
 for line in disagreements[:60]:
     print("  DISAGREE", line[:300])
 if len(disagreements) > 60:
