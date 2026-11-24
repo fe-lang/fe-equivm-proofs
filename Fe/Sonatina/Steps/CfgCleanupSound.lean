@@ -385,10 +385,6 @@ section run
 
 variable {O : Option (List Summary)} {f f' : Func}
 
-/-- The output's environment binds only values of the output. -/
-def DomSub (f' : Func) (env : Env) : Prop :=
-  ∀ k, (env[k]?).isSome = true → ((defsOf f').find? k).isSome = true
-
 theorem tunnel_spec {t t₂ : Nat} {tb : Block} (h : (CCtx.of O f f').tunnel t = some (tb, t₂)) :
     f.block? t = some tb ∧ tb.body = [] ∧ f'.block? t = none ∧ (CCtx.of O f f').live t = true ∧
       tb.term = .jump t₂ := by
