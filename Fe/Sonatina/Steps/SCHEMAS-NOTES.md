@@ -360,6 +360,60 @@ because the terminator would be deleted.
   terminators `Term.wf`, and both id lists distinct. With the pairing this gives the output's
   `Func.wf` under the input's `sig` and `syms`, which L2 on the output side needs.
 
+## The known-bits invariant (`KnownBitsInv.lean`)
+
+Proved, no `sorry`, axioms `propext`, `Classical.choice`, `Quot.sound`. For facts `F` with
+`kbFactsOk (.ofListBy (·.id) f.blocks) (defsOf f) F` (what both checkers check, and true for no
+claims), `f.wf sig syms`, `T.valid f` and `ssa f T`, a run from the entry with integer arguments
+and an oracle that returns integers (`o.IntRet`):
+
+- `kb_reaches`: at every block state `s` with `Reaches o c f (env₀, none, e.id) s`,
+  `BlockInv f T s ∧ KBHolds (kbMap F) s.1`;
+- `kb_point`: before statement `k ≤ blk.body.length` of that state's block,
+  `Returns (KBHolds (kbMap F)) (enter s.1 s.2.1 blk >>= fun env₁ => runBodyO o c env₁ (blk.body.take k))`;
+
+where `KBHolds K env := ∀ v n, env[v]? = some (.int 256 n) → (kbOf K v).Sat n`. It needs no L2:
+a value is bound only by its own definition (unique definitions), a phi binds the value of one
+of its operands (`meetAll_sound`), a pure statement its word (`transfer_sound`, `clz` included,
+on Osaka only), and a parameter or a result of a statement that is not pure has no claim.
+`pureInst?_pure` (`pureInst? i = some p → noClz p → i.pure`) is the one bridge to L2's purity.
+
+## What is and is not proved about the two step checkers
+
+`checkKnownBitsSimplify` and `checkSccpFold` are arms of `checkFunc` on this branch, but there
+is no `StepSound .knownBitsSimplify` or `StepSound .sccpFold`. `validate_sound` and
+`machine_sound` take `∀ k ∈ allowed, StepSound k`, and the proved instances in `Machine.lean`
+use `validateWith` with the proved kinds only, which rejects every record with either kind.
+`validate` (all kinds) can now accept such records, and that acceptance proves nothing. Proved
+so far: the schema library (each schema sound on terms), the known-bits invariant above,
+`pureInst?_pure`. Measured, not proved: every step of both corpora accepted, every mutant
+rejected.
+
+L2 as the proofs will need it: at a point `(b, k)` the input run reaches, every pure non-`clz`
+statement reached by unfolding (to depth `d ≤ 3`, and through each link of a chain) from the
+definition of a value a paired line reads there has its result bound to its value. `PureInv f
+T b k env` (from `l2`) gives that for every pure statement of a reachable block before `(b, k)`:
+an unfolded definition dominates the use (strict SSA, transitively), so it is `Before`; a phi
+operand is read at the end of the predecessor (`BlockPure`). On the output side the same needs
+`l2` on `s.func`, so `s.func.wf sig syms` (obligation 1 below).
+
+Remaining obligations, in order:
+
+1. Output well-formedness: an accepted step and `f.wf sig syms` give `s.func.wf sig syms` (the
+   sig-free parts are checked; `call`, `sym_addr`, `sym_size` come from the pairing).
+2. Pairing: `pairFunc`, `idsFit`, `sigmaOf`, `mapLine`, `lineEq` give each output block as the
+   input block with σ applied, deleted lines `deletable`, and `is_zero` replacements.
+3. Terms under L2: `unfold`/`instTerm` evaluate to the environment's words at a reached point,
+   depth a parameter; SCCP constants as literals need obligation 5.
+4. `entryOk`: each mode justifies `env[v] = value of σ v` at every use (the chain bound a
+   parameter). Demand mode gives agreement on demanded bits only and needs a `dbFactsOk`
+   invariant (every use reads only demanded bits).
+5. The SCCP invariant: `execClosed` keeps the run in the executable set and off dead slots;
+   constants hold at executable definitions (`stmtConstOk` through `evalConst` or `checkExact`
+   under the known bits, phis over executable edges).
+6. The simulation: the output run refines the input run block by block (`FuncRef`), deleted
+   pure statements and phis dropped, then `StepSound.of_func` for each kind.
+
 ## For the checker authors
 
 - Import `Fe.Sonatina.Steps.SchemasG` and `Fe.Sonatina.Steps.SchemasD` (they import the rest),
