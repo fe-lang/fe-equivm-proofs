@@ -254,9 +254,11 @@ machine is of its type and reports a violation as `malformed typing: …`, sever
 (the Precompiles ingot takes over an hour).
 
 `FeProofs/Targeted/` has contracts whose Fe tests make the calls that reach what generated calls
-and the fixtures do not: the scenarios of fe-spec's code reviews (`review1.fe` to `review3.fe`)
-and of its table of differences from bytecode and its questions for the compiler
-(`differences.fe`).
+and the fixtures do not: the scenarios of fe-spec's code reviews (`targeted_review1.fe` to
+`targeted_review3.fe`) and of its table of differences from bytecode and its questions for the
+compiler (`targeted_differences.fe`). The audit also covers the IR fixtures of the exporter that
+those reviews wrote (`crates/lean-export/tests/fixtures/ir/*.fe`, with `lane_holds.fe`,
+`immutables.fe` and `trust.fe`), with generated calls.
 
 Run it with fe-spec checked out next to this repository and a Fe checkout whose
 `fe-lean-export` has the IR serializer (branch `ir-export` or later):
