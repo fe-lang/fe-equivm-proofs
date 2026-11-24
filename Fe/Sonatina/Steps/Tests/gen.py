@@ -313,3 +313,65 @@ mp_out = snap("f", P, R, [
     (2, ["jump block3"])],
     [[0], [1, 4, 5], [3]])
 write("cc_bad_pred.json", cc("f", mp_in, mp_out))
+
+# branch_canonicalize: is_zero peeling.
+def bcr(inp, out, kind="branch_canonicalize"):
+    return one(kind, "f", inp, out)
+
+def bc_func(cond_lines, br, ret1="return 1.i256", ids=None):
+    """block0: calldata size, the condition's statements, a branch; block1, block2 return."""
+    body = ["v1.i256 = evm_calldata_size"] + cond_lines + [br]
+    n = len(body)
+    return snap("f", P, R, [(0, body), (1, [ret1]), (2, ["return 2.i256"])],
+        ids or [list(range(n)), [n], [n + 1]])
+
+# k = 1, 2, 3: br (is_zero^k v1) block1 block2 becomes br v1, swapped iff k is odd; the
+# is_zeros are deleted.
+for k in (1, 2, 3):
+    cond = [f"v{2 + i}.i256 = is_zero v{1 + i}" for i in range(k)]
+    inp = bc_func(cond, f"br v{1 + k} block1 block2")
+    tgt = "block2 block1" if k % 2 else "block1 block2"
+    out = bc_func([], f"br v1 {tgt}", ids=[[0, k + 1], [k + 2], [k + 3]])
+    write(f"bc_peel{k}.json", bcr(inp, out))
+    # Review M-3: the wrong parity.
+    bad = "block1 block2" if k % 2 else "block2 block1"
+    write(f"bc_bad_parity{k}.json", bcr(inp, bc_func([], f"br v1 {bad}", ids=[[0, k + 1], [k + 2], [k + 3]])))
+# Peeling one of two is_zeros, the other kept: br (is_zero (is_zero v1)) → br (is_zero v1), swapped.
+inp2 = bc_func(["v2.i256 = is_zero v1", "v3.i256 = is_zero v2"], "br v3 block1 block2")
+write("bc_peel_partial.json", bcr(inp2, bc_func(["v2.i256 = is_zero v1"], "br v2 block2 block1",
+    ids=[[0, 1, 3], [4], [5]])))
+# The is_zero kept where the output still uses it.
+inp_k = bc_func(["v2.i256 = is_zero v1"], "br v2 block1 block2", ret1="return v2")
+write("bc_keep.json", bcr(inp_k, bc_func(["v2.i256 = is_zero v1"], "br v1 block2 block1",
+    ret1="return v2")))
+# Review M-3: a deleted is_zero the output still uses; a deleted instruction other than
+# is_zero; a peel through `not` (bitwise, no negation).
+write("bc_bad_live.json", bcr(inp_k, bc_func([], "br v1 block2 block1", ret1="return v2",
+    ids=[[0, 2], [3], [4]])))
+inp_s = bc_func(["evm_sstore 0.i256 v1", "v2.i256 = is_zero v1"], "br v2 block1 block2")
+write("bc_bad_delete.json", bcr(inp_s, bc_func([], "br v1 block2 block1", ids=[[0, 3], [4], [5]])))
+inp_n = bc_func(["v2.i256 = not v1"], "br v2 block1 block2")
+write("bc_bad_not.json", bcr(inp_n, bc_func([], "br v1 block2 block1", ids=[[0, 2], [3], [4]])))
+# The is_zero in a dominating block.
+cr_in = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "v2.i256 = is_zero v1", "jump block3"]),
+    (3, ["br v2 block1 block2"]),
+    (1, ["return 1.i256"]), (2, ["return 2.i256"])],
+    [[0, 1, 2], [3], [4], [5]])
+cr_out = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block3"]),
+    (3, ["br v1 block2 block1"]),
+    (1, ["return 1.i256"]), (2, ["return 2.i256"])],
+    [[0, 2], [3], [4], [5]])
+write("bc_cross.json", bcr(cr_in, cr_out))
+# branch_conditions, the case k = 1.
+write("bc_conditions.json", bcr(bc_func(["v2.i256 = is_zero v1"], "br v2 block1 block2"),
+    bc_func([], "br v1 block2 block1", ids=[[0, 2], [3], [4]]), kind="branch_conditions"))
+# Rejected: an unrelated condition; a changed target elsewhere.
+write("bc_bad_cond.json", bcr(bc_func(["v2.i256 = is_zero v1"], "br v2 block1 block2"),
+    bc_func(["v2.i256 = is_zero v1"], "br v0 block2 block1")))
+write("bc_bad_target.json", bcr(cr_in, snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block1"]),
+    (3, ["br v1 block2 block1"]),
+    (1, ["return 1.i256"]), (2, ["return 2.i256"])],
+    [[0, 2], [3], [4], [5]])))

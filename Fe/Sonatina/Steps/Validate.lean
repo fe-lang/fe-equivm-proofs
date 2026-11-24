@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.CfgCleanup
+import Fe.Sonatina.Steps.BranchCanon
 import Fe.Sonatina.Steps.Record
 
 /-!
@@ -56,6 +57,8 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
     Bool
   | .edgeSplit, _, f, _, s => checkEdgeSplit f s.func
   | .cfgCleanup, O, f, ids, s => checkCfgCleanup O f ids s
+  | .branchCanonicalize, _, f, ids, s => checkBranchCanon f ids s
+  | .branchConditions, _, f, ids, s => checkBranchCanon f ids s
   | _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/

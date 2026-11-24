@@ -1,4 +1,4 @@
-import Fe.Sonatina.Steps.EdgeSplit
+import Fe.Sonatina.Steps.Run
 import Fe.Sonatina.Steps.Summary
 
 /-!
@@ -34,46 +34,6 @@ noreturn call, which is new unless the input block already ended `call; unreacha
 namespace Fe.Sonatina.Steps
 
 open Ethereum Fe Fe.EVM
-
-/-! ## Operand maps -/
-
-def _root_.Fe.Sonatina.Inst.mapOps (g : Operand → Operand) : Inst → Inst
-  | .bin op a b => .bin op (g a) (g b)
-  | .cmp op a b => .cmp op (g a) (g b)
-  | .isZero a => .isZero (g a)
-  | .not a => .not (g a)
-  | .neg a => .neg (g a)
-  | .clz a => .clz (g a)
-  | .ctz a => .ctz (g a)
-  | .ovf op a b => .ovf op (g a) (g b)
-  | .cast op a ty => .cast op (g a) ty
-  | .select c a b => .select (g c) (g a) (g b)
-  | .evm op args => .evm op (args.map g)
-  | .mload a ty => .mload (g a) ty
-  | .mstore a v ty => .mstore (g a) (g v) ty
-  | .memzero d l => .memzero (g d) (g l)
-  | .malloc s => .malloc (g s)
-  | .alloca ty => .alloca ty
-  | .symAddr s => .symAddr s
-  | .symSize s => .symSize s
-  | .insertValue a i v => .insertValue (g a) (g i) (g v)
-  | .extractValue a i => .extractValue (g a) (g i)
-  | .keccakWords ws => .keccakWords (ws.map g)
-  | .call f args => .call f (args.map g)
-
-def _root_.Fe.Sonatina.Stmt.mapOps (g : Operand → Operand) (s : Stmt) : Stmt :=
-  ⟨s.dsts, s.inst.mapOps g⟩
-
-def _root_.Fe.Sonatina.Term.mapOps (g : Operand → Operand) : Term → Term
-  | .br c nz z => .br (g c) nz z
-  | .brTable s d cs => .brTable (g s) d (cs.map fun c => (g c.1, c.2))
-  | .ret vs => .ret (vs.map g)
-  | .evmReturn a l => .evmReturn (g a) (g l)
-  | .evmRevert a l => .evmRevert (g a) (g l)
-  | t => t
-
-/-- A phi's first operand from block `p`, the one `enter` takes. -/
-def inc (φ : Phi) (p : Nat) : Option Operand := (φ.incoming.find? (·.2 == p)).map (·.1)
 
 /-! ## The check -/
 

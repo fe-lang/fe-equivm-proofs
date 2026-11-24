@@ -130,4 +130,47 @@ example : CC cc_bad_noret_claim (replay cc_bad_noret_claim) = false := by decide
 example : CC cc_bad_noret_none (replay cc_bad_noret_none) = false := by decide +kernel
 example : CC cc_bad_noret_id (replay cc_bad_noret_id) = false := by decide +kernel
 
+/-! ## `branch_canonicalize` and `branch_conditions` -/
+
+machine_steps_file bc_peel1 "Fe/Sonatina/Steps/Tests/bc_peel1.json"
+machine_steps_file bc_peel2 "Fe/Sonatina/Steps/Tests/bc_peel2.json"
+machine_steps_file bc_peel3 "Fe/Sonatina/Steps/Tests/bc_peel3.json"
+machine_steps_file bc_peel_partial "Fe/Sonatina/Steps/Tests/bc_peel_partial.json"
+machine_steps_file bc_keep "Fe/Sonatina/Steps/Tests/bc_keep.json"
+machine_steps_file bc_cross "Fe/Sonatina/Steps/Tests/bc_cross.json"
+machine_steps_file bc_conditions "Fe/Sonatina/Steps/Tests/bc_conditions.json"
+machine_steps_file bc_bad_parity1 "Fe/Sonatina/Steps/Tests/bc_bad_parity1.json"
+machine_steps_file bc_bad_parity2 "Fe/Sonatina/Steps/Tests/bc_bad_parity2.json"
+machine_steps_file bc_bad_parity3 "Fe/Sonatina/Steps/Tests/bc_bad_parity3.json"
+machine_steps_file bc_bad_live "Fe/Sonatina/Steps/Tests/bc_bad_live.json"
+machine_steps_file bc_bad_delete "Fe/Sonatina/Steps/Tests/bc_bad_delete.json"
+machine_steps_file bc_bad_not "Fe/Sonatina/Steps/Tests/bc_bad_not.json"
+machine_steps_file bc_bad_cond "Fe/Sonatina/Steps/Tests/bc_bad_cond.json"
+machine_steps_file bc_bad_target "Fe/Sonatina/Steps/Tests/bc_bad_target.json"
+
+abbrev BC := validateWith [.branchCanonicalize, .branchConditions] []
+
+/-- Accepted: `is_zero` peeled `k = 1, 2, 3` times (targets swapped iff `k` is odd, the
+`is_zero`s deleted); one of two peeled; an `is_zero` kept that the output still uses; an
+`is_zero` in a dominating block; `branch_conditions`. -/
+example : BC bc_peel1 (replay bc_peel1) = true := by decide +kernel
+example : BC bc_peel2 (replay bc_peel2) = true := by decide +kernel
+example : BC bc_peel3 (replay bc_peel3) = true := by decide +kernel
+example : BC bc_peel_partial (replay bc_peel_partial) = true := by decide +kernel
+example : BC bc_keep (replay bc_keep) = true := by decide +kernel
+example : BC bc_cross (replay bc_cross) = true := by decide +kernel
+example : BC bc_conditions (replay bc_conditions) = true := by decide +kernel
+
+/-- Rejected: review M-3's counterexamples that apply to peeling (the wrong parity for `k = 1, 2,
+3`, a deleted `is_zero` the output uses, a deleted `evm_sstore`, a peel through the bitwise
+`not`), an unrelated condition, a changed target. -/
+example : BC bc_bad_parity1 (replay bc_bad_parity1) = false := by decide +kernel
+example : BC bc_bad_parity2 (replay bc_bad_parity2) = false := by decide +kernel
+example : BC bc_bad_parity3 (replay bc_bad_parity3) = false := by decide +kernel
+example : BC bc_bad_live (replay bc_bad_live) = false := by decide +kernel
+example : BC bc_bad_delete (replay bc_bad_delete) = false := by decide +kernel
+example : BC bc_bad_not (replay bc_bad_not) = false := by decide +kernel
+example : BC bc_bad_cond (replay bc_bad_cond) = false := by decide +kernel
+example : BC bc_bad_target (replay bc_bad_target) = false := by decide +kernel
+
 end Fe.Sonatina.Steps.Tests

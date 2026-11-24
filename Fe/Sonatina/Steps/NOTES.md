@@ -15,10 +15,13 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps` |
 | `NatMap.lean` | bit trie, `find?_insert`, `find?_ofList`, `find?_ofListBy` |
 | `Eq.lean` | `DecidableEq` for the IR |
-| `EdgeSplit.lean` | `checkEdgeSplit` (with `br c a a → jump a` and all-identical `br_table` → `jump`), `edgeSplit_sound` |
+| `EdgeSplit.lean` | `termRel` (terminators slot by slot, shared with `cfg_cleanup`), `approx_runTerm`, `checkEdgeSplit`, `edgeSplit_sound` |
+| `Summary.lean` | `noRet`, `trimIdx`, `cut`, `liveSet`, `noRetOk`, `SummariesOk`, `NoRetHolds`, `summariesOk_sound` |
+| `CfgCleanup.lean` | `Inst.mapOps`/`Term.mapOps`, `CCtx` (the check's context), `sigmaOf`, `walk`, `slotOk`, `linkOk`, `chainFrom`, `blockOk`, `blockIdsOk`, `checkCfgCleanup` |
+| `CfgCleanupSound.lean` | `Fol`, `enterOpt`, unique definitions, `DomTree.anc_antisymm`, `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
-| `Validate.lean` | `checkStep`, `StepSound`, `stepOut_wf`, `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit` |
+| `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `machine_sound_proved` |
 | `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
@@ -51,8 +54,9 @@ related input worlds, `WRel` includes `returnData`, `ResRel` relates the worlds 
 `Exit.stop`.
 
 Within a pass every step uses the pass input's semantics as the oracle (`validatePass_sound`);
-`StepSound` is stated for any self-approximating oracle, so the two kinds of this phase do not
-need the pass-level discipline, but later kinds that read `func_behavior` will.
+`StepSound` is stated for any self-approximating oracle that never returns from a function the
+pass's table claims does not return (`NoRetHolds`); `validatePass` checks the table against the
+pass input (`SummariesOk`), whose semantics is that oracle (`summariesOk_sound`).
 
 ## Integers: what the oracle framework assumes (phase 2)
 
@@ -90,9 +94,15 @@ of `PointInv`.
 
 ## Deviations from the design
 
-1. **`StepSound` has no `summariesOK` hypothesis.** No checker of this phase reads
-   `func_behavior`; when one does, `StepSound` gains the hypothesis that the table holds of the
-   oracle's module.
+1. **Summary table (phase 2, review 6 F-5).**  Only the `noreturn` claims are checked
+   (`SummariesOk`: from the entry, cutting paths at calls to claimed-noreturn functions, no
+   reached block ends in `return`, on a reachable set checked closed); the effect claims and
+   `will_return` have no consumer yet and are not read.  `validatePass` checks the table against
+   the pass input and rejects the pass if a claim fails (`sidecar-v5.md`: the table may describe
+   an earlier module; the measurement counts such passes).  `StepSound` takes `NoRetHolds O o`.
+   Under the current semantics `cfg_cleanup`'s proof does not use it: after a trimmed call the
+   output ends in `unreachable`, which diverges.  It is needed once ruling 7 makes `unreachable`
+   a trap.
 2. **`edge_split` restriction lifted (phase 2).**  `br c a a → jump a` for any `c`, and
    `br_table s (some d) cases → jump d'` when every case goes to `d` (`ESCtx.termOk`).  The
    checker computes the input's dominator tree, `DomTree.valid` and `ssa` (`checkEdgeSplit`);
@@ -100,8 +110,10 @@ of `PointInv`.
    invariant gives that the input's terminator reads words, so it is not stuck where the output
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
-3. **Noreturn trims, `cfg_cleanup`, `branch_canonicalize`: no checker.** `checkFunc` rejects every
-   kind but `edge_split`.  See "Not done".
+3. **`checkFunc` accepts `edge_split` and `cfg_cleanup`** (phase 2); every other kind is
+   rejected.  `checkFunc` takes the pass's table, the input's instruction ids and the output
+   snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
+   does not hold.
 4. **Final comparison by name.** The machine IR prints a section's functions in another order
    than `lowered` lists them; `validate` compares function by function (`sameFuncs`).
 5. **The record reader** follows `sidecar-v5.md` of the export, not design §3.1 (no version
@@ -127,6 +139,71 @@ of `PointInv`.
 8. **`Inst.machine` excludes `undef` operands, `insert_value` and `extract_value` (phase 2)**,
    beside `evm_malloc` and `alloca`: C1 needs runs to stay integer-valued.
 
+## `cfg_cleanup` (phase 2, item 2)
+
+Checker `checkCfgCleanup` (`CfgCleanup.lean`), per design §4.3 as corrected by review 1 C-4 and
+M-4.  What it checks:
+
+- the entry keeps its id, the parameters are the input's, the output is machine IR; the input's
+  dominator tree is valid and the input in strict SSA on it;
+- surviving blocks: reachable from the entry once each block is cut after its first call to a
+  claimed-noreturn function (`liveSet`, `cut`);
+- each output block is the merge chain of surviving input blocks from the input block of its id
+  (`chainFrom`, checked by `linksOk`).  A link from `c` to `n`: `c` is uncut, its terminator goes
+  to `n` by every slot (`termRel` against `jump n`), each slot through tunnel blocks; `n` is no
+  output block; `n`'s surviving predecessors are the ends of those paths.  This covers Sonatina's
+  `merge_linear_successor` after `fold_trampoline_block` and a branch collapsed to `jump`;
+- the output body is the chain's statements, each operand through `σ`, in order, with the same
+  results (`chainBody`); the last block cut by a noreturn call keeps its statements up to the
+  call and the output ends `unreachable`;
+- the terminator: `termRel` slot by slot against the last block's, through `σ`; a slot reaches
+  its output target through tunnel blocks (no statements, a `jump`, surviving, no output block;
+  `walk`), and each phi the target keeps takes, from the output block, the input phi's operand
+  from the path's last block composed back through the tunnel blocks' phis (Sonatina's
+  `forward_bridge_block`) and through `σ`; the composed operand is a use that dominates the
+  chain's end (`useOk`), and the path's last block survives uncut (`arrive`);
+- `σ`: inferred by rounds of trivial-phi resolution (`sigmaOf`, chains `v₁ ↦ v₂ ↦ x` resolved to
+  their end), then checked: for a phi `v` of surviving block `B` whose value the output does not
+  define, every operand from a surviving, uncut predecessor is `v` or, through `σ`, `x`, and some
+  is `x`; `x` is a word immediate or a value `σ` does not map, defined strictly above `B` in the
+  tree (`sigOk`);
+- a phi of a surviving block is a value of the output only if the output block of its id keeps
+  it (`phisDefOk`): the input binds the phis of merged and tunnel blocks, the output does not;
+- instruction ids (`blockIdsOk`): output phis keep their ids, the output body has the chain's
+  body ids in order, the terminator keeps its id (a `br`/`br_table` collapsed to `jump` too),
+  and a trimmed block's `unreachable` is a new id, unless the input block already ended
+  `call; unreachable`.
+
+Proof (`CfgCleanupSound.lean`, `cfgCleanup_sound`, `cfgCleanup_stepSound`): the simulation `CR`
+relates the output at `b` entered from `p'` to the input at `b` entered from the last block of
+the input's path; the output's environment binds less (`EnvSub`) and only output values
+(`DomSub`); the input carries `BlockInv` and the trivial-phi invariant at its predecessor
+(`PointTPI`: each `v ↦ x` holds wherever `v`'s block is a tree ancestor-or-self); the phis kept
+take related values (`PhiRel`).  One output block (`block_fol`) runs its chain against the
+input's blocks, the input stepping alone through link terminators, tunnel blocks and merged
+blocks' phis (`Fol`, `walk_run`, `chain_fol`), each step total by the definedness invariant.
+`tpi_enter` keeps the invariant entering a block from a surviving, uncut predecessor: by `σ`'s
+check, `ssa`'s phi uses, D1's edge condition, unique definitions, and the tree's antisymmetry
+(`DomTree.anc_antisymm`, from `valid_root`, which the phase-1 notes said no proof needed; this
+one does).  `tpi_stmt`: a statement binds no phi and no value above a phi's block.
+
+Deviations and choices:
+- The link condition is broader than "ends `jump n`" (a collapsed branch, tunnels); "`n` has the
+  link as its only surviving predecessor" becomes "`n`'s surviving predecessors are the ends of
+  the link's paths".  Soundness needs neither; they are kept as checks.
+- Strict dominance of `x` is checked on the dominator tree of the uncut input: a trim that changes
+  dominance makes the check reject (incomplete, not unsound).  The surviving set is not checked
+  closed: the proof needs only that each chain, tunnel and arrival block is in it, which the
+  check tests.
+- `σ` also requires `x` among the operands (C-4's `x ∈ S`), which the proof does not use.
+- Output `ssa` is not checked: the proof does not need it (an output use of an unbound value is
+  stuck).
+- `EnvW` (`Defined.lean`) now records that a bound word is below `2 ^ 256`, so `Val.as` of a
+  phi's type is the identity on it.
+- `edge_split`'s terminator check is `termRel (X.tgt b)`: its `br`/`br_table` → `jump` rule is
+  "every slot relates to the target", which for `edge_split` accepts exactly what the old rule
+  did.
+
 ## Review 6 (phase 1) findings taken up in phase 2
 
 - F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
@@ -135,7 +212,8 @@ of `PointInv`.
 - F-2: adopted.  `ESCtx.predOf` takes the distinct blocks whose slots target the block.
 - F-3: adopted.  `domTree` walks successors without repeats (`succMapOnce`); `valid` reads
   `succMap`.
-- F-5: adopted for the symbols (above); the summary table is left to the next worker.
+- F-5: adopted for the symbols (above), and for the summary table in phase 2 item 2
+  (`SummariesOk`, `NoRetHolds`).
 - F-8: adopted (deviation 7).
 - Not taken up here (out of item 1): F-4, F-6, F-7, F-9, F-10.
 
@@ -195,11 +273,23 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
   `cfg_cleanup`, 10 at `branch_canonicalize`).  Every lowered module read is well formed (the
   diagnosis checks it first), and so is every step output before the first rejected step.
 
+- Phase 2 item 2, with `cfg_cleanup` checked (`scripts/MachineSteps.lean`, interpreted; its
+  `steps` mode checks every function step, the replay trusting the record past each step):
+  - FeProofs, complete sidecars (`m1-lean/corpus-v5b`, 20 contracts per level, 40 sections):
+    with `edge_split,cfg_cleanup` allowed, `-O0` 19 accepted, 21 rejected at their first
+    `coalesce_copies` step; `-O1` and `-Os` 1 accepted, 39 rejected at their first
+    `branch_canonicalize` step.  Every `cfg_cleanup` step (92 at `-O1`, 91 at `-Os`) and every
+    `edge_split` step (6, 89, 89) is accepted; no pass's summary table fails.
+  - The `-O1` dialect corpus (`dialect/corpus-v5-full`, 325 sidecars, 650 sections): 24
+    accepted; 604 rejected at their first `branch_canonicalize` step, 21 at `coalesce_copies`,
+    1 at `known_bits_simplify`.  All 600 `cfg_cleanup` and 591 `edge_split` steps are accepted;
+    no summary table fails.  Unproved steps: `branch_canonicalize` 767, `coalesce_copies` 229,
+    `sccp_fold` 203, `known_bits_simplify` 110, `scalar_canonicalize` 92, `gvn_rewrite` 49,
+    `lower_switches` 48, `adce` 23, `gvn_prune` 4.
+
 ## Not done
 
-- `cfg_cleanup` and `branch_canonicalize`: no checker, no soundness (enter as `StepSound`
-  hypotheses; `checkFunc` rejects them).  `cfg_cleanup` needs the definedness invariant and the
-  trivial-phi invariant (`TreeAnc B b → env[v] = env[x]`, preserved by steps given D1's edge
-  condition and `ssa`'s use-dominance); `branch_canonicalize` needs L2 at program points.
-- Noreturn trims (rejected: no new instruction ids are accepted by any checker).
+- `branch_canonicalize`: no checker, no soundness (a `StepSound` hypothesis; `checkFunc`
+  rejects it); it needs L2 at program points.
+- The summary table's effect and `will_return` claims are not checked (no consumer).
 - The `mcopy` gas lemma and semantics change (above).
