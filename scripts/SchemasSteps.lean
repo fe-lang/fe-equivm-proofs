@@ -257,10 +257,10 @@ def main (args : List String) : IO Unit := do
               if st.kind == StepKind.sccpFold || st.kind == StepKind.knownBitsSimplify then
                 for fs in st.funcs do
                   let pre := s!"{path}\t{sec.name}\t{st.kind.name}\t{fs.func}"
-                  match M.func? fs.func, readFacts fs.facts with
-                  | none, _ => IO.println s!"{pre}\tREJECT\tno such function"
-                  | _, .error e => IO.println s!"{pre}\tREJECT\tfacts not read: {e}"
-                  | some f, .ok F =>
+                  let F := fs.facts
+                  match M.func? fs.func with
+                  | none => IO.println s!"{pre}\tREJECT\tno such function"
+                  | some f =>
                     let ids := I.lookup fs.func
                     if mode == "facts" then
                       for (nm, F') in factMutants f F do

@@ -26,10 +26,7 @@ elab "schema_step " name:ident path:str : command => do
     | .error e => throwError "{path.getString}: {e}"
   let some inp := r.lowered.head? | throwError "no lowered function"
   let some fs := r.passes.head? >>= (·.steps.head?) >>= (·.funcs.head?) | throwError "no step"
-  let F ← match readFacts fs.facts with
-    | .ok F => pure F
-    | .error e => throwError "facts: {e}"
-  let v : OneStep := (inp.func, some inp.insts, fs.out, F)
+  let v : OneStep := (inp.func, some inp.insts, fs.out, fs.facts)
   let decl := Declaration.defnDecl {
     name := (← getCurrNamespace) ++ name.getId, levelParams := [],
     type := mkConst ``OneStep, value := toExpr v, hints := .abbrev, safety := .safe }
