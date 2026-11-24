@@ -17,8 +17,7 @@ its spills, under a spill plan, which is data:
 - `Func.instrument` adds the stores the bytes make, as `evm_mstore` statements: after a
   statement defining a spilled value, of each spilled parameter at entry, and at the end of a
   block that jumps to a block with spilled phis, of each such phi (its operand from the block,
-  unless it is the phi itself, which its word holds already, or `undef`, which is stored
-  nowhere: the run does not take `undef` for any word);
+  unless it is the phi itself, which its word holds already);
 - `Func.reloadLive` finds the spilled values reload-live at each point: a reload of the value
   is reachable from there before the value is defined or stored again.  `Func.liveClosed`
   tests that sets satisfy the equations of that liveness, and `Func.live_mono` is what it

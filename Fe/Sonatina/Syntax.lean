@@ -47,8 +47,6 @@ inductive Operand where
   | var (id : Nat)
   /-- An immediate of `bits` bits, as its unsigned value. -/
   | imm (bits : Nat) (value : Nat)
-  /-- `undef.T`. -/
-  | undef (ty : Ty)
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
 /-- Two operands of one integer type to one of that type. -/

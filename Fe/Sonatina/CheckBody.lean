@@ -81,7 +81,6 @@ theorem opWord_congr {ρ ρ' : Nat → UInt256} {D : List Nat} (h : ∀ id ∈ D
   | .var id, hr => by
     simp only [opWord, h id (by simpa [reads, Operand.var?] using hr)]
   | .imm _ _, _ => rfl
-  | .undef _, _ => rfl
 
 theorem opWords_congr {ρ ρ' : Nat → UInt256} {D : List Nat} (h : ∀ id ∈ D, ρ id = ρ' id) :
     ∀ {os : List Operand}, reads D os = true → os.mapM (opWord ρ) = os.mapM (opWord ρ')
@@ -114,7 +113,6 @@ theorem opWord_some {ρ : Nat → UInt256} {expand : Nat → Option Expr} {o : O
     simp only [operandWith] at h
     split_ifs at h with hb
     exact ⟨.ofNat x, by rw [opWord, ite_eq_left hb]⟩
-  | undef _ => cases h
 
 theorem opWords_some {ρ : Nat → UInt256} {expand : Nat → Option Expr} :
     ∀ {os : List Operand} {es : List Expr}, os.mapM (operandWith expand) = some es →

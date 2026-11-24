@@ -46,7 +46,6 @@ def lift {α : Type} : Option α → FeM α
 def opVal (env : Env) : Operand → Option Val
   | .var id => env[id]?
   | .imm bits value => some (.int bits value)
-  | .undef ty => some (Val.zero ty)
 
 def intVal (env : Env) (o : Operand) : Option (Nat × Nat) :=
   match opVal env o with
@@ -57,7 +56,6 @@ theorem evalOperand_eq (env : Env) (o : Operand) : evalOperand env o = lift (opV
   cases o with
   | var id => simp only [evalOperand, opVal]; cases env[id]? <;> rfl
   | imm => rfl
-  | undef => rfl
 
 theorem lift_bind {α β : Type} (x : Option α) (k : α → FeM β) :
     lift x >>= k = match x with | some a => k a | none => stuck := by
@@ -78,7 +76,7 @@ theorem EnvSub.opVal {env' env : Env} (h : EnvSub env' env) {o : Operand} {v : V
     (hv : Steps.opVal env' o = some v) : Steps.opVal env o = some v := by
   cases o with
   | var id => exact h id v hv
-  | imm | undef => exact hv
+  | imm => exact hv
 
 theorem EnvSub.intVal {env' env : Env} (h : EnvSub env' env) {o : Operand} {v : Nat × Nat}
     (hv : Steps.intVal env' o = some v) : Steps.intVal env o = some v := by

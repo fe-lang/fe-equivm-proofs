@@ -320,7 +320,6 @@ def _root_.Fe.Sonatina.Stmt.local? (s : Stmt) : Option (Nat × Inst) :=
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
   | .var id => expand id
   | .imm bits value => if bits == 256 && value < UInt256.size then some (.const value) else none
-  | .undef _ => none
 
 /-- The expression of a pure instruction. -/
 def pureWith (expand : Nat → Option Expr) (symbols : List (String × Nat × Nat)) :
@@ -820,7 +819,7 @@ def slotDefined (defs : List Nat) (sb : Block) : Slot → Bool
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
     its phis, or those its statements define earlier; it defines none of those again (an entry
     value it defined would be the last run's); and each phi of each successor has an operand
-    from `b`, so defined and not `undef`, and each value of its entry stack is a phi or defined
+    from `b`, so defined, and each value of its entry stack is a phi or defined
     by `b`.  The
     machine IR runs a read of an undefined value nowhere. -/
 def defined (f : Func) (hints : List BlockHint) (sp : FuncSpill) (b : Block)
@@ -830,7 +829,7 @@ def defined (f : Func) (hints : List BlockHint) (sp : FuncSpill) (b : Block)
   | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
     match f.block? succ with
     | some sb => (sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
-      | some (.undef _, _) | none => false
+      | none => false
       | some (o, _) => reads defs [o]) &&
       -- A value of the successor's entry stack not its phi is one `b` has defined.
       (hints.find? (·.block == succ)).all (fun h => h.entryStack.all (slotDefined defs sb)) &&

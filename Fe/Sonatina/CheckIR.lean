@@ -20,7 +20,6 @@ open Ethereum Ethereum.EVM
 def opWord (ρ : Nat → UInt256) : Operand → Option UInt256
   | .var id => some (ρ id)
   | .imm bits v => if bits == 256 && v < UInt256.size then some (.ofNat v) else none
-  | .undef _ => none
 
 /-- The word a pure instruction of the class computes, its operands' words given by `ρ`. -/
 def instWord (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat)) :
@@ -45,7 +44,6 @@ theorem operand_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat �
     split_ifs at h with hb
     cases h
     simp [Expr.eval, opWord, hb]
-  | undef _ => cases h
 
 theorem operands_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat → Option Expr}
     {S : List Nat} (hexp : ∀ id e', id ∈ S → expand id = some e' → e'.eval ee ρ = some (ρ id)) :
@@ -351,7 +349,6 @@ theorem evalOperand_word {env : Env} {ρ : Nat → UInt256} {D : List Nat} {o : 
     obtain ⟨rfl, hx⟩ := hb
     cases ho
     simp [evalOperand, toNat_ofNat_lt hx]
-  | undef _ => cases ho
 
 theorem as_word (n : Nat) {ty : Ty} (hty : ty.bits = 256) :
     (Val.int 256 n).as ty = .int 256 (UInt256.ofNat n).toNat := by

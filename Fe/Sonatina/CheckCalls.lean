@@ -1359,15 +1359,15 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       have hbitsS := List.all_eq_true.mp hbits Sb hSbmem
       simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hbitsS
       have hin : ∀ phi ∈ Sb.phis, ∃ o d, phi.incoming.find? (·.2 == b.id) = some (o, d) ∧
-          reads D' [o] = true ∧ ∀ ty, o ≠ .undef ty := fun phi hp => by
+          reads D' [o] = true := fun phi hp => by
         have := hphisS phi hp
         rcases hf : phi.incoming.find? (fun x => x.2 == b.id) with _ | ⟨o, d⟩
         · simp [hf] at this
         · refine ⟨o, d, hf, ?_⟩
           rw [hf] at this
-          cases o <;> simp_all
+          simpa using this
       obtain ⟨envS, henterS, hphiS, hkeepS⟩ := enter_run (fun phi hp => by
-        obtain ⟨o, d, hf, hr, -⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
+        obtain ⟨o, d, hf, hr⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
       obtain ⟨ws', hws', hstk'⟩ := hrel
       refine ⟨hSbmem, by rw [hSid]; exact hSb, henvS, hagS, hbS, pc', envS, ws',
         by rw [hSid]; exact hhbS, by rw [hSid]; exact hplS, hpcS, henterS, hstk', ?_, ?_, ?_⟩
@@ -1378,7 +1378,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
           exact List.all_eq_true.mpr fun x hx => List.all_eq_true.mp this x (slots_sub hx)
         exact arrival_rel hcons hρ (ret := ret) (fun phi hp => by
           obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
-          obtain ⟨o', d', hf', hr', -⟩ := hin phi hp
+          obtain ⟨o', d', hf', hr'⟩ := hin phi hp
           rw [hf] at hf'; cases hf'
           exact ⟨hbitsS.1 phi hp, o, d, val, hf, hr', hev, hS⟩) hkeepS
           (fun h => by
@@ -1387,7 +1387,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
             rw [hρR, hk]; rfl) hall hmapS hws'
       · intro phi hp
         obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
-        obtain ⟨o', d', hf', hr', hnu⟩ := hin phi hp
+        obtain ⟨o', d', hf', hr'⟩ := hin phi hp
         rw [hf] at hf'; cases hf'
         have hval : ∃ bits k, val = .int bits k := by
           have hex' : ∀ {a b : FeM Val}, a = b →
@@ -1403,7 +1403,6 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
             have := hex' hev
             simp [evalOperand] at this
             exact ⟨_, _, this.symm⟩
-          | undef ty => exact absurd rfl (hnu ty)
         obtain ⟨bits, k, rfl⟩ := hval
         exact ⟨_, by rw [hS, as_int _ _ (hbitsS.1 phi hp)]; rfl, (UInt256.ofNat k).val.isLt⟩
       -- The words the successor starts with hold its spilled values, as the path knew.
@@ -1425,7 +1424,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
           obtain ⟨⟨o, d⟩, hfo, e', hoe, rfl, rfl⟩ := hfe
           obtain ⟨o', d', val, hf', hev, hS⟩ := hphiS phi hpm
           rw [hfo] at hf'; cases hf'
-          obtain ⟨o'', d'', hf'', hr'', -⟩ := hin phi hpm
+          obtain ⟨o'', d'', hf'', hr''⟩ := hin phi hpm
           rw [hfo] at hf''; cases hf''
           obtain ⟨v, hv, -, hev'⟩ := operand_words hcons hρ hr'' hoe
           rw [hu] at hv; cases hv

@@ -95,12 +95,11 @@ def parseNat (cs : List Char) : Option Nat :=
       else none
   | _ => (String.ofList cs).toNat?
 
-/-- An operand: `v<id>`, `undef.T`, or an integer `n.T`, held as its value modulo `2 ^ bits`. -/
+/-- An operand: `v<id>` or an integer `n.T`, held as its value modulo `2 ^ bits`. -/
 def parseOperand (word : String) : P Operand := do
   if let some id := valueId? word then return .var id
   let (head, ty) := splitDot word
   let ty ← parseTy ty
-  if head == "undef" then return .undef ty
   let n : Option Int := match head.toList with
     | '-' :: rest => (parseNat rest).map fun n => -(n : Int)
     | cs => (parseNat cs).map Int.ofNat

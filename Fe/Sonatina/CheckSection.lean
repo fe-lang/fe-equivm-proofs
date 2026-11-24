@@ -219,7 +219,6 @@ theorem evalOperand_some {env : Env} {ρ : Nat → UInt256} {D : List Nat} {o : 
     have hid : id ∈ D := by simpa [reads, Operand.var?] using hr
     exact ⟨_, by simp [evalOperand, hw id hid]; rfl⟩
   | imm bits x => exact ⟨_, rfl⟩
-  | undef ty => exact ⟨_, rfl⟩
 
 /-- Entering a block from `p`, each phi of which has a defined operand from `p`: each phi takes
     its operand's value, other values stay. -/

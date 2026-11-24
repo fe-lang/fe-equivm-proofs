@@ -27,7 +27,7 @@ agrees with no result of the bytecode, so a gap in the semantics makes a compari
 pass.
 
 What the semantics fixes where Sonatina leaves a choice:
-- `undef` and a struct field never written read as zero; a division by zero gives zero.
+- A struct field never written reads as zero; a division by zero gives zero.
 - `evm_malloc` gives fresh zero bytes at the end of memory, and above every range the module
   accesses at a constant address (`Module.fixedEnd`), which Sonatina keeps the memory it
   manages out of.  The bytecode places allocations elsewhere; only return data, logs and
@@ -93,7 +93,6 @@ def evalOperand (env : Env) : Operand → FeM Val
     | some v => pure v
     | none => stuck
   | .imm bits value => pure (.int bits value)
-  | .undef ty => pure (Val.zero ty)
 
 /-- An integer operand. -/
 def evalInt (env : Env) (o : Operand) : FeM (Nat × Nat) := do
