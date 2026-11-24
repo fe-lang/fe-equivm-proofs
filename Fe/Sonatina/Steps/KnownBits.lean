@@ -13,7 +13,7 @@ fact no word satisfies makes a lemma vacuous), the checker checks it on exported
   mirroring `KnownBitsQuery::{unary,binary}_known_bits` for `i256` (every mask is normalized to
   256 bits, `KnownBits::normalized`); their soundness `transfer1_sound` … `transfer3_sound`.
 - `KB.meet` (phis) and `meet_sound`; `KB.le`, the direction of a fact check (design §9 ruling
-  8: a claimed fact is `le` the derived one) and `Sat.of_le`.
+  8: a claimed fact is `le` the derived one) and `KB.Sat.le`.
 
 Where the Rust takes a shift amount, sign-extension byte, or comparison operand only when it is
 an immediate (`constant_shift(value_imm …)`, `exact_imm`), the Lean transfer takes it whenever
