@@ -17,12 +17,15 @@ impl Copy for Light {}
 impl Copy for Inner {}
 impl Copy for Outer {}
 
-/// A destructor that only loops.
-struct Spin {}
+/// A destructor that only loops, on one value only, which generated calls do not pick: the
+/// interpreter spends its whole step bound on it.
+struct Spin { v: u256 }
 
 impl Drop for Spin {
     fn drop(own self) {
-        while true {}
+        if self.v == 0x5915 {
+            while true {}
+        }
     }
 }
 
@@ -48,8 +51,8 @@ msg DiffMsg {
     NeedsDropString -> bool,
     #[selector = sol("needsDropQuiet()")]
     NeedsDropQuiet -> bool,
-    #[selector = sol("spin()")]
-    Spin -> u256,
+    #[selector = sol("spin(uint256)")]
+    Spin { v: u256 } -> u256,
     #[selector = sol("quiet(uint256)")]
     Quiet { v: u256 } -> u256,
 }
@@ -101,8 +104,8 @@ pub contract Differences {
         }
 
         // A destructor that only loops, then a return.
-        Spin -> u256 {
-            let s = Spin {}
+        Spin { v } -> u256 {
+            let s = Spin { v }
             42
         }
 
@@ -142,7 +145,7 @@ fn needs_drop() uses (evm: mut Evm) {
 #[test]
 fn elided_destructors() uses (evm: mut Evm) {
     let r = evm.create2<Differences>(value: Wei::zero(), args: (), salt: 0)
-    let _ = send(r, encode_msg_calldata(DiffMsg::Spin {}))
+    let _ = send(r, encode_msg_calldata(DiffMsg::Spin { v: 0x5915 }))
     let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 }))
     let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 << 255 }))
 }

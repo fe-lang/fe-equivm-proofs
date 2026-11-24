@@ -6,10 +6,13 @@
 # output directory, .lake/export-corpus/latest/.
 #
 # Usage: scripts/check_corpus.sh <fe checkout>
-#   BLESS=1 first copies the results to the expected file.
+#   BLESS=1 first copies the results to the expected file.  EXPECTED names another expected
+#   file: scripts/expected/exports3.txt holds the three-way audit's, with fe-spec at
+#   ../fe-spec-evm and a Fe checkout whose exporter serializes the IR (README, "Differential
+#   tests").
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd -P)
-expected=$root/scripts/expected/exports.txt
+expected=${EXPECTED:-$root/scripts/expected/exports.txt}
 "$root/scripts/audit_exports.sh" "$1"
 out=$root/.lake/export-corpus/latest
 {
@@ -23,7 +26,7 @@ out=$root/.lake/export-corpus/latest
 } > "$out/summary.txt"
 [ -n "${BLESS:-}" ] && cp "$out/summary.txt" "$expected"
 if ! diff -u "$expected" "$out/summary.txt"; then
-  echo "error: the export audit differs from scripts/expected/exports.txt (- expected, + actual)."
+  echo "error: the export audit differs from $expected (- expected, + actual)."
   echo "Its output is in $(cd "$out" && pwd -P)."
   echo "If the change is intended, rerun with BLESS=1 and commit the expected file with it."
   exit 1
