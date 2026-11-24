@@ -383,11 +383,11 @@ inductive Interp where
 def interpFuel : Nat := 10000000
 
 /-- The interpreter's outcome: a Fe outcome, or the error the specification gave up with.  A run
-    with no result is one that did not finish within `interpFuel` steps of a call, or one whose
+    with no result is one that did not finish within its bound on the steps of a call, or one whose
     host diverged (`alloc` past `2 ^ 256`, the feed run dry), which the model's would too. -/
 def interpOutcome : Option (Except (Exit World) (Except Fe.Sem.SpecError ByteArray × World)) →
     Except String Outcome
-  | none => .error s!"no result: more than {interpFuel} steps in a call, or the host diverges"
+  | none => .error "no result: more steps in a call than the bound, or the host diverges"
   | some (.error e) => .ok (some (.error e))
   | some (.ok (.error e, _)) => .error (describeSpec e)
   | some (.ok (.ok out, w)) => .ok (some (.ok (out, w)))
@@ -435,6 +435,8 @@ structure Target where
   creations : List (String × ByteArray) := []
   /-- Whether the interpreter checks the machine's typing after every step (`runChecked`). -/
   checked : Bool := false
+  /-- The steps each entry call may take in the interpreter. -/
+  fuel : Nat := interpFuel
 
 /-- Read the target's IR. -/
 def Target.load (t : Target) : IO Target := do
@@ -449,14 +451,15 @@ def Target.load (t : Target) : IO Target := do
     else if ← refused.pathExists then
       pure (.error s!"the serializer refused: {← IO.FS.readFile refused}")
     else pure (.error s!"no IR at {t.ir}")
-  return { t with spec := some spec, checked := (← IO.getEnv "SPEC_CHECKED").isSome }
+  let fuel := ((← IO.getEnv "SPEC_FUEL").bind String.toNat?).getD interpFuel
+  return { t with spec := some spec, checked := (← IO.getEnv "SPEC_CHECKED").isSome, fuel }
 
 /-- The interpreter's runtime entry on the target, from the world `w`. -/
 def Target.interpRuntime (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specRuntime prog t.runtime.size t.creations t.checked interpFuel >>= fun r =>
+      ((specRuntime prog t.runtime.size t.creations t.checked t.fuel >>= fun r =>
         pure (r.map fun e => nomatch e)).exec I w)
   | _ => none
 
@@ -465,7 +468,7 @@ def Target.interpInit (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specInit prog t.creation.size t.creations t.checked interpFuel >>= fun r =>
+      ((specInit prog t.creation.size t.creations t.checked t.fuel >>= fun r =>
         pure (r.map (t.runtime ++ ·))).exec I w)
   | _ => none
 
