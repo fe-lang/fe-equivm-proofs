@@ -1,5 +1,4 @@
-import Fe.Sonatina.Steps.EdgeSplit
-import Fe.Sonatina.Steps.Summary
+import Fe.Sonatina.Steps.CfgCleanup
 import Fe.Sonatina.Steps.Record
 
 /-!
@@ -56,6 +55,7 @@ abbrev IdTab := List (String × List (List Nat))
 def checkFunc : StepKind → Option (List Summary) → Func → Option (List (List Nat)) → FuncSnap →
     Bool
   | .edgeSplit, _, f, _, s => checkEdgeSplit f s.func
+  | .cfgCleanup, O, f, ids, s => checkCfgCleanup O f ids s
   | _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/

@@ -119,3 +119,197 @@ two_out = snap("g", P, R, [
     (3, ["jump block1"])],
     [[0], [1], [2, 3], [4]])
 write("es_two_slots.json", one("edge_split", "g", two_in, two_out))
+
+# cfg_cleanup.
+def cc(name, inp, out, fb=None, extra=()):
+    """A record of one cfg_cleanup step of function `name`; `extra` are more lowered functions."""
+    return record([inp, *extra], [{"kind": "cfg_cleanup", "func_behavior": fb,
+        "steps": [{"kind": "cfg_cleanup", "funcs": [{"out": out, "facts": NOFACTS}]}]}])
+
+# Merge and a trivial phi after pruning (design §4.3's example): block5 is unreachable, so
+# v2 = phi (v1 block0) (v1 block5) is v1, and block0, block3, block4 merge.
+mg_in = snap("f", [], R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block3"]),
+    (3, ["v2.i256 = phi (v1 block0) (v1 block5)", "v3.i256 = add v2 1.i256", "jump block4"]),
+    (4, ["return v3"]),
+    (5, ["jump block3"])],
+    [[0, 1], [2, 3, 4], [5], [6]])
+def mg_out(add="v3.i256 = add v1 1.i256"):
+    return snap("f", [], R, [(0, ["v1.i256 = evm_calldata_size", add, "return v3"])], [[0, 3, 5]])
+write("cc_merge.json", cc("f", mg_in, mg_out()))
+# Rejected: a changed instruction.
+write("cc_bad_inst.json", cc("f", mg_in, mg_out("v3.i256 = add v1 2.i256")))
+
+# A tunnel through block1 (only `jump block3`): block0's slot goes to block3, whose phi takes
+# block1's operand from block0.
+tn_in = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["jump block3"]),
+    (2, ["v1.i256 = add v0 1.i256", "jump block3"]),
+    (3, ["v2.i256 = phi (10.i256 block1) (v1 block2)", "return v2"])],
+    [[0], [1], [2, 3], [4, 5]])
+def tn_out(phi="v2.i256 = phi (10.i256 block0) (v1 block2)"):
+    return snap("f", P, R, [
+        (0, ["br v0 block3 block2"]),
+        (2, ["v1.i256 = add v0 1.i256", "jump block3"]),
+        (3, [phi, "return v2"])],
+        [[0], [2, 3], [4, 5]])
+write("cc_tunnel.json", cc("f", tn_in, tn_out()))
+# Rejected: a wrong phi operand.
+write("cc_bad_phi.json", cc("f", tn_in, tn_out("v2.i256 = phi (11.i256 block0) (v1 block2)")))
+
+# Review C-4, first counterexample: block1 is tunnelled, and v5 = phi (v1 block1) (v2 block2)
+# is taken for v2, as if block1 were no predecessor; it survives, so v5 is no trivial phi.
+c41_in = snap("f", ["v0.i256", "v1.i256", "v2.i256"], R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["jump block3"]),
+    (2, ["v9.i256 = add v2 0.i256", "jump block3"]),
+    (3, ["v5.i256 = phi (v1 block1) (v2 block2)", "return v5"])],
+    [[0], [1], [2, 3], [4, 5]])
+c41_out = snap("f", ["v0.i256", "v1.i256", "v2.i256"], R, [
+    (0, ["br v0 block3 block2"]),
+    (2, ["v9.i256 = add v2 0.i256", "jump block3"]),
+    (3, ["return v2"])],
+    [[0], [2, 3], [5]])
+write("cc_bad_c4_phi.json", cc("f", c41_in, c41_out))
+
+# A forward bridge: block4 holds only a phi and a jump; block2 and block3 go to block6, whose phi
+# takes block4's phi's operand from each.
+br_in = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "br v0 block1 block5"]),
+    (1, ["br v1 block2 block3"]),
+    (2, ["jump block4"]),
+    (3, ["jump block4"]),
+    (4, ["v2.i256 = phi (1.i256 block2) (2.i256 block3)", "jump block6"]),
+    (5, ["jump block6"]),
+    (6, ["v3.i256 = phi (v2 block4) (3.i256 block5)", "return v3"])],
+    [[0, 1], [2], [3], [4], [5, 6], [7], [8, 9]])
+br_out = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "br v0 block1 block5"]),
+    (1, ["br v1 block2 block3"]),
+    (2, ["jump block6"]),
+    (3, ["jump block6"]),
+    (5, ["jump block6"]),
+    (6, ["v3.i256 = phi (1.i256 block2) (2.i256 block3) (3.i256 block5)", "return v3"])],
+    [[0, 1], [2], [3], [4], [7], [8, 9]])
+write("cc_bridge.json", cc("f", br_in, br_out))
+
+# An unreachable block deleted.
+ur_in = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["return v0"]),
+    (2, ["return 0.i256"]),
+    (3, ["v5.i256 = add v0 1.i256", "jump block1"])],
+    [[0], [1], [2], [3, 4]])
+ur_out = snap("f", P, R, [(0, ["br v0 block1 block2"]), (1, ["return v0"]), (2, ["return 0.i256"])],
+    [[0], [1], [2]])
+write("cc_unreachable.json", cc("f", ur_in, ur_out))
+
+# A trivial phi of a loop header: v2 = phi (v1 block0) (v2 block2) is v1.
+tv_in = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block1"]),
+    (1, ["v2.i256 = phi (v1 block0) (v2 block2)", "v3.i256 = lt v2 10.i256", "br v3 block2 block3"]),
+    (2, ["jump block1"]),
+    (3, ["return v2"])],
+    [[0, 1], [2, 3, 4], [5], [6]])
+tv_out = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block1"]),
+    (1, ["v3.i256 = lt v1 10.i256", "br v3 block2 block3"]),
+    (2, ["jump block1"]),
+    (3, ["return v1"])],
+    [[0, 1], [3, 4], [5], [6]])
+write("cc_trivial.json", cc("f", tv_in, tv_out))
+
+# Chained trivial phis: v3 = phi (v2 block1) (v3 block2) is v2, then v2 = phi (v1 block0)
+# (v3 block2) is v1.
+ch_in = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block1"]),
+    (1, ["v2.i256 = phi (v1 block0) (v3 block2)", "br v0 block2 block3"]),
+    (2, ["v3.i256 = phi (v2 block1) (v3 block2)", "br v1 block2 block1"]),
+    (3, ["return v2"])],
+    [[0, 1], [2, 3], [4, 5], [6]])
+ch_out = snap("f", P, R, [
+    (0, ["v1.i256 = evm_calldata_size", "jump block1"]),
+    (1, ["br v0 block2 block3"]),
+    (2, ["br v1 block2 block1"]),
+    (3, ["return v1"])],
+    [[0, 1], [3], [5], [6]])
+write("cc_chain.json", cc("f", ch_in, ch_out))
+
+# Branch collapse: both slots of block0 tunnel to block3, a loop header, so the `br` becomes
+# `jump block3` with its id; and the same with block3 merged into block0.
+cl_in = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["jump block3"]),
+    (2, ["jump block3"]),
+    (3, ["br v0 block3 block4"]),
+    (4, ["return v0"])],
+    [[0], [1], [2], [3], [4]])
+cl_out = snap("f", P, R, [(0, ["jump block3"]), (3, ["br v0 block3 block4"]), (4, ["return v0"])],
+    [[0], [3], [4]])
+write("cc_collapse.json", cc("f", cl_in, cl_out))
+cm_in = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["jump block3"]),
+    (2, ["jump block3"]),
+    (3, ["return v0"])],
+    [[0], [1], [2], [3]])
+cm_out = snap("f", P, R, [(0, ["return v0"])], [[3]])
+write("cc_collapse_merge.json", cc("f", cm_in, cm_out))
+
+# Noreturn trims: %g does not return; f's code after `call %g` goes, and block1 with it.
+G = snap("g", [], [], [(0, ["evm_revert 0.i256 0.i256"])], [[100]])
+GR = snap("g", [], [], [(0, ["return"])], [[100]])
+NR = [{"func": "g", "noreturn": True, "will_return": False, "reads": False, "writes": False,
+       "mutates": True}]
+nr_in = snap("f", P, R, [
+    (0, ["call %g", "v1.i256 = add v0 1.i256", "jump block1"]),
+    (1, ["return v1"])],
+    [[0, 1, 2], [3]])
+nr_out = snap("f", P, R, [(0, ["call %g", "unreachable"])], [[0, 7]])
+write("cc_noret.json", cc("f", nr_in, nr_out, NR, [G]))
+# Rejected: the table claims a function that returns does not; no table; the new
+# `unreachable` with an input id.
+write("cc_bad_noret_claim.json", cc("f", nr_in, nr_out, NR, [GR]))
+write("cc_bad_noret_none.json", cc("f", nr_in, nr_out, None, [G]))
+write("cc_bad_noret_id.json", cc("f", nr_in, snap("f", P, R, [(0, ["call %g", "unreachable"])],
+    [[0, 2]]), NR, [G]))
+# An existing `call %g; unreachable` tail keeps its id (here block2, unreachable, goes).
+nk_in = snap("f", P, R, [
+    (0, ["br v0 block1 block3"]),
+    (1, ["call %g", "unreachable"]),
+    (2, ["jump block3"]),
+    (3, ["return v0"])],
+    [[0], [1, 2], [3], [4]])
+nk_out = snap("f", P, R, [
+    (0, ["br v0 block1 block3"]),
+    (1, ["call %g", "unreachable"]),
+    (3, ["return v0"])],
+    [[0], [1, 2], [4]])
+write("cc_noret_kept.json", cc("f", nk_in, nk_out, NR, [G]))
+
+# Review C-4, second counterexample: a deleted `evm_sstore`.
+ss_in = snap("f", P, R, [(0, ["evm_sstore 0.i256 1.i256", "return v0"])], [[0, 1]])
+ss_out = snap("f", P, R, [(0, ["return v0"])], [[1]])
+write("cc_bad_sstore.json", cc("f", ss_in, ss_out))
+# Review C-4, third counterexample: swapped branch targets; a changed entry.
+sw_in = snap("f", P, R, [(0, ["br v0 block1 block2"]), (1, ["return 1.i256"]),
+    (2, ["return 2.i256"])], [[0], [1], [2]])
+write("cc_bad_swap.json", cc("f", sw_in, snap("f", P, R, [(0, ["br v0 block2 block1"]),
+    (1, ["return 1.i256"]), (2, ["return 2.i256"])], [[0], [1], [2]])))
+write("cc_bad_entry.json", cc("f", sw_in, snap("f", P, R, [(1, ["return 1.i256"]),
+    (0, ["br v0 block1 block2"]), (2, ["return 2.i256"])], [[1], [0], [2]])))
+
+# Rejected: block3, which block2 also enters, merged into block1.
+mp_in = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["v1.i256 = add v0 1.i256", "jump block3"]),
+    (2, ["jump block3"]),
+    (3, ["v2.i256 = add v0 2.i256", "return v2"])],
+    [[0], [1, 2], [3], [4, 5]])
+mp_out = snap("f", P, R, [
+    (0, ["br v0 block1 block2"]),
+    (1, ["v1.i256 = add v0 1.i256", "v2.i256 = add v0 2.i256", "return v2"]),
+    (2, ["jump block3"])],
+    [[0], [1, 4, 5], [3]])
+write("cc_bad_pred.json", cc("f", mp_in, mp_out))

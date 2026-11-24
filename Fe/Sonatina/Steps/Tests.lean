@@ -75,4 +75,59 @@ example : ES es_bad_ssa (replay es_bad_ssa) = false := by decide +kernel
 /-- Review 6 F-2: two slots of one block may go to one split block. -/
 example : ES es_two_slots (replay es_two_slots) = true := by decide +kernel
 
+/-! ## `cfg_cleanup` -/
+
+machine_steps_file cc_merge "Fe/Sonatina/Steps/Tests/cc_merge.json"
+machine_steps_file cc_bad_inst "Fe/Sonatina/Steps/Tests/cc_bad_inst.json"
+machine_steps_file cc_tunnel "Fe/Sonatina/Steps/Tests/cc_tunnel.json"
+machine_steps_file cc_bad_phi "Fe/Sonatina/Steps/Tests/cc_bad_phi.json"
+machine_steps_file cc_bad_c4_phi "Fe/Sonatina/Steps/Tests/cc_bad_c4_phi.json"
+machine_steps_file cc_bridge "Fe/Sonatina/Steps/Tests/cc_bridge.json"
+machine_steps_file cc_unreachable "Fe/Sonatina/Steps/Tests/cc_unreachable.json"
+machine_steps_file cc_trivial "Fe/Sonatina/Steps/Tests/cc_trivial.json"
+machine_steps_file cc_chain "Fe/Sonatina/Steps/Tests/cc_chain.json"
+machine_steps_file cc_collapse "Fe/Sonatina/Steps/Tests/cc_collapse.json"
+machine_steps_file cc_collapse_merge "Fe/Sonatina/Steps/Tests/cc_collapse_merge.json"
+machine_steps_file cc_noret "Fe/Sonatina/Steps/Tests/cc_noret.json"
+machine_steps_file cc_bad_noret_claim "Fe/Sonatina/Steps/Tests/cc_bad_noret_claim.json"
+machine_steps_file cc_bad_noret_none "Fe/Sonatina/Steps/Tests/cc_bad_noret_none.json"
+machine_steps_file cc_bad_noret_id "Fe/Sonatina/Steps/Tests/cc_bad_noret_id.json"
+machine_steps_file cc_noret_kept "Fe/Sonatina/Steps/Tests/cc_noret_kept.json"
+machine_steps_file cc_bad_sstore "Fe/Sonatina/Steps/Tests/cc_bad_sstore.json"
+machine_steps_file cc_bad_swap "Fe/Sonatina/Steps/Tests/cc_bad_swap.json"
+machine_steps_file cc_bad_entry "Fe/Sonatina/Steps/Tests/cc_bad_entry.json"
+machine_steps_file cc_bad_pred "Fe/Sonatina/Steps/Tests/cc_bad_pred.json"
+
+abbrev CC := validateWith [.cfgCleanup] []
+
+/-- Accepted: a merge with a trivial phi after pruning (design §4.3), a tunnel, a forward bridge
+(a tunnel through a block's phi), an unreachable block deleted, a trivial loop phi, chained
+trivial phis, a branch collapsed to `jump` (and then merged), a noreturn trim, and an existing
+`call; unreachable` tail. -/
+example : CC cc_merge (replay cc_merge) = true := by decide +kernel
+example : CC cc_tunnel (replay cc_tunnel) = true := by decide +kernel
+example : CC cc_bridge (replay cc_bridge) = true := by decide +kernel
+example : CC cc_unreachable (replay cc_unreachable) = true := by decide +kernel
+example : CC cc_trivial (replay cc_trivial) = true := by decide +kernel
+example : CC cc_chain (replay cc_chain) = true := by decide +kernel
+example : CC cc_collapse (replay cc_collapse) = true := by decide +kernel
+example : CC cc_collapse_merge (replay cc_collapse_merge) = true := by decide +kernel
+example : CC cc_noret (replay cc_noret) = true := by decide +kernel
+example : CC cc_noret_kept (replay cc_noret_kept) = true := by decide +kernel
+
+/-- Rejected: review C-4's counterexamples (a phi taken as trivial over a tunnelled
+predecessor; a deleted `evm_sstore`; swapped branch targets; a changed entry), a merged block
+with a second predecessor, a changed instruction, a wrong phi operand, a noreturn claim that does
+not hold, a trim without a claim, and a trim's `unreachable` with an input id. -/
+example : CC cc_bad_c4_phi (replay cc_bad_c4_phi) = false := by decide +kernel
+example : CC cc_bad_sstore (replay cc_bad_sstore) = false := by decide +kernel
+example : CC cc_bad_swap (replay cc_bad_swap) = false := by decide +kernel
+example : CC cc_bad_entry (replay cc_bad_entry) = false := by decide +kernel
+example : CC cc_bad_pred (replay cc_bad_pred) = false := by decide +kernel
+example : CC cc_bad_inst (replay cc_bad_inst) = false := by decide +kernel
+example : CC cc_bad_phi (replay cc_bad_phi) = false := by decide +kernel
+example : CC cc_bad_noret_claim (replay cc_bad_noret_claim) = false := by decide +kernel
+example : CC cc_bad_noret_none (replay cc_bad_noret_none) = false := by decide +kernel
+example : CC cc_bad_noret_id (replay cc_bad_noret_id) = false := by decide +kernel
+
 end Fe.Sonatina.Steps.Tests

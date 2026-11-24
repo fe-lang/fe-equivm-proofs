@@ -1,0 +1,60 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        br v0 block1 block2;\n    block1:\n        return 1.i256;\n    block2:\n        return 2.i256;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1
+    ],
+    [
+     2
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "cfg_cleanup",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "cfg_cleanup",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block1:\n        return 1.i256;\n    block0:\n        br v0 block1 block2;\n    block2:\n        return 2.i256;\n}\n",
+        "insts": [
+         [
+          1
+         ],
+         [
+          0
+         ],
+         [
+          2
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

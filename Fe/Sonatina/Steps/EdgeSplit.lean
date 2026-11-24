@@ -8,9 +8,9 @@ The output's blocks are the input's, each with the same id, phis and statements,
 blocks `n` that are exactly `{ jump t }`, each the target of one terminator slot, of an input
 block `p`.  A terminator slot of the output targets the input's target, or a new block whose
 `t` is it, from that block.  A phi's operand from a new block `n` is the input's operand from
-`n`'s predecessor; from an input block, the input's own.  A `br c a a` may become `jump a`,
-and a `br_table s d cases` with a default whose cases all go to `d` may become `jump d`; the
-entry block keeps its id.
+`n`'s predecessor; from an input block, the input's own.  A `br` or a `br_table` with a
+default may become a `jump` to the target all its slots go to (`termRel`, which `cfg_cleanup`
+shares); the entry block keeps its id.
 
 The input evaluates `c` (or `s` and the keys) where the output does not, so the check also
 takes the input's dominator tree and checks it and strict SSA: by the definedness invariant
@@ -25,6 +25,29 @@ from `p`, which stutters while the output jumps.
 namespace Fe.Sonatina.Steps
 
 open Ethereum Fe Fe.EVM
+
+/-- An optional target of the output against the input's, related by `P`. -/
+def optRel (P : Nat → Nat → Bool) : Option Nat → Option Nat → Bool
+  | some t', some t => P t' t
+  | none, none => true
+  | _, _ => false
+
+/-- The output's terminator against the input's, slot by slot: the same kind and operands, each
+    output target related by `P` to the input's in the same slot; a `br`, or a `br_table` with a
+    default, may become a `jump` to a target every slot relates to. -/
+def termRel (P : Nat → Nat → Bool) : Term → Term → Bool
+  | .jump d', .jump d => P d' d
+  | .jump d', .br _ nz z => P d' nz && P d' z
+  | .jump d', .brTable _ d cs => d.any (P d') && cs.all (P d' ·.2)
+  | .br c' nz' z', .br c nz z => decide (c' = c) && P nz' nz && P z' z
+  | .brTable s' d' cs', .brTable s d cs =>
+    decide (s' = s) && optRel P d' d && cs'.length == cs.length &&
+      (cs'.zip cs).all fun (c', c) => decide (c'.1 = c.1) && P c'.2 c.2
+  | .ret vs', .ret vs => decide (vs' = vs)
+  | .evmReturn a' l', .evmReturn a l => decide (a' = a ∧ l' = l)
+  | .evmRevert a' l', .evmRevert a l => decide (a' = a ∧ l' = l)
+  | .evmStop, .evmStop | .evmInvalid, .evmInvalid | .unreachable, .unreachable => true
+  | _, _ => false
 
 /-- What the check reads of a pair of functions. -/
 structure ESCtx where
@@ -64,26 +87,6 @@ def lab (p : Nat) : Option Nat := if X.orig p then some p else X.predOf p
 /-- An output slot of block `b` targeting `t'` where the input's targets `t`. -/
 def tgt (b t' t : Nat) : Bool := (t' == t && X.orig t) || (X.split t' t && X.predOf t' == some b)
 
-def optTgt (b : Nat) : Option Nat → Option Nat → Bool
-  | some t', some t => X.tgt b t' t
-  | none, none => true
-  | _, _ => false
-
-/-- The output's terminator of block `b` against the input's. -/
-def termOk (b : Nat) : Term → Term → Bool
-  | .jump d', .jump d => X.tgt b d' d
-  | .jump d', .br _ a a₂ => a == a₂ && X.tgt b d' a
-  | .jump d', .brTable _ d cs => d.any fun d => cs.all (·.2 == d) && X.tgt b d' d
-  | .br c' nz' z', .br c nz z => decide (c' = c) && X.tgt b nz' nz && X.tgt b z' z
-  | .brTable s' d' cs', .brTable s d cs =>
-    decide (s' = s) && X.optTgt b d' d && cs'.length == cs.length &&
-      (cs'.zip cs).all fun (c', c) => decide (c'.1 = c.1) && X.tgt b c'.2 c.2
-  | .ret vs', .ret vs => decide (vs' = vs)
-  | .evmReturn a' l', .evmReturn a l => decide (a' = a ∧ l' = l)
-  | .evmRevert a' l', .evmRevert a l => decide (a' = a ∧ l' = l)
-  | .evmStop, .evmStop | .evmInvalid, .evmInvalid | .unreachable, .unreachable => true
-  | _, _ => false
-
 /-- An output phi against the input's: same value and type, and each operand the input's from
     the block its predecessor stands for. -/
 def phiOk (p' p : Phi) : Bool :=
@@ -100,7 +103,8 @@ def phisOk : List Phi → List Phi → Bool
 /-- An output block: an input block's, or a new one. -/
 def blockOk (b' : Block) : Bool :=
   match X.B.find? b'.id with
-  | some b => decide (b'.body = b.body) && X.phisOk b'.phis b.phis && X.termOk b.id b'.term b.term
+  | some b => decide (b'.body = b.body) && X.phisOk b'.phis b.phis &&
+    termRel (X.tgt b.id) b'.term b.term
   | none => (match b'.term with | .jump t => X.split b'.id t | _ => false) &&
     (X.predOf b'.id).any X.orig
 
@@ -141,10 +145,10 @@ theorem R_of_tgt {b d' d : Nat} {env : Env} (hb : X.orig b = true) (h : X.tgt b 
 
 end ESCtx
 
-/-- How two terminators' results correspond: the same environment and related targets, or the
-    same values. -/
-def NextTgt (P : Nat → Nat → Prop) : Next → Next → Prop
-  | .goto env' d', .goto env d => env' = env ∧ P d' d
+/-- How two terminators' results correspond: environments related by `E` and targets by `P`,
+    or the same values. -/
+def NextTgt (E : Env → Env → Prop) (P : Nat → Nat → Prop) : Next → Next → Prop
+  | .goto env' d', .goto env d => E env' env ∧ P d' d
   | .done v', .done v => v' = v
   | _, _ => False
 
@@ -190,32 +194,33 @@ theorem forall₂_mem_right {α β : Type} {R : α → β → Prop} :
     · obtain ⟨a', ha', hr'⟩ := forall₂_mem_right hl h
       exact ⟨a', List.mem_cons_of_mem _ ha', hr'⟩
 
-/-- A terminator the check accepts approximates the input's, targets related by `tgt`, when
-    the input's operands are integers. -/
-theorem approx_runTerm (X : ESCtx) (b : Nat) (env : Env) (t' t : Term)
-    (h : X.termOk b t' t = true) (hdef : ∀ op ∈ t.args, ∃ v, intVal env op = some v) :
-    Approx (NextTgt fun d' d => X.tgt b d' d = true) (runTerm env t') (runTerm env t) := by
-  have hr := EnvSub.refl env
-  cases t' <;> cases t <;> simp only [ESCtx.termOk, Bool.false_eq_true] at h
-  case jump.jump d' d => exact Approx.pure ⟨rfl, h⟩
-  case jump.br d' c a a₂ =>
-    simp only [Bool.and_eq_true, beq_iff_eq] at h
-    obtain ⟨rfl, h⟩ := h
+/-- A terminator `termRel P` accepts, run in an environment that binds less, approximates the
+    input's, targets related by `P`, when the input's operands are integers. -/
+theorem approx_runTerm (P : Nat → Nat → Bool) {env' env : Env} (hr : EnvSub env' env)
+    (t' t : Term) (h : termRel P t' t = true) (hdef : ∀ op ∈ t.args, ∃ v, intVal env op = some v) :
+    Approx (NextTgt (fun e' e => e' = env' ∧ e = env) fun d' d => P d' d = true)
+      (runTerm env' t') (runTerm env t) := by
+  cases t' <;> cases t <;> simp only [termRel, Bool.false_eq_true] at h
+  case jump.jump d' d => exact Approx.pure ⟨⟨rfl, rfl⟩, h⟩
+  case jump.br d' c nz z =>
+    simp only [Bool.and_eq_true] at h
     obtain ⟨v, hv⟩ := hdef c (List.mem_singleton_self _)
     refine Approx.pure_total ?_
     unfold runTerm
     refine Total.bind (P := fun _ => True) (by rw [evalInt_eq, hv]; exact Total.lift rfl trivial)
       fun x _ => ?_
     rcases x with ⟨_, n⟩
+    refine Total.pure ⟨⟨rfl, rfl⟩, ?_⟩
     dsimp only
-    simp only [ite_self]
-    exact Total.pure ⟨rfl, h⟩
+    split
+    · exact h.1
+    · exact h.2
   case jump.brTable d' s dflt cs =>
     cases dflt with
     | none => simp at h
     | some d =>
-    simp only [Option.any, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at h
-    obtain ⟨hall, htgt⟩ := h
+    simp only [Option.any, Bool.and_eq_true, List.all_eq_true] at h
+    obtain ⟨htgt, hall⟩ := h
     obtain ⟨vs, hvs⟩ := hdef s (List.mem_cons_self ..)
     refine Approx.pure_total ?_
     unfold runTerm
@@ -229,26 +234,23 @@ theorem approx_runTerm (X : ESCtx) (b : Nat) (env : Env) (t' t : Term)
       obtain ⟨vo, hvo⟩ := hdef o (List.mem_cons_of_mem _ (List.mem_map_of_mem hc))
       exact Total.bind (P := fun _ => True) (by rw [evalInt_eq, hvo]; exact Total.lift rfl trivial)
         fun y _ => Total.pure rfl
-    · have hd : ((vals.find? (·.1 == v)).map (·.2) <|> some d) = some d := by
-        cases hf : (vals.find? (·.1 == v)).map (·.2) with
-        | none => rfl
-        | some x =>
-          obtain ⟨p, hp, rfl⟩ := Option.map_eq_some_iff.mp hf
-          obtain ⟨c, hc, hpc⟩ := forall₂_mem_right hvals (List.mem_of_find?_eq_some hp)
-          show some p.2 = some d
-          rw [hpc, hall c hc]
-      rw [hd]
-      exact Total.pure ⟨rfl, htgt⟩
+    · cases hf : (vals.find? (·.1 == v)).map (·.2) with
+      | none => exact Total.pure ⟨⟨rfl, rfl⟩, htgt⟩
+      | some x =>
+        obtain ⟨p, hp, rfl⟩ := Option.map_eq_some_iff.mp hf
+        obtain ⟨c, hc, hpc⟩ := forall₂_mem_right hvals (List.mem_of_find?_eq_some hp)
+        refine Total.pure ⟨⟨rfl, rfl⟩, ?_⟩
+        rw [hpc]; exact hall c hc
   case br.br c' nz' z' c nz z =>
     simp only [Bool.and_eq_true, decide_eq_true_eq] at h
     obtain ⟨⟨rfl, h₁⟩, h₂⟩ := h
     unfold runTerm
     refine Approx.bind (Approx.evalInt hr c') fun ⟨_, v⟩ _ e => e ▸ ?_
-    exact Approx.pure ⟨rfl, by split <;> assumption⟩
+    exact Approx.pure ⟨⟨rfl, rfl⟩, by split <;> assumption⟩
   case brTable.brTable s' d' cs' s d cs =>
     simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq, List.all_eq_true] at h
     obtain ⟨⟨⟨rfl, hd⟩, hlen⟩, hcs⟩ := h
-    have hF : List.Forall₂ (fun (c' c : Operand × Nat) => c'.1 = c.1 ∧ X.tgt b c'.2 c.2 = true)
+    have hF : List.Forall₂ (fun (c' c : Operand × Nat) => c'.1 = c.1 ∧ P c'.2 c.2 = true)
         cs' cs := by
       rw [List.forall₂_iff_zip]
       exact ⟨hlen, fun hm => by
@@ -257,35 +259,35 @@ theorem approx_runTerm (X : ESCtx) (b : Nat) (env : Env) (t' t : Term)
     unfold runTerm
     refine Approx.bind (Approx.evalInt hr s') fun ⟨_, v⟩ _ e => e ▸ ?_
     refine Approx.bind (R := List.Forall₂ fun (a' a : Nat × Nat) =>
-        a'.1 = a.1 ∧ X.tgt b a'.2 a.2 = true) (Approx.mapM_rel ?_ hF) fun vals' vals hv => ?_
+        a'.1 = a.1 ∧ P a'.2 a.2 = true) (Approx.mapM_rel ?_ hF) fun vals' vals hv => ?_
     · rintro ⟨o', t'⟩ ⟨o, t⟩ ⟨ho, ht⟩
       simp only at ho ht
       subst ho
       exact Approx.bind (Approx.evalInt hr o') fun _ _ e => e ▸ Approx.pure ⟨rfl, ht⟩
-    · rcases find_rel (P := fun d' d => X.tgt b d' d = true) v hv with ⟨h₁, h₂⟩ | ⟨e', e, h₁, h₂, he⟩
+    · rcases find_rel (P := fun d' d => P d' d = true) v hv with ⟨h₁, h₂⟩ | ⟨e', e, h₁, h₂, he⟩
       · rw [h₁, h₂]
-        cases d' <;> cases d <;> simp only [ESCtx.optTgt, Bool.false_eq_true] at hd
+        cases d' <;> cases d <;> simp only [optRel, Bool.false_eq_true] at hd
         · exact Approx.stuck _
-        · exact Approx.pure ⟨rfl, hd⟩
+        · exact Approx.pure ⟨⟨rfl, rfl⟩, hd⟩
       · rw [h₁, h₂]
-        exact Approx.pure ⟨rfl, he⟩
+        exact Approx.pure ⟨⟨rfl, rfl⟩, he⟩
   case ret.ret vs' vs =>
     simp only [decide_eq_true_eq] at h
     subst h
     unfold runTerm
-    exact Approx.bind (Approx.mapM (Approx.evalOperand hr) _) fun _ _ e => e ▸ Approx.pure rfl
+    exact Approx.bind (Approx.mapM' (Approx.evalOperand hr) _) fun _ _ e => e ▸ Approx.pure rfl
   case evmReturn.evmReturn a' l' a l =>
     simp only [decide_eq_true_eq] at h
     obtain ⟨rfl, rfl⟩ := h
     unfold runTerm
-    exact Approx.bind_eq (Approx.evalWord hr a') fun _ => Approx.bind_eq (Approx.evalWord hr l')
-      fun _ => Approx.bind (approx_returnData _ _) fun e _ _ => nomatch e
+    exact Approx.bind (Approx.evalWord hr a') fun _ _ e => e ▸ Approx.bind (Approx.evalWord hr l')
+      fun _ _ e => e ▸ Approx.bind (approx_returnData _ _) fun e _ _ => nomatch e
   case evmRevert.evmRevert a' l' a l =>
     simp only [decide_eq_true_eq] at h
     obtain ⟨rfl, rfl⟩ := h
     unfold runTerm
-    exact Approx.bind_eq (Approx.evalWord hr a') fun _ => Approx.bind_eq (Approx.evalWord hr l')
-      fun _ => Approx.bind (approx_revertData _ _) fun e _ _ => nomatch e
+    exact Approx.bind (Approx.evalWord hr a') fun _ _ e => e ▸ Approx.bind (Approx.evalWord hr l')
+      fun _ _ e => e ▸ Approx.bind (approx_revertData _ _) fun e _ _ => nomatch e
   case evmStop.evmStop => unfold runTerm; exact Approx.bind approx_stopCall fun e _ _ => nomatch e
   case evmInvalid.evmInvalid => unfold runTerm; exact Approx.bind approx_trap fun e _ _ => nomatch e
   case unreachable.unreachable => unfold runTerm; exact Approx.stuck _
@@ -400,9 +402,9 @@ theorem edgeSplit_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Ora
         have hdef : ∀ op ∈ bb.term.args, ∃ v, intVal env₂ op = some v := fun op hop => by
           obtain ⟨n, hn⟩ := term_defined hwf hs hbb' hinv.2.2.1 hpi op hop
           exact ⟨_, hn⟩
-        refine Approx.mono (approx_runTerm X b env₂ _ _ hterm hdef) fun n' n hn => ?_
+        refine Approx.mono (approx_runTerm _ (EnvSub.refl env₂) _ _ hterm hdef) fun n' n hn => ?_
         cases n' <;> cases n <;> simp only [NextTgt, NextRel] at hn ⊢
-        · obtain ⟨rfl, ht⟩ := hn
+        · obtain ⟨⟨rfl, rfl⟩, ht⟩ := hn
           exact ESCtx.R_of_tgt horig ht
         · exact hn
     · cases n' <;> cases n <;> simp only [NextRel, NextInv] at hn hni ⊢
