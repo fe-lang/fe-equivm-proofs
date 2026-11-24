@@ -61,7 +61,7 @@ def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M :
   else "check rejects"
 
 /-- The kinds with a checker. -/
-def checked : List StepKind := [.edgeSplit, .cfgCleanup]
+def checked : List StepKind := [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
 
 /-- Every function step's verdict, the replay trusting the record past rejected steps. -/
 def stepReport (syms : List String) (r : MachineSteps) (final : Module) : List String := Id.run do
