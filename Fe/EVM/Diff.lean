@@ -419,6 +419,8 @@ structure Target where
   interface : Interface := {}
   ir : String := ""
   spec : Option (Except String Fe.IR.Program) := none
+  /-- The creation codes of the contracts the contract may deploy, by name. -/
+  creations : List (String × ByteArray) := []
 
 /-- Read the target's IR. -/
 def Target.load (t : Target) : IO Target := do
@@ -440,7 +442,7 @@ def Target.interpRuntime (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specRuntime prog t.runtime.size interpFuel >>= fun r =>
+      ((specRuntime prog t.runtime.size t.creations interpFuel >>= fun r =>
         pure (r.map fun e => nomatch e)).exec I w)
   | _ => none
 
@@ -449,7 +451,7 @@ def Target.interpInit (t : Target) (I : Env) (w : World) :
     Option (Unit → Except String Outcome) :=
   match t.spec with
   | some (.ok prog) => some fun _ => interpOutcome
-      ((specInit prog t.creation.size interpFuel >>= fun r =>
+      ((specInit prog t.creation.size t.creations interpFuel >>= fun r =>
         pure (r.map (t.runtime ++ ·))).exec I w)
   | _ => none
 
