@@ -1,0 +1,1295 @@
+contracts: 274, exported: 269, files skipped: [], not compiled: []
+blocked: 5
+   2  drop of [D; 2]   [review2_0, targeted_review2_0]
+   2  builtin PanicWithValue   [review3_0, targeted_review3_0]
+   1  drop of [Loud; 2]   [targeted_differences_1]
+lean failures: 0
+differential: 188 files, 794 tests, 3115 calls agree, 1 disagree, 0 out of gas, 0 out of stack; 242 of 256 contracts with tests compared; interpreter: 3115 agree three ways, 1 disagree, 1 where it gives up, 0 not run, 40 on contracts without a model (39 agreeing with the bytecode)
+generated: 274 contracts, 1094 of 1096 sequences deployed, 35381 creations and calls agree (21408 calls returned), 13 disagree, 43 out of gas, 31 out of stack; interpreter: 35381 agree three ways, 13 disagree, 0 where it gives up, 0 not run, 660 on contracts without a model (660 agreeing with the bytecode)
+interpreter disagreements by pair: {'interp≠model': 14, 'model≠bytecode': 14}; gives up by class: unsupported 0, malformed 0, obligation 0, no result 1; targets without IR: 0
+
+GEN Case44Bank Case44Bank sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=69
+GEN FeCodeScalar FeCodeScalar sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+GEN FeConstant FeConstant sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST FeDeposit::test_supports_interface returns ; 4 compared
+TEST FeDeposit::test_deposit_rejects_zero_value reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000264465706f736974436f6e74726163743a206465706f7369742076616c756520746f6f206c6f770000000000000000000000000000000000000000000000000000; 2 compared
+TEST FeDeposit::test_deposit_rejects_non_gwei_amount reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000334465706f736974436f6e74726163743a206465706f7369742076616c7565206e6f74206d756c7469706c65206f66206777656900000000000000000000000000; 2 compared
+TEST FeDeposit::test_deposit_success_updates_root_and_count returns ; 6 compared
+TEST FeDeposit::test_deposit_rejects_mismatched_data_root reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000544465706f736974436f6e74726163743a207265636f6e7374727563746564204465706f7369744461746120646f6573206e6f74206d6174636820737570706c696564206465706f7369745f646174615f726f6f74000000000000000000000000; 2 compared
+TEST FeDeposit::test_two_deposits_advance_state returns ; 7 compared
+TEST FeDeposit::test_u64_chunk_layout returns ; 0 compared
+DIFF FeDeposit tests=7 agree=23 disagree=0 outOfGas=0 stackOverflow=0 agree3=23 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN FeDeposit DepositContract sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=81
+GEN FeERC20 FeERC20 sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=66
+GEN FeIdentity FeIdentity sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=102
+GEN FeIndexedPackedStore FeIndexedPackedStore sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=21
+GEN FeNarrowAbi FeNarrowAbi sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=79
+GEN FePackedStore FePackedStore sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+GEN FeScalarStore FeScalarStore sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST Precompiles::secp256k1_field_arithmetic_edges halts with OutOfFuel; 0 compared
+DIFF Precompiles tests=1 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=8 covered=0
+GEN Precompiles Ecrecover sequences=4 deployed=4 agree=120 disagree=0 outOfGas=12 stackOverflow=0 agree3=120 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=77
+GEN Precompiles Bn254Add sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=16
+GEN Precompiles Blake2F sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN Precompiles Ripemd160 sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=120
+GEN Precompiles Bn254Mul sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=16
+GEN Precompiles EcrecoverPrecompile sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=120
+GEN Precompiles Identity sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=120
+GEN Precompiles Modexp sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=16
+TEST WETH9::short_string_layout returns ; 0 compared
+TEST WETH9::long_string_layout_and_shrink returns ; 0 compared
+TEST WETH9::exactly_32_bytes_is_long returns ; 0 compared
+TEST WETH9::malformed_head_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000022; 0 compared
+TEST WETH9::metadata returns ; 4 compared
+TEST WETH9::deposit_and_fallback_credit_the_caller returns ; 7 compared
+TEST WETH9::withdraw_returns_the_ether returns ; 4 compared
+TEST WETH9::withdraw_to_a_refusing_caller_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 3 compared
+TEST WETH9::withdraw_more_than_the_balance_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 3 compared
+TEST WETH9::non_payable_entry_rejects_value reverts with ; 2 compared
+TEST WETH9::transfer_and_allowances returns ; 9 compared
+TEST WETH9::transfer_from_without_allowance_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 4 compared
+DIFF WETH9 tests=12 agree=36 disagree=0 outOfGas=0 stackOverflow=0 agree3=36 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN WETH9 WETH9 sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=93
+GEN WETH9 Holder sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=37
+TEST abi_array_overflow_revert::overflowing_relative_tail_reverts_empty returns ; 2 compared
+TEST abi_array_overflow_revert::overflowing_tail_head_reverts_empty returns ; 2 compared
+TEST abi_array_overflow_revert::overflowing_array_multiplication_reverts_empty returns ; 2 compared
+TEST abi_array_overflow_revert::overflowing_array_end_reverts_empty returns ; 2 compared
+TEST abi_array_overflow_revert::overflowing_dynamic_element_tail_reverts_empty returns ; 2 compared
+DIFF abi_array_overflow_revert tests=5 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_array_overflow_revert ArrayReceiver sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=85
+TEST abi_array_view::test_u256_array returns ; 7 compared
+TEST abi_array_view::test_typed_caller_encoding returns ; 2 compared
+TEST abi_array_view::test_index_out_of_bounds_panics returns ; 4 compared
+TEST abi_array_view::test_malformed_offsets_revert_empty returns ; 7 compared
+TEST abi_array_view::test_malformed_lengths_revert_empty returns ; 7 compared
+TEST abi_array_view::test_address_elements_validated_on_access returns ; 4 compared
+TEST abi_array_view::test_static_struct_elements returns ; 7 compared
+TEST abi_array_view::test_bytes_elements returns ; 20 compared
+TEST abi_array_view::test_string_elements returns ; 3 compared
+TEST abi_array_view::test_nested_arrays returns ; 9 compared
+TEST abi_array_view::test_memory_input_and_element_pos returns ; 0 compared
+TEST abi_array_view::test_raw_head_access returns ; 15 compared
+TEST abi_array_view::test_raw_head_access_static_elements returns ; 0 compared
+TEST abi_array_view::test_raw_head_access_zero_sized_elements returns ; 0 compared
+TEST abi_array_view::test_zero_stride_length_limit reverts with ; 0 compared
+TEST abi_array_view::test_zero_stride_max_length_rejected reverts with ; 0 compared
+TEST abi_array_view::test_offsets_that_fit_accepted_on_long_input returns ; 0 compared
+TEST abi_array_view::test_array_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+TEST abi_array_view::test_element_tail_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+TEST abi_array_view::test_bytes_at_tail_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+TEST abi_array_view::test_string_at_tail_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+TEST abi_array_view::test_get_tail_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+DIFF abi_array_view tests=22 agree=85 disagree=0 outOfGas=0 stackOverflow=0 agree3=85 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_array_view Viewer sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST abi_bounded_input_len_untrusted::inflated_input_lengths_fail returns ; 8 compared
+DIFF abi_bounded_input_len_untrusted tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_bounded_input_len_untrusted Decoder sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=15
+TEST abi_decode_field_names::decoded_fields_are_not_constants returns ; 3 compared
+DIFF abi_decode_field_names tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_decode_field_names C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=56
+TEST abi_decode_input_len_bound::long_inputs_are_decode_errors returns ; 4 compared
+TEST abi_decode_input_len_bound::longest_inputs_decode returns ; 0 compared
+TEST abi_decode_input_len_bound::zero_sized_element_counts_below_two_64_decode returns ; 0 compared
+TEST abi_decode_input_len_bound::zero_sized_element_count_of_two_64_is_rejected reverts with ; 0 compared
+TEST abi_decode_input_len_bound::zero_sized_element_count_of_two_64_has_no_span reverts with ; 0 compared
+DIFF abi_decode_input_len_bound tests=5 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_decode_input_len_bound Decoder sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST abi_dynamic_payload::test_abi_dynamic_payload_tuple_encoding returns ; 0 compared
+TEST abi_dynamic_payload::test_bytes_from_words_prefix_uses_canonical_tail_size returns ; 0 compared
+TEST abi_dynamic_payload::test_msg_dynamic_payload_tail_encoding returns ; 2 compared
+TEST abi_dynamic_payload::test_error_dynamic_payload_tail_encoding returns ; 0 compared
+TEST abi_dynamic_payload::test_bytes_from_words_prefix_rejects_oversize_len reverts with ; 0 compared
+TEST abi_dynamic_payload::test_bytes_word_at_masks_partial_words returns ; 0 compared
+TEST abi_dynamic_payload::test_memory_prefix_zero_pads_short_spans returns ; 0 compared
+TEST abi_dynamic_payload::test_owned_bytes_and_views_expose_explicit_spans returns ; 0 compared
+TEST abi_dynamic_payload::test_memory_and_calldata_bytes_views_reject_out_of_bounds_access returns ; 6 compared
+DIFF abi_dynamic_payload tests=9 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN abi_dynamic_payload DynamicPayloadReceiver sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN abi_dynamic_payload BytesViewBounds sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST abi_nested_msg_decode_bounds::test_nested_msg_encoding_uses_single_dynamic_head_slot returns ; 0 compared
+TEST abi_nested_msg_decode_bounds::test_nested_msg_decode_valid returns ; 2 compared
+TEST abi_nested_msg_decode_bounds::test_nested_msg_decode_truncated_inner_head_reverts returns ; 2 compared
+DIFF abi_nested_msg_decode_bounds tests=3 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_nested_msg_decode_bounds NestedMsgReceiver sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST abi_signed_int_boundary::signed_ints_cross_abi_boundary returns ; 11 compared
+DIFF abi_signed_int_boundary tests=1 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_signed_int_boundary C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=106
+TEST abi_struct::static_struct_encodes_like_tuple returns ; 0 compared
+TEST abi_struct::dynamic_struct_round_trips returns ; 0 compared
+TEST abi_struct::struct_messages_round_trip returns ; 3 compared
+TEST abi_struct::from_slice_encodes_static_structs returns ; 0 compared
+TEST abi_struct::dyn_array_from_encodes_dynamic_elements returns ; 0 compared
+TEST abi_struct::canonical_dyn_array_reorders_tails returns ; 0 compared
+TEST abi_struct::canonical_dyn_array_copies_composite_elements returns ; 0 compared
+TEST abi_struct::canonical_dyn_array_rejects_dirty_static_elements reverts with ; 0 compared
+TEST abi_struct::canonical_dyn_array_takes_non_copy_elements returns ; 0 compared
+TEST abi_struct::zero_length_array_decoding_does_not_read_elements returns ; 0 compared
+TEST abi_struct::abi_struct_bounded_decode_within_bound returns ; 0 compared
+TEST abi_struct::abi_struct_bounded_decode_rejects_tail_past_bound reverts with ; 0 compared
+TEST abi_struct::abi_struct_prechecked_decode_rejects_tail_past_bound reverts with ; 0 compared
+TEST abi_struct::abi_struct_tuple_field_round_trips returns ; 0 compared
+TEST abi_struct::abi_struct_copy_array_field_round_trips returns ; 0 compared
+TEST abi_struct::canonical_dyn_array_of_zero_size_elements_is_constant_time returns ; 0 compared
+TEST abi_struct::fixed_arrays_of_non_copy_elements_round_trip returns ; 0 compared
+TEST abi_struct::fixed_arrays_of_non_copy_elements_in_events_and_errors returns ; 0 compared
+TEST abi_struct::abi_struct_wide_tuple_fields_round_trip returns ; 0 compared
+TEST abi_struct::abi_struct_without_sol_compat_field_round_trips returns ; 0 compared
+TEST abi_struct::struct_decode_from_preserves_nonzero_base returns ; 0 compared
+TEST abi_struct::struct_decode_from_rejects_truncated_static_head reverts with ; 0 compared
+TEST abi_struct::struct_decode_from_rejects_head_position_overflow reverts with ; 0 compared
+TEST abi_struct::struct_decode_from_rejects_noncanonical_static_field reverts with ; 0 compared
+TEST abi_struct::struct_decode_from_rejects_dynamic_tail_overflow reverts with ; 0 compared
+DIFF abi_struct tests=25 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_struct C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=76
+TEST abi_unpadded_dynamic_payload::unpadded_bytes_all_decode_paths returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::dirty_padding_is_cleared returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::unpadded_strings returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::unpadded_nested_bytes returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::missing_actual_bytes_rejected reverts with ; 0 compared
+TEST abi_unpadded_dynamic_payload::missing_nested_bytes_rejected reverts with ; 0 compared
+TEST abi_unpadded_dynamic_payload::aligned_and_empty_bytes returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::canonical_array_keeps_full_span returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::missing_length_word_rejected reverts with ; 0 compared
+TEST abi_unpadded_dynamic_payload::overflowing_length_rejected reverts with ; 0 compared
+TEST abi_unpadded_dynamic_payload::unpadded_array_all_decode_paths_reencode_aligned returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::short_string_all_decode_paths_respect_input_extent returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::partially_padded_array_all_decode_paths_clear_padding returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::deeply_nested_array_clears_partial_padding returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::every_byte_boundary_preserves_data_and_clears_padding halts with OutOfFuel; 0 compared
+TEST abi_unpadded_dynamic_payload::largest_padded_dynamic_span_is_accepted returns ; 0 compared
+TEST abi_unpadded_dynamic_payload::padded_dynamic_payload_past_the_allocation_bound_is_rejected reverts with ; 0 compared
+TEST abi_unpadded_dynamic_payload::calldata_roundtrips_with_any_trailing_padding halts with OutOfFuel; 1058 compared
+DIFF abi_unpadded_dynamic_payload tests=18 agree=1058 disagree=0 outOfGas=0 stackOverflow=0 agree3=1058 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN abi_unpadded_dynamic_payload PayloadEcho sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST acceptance::case04_resumption_order returns ; 0 compared
+TEST acceptance::case11_break_runs_slide_once returns ; 0 compared
+TEST acceptance::case15_empty_exit_cleans_up returns ; 0 compared
+TEST acceptance::case26_replaced_referent returns ; 0 compared
+TEST acceptance::case23_storage_base returns ; 3 compared
+TEST acceptance::case31_stable_place returns ; 0 compared
+TEST acceptance::case34_reordered_grants returns ; 0 compared
+TEST acceptance::case38_grant_writes returns ; 0 compared
+TEST acceptance::case40_owned_extra returns ; 0 compared
+TEST acceptance::case22_calls_in_ramp_and_slide returns ; 2 compared
+TEST acceptance::case24_write_back_indexing returns ; 3 compared
+TEST acceptance::case44_map_as_mut_argument returns ; 2 compared
+TEST acceptance::case50_nested_maps_are_distinct returns ; 2 compared
+DIFF acceptance tests=13 agree=12 disagree=0 outOfGas=0 stackOverflow=0 agree3=12 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=5 covered=5
+GEN acceptance StoredWords sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=19
+GEN acceptance Case22OwnReservation sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+GEN acceptance Case24Board sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=83
+GEN acceptance Case44Bank sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=69
+GEN acceptance Case50Nested sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST address_call_method::test_address_call_method returns ; 4 compared
+DIFF address_call_method tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN address_call_method Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST address_static_method::test_address_static_happy_path returns ; 3 compared
+TEST address_static_method::test_typed_inspectable_static_and_delegate_calls returns ; 3 compared
+TEST address_static_method::test_address_static_bubbles_revert reverts with 00000000000000000000000000000000000000000000000000000000deadbeef; 2 compared
+TEST address_static_method::test_address_static_bubbles_revert_data returns ; 3 compared
+DIFF address_static_method tests=4 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN address_static_method Viewer sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=78
+GEN address_static_method Relay sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST address_validation::test_new_keeps_a_clean_word returns ; 0 compared
+TEST address_validation::test_truncation_drops_high_bits returns ; 0 compared
+TEST address_validation::test_new_rejects_high_bits reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST address_validation::test_new_panics_with_overflow returns ; 3 compared
+TEST address_validation::test_addresses_key_one_entry returns ; 4 compared
+DIFF address_validation tests=5 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN address_validation Book sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=69
+TEST assignment_order::value_writes_root returns ; 0 compared
+TEST assignment_order::value_first returns ; 0 compared
+TEST assignment_order::value_read_before_target_index returns ; 0 compared
+TEST assignment_order::map_value_first returns ; 2 compared
+TEST assignment_order::temporary_root_first returns ; 0 compared
+DIFF assignment_order tests=5 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN assignment_order C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST assoc_type_fields::in_memory returns ; 0 compared
+TEST assoc_type_fields::in_storage returns ; 2 compared
+DIFF assoc_type_fields tests=2 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN assoc_type_fields C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST assoc_type_lanes::associated_type_field_is_a_lane returns ; 2 compared
+DIFF assoc_type_lanes tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN assoc_type_lanes C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST associated_shape_forwarding::nested_storage returns ; 3 compared
+TEST associated_shape_forwarding::nested_memory returns ; 0 compared
+TEST associated_shape_forwarding::pair_forward returns ; 0 compared
+TEST associated_shape_forwarding::transport returns ; 0 compared
+TEST associated_shape_forwarding::mut_steps returns ; 0 compared
+TEST associated_shape_forwarding::concrete_callers returns ; 0 compared
+TEST associated_shape_forwarding::opaque_parts returns ; 0 compared
+DIFF associated_shape_forwarding tests=7 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN associated_shape_forwarding C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST bytes_view_overflow_revert::test_overflowing_bytes_offsets_and_lengths_revert_empty returns ; 6 compared
+TEST bytes_view_overflow_revert::test_offsets_and_lengths_that_fit_accepted_on_long_input returns ; 0 compared
+TEST bytes_view_overflow_revert::test_offset_of_two_64_rejected_on_long_input reverts with ; 0 compared
+TEST bytes_view_overflow_revert::test_length_of_two_64_rejected_on_long_input reverts with ; 0 compared
+DIFF bytes_view_overflow_revert tests=4 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN bytes_view_overflow_revert Viewer sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=1
+TEST call_with_default::test_present_returndata_is_decoded_not_defaulted returns ; 2 compared
+TEST call_with_default::test_try_call_owns_success_and_revert_data returns ; 4 compared
+TEST call_with_default::test_empty_returndata_yields_default returns ; 2 compared
+TEST call_with_default::test_default_never_masks_present_false returns ; 2 compared
+TEST call_with_default::test_reverting_token_still_bubbles reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST call_with_default::test_bubbled_revert_data_survives_verbatim returns ; 3 compared
+TEST call_with_default::test_malformed_returndata_still_reverts_in_decoder reverts with ; 2 compared
+TEST call_with_default::test_no_code_address_yields_default returns ; 0 compared
+TEST call_with_default::test_non_bool_return_type returns ; 3 compared
+TEST call_with_default::test_address_call_with_default_convenience returns ; 4 compared
+DIFF call_with_default tests=10 agree=24 disagree=0 outOfGas=0 stackOverflow=0 agree3=24 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=7 covered=7
+GEN call_with_default CompliantToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+GEN call_with_default RevertingToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN call_with_default NoReturnToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+GEN call_with_default FalseToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+GEN call_with_default MalformedToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+GEN call_with_default ValueToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+GEN call_with_default Caller sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=73
+TEST clear_place::clear_zeroes_memory_places returns ; 0 compared
+TEST clear_place::clear_zeroes_storage_places returns ; 0 compared
+TEST clear_place::clear_zeroes_transient_places returns ; 2 compared
+TEST clear_place::collections_clear_their_elements returns ; 0 compared
+DIFF clear_place tests=4 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN clear_place Cells sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST clear_zero_sized::clearing_zero_sized_state returns ; 2 compared
+TEST clear_zero_sized::clearing_zero_sized_memory returns ; 0 compared
+DIFF clear_zero_sized tests=2 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN clear_zero_sized C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST closure_effects::captured_and_implicit_effects returns ; 0 compared
+TEST closure_effects::providers_inside_and_at_the_call returns ; 0 compared
+TEST closure_effects::trait_keyed_effects returns ; 0 compared
+TEST closure_effects::enclosing_rows returns ; 0 compared
+TEST closure_effects::storage_providers returns ; 3 compared
+DIFF closure_effects tests=5 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN closure_effects Tally sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=36
+TEST code_backed_array_storage_copy::test_code_backed_array_storage_copy returns ; 2 compared
+DIFF code_backed_array_storage_copy tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN code_backed_array_storage_copy CodeArrayStore sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST code_backed_field_const_data::test_code_backed_field_const_data returns ; 7 compared
+DIFF code_backed_field_const_data tests=1 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN code_backed_field_const_data Table sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=63
+TEST code_backed_scalar_field::test_code_backed_scalar_field returns ; 2 compared
+DIFF code_backed_scalar_field tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN code_backed_scalar_field CodeScalarStore sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST code_struct_field_offsets::code_fields_after_a_struct_field_keep_their_offsets returns ; 2 compared
+DIFF code_struct_field_offsets tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN code_struct_field_offsets StructGap sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST coin::test_coin returns ; 8 compared
+DIFF coin tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN coin Coin sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=93
+TEST composed_abi_decoder::composed_addresses_roundtrip returns ; 2 compared
+TEST composed_abi_decoder::composed_first_address_rejects_noncanonical_word returns ; 2 compared
+TEST composed_abi_decoder::composed_second_address_rejects_noncanonical_word returns ; 2 compared
+DIFF composed_abi_decoder tests=3 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN composed_abi_decoder PairProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=83
+TEST const_trait_provider_contract::const_and_runtime_provider_borrows_in_contract_agree returns ; 6 compared
+DIFF const_trait_provider_contract tests=1 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN const_trait_provider_contract Reader sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST contract_field_explicit_slot::explicit_slots_place_fields returns ; 4 compared
+DIFF contract_field_explicit_slot tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN contract_field_explicit_slot C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST contract_field_mut_borrow_matrix::test_contract_field_mut_borrow_matrix returns ; 8 compared
+DIFF contract_field_mut_borrow_matrix tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN contract_field_mut_borrow_matrix C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=22
+TEST contract_field_packing::test_contract_fields_pack_like_solidity returns ; 8 compared
+TEST contract_field_packing::test_packed_contract_fields_read_and_write returns ; 6 compared
+TEST contract_field_packing::test_explicit_slots_and_other_spaces_leave_runs_alone returns ; 5 compared
+DIFF contract_field_packing tests=3 agree=19 disagree=0 outOfGas=0 stackOverflow=0 agree3=19 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN contract_field_packing Packed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=90
+GEN contract_field_packing Placed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=95
+TEST contract_field_projection_types::test_contract_fields_typed_through_projections returns ; 3 compared
+DIFF contract_field_projection_types tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN contract_field_projection_types C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST contract_init_fixed_array_arg::test_contract_init_fixed_array_arg returns ; 2 compared
+DIFF contract_init_fixed_array_arg tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN contract_init_fixed_array_arg C sequences=4 deployed=4 agree=137 disagree=0 outOfGas=0 stackOverflow=0 agree3=137 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST copied_state_words::copied_words_read_declared_state_and_remain_independent returns ; 4 compared
+DIFF copied_state_words tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN copied_state_words Words sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST ctx::test_origin returns ; 2 compared
+TEST ctx::test_coinbase returns ; 2 compared
+TEST ctx::test_timestamp reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 2 compared
+TEST ctx::test_block_number returns ; 2 compared
+TEST ctx::test_prevrandao returns ; 2 compared
+TEST ctx::test_gaslimit reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000001; 2 compared
+TEST ctx::test_chainid returns ; 2 compared
+TEST ctx::test_basefee returns ; 2 compared
+TEST ctx::test_blockhash returns ; 2 compared
+TEST ctx::test_address returns ; 2 compared
+TEST ctx::test_caller returns ; 2 compared
+TEST ctx::test_gas returns ; 2 compared
+DIFF ctx tests=12 agree=24 disagree=0 outOfGas=0 stackOverflow=0 agree3=24 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN ctx CtxBox sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=102
+TEST delegatecall_state_effects::delegation_updates_persistent_and_transient_state_with_empty_buffers returns ; 2 compared
+DIFF delegatecall_state_effects tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN delegatecall_state_effects DelegateCaller sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=71
+TEST deploy_and_call::test_deploy_and_call_counter returns ; 4 compared
+DIFF deploy_and_call tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN deploy_and_call Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST deposit_contract::test_supports_interface returns ; 4 compared
+TEST deposit_contract::test_deposit_rejects_zero_value reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000264465706f736974436f6e74726163743a206465706f7369742076616c756520746f6f206c6f770000000000000000000000000000000000000000000000000000; 2 compared
+TEST deposit_contract::test_deposit_rejects_non_gwei_amount reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000334465706f736974436f6e74726163743a206465706f7369742076616c7565206e6f74206d756c7469706c65206f66206777656900000000000000000000000000; 2 compared
+TEST deposit_contract::test_deposit_success_updates_root_and_count returns ; 6 compared
+TEST deposit_contract::test_deposit_rejects_mismatched_data_root reverts with 08c379a0000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000544465706f736974436f6e74726163743a207265636f6e7374727563746564204465706f7369744461746120646f6573206e6f74206d6174636820737570706c696564206465706f7369745f646174615f726f6f74000000000000000000000000; 2 compared
+TEST deposit_contract::test_two_deposits_advance_state returns ; 7 compared
+TEST deposit_contract::test_u64_chunk_layout returns ; 0 compared
+DIFF deposit_contract tests=7 agree=23 disagree=0 outOfGas=0 stackOverflow=0 agree3=23 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN deposit_contract DepositContract sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=81
+TEST dyn_array_from_slice::bytes_elements returns ; 0 compared
+TEST dyn_array_from_slice::nested_array_elements returns ; 0 compared
+TEST dyn_array_from_slice::abi_struct_elements returns ; 0 compared
+TEST dyn_array_from_slice::from_mem_vec_encodes_like_from_slice returns ; 0 compared
+TEST dyn_array_from_slice::empty_arrays returns ; 0 compared
+TEST dyn_array_from_slice::many_elements_are_laid_out_canonically returns ; 0 compared
+TEST dyn_array_from_slice::from_slice_is_a_snapshot returns ; 0 compared
+TEST dyn_array_from_slice::loops_decode_each_element returns ; 0 compared
+TEST dyn_array_from_slice::returndata_matches_solidity_encoding returns ; 7 compared
+DIFF dyn_array_from_slice tests=9 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN dyn_array_from_slice Builder sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST dyn_array_get::test_get_from_decoded_param returns ; 4 compared
+TEST dyn_array_get::test_index_and_generic_search returns ; 0 compared
+TEST dyn_array_get::test_index_out_of_bounds_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST dyn_array_get::test_get_out_of_bounds_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST dyn_array_get::test_get_on_empty_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST dyn_array_get::test_get_large_index_panics_before_offset_arithmetic reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST dyn_array_get::test_array_constructor_rejects_overflowing_element_frame reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST dyn_array_get::test_array_constructor_rejects_overflowing_length_header reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST dyn_array_get::test_dirty_address_element_reverts_on_get returns ; 4 compared
+DIFF dyn_array_get tests=9 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN dyn_array_get Arr sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=38
+TEST dynamic_offset_overflow::valid_dynamic_offsets returns ; 8 compared
+TEST dynamic_offset_overflow::dynamic_length_head_overflow_is_abi_error returns ; 2 compared
+TEST dynamic_offset_overflow::field_from_offset_overflow_is_abi_error returns ; 2 compared
+TEST dynamic_offset_overflow::field_end_offset_overflow_is_abi_error returns ; 2 compared
+TEST dynamic_offset_overflow::cursor_offset_overflow_is_abi_error returns ; 2 compared
+DIFF dynamic_offset_overflow tests=5 agree=16 disagree=0 outOfGas=0 stackOverflow=0 agree3=16 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN dynamic_offset_overflow OffsetProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=19
+TEST effect_aliasing_lanes::one_lane_for_two_effects returns ; 3 compared
+TEST effect_aliasing_lanes::snapshot_effects_copy_storage returns ; 3 compared
+TEST effect_aliasing_lanes::one_lane_for_two_effects_on_an_element_field returns ; 0 compared
+DIFF effect_aliasing_lanes tests=3 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN effect_aliasing_lanes Packed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=84
+TEST effect_handle_field_deref::test_effect_handle_field_deref returns ; 6 compared
+DIFF effect_handle_field_deref tests=1 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN effect_handle_field_deref C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+TEST eip712_domain::test_domain_typehash returns ; 0 compared
+TEST eip712_domain::test_const_string_hashes returns ; 0 compared
+TEST eip712_domain::test_domain_separator_vectors returns ; 0 compared
+TEST eip712_domain::test_digest_vectors returns ; 0 compared
+TEST eip712_domain::test_digest_matches_crypto_eip712_digest returns ; 0 compared
+TEST eip712_domain::test_digest_leaves_neighbouring_memory_intact returns ; 0 compared
+TEST eip712_domain::test_domain_new_matches_free_function returns ; 0 compared
+TEST eip712_domain::test_cached_separator_in_immutable_field returns ; 3 compared
+TEST eip712_domain::test_separator_rederived_under_delegatecall returns ; 4 compared
+DIFF eip712_domain tests=9 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN eip712_domain Signer sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+GEN eip712_domain Proxy sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST encode_msg_calldata::test_encode_msg_calldata_static_args returns ; 3 compared
+TEST encode_msg_calldata::test_encode_msg_calldata_dynamic_bytes returns ; 3 compared
+TEST encode_msg_calldata::test_raw_copy_apis_use_explicit_source_and_destination_ranges returns ; 4 compared
+DIFF encode_msg_calldata tests=3 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN encode_msg_calldata Echo sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+TEST encode_storage_place::encodes_values_in_storage returns ; 5 compared
+DIFF encode_storage_place tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN encode_storage_place C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST entry_space_numbering::entry_spaces_take_numbers returns ; 2 compared
+DIFF entry_space_numbering tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN entry_space_numbering C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST enum::test_enum returns ; 4 compared
+DIFF enum tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN enum EnumContract sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST enum_state_machine::test_order_initial_state returns ; 3 compared
+TEST enum_state_machine::test_order_lifecycle returns ; 9 compared
+TEST enum_state_machine::test_order_cancellation returns ; 3 compared
+DIFF enum_state_machine tests=3 agree=15 disagree=0 outOfGas=0 stackOverflow=0 agree3=15 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN enum_state_machine Order sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST erc1167_clones::deterministic_address_and_isolated_storage returns ; 2 compared
+TEST erc1167_clones::create_and_value_forwarding returns ; 1 compared
+TEST erc1167_clones::duplicate_salt_reverts reverts with c2f868f4; 1 compared
+TEST erc1167_clones::implementation_revert_is_forwarded reverts with deadbeef00000000000000000000000000000000000000000000000000000000; 1 compared
+TEST erc1167_clones::initcode_and_prediction_vectors returns ; 0 compared
+TEST erc1167_clones::insufficient_balance_reverts reverts with c2f868f4; 0 compared
+DIFF erc1167_clones tests=6 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN erc1167_clones Implementation sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=72
+TEST erc20::test_erc20 returns ; 10 compared
+DIFF erc20 tests=1 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN erc20 CoolCoin sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+TEST erc20_try_transfer::test_true_is_ok returns ; 6 compared
+TEST erc20_try_transfer::test_empty_return_from_contract_is_ok returns ; 4 compared
+TEST erc20_try_transfer::test_false_is_bad_return returns ; 4 compared
+TEST erc20_try_transfer::test_two_is_bad_return returns ; 8 compared
+TEST erc20_try_transfer::test_short_return_is_bad_return returns ; 8 compared
+TEST erc20_try_transfer::test_trailing_bytes_after_true_are_ignored returns ; 8 compared
+TEST erc20_try_transfer::test_return_bomb_is_not_copied returns ; 4 compared
+TEST erc20_try_transfer::test_revert_is_reverted returns ; 4 compared
+TEST erc20_try_transfer::test_reverted_payload_can_be_bubbled reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST erc20_try_transfer::test_codeless_token_is_no_code returns ; 0 compared
+DIFF erc20_try_transfer tests=10 agree=48 disagree=0 outOfGas=0 stackOverflow=0 agree3=48 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN erc20_try_transfer RawReplyToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST erc4337::user_op_hashes_match_entry_point returns ; 0 compared
+TEST erc4337::validate_user_op_encodes_like_solidity returns ; 0 compared
+TEST erc4337::gas_fields_unpack returns ; 0 compared
+TEST erc4337::validation_data_round_trips returns ; 0 compared
+TEST erc4337::pack_rejects_valid_after_above_48_bits reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST erc4337::pack_rejects_valid_until_above_48_bits reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST erc4337::account_validates_and_pays_prefund returns ; 4 compared
+TEST erc4337::account_returns_failure_for_bad_signature returns ; 5 compared
+TEST erc4337::account_rejects_other_callers returns ; 3 compared
+TEST erc4337::paymaster_validates_and_runs_post_op returns ; 7 compared
+TEST erc4337::post_op_mode_converts_strictly returns ; 4 compared
+DIFF erc4337 tests=11 agree=23 disagree=0 outOfGas=0 stackOverflow=0 agree3=23 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=3 covered=3
+GEN erc4337 Account sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=20
+GEN erc4337 Paymaster sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=43
+GEN erc4337 EntryPoint sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=44
+TEST erc721_erc1155_try_transfer::test_erc721_transfer_ok returns ; 3 compared
+TEST erc721_erc1155_try_transfer::test_erc721_returndata_is_ignored returns ; 2 compared
+TEST erc721_erc1155_try_transfer::test_erc721_revert_is_reverted returns ; 2 compared
+TEST erc721_erc1155_try_transfer::test_erc721_reverted_payload_can_be_bubbled reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST erc721_erc1155_try_transfer::test_erc721_codeless_is_no_code returns ; 0 compared
+TEST erc721_erc1155_try_transfer::test_erc1155_transfer_ok returns ; 3 compared
+TEST erc721_erc1155_try_transfer::test_erc1155_batch_transfer_ok returns ; 3 compared
+TEST erc721_erc1155_try_transfer::test_erc1155_revert_is_reverted returns ; 3 compared
+TEST erc721_erc1155_try_transfer::test_erc1155_reverted_payload_can_be_bubbled reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST erc721_erc1155_try_transfer::test_erc1155_codeless_is_no_code returns ; 0 compared
+TEST erc721_erc1155_try_transfer::test_receiver_correct_magic_is_accepted returns ; 4 compared
+TEST erc721_erc1155_try_transfer::test_receiver_wrong_magic returns ; 4 compared
+TEST erc721_erc1155_try_transfer::test_receiver_short_or_dirty_return_is_bad_return returns ; 6 compared
+TEST erc721_erc1155_try_transfer::test_receiver_revert_is_reverted returns ; 2 compared
+TEST erc721_erc1155_try_transfer::test_receiver_revert_payload_can_be_bubbled reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST erc721_erc1155_try_transfer::test_codeless_receiver_is_no_code returns ; 0 compared
+DIFF erc721_erc1155_try_transfer tests=16 agree=38 disagree=0 outOfGas=0 stackOverflow=0 agree3=38 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=6 covered=6
+GEN erc721_erc1155_try_transfer Nft sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+GEN erc721_erc1155_try_transfer FalseNft sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=73
+GEN erc721_erc1155_try_transfer RevertingNft sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN erc721_erc1155_try_transfer MultiToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=48
+GEN erc721_erc1155_try_transfer RevertingMultiToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN erc721_erc1155_try_transfer Receiver sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST escrow::test_escrow_release returns ; 12 compared
+TEST escrow::test_escrow_refund returns ; 7 compared
+DIFF escrow tests=2 agree=19 disagree=0 outOfGas=0 stackOverflow=0 agree3=19 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN escrow Escrow sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=101
+GEN escrow ArbiterProxy sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST event_dyn_array_u256::test_dyn_array_u256_event returns ; 0 compared
+DIFF event_dyn_array_u256 tests=1 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=0
+GEN event_dyn_array_u256 Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST event_many_fields::topic0_e6data returns ; 0 compared
+TEST event_many_fields::topic0_e7data returns ; 0 compared
+TEST event_many_fields::topic0_e8data returns ; 0 compared
+TEST event_many_fields::topic0_e16data returns ; 0 compared
+TEST event_many_fields::topic0_e7noidx returns ; 0 compared
+TEST event_many_fields::emit_many_field_events returns ; 6 compared
+DIFF event_many_fields tests=6 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN event_many_fields Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST event_zero_fields::topic0_paused returns ; 0 compared
+TEST event_zero_fields::emit_zero_field_event returns ; 2 compared
+TEST event_zero_fields::revert_zero_field_error reverts with 82b42900; 2 compared
+DIFF event_zero_fields tests=3 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN event_zero_fields Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=56
+TEST evm_init_code_hash::no_arg_contract_address_matches_create2 returns ; 2 compared
+TEST evm_init_code_hash::no_arg_init_code_hash_is_hash_of_embedded_code returns ; 0 compared
+TEST evm_init_code_hash::static_args_are_abi_encoded_after_the_code returns ; 0 compared
+TEST evm_init_code_hash::static_args_contract_address_matches_create2 returns ; 2 compared
+TEST evm_init_code_hash::dynamic_args_contract_address_matches_create2 returns ; 2 compared
+TEST evm_init_code_hash::factory_predicts_its_own_deployments returns ; 3 compared
+DIFF evm_init_code_hash tests=6 agree=9 disagree=0 outOfGas=0 stackOverflow=0 agree3=9 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=4 covered=4
+GEN evm_init_code_hash Plain sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=27
+GEN evm_init_code_hash WithArgs sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=86
+GEN evm_init_code_hash WithName sequences=4 deployed=2 agree=75 disagree=0 outOfGas=0 stackOverflow=0 agree3=75 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=21
+GEN evm_init_code_hash Factory sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=27
+TEST factory::test_factory returns ; 4 compared
+DIFF factory tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=1
+GEN factory Child sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+GEN factory Factory sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST fixed_bytes_constant_return::test_constant_fixed_bytes_returns returns ; 6 compared
+DIFF fixed_bytes_constant_return tests=1 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN fixed_bytes_constant_return Constants sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST for_mut_index_base::dynamic_index_base returns ; 0 compared
+TEST for_mut_index_base::index_base_through_a_mut_parameter returns ; 0 compared
+TEST for_mut_index_base::index_evaluated_once returns ; 0 compared
+TEST for_mut_index_base::binding_an_indexed_collection returns ; 2 compared
+DIFF for_mut_index_base tests=4 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN for_mut_index_base C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST forwarded_projection_spaces::storage_results_forwarded returns ; 20 compared
+TEST forwarded_projection_spaces::memory_result_forwarded returns ; 0 compared
+DIFF forwarded_projection_spaces tests=2 agree=20 disagree=0 outOfGas=0 stackOverflow=0 agree3=20 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN forwarded_projection_spaces C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST gcd::gcd_cases returns ; 0 compared
+TEST gcd::gcd_is_const returns ; 0 compared
+TEST gcd::gcd_runtime_cases returns ; 83 compared
+DIFF gcd tests=3 agree=83 disagree=0 outOfGas=0 stackOverflow=0 agree3=83 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN gcd GcdProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=105
+TEST generated_type_param_names::fields_spelled_like_generated_names returns ; 2 compared
+TEST generated_type_param_names::abi_struct_fields_named_like_generated_params returns ; 0 compared
+TEST generated_type_param_names::msg_fields_named_like_generated_params returns ; 2 compared
+DIFF generated_type_param_names tests=3 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN generated_type_param_names C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=69
+GEN generated_type_param_names SpellingC sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=84
+TEST immutable_aggregate_forwarding::immutable_fields_survive_intervening_effects returns ; 3 compared
+TEST immutable_aggregate_forwarding::mutable_storage_argument_is_snapshotted_before_later_argument returns ; 3 compared
+TEST immutable_aggregate_forwarding::mutable_copy_does_not_change_immutable_source returns ; 3 compared
+TEST immutable_aggregate_forwarding::memory_snapshot_is_independent returns ; 0 compared
+TEST immutable_aggregate_forwarding::calldata_snapshots_preserve_word_layout returns ; 2 compared
+DIFF immutable_aggregate_forwarding tests=5 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN immutable_aggregate_forwarding Snapshot sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+GEN immutables Immutables sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+GEN init_pattern InitPattern sequences=4 deployed=4 agree=138 disagree=0 outOfGas=0 stackOverflow=0 agree3=138 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST known_product_destructure_storage::test_parts_in_storage returns ; 4 compared
+DIFF known_product_destructure_storage tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN known_product_destructure_storage Store sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+GEN lane_holds Lanes sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=96
+TEST lane_holds_before_halts::argument_reaches_storage_before_halt returns ; 3 compared
+TEST lane_holds_before_halts::effect_reaches_storage_before_halt returns ; 3 compared
+TEST lane_holds_before_halts::callee_that_may_halt returns ; 5 compared
+TEST lane_holds_before_halts::copy_passed_through_frames returns ; 7 compared
+TEST lane_holds_before_halts::every_frame_stores_its_copies returns ; 3 compared
+TEST lane_holds_before_halts::grants_of_copies returns ; 5 compared
+TEST lane_holds_before_halts::copies_held_across_a_yield returns ; 5 compared
+TEST lane_holds_before_halts::copies_of_the_yield_site_taken returns ; 10 compared
+TEST lane_holds_before_halts::packed_struct_field_effect returns ; 3 compared
+TEST lane_holds_before_halts::collection_elements returns ; 8 compared
+TEST lane_holds_before_halts::halt_returns_its_data returns ; 3 compared
+DIFF lane_holds_before_halts tests=11 agree=55 disagree=0 outOfGas=0 stackOverflow=0 agree3=55 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN lane_holds_before_halts C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+TEST lane_pattern_writes::let_write returns ; 2 compared
+TEST lane_pattern_writes::compound_write returns ; 2 compared
+TEST lane_pattern_writes::alias_write returns ; 2 compared
+TEST lane_pattern_writes::match_write returns ; 2 compared
+TEST lane_pattern_writes::match_tested_write returns ; 2 compared
+TEST lane_pattern_writes::if_let_write returns ; 2 compared
+TEST lane_pattern_writes::let_else_write returns ; 2 compared
+TEST lane_pattern_writes::while_let_write returns ; 2 compared
+TEST lane_pattern_writes::for_write returns ; 2 compared
+TEST lane_pattern_writes::user_index_write returns ; 2 compared
+TEST lane_pattern_writes::array_element_write returns ; 2 compared
+TEST lane_pattern_writes::product_parts_write returns ; 2 compared
+TEST lane_pattern_writes::own_and_part_write returns ; 2 compared
+TEST lane_pattern_writes::payload_write returns ; 2 compared
+TEST lane_pattern_writes::payload_tested_write returns ; 2 compared
+TEST lane_pattern_writes::payload_handle_write returns ; 2 compared
+TEST lane_pattern_writes::mode_result_write returns ; 2 compared
+TEST lane_pattern_writes::slide_write returns ; 2 compared
+TEST lane_pattern_writes::forwarded_write returns ; 2 compared
+TEST lane_pattern_writes::forwarded_same_field_write returns ; 2 compared
+TEST lane_pattern_writes::forwarded_ref_write returns ; 2 compared
+TEST lane_pattern_writes::reads returns ; 2 compared
+DIFF lane_pattern_writes tests=22 agree=44 disagree=0 outOfGas=0 stackOverflow=0 agree3=44 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN lane_pattern_writes Store sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST lane_projection_spaces::lane_grants_are_memory_copies returns ; 2 compared
+DIFF lane_projection_spaces tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN lane_projection_spaces C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST leading_zeros::bit_count_cases returns ; 0 compared
+TEST leading_zeros::every_bit_position returns ; 0 compared
+TEST leading_zeros::bit_counts_are_const returns ; 0 compared
+TEST leading_zeros::bit_counts_runtime returns ; 67 compared
+DIFF leading_zeros tests=4 agree=67 disagree=0 outOfGas=0 stackOverflow=0 agree3=67 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN leading_zeros BitsProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=102
+TEST library_state_index::library_collection_packs_lanes returns ; 7 compared
+DIFF library_state_index tests=1 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN library_state_index C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=93
+TEST long_string_literals::test_literals_up_to_a_word_stay_inline returns ; 0 compared
+TEST long_string_literals::test_long_literal_bytes returns ; 0 compared
+TEST long_string_literals::test_kilobyte_literal returns ; 0 compared
+TEST long_string_literals::test_long_literals_unify returns ; 0 compared
+TEST long_string_literals::test_generic_consumer_encodes_a_long_literal returns ; 0 compared
+TEST long_string_literals::test_long_literal_event returns ; 0 compared
+TEST long_string_literals::test_long_literals_cross_calls returns ; 4 compared
+DIFF long_string_literals tests=7 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN long_string_literals Texts sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=43
+TEST mandelbrot::test_mandelbrot_known_points returns ; 7 compared
+TEST mandelbrot::test_mandelbrot_row returns ; 2 compared
+DIFF mandelbrot tests=2 agree=9 disagree=0 outOfGas=0 stackOverflow=0 agree3=9 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mandelbrot Mandelbrot sequences=4 deployed=4 agree=119 disagree=0 outOfGas=13 stackOverflow=0 agree3=119 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=15
+TEST mandelbrot_minimal::test_sub returns ; 2 compared
+DIFF mandelbrot_minimal tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mandelbrot_minimal TestSub sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST maybe_mut_effect_calls::generic_dispatch returns ; 0 compared
+TEST maybe_mut_effect_calls::effect_only_modes returns ; 0 compared
+TEST maybe_mut_effect_calls::write_back returns ; 0 compared
+TEST maybe_mut_effect_calls::closures returns ; 0 compared
+TEST maybe_mut_effect_calls::contract_fields returns ; 6 compared
+DIFF maybe_mut_effect_calls tests=5 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN maybe_mut_effect_calls Fields sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=97
+TEST mem_replace_take::replace_moves_the_old_value_out returns ; 0 compared
+TEST mem_replace_take::take_leaves_the_default returns ; 0 compared
+TEST mem_replace_take::option_take_empties_the_option returns ; 0 compared
+TEST mem_replace_take::replace_works_on_elements returns ; 0 compared
+TEST mem_replace_take::replace_and_take_contract_state returns ; 2 compared
+DIFF mem_replace_take tests=5 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mem_replace_take C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST mem_vec::push_grows_and_keeps_elements returns ; 0 compared
+TEST mem_vec::push_unchecked_fills_reserved_capacity returns ; 0 compared
+TEST mem_vec::set_len_over_raw_writes returns ; 0 compared
+TEST mem_vec::get_and_set_unchecked_within_len returns ; 0 compared
+TEST mem_vec::pop_truncate_and_access returns ; 0 compared
+TEST mem_vec::swap_remove_moves_the_last_element_in returns ; 0 compared
+TEST mem_vec::non_copy_elements_move_in_and_out returns ; 0 compared
+TEST mem_vec::collects_a_producer returns ; 0 compared
+TEST mem_vec::index_past_the_end_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST mem_vec::swap_of_an_index_past_the_end_with_itself_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST mem_vec::truncate_past_the_end_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000032; 0 compared
+TEST mem_vec::test_address_elements returns ; 0 compared
+TEST mem_vec::test_to_mem_array_copies_locally returns ; 0 compared
+TEST mem_vec::test_to_mem_array_copies_across_call returns ; 2 compared
+TEST mem_vec::test_round_trip_returndata_matches_solidity_encoding returns ; 2 compared
+TEST mem_vec::test_round_trip_typed_decode returns ; 2 compared
+TEST mem_vec::test_encode_abi_payload_matches_solidity_encoding returns ; 2 compared
+DIFF mem_vec tests=17 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mem_vec VecContract sequences=4 deployed=4 agree=118 disagree=0 outOfGas=14 stackOverflow=0 agree3=118 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=74
+TEST merkle_proof::test_hash_pair_sorted returns ; 0 compared
+TEST merkle_proof::test_empty_proof returns ; 0 compared
+TEST merkle_proof::test_sorted_tree_2_leaves returns ; 0 compared
+TEST merkle_proof::test_sorted_tree_3_leaves returns ; 0 compared
+TEST merkle_proof::test_sorted_tree_8_leaves returns ; 0 compared
+TEST merkle_proof::test_indexed_tree_height_1 returns ; 0 compared
+TEST merkle_proof::test_indexed_tree_height_2 returns ; 0 compared
+TEST merkle_proof::test_indexed_tree_height_3 returns ; 0 compared
+TEST merkle_proof::test_sorted_invalid_proofs returns ; 0 compared
+TEST merkle_proof::test_indexed_index_bits returns ; 0 compared
+TEST merkle_proof::test_abi_array_proofs returns ; 7 compared
+DIFF merkle_proof tests=11 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN merkle_proof MerkleVerifier sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST method_forwards_memory_mut_borrow::test_method_forwards_memory_mut_borrow returns ; 3 compared
+DIFF method_forwards_memory_mut_borrow tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN method_forwards_memory_mut_borrow C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST minimum_gas_calls::admission_boundaries_and_overflow returns ; 0 compared
+TEST minimum_gas_calls::full_allotment returns ; 0 compared
+TEST minimum_gas_calls::value_forwarding_to_cold_new_account returns ; 0 compared
+TEST minimum_gas_calls::exhausted_callee_preserves_reserve returns ; 2 compared
+TEST minimum_gas_calls::insufficient_budget_skips_external_call returns ; 2 compared
+TEST minimum_gas_calls::large_return_is_not_copied returns ; 2 compared
+TEST minimum_gas_calls::value_stipend_and_balance returns ; 0 compared
+TEST minimum_gas_calls::input_is_forwarded_and_revert_is_not_bubbled returns ; 0 compared
+DIFF minimum_gas_calls tests=8 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN minimum_gas_calls Runner sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST mixed_space_forwarding::forwarded_transient_place returns ; 2 compared
+DIFF mixed_space_forwarding tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mixed_space_forwarding C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST mode_receivers_contract::test_mode_receivers_contract returns ; 5 compared
+DIFF mode_receivers_contract tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mode_receivers_contract ModeContract sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=87
+TEST msg_array_arg::test_msg_array_arg returns ; 2 compared
+DIFF msg_array_arg tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN msg_array_arg C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST msg_enum_field::enum_msg_field_selector returns ; 0 compared
+TEST msg_enum_field::enum_msg_field_round_trips returns ; 4 compared
+TEST msg_enum_field::enum_msg_field_rejects_out_of_range returns ; 2 compared
+DIFF msg_enum_field tests=3 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN msg_enum_field Paymaster sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=61
+TEST msg_multiple_dynamic_bytes::test_msg_call_with_two_dynamic_bytes_fields returns ; 2 compared
+DIFF msg_multiple_dynamic_bytes tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN msg_multiple_dynamic_bytes C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST msg_nested_array_arg::test_msg_nested_array_arg returns ; 3 compared
+DIFF msg_nested_array_arg tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN msg_nested_array_arg Verifier sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+GEN msg_nested_array_arg Caller sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST msg_struct_sol_compat::scalar_struct_and_nested_records_round_trip returns ; 4 compared
+TEST msg_struct_sol_compat::custom_codec_preserves_unvalidated_word returns ; 2 compared
+DIFF msg_struct_sol_compat tests=2 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN msg_struct_sol_compat Wrapper sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST mul_div::checked_mul_div_cases returns ; 0 compared
+TEST mul_div::full_mul_cases returns ; 0 compared
+TEST mul_div::modular_intrinsics_in_core returns ; 0 compared
+TEST mul_div::mul_div_is_const returns ; 0 compared
+TEST mul_div::mul_div_by_zero_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 0 compared
+TEST mul_div::mul_div_ceil_by_zero_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 0 compared
+TEST mul_div::mul_div_overflow_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST mul_div::mul_div_ceil_rounding_overflow_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST mul_div::mul_div_runtime_cases returns ; 54 compared
+TEST mul_div::mul_div_runtime_by_zero_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 2 compared
+TEST mul_div::mul_div_runtime_ceil_overflow_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 2 compared
+DIFF mul_div tests=11 agree=58 disagree=0 outOfGas=0 stackOverflow=0 agree3=58 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mul_div MulDivProbe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=71
+TEST multicall::batches_run_in_order_and_return_each_result returns ; 4 compared
+TEST multicall::failing_entry_reverts_batch_with_its_data returns ; 3 compared
+TEST multicall::empty_revert_becomes_failed_call returns ; 4 compared
+TEST multicall::value_reaches_every_entry returns ; 2 compared
+DIFF multicall tests=4 agree=13 disagree=0 outOfGas=0 stackOverflow=0 agree3=13 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN multicall Box sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=81
+TEST mut_self_storage_receiver_regression::test_mut_self_storage_receiver returns ; 4 compared
+DIFF mut_self_storage_receiver_regression tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mut_self_storage_receiver_regression C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST mutex_lock_slot_no_transient_collision::lock_does_not_alias_transient_fields returns ; 2 compared
+DIFF mutex_lock_slot_no_transient_collision tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN mutex_lock_slot_no_transient_collision C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST nested_index_assignment::nested_overloaded_index_assignment returns ; 0 compared
+TEST nested_index_assignment::nested_place_entries returns ; 2 compared
+DIFF nested_index_assignment tests=2 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN nested_index_assignment C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST never_returning_recv_returns::test_never_returning_recv_bytes reverts with ; 2 compared
+TEST never_returning_recv_returns::test_never_returning_recv_scalar reverts with ; 2 compared
+DIFF never_returning_recv_returns tests=2 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN never_returning_recv_returns Aborter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST newtype_casts::unwraps_and_wraps returns ; 0 compared
+TEST newtype_casts::converts_the_leaf returns ; 0 compared
+TEST newtype_casts::sees_through_every_layer returns ; 0 compared
+TEST newtype_casts::keeps_an_aggregate_leaf returns ; 0 compared
+TEST newtype_casts::rewraps_pointers returns ; 0 compared
+TEST newtype_casts::casts_parameters_and_effects returns ; 0 compared
+TEST newtype_casts::casts_contract_fields returns ; 3 compared
+DIFF newtype_casts tests=7 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN newtype_casts Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST non_mem_effect_provider_mut_struct_receiver::test_non_mem_effect_provider_mut_struct_receiver returns ; 3 compared
+DIFF non_mem_effect_provider_mut_struct_receiver tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN non_mem_effect_provider_mut_struct_receiver C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=68
+TEST option_mut_scalar_match_regression::test_option_mut_scalar_match_regression returns ; 4 compared
+DIFF option_mut_scalar_match_regression tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN option_mut_scalar_match_regression C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST ownable::test_ownable returns ; 9 compared
+DIFF ownable tests=1 agree=9 disagree=0 outOfGas=0 stackOverflow=0 agree3=9 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN ownable Ownable sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+GEN ownable NonOwnerCaller sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST param_patterns::function_parameter_patterns returns ; 0 compared
+TEST param_patterns::closure_parameter_patterns returns ; 0 compared
+TEST param_patterns::init_parameter_pattern returns ; 2 compared
+DIFF param_patterns tests=3 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN param_patterns PairStore sequences=4 deployed=4 agree=138 disagree=0 outOfGas=0 stackOverflow=0 agree3=138 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=97
+TEST pattern_accesses::test_match_payload_access returns ; 0 compared
+TEST pattern_accesses::test_destructured_accesses returns ; 0 compared
+TEST pattern_accesses::test_storage_payload_access returns ; 3 compared
+DIFF pattern_accesses tests=3 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN pattern_accesses Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST payable::test_non_payable_zero_value returns ; 2 compared
+TEST payable::test_non_payable_rejects_value reverts with ; 2 compared
+TEST payable::test_payable_zero_value returns ; 2 compared
+TEST payable::test_payable_init returns ; 1 compared
+TEST payable::test_non_payable_init_rejects_value reverts with ; 1 compared
+TEST payable::test_no_init_zero_value returns ; 2 compared
+TEST payable::test_no_init_rejects_value reverts with ; 1 compared
+TEST payable::test_payable_accepts_value returns ; 2 compared
+TEST payable::test_payable_init_accepts_value returns ; 1 compared
+TEST payable::test_selfbalance returns ; 3 compared
+TEST payable::test_balance returns ; 1 compared
+DIFF payable tests=11 agree=18 disagree=0 outOfGas=0 stackOverflow=0 agree3=18 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=3 covered=3
+GEN payable PayableBox sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=114
+GEN payable NonPayableBox sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+GEN payable NoInitBox sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST payable_return::test_payable_scalar_zero_value returns ; 2 compared
+TEST payable_return::test_payable_scalar_with_value returns ; 2 compared
+TEST payable_return::test_payable_tuple_with_value returns ; 2 compared
+TEST payable_return::test_payable_dynamic_return returns ; 2 compared
+DIFF payable_return tests=4 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN payable_return PayableReturnBox sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=105
+TEST per_type_pins::generic_space_pins_its_instance returns ; 2 compared
+DIFF per_type_pins tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN per_type_pins C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST pinned_bound_layout::bounded_pins_lay_out_each_instance returns ; 2 compared
+DIFF pinned_bound_layout tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN pinned_bound_layout C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST pinned_field_spaces::pinned_fields_keep_their_space returns ; 2 compared
+DIFF pinned_field_spaces tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN pinned_field_spaces C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST pinned_slots::pinned_types_take_their_own_slots returns ; 4 compared
+TEST pinned_slots::raw_slot_fieldless_collection returns ; 0 compared
+DIFF pinned_slots tests=2 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN pinned_slots C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=111
+TEST pointer_first_class::test_first_class_memory_pointers returns ; 0 compared
+TEST pointer_first_class::test_pointer_parameter_field_access returns ; 0 compared
+TEST pointer_first_class::test_pointer_equality returns ; 0 compared
+TEST pointer_first_class::test_subword_memory_pointer_roundtrip returns ; 0 compared
+TEST pointer_first_class::test_subword_static_array_pointer_roundtrip returns ; 0 compared
+TEST pointer_first_class::test_typed_memory_slices_and_growable_buffers returns ; 0 compared
+TEST pointer_first_class::test_pointer_to_pointer_deref returns ; 0 compared
+TEST pointer_first_class::test_borrowed_pointer_deref returns ; 0 compared
+TEST pointer_first_class::test_memory_region_bounds_halt_before_access returns ; 5 compared
+DIFF pointer_first_class tests=9 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN pointer_first_class PointerBounds sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST precompile_in_mut_method::precompiles_in_mut_method returns ; 3 compared
+DIFF precompile_in_mut_method tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN precompile_in_mut_method Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST product_params::product_calls returns ; 0 compared
+TEST product_params::product_arguments returns ; 0 compared
+TEST product_params::generic_projection_arguments returns ; 0 compared
+TEST product_params::forwarded_part returns ; 0 compared
+TEST product_params::index_after_product returns ; 0 compared
+TEST product_params::methods_and_traits returns ; 0 compared
+TEST product_params::maybe_mut_parts returns ; 0 compared
+TEST product_params::view_parts returns ; 0 compared
+TEST product_params::access_bindings_as_parts returns ; 0 compared
+TEST product_params::recursive_product returns ; 0 compared
+TEST product_params::storage_parts returns ; 5 compared
+TEST product_params::spaces_through_forwarding returns ; 6 compared
+DIFF product_params tests=12 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN product_params Store sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+GEN product_params Spaces sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST projected_storage_map_effect_forwarding::test_projected_storage_map_effect_forwarding returns ; 5 compared
+DIFF projected_storage_map_effect_forwarding tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN projected_storage_map_effect_forwarding ProjectedMapForwarding sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+TEST projection_slides::write_back_lands_after_the_last_use returns ; 0 compared
+TEST projection_slides::slide_reads_the_callers_writes returns ; 0 compared
+TEST projection_slides::slide_follows_either_yield returns ; 0 compared
+TEST projection_slides::each_iteration_runs_its_session returns ; 0 compared
+TEST projection_slides::every_exit_ends_the_session returns ; 0 compared
+TEST projection_slides::optional_projection_slides_only_when_present returns ; 0 compared
+TEST projection_slides::empty_variant_finishes_the_ramp_sessions returns ; 0 compared
+TEST projection_slides::nested_sessions_end_innermost_first returns ; 0 compared
+TEST projection_slides::storage_receiver_writes_back returns ; 3 compared
+DIFF projection_slides tests=9 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN projection_slides Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST random::keccak_rng_matches_solady returns ; 0 compared
+TEST random::state_continues_a_generator returns ; 0 compared
+TEST random::uniform_rejects_biased_words returns ; 0 compared
+TEST random::chance_compares_against_the_ratio returns ; 0 compared
+TEST random::uniform_of_zero_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 0 compared
+TEST random::chance_with_zero_denominator_panics reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 0 compared
+TEST random::replayed_words_give_a_known_shuffle returns ; 0 compared
+TEST random::shuffles_keep_every_element returns ; 0 compared
+TEST random::a_test_rng_picks_the_winner returns ; 0 compared
+TEST random::a_contract_draws_with_a_seeded_rng returns ; 2 compared
+DIFF random tests=10 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN random Lottery sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST receiver_returns_non_mem_with_same_typed_memory_arg::test_receiver_return_ignores_same_typed_memory_arg returns ; 4 compared
+DIFF receiver_returns_non_mem_with_same_typed_memory_arg tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN receiver_returns_non_mem_with_same_typed_memory_arg C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST recv_arm_variant_paths::test_recv_arm_variant_paths returns ; 8 compared
+DIFF recv_arm_variant_paths tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=3 covered=3
+GEN recv_arm_variant_paths Named sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+GEN recv_arm_variant_paths Bare sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+GEN recv_arm_variant_paths Generic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST recv_fallback::test_known_selector_skips_fallback returns ; 3 compared
+TEST recv_fallback::test_unknown_selector_hits_fallback returns ; 3 compared
+TEST recv_fallback::test_short_calldata_hits_fallback returns ; 3 compared
+TEST recv_fallback::test_nonpayable_fallback_rejects_value returns ; 3 compared
+DIFF recv_fallback tests=4 agree=12 disagree=0 outOfGas=0 stackOverflow=0 agree3=12 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN recv_fallback Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=120
+TEST recv_field_patterns::test_recv_field_patterns returns ; 6 compared
+DIFF recv_field_patterns tests=1 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN recv_field_patterns C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=67
+TEST recv_short_calldata_selector_guard::test_empty_calldata_uses_fallback_not_zero_selector returns ; 3 compared
+TEST recv_short_calldata_selector_guard::test_short_prefix_calldata_uses_fallback_not_padded_selector returns ; 3 compared
+TEST recv_short_calldata_selector_guard::test_full_zero_selector_still_dispatches returns ; 3 compared
+TEST recv_short_calldata_selector_guard::test_empty_calldata_without_fallback_reverts returns ; 2 compared
+DIFF recv_short_calldata_selector_guard tests=4 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN recv_short_calldata_selector_guard GuardedFallback sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=120
+GEN recv_short_calldata_selector_guard NoFallback sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST reentrancy_mutex::test_reentrancy_guard_mutex returns ; 5 compared
+DIFF reentrancy_mutex tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN reentrancy_mutex A sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN reentrancy_mutex B sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=83
+TEST reentrancy_mutex_storage_map::test_reentrancy_guard_mutex_storage_map returns ; 9 compared
+DIFF reentrancy_mutex_storage_map tests=1 agree=9 disagree=0 outOfGas=0 stackOverflow=0 agree3=9 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN reentrancy_mutex_storage_map A sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN reentrancy_mutex_storage_map B sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=85
+TEST reentrancy_tstor_ptr::test_reentrancy_guard returns ; 5 compared
+DIFF reentrancy_tstor_ptr tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN reentrancy_tstor_ptr A sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN reentrancy_tstor_ptr B sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=83
+TEST revert_helpers::test_encode_error_matches_revert_error returns ; 4 compared
+TEST revert_helpers::test_revert_empty_and_revert_bytes returns ; 4 compared
+TEST revert_helpers::test_bubble_revert_or returns ; 5 compared
+TEST revert_helpers::test_revert_selector returns ; 0 compared
+TEST revert_helpers::test_is_error_static returns ; 0 compared
+TEST revert_helpers::test_has_selector returns ; 0 compared
+TEST revert_helpers::test_is_error_dynamic returns ; 0 compared
+TEST revert_helpers::test_decode_error_string_valid returns ; 0 compared
+TEST revert_helpers::test_decode_error_string_rejects_malformed returns ; 0 compared
+TEST revert_helpers::test_decode_panic returns ; 0 compared
+TEST revert_helpers::test_real_panic_and_custom_error_from_callee returns ; 3 compared
+TEST revert_helpers::test_returndata_decode_in_place returns ; 2 compared
+TEST revert_helpers::test_returndata_matches_errors_in_place returns ; 4 compared
+TEST revert_helpers::test_returndata_bounds returns ; 2 compared
+TEST revert_helpers::test_returndata_copy_out_of_bounds_reverts reverts with ; 2 compared
+TEST revert_helpers::test_returndata_decode_short_reverts reverts with ; 2 compared
+TEST revert_helpers::test_returndata_to_bytes returns ; 4 compared
+DIFF revert_helpers tests=17 agree=32 disagree=0 outOfGas=0 stackOverflow=0 agree3=32 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN revert_helpers Mock sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=23
+GEN revert_helpers Forwarder sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=86
+GEN review Review sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=75
+GEN review2 Review2 sequences=4 deployed=4 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=132 agree2=132 returned=60
+GEN review3 Review3 sequences=4 deployed=4 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=132 agree2=132 returned=72
+GEN review4 Review4 sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=95
+TEST safe_erc20::test_safe_transfer_compliant_token returns ; 2 compared
+TEST safe_erc20::test_safe_transfer_bubbles_token_revert reverts with deadbeefcafebabe000000000000000000000000000000000000000000000000; 2 compared
+TEST safe_erc20::test_safe_transfer_no_return_token returns ; 3 compared
+TEST safe_erc20::test_safe_transfer_reverts_on_false_return reverts with 0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001665726332303a207472616e73666572206661696c656400000000000000000000; 2 compared
+TEST safe_erc20::test_safe_transfer_reverts_on_malformed_returndata reverts with ; 2 compared
+TEST safe_erc20::test_safe_transfer_reverts_on_no_code_address reverts with 0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001665726332303a207472616e73666572206661696c656400000000000000000000; 0 compared
+TEST safe_erc20::test_safe_transfer_from_compliant_token returns ; 2 compared
+TEST safe_erc20::test_safe_transfer_from_no_return_token returns ; 3 compared
+TEST safe_erc20::test_safe_transfer_from_reverts_on_false_return reverts with 0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001a65726332303a207472616e7366657246726f6d206661696c6564000000000000; 2 compared
+TEST safe_erc20::test_safe_approve_compliant_token returns ; 2 compared
+TEST safe_erc20::test_safe_approve_no_return_token returns ; 3 compared
+TEST safe_erc20::test_safe_approve_reverts_on_false_return reverts with 0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000001565726332303a20617070726f7665206661696c65640000000000000000000000; 2 compared
+DIFF safe_erc20 tests=12 agree=25 disagree=0 outOfGas=0 stackOverflow=0 agree3=25 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=5 covered=5
+GEN safe_erc20 CompliantToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN safe_erc20 RevertingToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN safe_erc20 NoReturnToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=90
+GEN safe_erc20 FalseToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN safe_erc20 MalformedToken sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+TEST shape::test_shape returns ; 3 compared
+DIFF shape tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN shape ShapeDispatcher sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=55
+TEST signature::parse_decodes_both_encodings returns ; 0 compared
+TEST signature::parse_rejects_other_lengths returns ; 0 compared
+TEST signature::recover_real_vectors returns ; 0 compared
+TEST signature::recover_rejects_wrong_v returns ; 0 compared
+TEST signature::high_s_only_recovers_raw returns ; 0 compared
+TEST signature::erc1271_checks_magic_exactly returns ; 16 compared
+TEST signature::is_valid_signature_now_ecdsa_then_erc1271 returns ; 5 compared
+DIFF signature tests=7 agree=21 disagree=0 outOfGas=0 stackOverflow=0 agree3=21 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=6 covered=6
+GEN signature Wallet sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN signature DirtyMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN signature WrongMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN signature ShortMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+GEN signature RevertMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN signature LongMagic sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+TEST simple_amm::test_amm_basic returns ; 10 compared
+TEST simple_amm::test_amm_edge_cases returns ; 7 compared
+DIFF simple_amm tests=2 agree=17 disagree=0 outOfGas=0 stackOverflow=0 agree3=17 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN simple_amm SimpleAmm sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+TEST snapshot_effects::reads_a_local_provider returns ; 0 compared
+TEST snapshot_effects::reads_a_field_provider returns ; 0 compared
+TEST snapshot_effects::reads_a_field_of_a_mutated_struct returns ; 0 compared
+TEST snapshot_effects::views_and_projects_the_copy returns ; 0 compared
+TEST snapshot_effects::reads_a_pointer_provider returns ; 0 compared
+TEST snapshot_effects::sees_each_provision returns ; 0 compared
+TEST snapshot_effects::writes_through_a_mut_effect returns ; 0 compared
+TEST snapshot_effects::reads_and_writes_a_storage_provider returns ; 3 compared
+DIFF snapshot_effects tests=8 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN snapshot_effects Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=85
+TEST snapshot_view_call_effects::storage_address_snapshots_before_external_calls returns ; 5 compared
+DIFF snapshot_view_call_effects tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN snapshot_view_call_effects Counter sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+GEN snapshot_view_call_effects Probe sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=73
+TEST sol_array_lanes::argument_copies_are_stored_back returns ; 2 compared
+TEST sol_array_lanes::provided_effect_copies_are_stored_back returns ; 2 compared
+TEST sol_array_lanes::projection_grants_are_stored_back returns ; 2 compared
+TEST sol_array_lanes::effect_grants_are_stored_back_when_the_session_ends returns ; 2 compared
+TEST sol_array_lanes::codec_lanes_round_trip returns ; 2 compared
+TEST sol_array_lanes::codec_widths returns ; 0 compared
+DIFF sol_array_lanes tests=6 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN sol_array_lanes Lanes sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=72
+TEST sol_compat_int_abi_roundtrip::uint160_abi_roundtrip returns ; 3 compared
+TEST sol_compat_int_abi_roundtrip::int24_abi_roundtrip returns ; 4 compared
+TEST sol_compat_int_abi_roundtrip::event_indexed_uint160_topic returns ; 2 compared
+DIFF sol_compat_int_abi_roundtrip tests=3 agree=9 disagree=0 outOfGas=0 stackOverflow=0 agree3=9 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN sol_compat_int_abi_roundtrip C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=91
+TEST specialized_adt_array_extent::test_specialized_adt_array_extent returns ; 3 compared
+TEST specialized_adt_array_extent::test_alias_array_extent_in_init_and_message returns ; 2 compared
+DIFF specialized_adt_array_extent tests=2 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN specialized_adt_array_extent SpecializedExtent sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=19
+GEN specialized_adt_array_extent AliasExtent sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=11
+TEST state_only_sum_shapes::sum_shape_grants_reach_storage returns ; 5 compared
+TEST state_only_sum_shapes::sum_shape_methods_reach_storage returns ; 6 compared
+DIFF state_only_sum_shapes tests=2 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN state_only_sum_shapes C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST state_pointers::state_pointers_address_their_space returns ; 8 compared
+DIFF state_pointers tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN state_pointers C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=93
+TEST staticcall_decode::shared_staticcall_decodes_output returns ; 2 compared
+TEST staticcall_decode::staticcall_bubbles_revert_data reverts with deadbeef00000000000000000000000000000000000000000000000000000000; 2 compared
+TEST staticcall_decode::staticcall_rejects_short_output reverts with ; 2 compared
+TEST staticcall_decode::staticcall_rejects_noncanonical_output reverts with ; 2 compared
+DIFF staticcall_decode tests=4 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN staticcall_decode Target sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=69
+TEST storage_bytes_encode_return::test_storage_bytes_encode_return_multi_word returns ; 3 compared
+DIFF storage_bytes_encode_return tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_bytes_encode_return Blob sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=90
+TEST storage_bytes_to_memory::test_to_memory_empty returns ; 4 compared
+TEST storage_bytes_to_memory::test_to_memory_exact_word_multiple returns ; 4 compared
+TEST storage_bytes_to_memory::test_to_memory_partial_trailing_word returns ; 7 compared
+TEST storage_bytes_to_memory::test_to_memory_deploys_stored_initcode returns ; 4 compared
+DIFF storage_bytes_to_memory tests=4 agree=19 disagree=0 outOfGas=0 stackOverflow=0 agree3=19 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_bytes_to_memory Blob sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST storage_heap::min_heap_pops_in_ascending_order returns ; 45 compared
+TEST storage_heap::pop_on_empty_reverts returns ; 3 compared
+TEST storage_heap::push_pop_and_replace returns ; 10 compared
+TEST storage_heap::enqueue_keeps_the_top_values returns ; 11 compared
+TEST storage_heap::reverse_makes_a_max_heap returns ; 9 compared
+TEST storage_heap::orders_come_out_best_first returns ; 9 compared
+TEST storage_heap::orders_preserve_full_width_fields returns ; 7 compared
+TEST storage_heap::pop_zeroes_the_vacated_slot returns ; 0 compared
+DIFF storage_heap tests=8 agree=94 disagree=0 outOfGas=0 stackOverflow=0 agree3=94 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_heap Heaps sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=86
+TEST storage_lane_grants::each_site_writes_back_its_own_lane returns ; 3 compared
+TEST storage_lane_grants::an_optional_lane_grant_writes_back returns ; 3 compared
+DIFF storage_lane_grants tests=2 agree=6 disagree=0 outOfGas=0 stackOverflow=0 agree3=6 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_lane_grants C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=88
+TEST storage_layout_agreement::layouts_agree returns ; 2 compared
+TEST storage_layout_agreement::sol_array_assoc_stride returns ; 0 compared
+TEST storage_layout_agreement::sol_array_wide_packed_stride returns ; 0 compared
+DIFF storage_layout_agreement tests=3 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=1
+GEN storage_layout_agreement Other sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+GEN storage_layout_agreement C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST storage_map::test_storage_map returns ; 14 compared
+DIFF storage_map tests=1 agree=14 disagree=0 outOfGas=0 stackOverflow=0 agree3=14 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map BalanceMap sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST storage_map_aggregate_effects::aggregate_effect_helpers_reach_each_map returns ; 5 compared
+DIFF storage_map_aggregate_effects tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_aggregate_effects C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+TEST storage_map_allocating_key::allocation_inside_key_encoding_keeps_keys_distinct returns ; 5 compared
+DIFF storage_map_allocating_key tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_allocating_key C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST storage_map_array::arrays_of_maps_keep_distinct_entries returns ; 5 compared
+DIFF storage_map_array tests=1 agree=5 disagree=0 outOfGas=0 stackOverflow=0 agree3=5 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_array C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=22
+TEST storage_map_effect_projection::effect_projections_yield_the_provided_map returns ; 4 compared
+DIFF storage_map_effect_projection tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_effect_projection C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST storage_map_enum_payload_methods::enum_payload_maps_cross_method_boundaries returns ; 3 compared
+DIFF storage_map_enum_payload_methods tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_enum_payload_methods C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=95
+TEST storage_map_field_methods::storage_map_methods_keep_fields_separate returns ; 10 compared
+DIFF storage_map_field_methods tests=1 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_field_methods Token sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=72
+TEST storage_map_field_projection::field_projections_yield_the_field_map returns ; 4 compared
+DIFF storage_map_field_projection tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_field_projection C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=107
+TEST storage_map_generic_pair_fields::generic_pair_fields_hold_distinct_maps returns ; 2 compared
+DIFF storage_map_generic_pair_fields tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_generic_pair_fields C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=84
+TEST storage_map_generic_struct_methods::generic_struct_maps_cross_helpers returns ; 3 compared
+DIFF storage_map_generic_struct_methods tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_generic_struct_methods NestedHelper sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=107
+TEST storage_map_index::same_typed_maps returns ; 4 compared
+TEST storage_map_index::indexing_writes_back returns ; 6 compared
+DIFF storage_map_index tests=2 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN storage_map_index Counts sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+GEN storage_map_index Pair sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+TEST storage_map_key_types::test_unsigned_keys returns ; 6 compared
+TEST storage_map_key_types::test_bool_keys returns ; 2 compared
+TEST storage_map_key_types::test_signed_keys returns ; 4 compared
+DIFF storage_map_key_types tests=3 agree=12 disagree=0 outOfGas=0 stackOverflow=0 agree3=12 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_key_types C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=76
+TEST storage_map_native_values::wide_values_use_one_representation returns ; 2 compared
+TEST storage_map_native_values::packed_values_use_one_representation returns ; 2 compared
+TEST storage_map_native_values::nested_values_use_one_representation returns ; 2 compared
+TEST storage_map_native_values::set_accepts_non_copy_values returns ; 2 compared
+TEST storage_map_native_values::narrow_signed_values_store_their_own_bytes returns ; 5 compared
+TEST storage_map_native_values::sign_extended_legacy_words_read_back returns ; 2 compared
+DIFF storage_map_native_values tests=6 agree=15 disagree=0 outOfGas=0 stackOverflow=0 agree3=15 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_native_values NativeValues sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=95
+TEST storage_map_nested_solidity_layout::nested_maps_match_solidity_layout returns ; 8 compared
+DIFF storage_map_nested_solidity_layout tests=1 agree=8 disagree=0 outOfGas=0 stackOverflow=0 agree3=8 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_nested_solidity_layout L sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST storage_map_projection_forwarding::projections_forward_the_given_map returns ; 4 compared
+DIFF storage_map_projection_forwarding tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_projection_forwarding C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST storage_map_receiver_projection::receiver_projections_yield_the_field_map returns ; 4 compared
+DIFF storage_map_receiver_projection tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_receiver_projection C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=99
+TEST storage_map_record_patterns::record_patterns_view_each_map returns ; 4 compared
+DIFF storage_map_record_patterns tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_record_patterns C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST storage_map_recursive_views::recursive_storage_place_matrix returns ; 10 compared
+DIFF storage_map_recursive_views tests=1 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_recursive_views C sequences=4 deployed=4 agree=101 disagree=0 outOfGas=0 stackOverflow=31 agree3=101 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=70
+TEST storage_map_struct_entries::test_struct_entries returns ; 12 compared
+TEST storage_map_struct_entries::test_entry_layout_matches_solidity returns ; 6 compared
+TEST storage_map_struct_entries::test_entries_stay_separate_from_fields returns ; 5 compared
+DIFF storage_map_struct_entries tests=3 agree=23 disagree=0 outOfGas=0 stackOverflow=0 agree3=23 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_struct_entries StepDiary sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=97
+TEST storage_map_tuple_keys::test_storage_map_tuple_keys returns ; 11 compared
+DIFF storage_map_tuple_keys tests=1 agree=11 disagree=0 outOfGas=0 stackOverflow=0 agree3=11 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_tuple_keys C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=106
+TEST storage_map_tuple_patterns::tuple_patterns_view_each_map returns ; 3 compared
+DIFF storage_map_tuple_patterns tests=1 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_tuple_patterns C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=89
+TEST storage_map_variant_projection::variant_projections_yield_the_payload_map returns ; 4 compared
+DIFF storage_map_variant_projection tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_map_variant_projection C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=103
+TEST storage_nested_array_stride::test_storage_nested_array_stride returns ; 2 compared
+DIFF storage_nested_array_stride tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN storage_nested_array_stride NestedStorageArrayStride sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=83
+TEST storage_packed_array::test_initial_zero_and_roundtrip_8bit returns ; 4 compared
+TEST storage_packed_array::test_lane_isolation_within_slot returns ; 11 compared
+TEST storage_packed_array::test_slot_boundary returns ; 6 compared
+TEST storage_packed_array::test_truncation_8bit returns ; 5 compared
+TEST storage_packed_array::test_32bit_lanes returns ; 7 compared
+TEST storage_packed_array::test_1bit_bitmap returns ; 16 compared
+TEST storage_packed_array::test_arrays_with_different_salts_are_independent returns ; 7 compared
+TEST storage_packed_array::test_inferred_salts_do_not_collide_across_slots returns ; 11 compared
+TEST storage_packed_array::test_search_hit_within_slot returns ; 5 compared
+TEST storage_packed_array::test_search_miss_returns_sentinel returns ; 3 compared
+TEST storage_packed_array::test_search_across_slots returns ; 3 compared
+TEST storage_packed_array::test_search_respects_start_and_end returns ; 6 compared
+TEST storage_packed_array::test_words_are_map_entries returns ; 0 compared
+TEST storage_packed_array::test_untrusted_index_stays_in_the_array returns ; 2 compared
+DIFF storage_packed_array tests=14 agree=86 disagree=0 outOfGas=0 stackOverflow=0 agree3=86 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN storage_packed_array Packed sequences=4 deployed=4 agree=128 disagree=0 outOfGas=4 stackOverflow=0 agree3=128 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=85
+GEN storage_packed_array Guarded sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+TEST storage_packing::test_layout_matches_solidity returns ; 13 compared
+TEST storage_packing::test_packed_fields_read_and_write returns ; 15 compared
+TEST storage_packing::test_map_entries_arrays_and_transient returns ; 14 compared
+TEST storage_packing::test_zero_sized_field_keeps_packed_word returns ; 4 compared
+TEST storage_packing::test_lone_signed_field_keeps_its_byte returns ; 7 compared
+TEST storage_packing::test_narrow_signed_contract_field_keeps_its_bytes returns ; 4 compared
+TEST storage_packing::test_native_memory_narrow_field_projection returns ; 0 compared
+TEST storage_packing::test_storage_native_field_projection returns ; 6 compared
+TEST storage_packing::test_transient_native_packed_projection returns ; 0 compared
+DIFF storage_packing tests=9 agree=63 disagree=0 outOfGas=0 stackOverflow=0 agree3=63 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=3 covered=3
+GEN storage_packing Layouts sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=103
+GEN storage_packing Collections sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=100
+GEN storage_packing Edges sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST storage_packing_value_types::test_value_types_pack_like_solidity returns ; 13 compared
+TEST storage_packing_value_types::test_dirty_bytes4_reverts reverts with ; 2 compared
+TEST storage_packing_value_types::test_out_of_range_int24_reverts reverts with ; 2 compared
+TEST storage_packing_value_types::test_out_of_range_custom_width_reverts reverts with ; 2 compared
+TEST storage_packing_value_types::test_lone_narrowed_lanes_mask_reads returns ; 2 compared
+TEST storage_packing_value_types::test_lone_narrowed_field_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_lone_narrowed_int_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_lone_narrowed_held_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_lone_narrowed_held_through_stored_ref_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_placed_narrowed_field_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_placed_narrowed_held_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_narrowed_map_value_write_checks reverts with ; 2 compared
+TEST storage_packing_value_types::test_user_sol_packed_keeps_field_width returns ; 5 compared
+DIFF storage_packing_value_types tests=13 agree=40 disagree=0 outOfGas=0 stackOverflow=0 agree3=40 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=3 covered=3
+GEN storage_packing_value_types ValueTypes sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=52
+GEN storage_packing_value_types Lone sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=10
+GEN storage_packing_value_types UserPacked sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=95
+TEST targeted_differences::invalid_tags returns ; 7 compared
+TEST targeted_differences::needs_drop returns ; 3 compared
+DISAGREE targeted_differences::needs_drop Differences 6454afbb: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::needs_drop Differences 6454afbb: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+TEST targeted_differences::elided_destructors returns ; 5 compared
+SPEC targeted_differences::elided_destructors Spinner a5b6ea8f0000000000000000000000000000000000000000000000000000000000005915: no result: more steps in a call than the bound, or the host diverges
+DIFF targeted_differences tests=3 agree=12 disagree=1 outOfGas=0 stackOverflow=0 agree3=12 interpDisagree=1 spec=1 notRun=0 noModel=2 agree2=1 targets=2 covered=1
+DISAGREE targeted_differences::generated0 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated0 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated0 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated0 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated0 Differences static 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated0 Differences static 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated1 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated1 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated2 Differences 6454afbb0000000000000000000000000000000000000000000000000000000000000000 value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated2 Differences 6454afbb0000000000000000000000000000000000000000000000000000000000000000 value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated2 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated2 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated2 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated2 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated2 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated2 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated2 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated2 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated3 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated3 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated3 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated3 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated3 Differences static 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated3 Differences static 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+DISAGREE targeted_differences::generated3 Differences 6454afbb value 0: EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001
+DIFF3 targeted_differences::generated3 Differences 6454afbb value 0: interp≠model (model returns 0000000000000000000000000000000000000000000000000000000000000001, interpreter 0000000000000000000000000000000000000000000000000000000000000000); model≠bytecode (EVM returns 0000000000000000000000000000000000000000000000000000000000000000, model stops with 0000000000000000000000000000000000000000000000000000000000000001)
+GEN targeted_differences Differences sequences=4 deployed=4 agree=119 disagree=13 outOfGas=0 stackOverflow=0 agree3=119 interpDisagree=13 spec=0 notRun=0 noModel=0 agree2=0 returned=61
+GEN targeted_differences Spinner sequences=4 deployed=4 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=132 agree2=132 returned=100
+TEST targeted_review1::d1_static_without_write returns ; 3 compared
+TEST targeted_review1::d1_narrowed_revert_first returns ; 2 compared
+TEST targeted_review1::d1_sload_after_lane_store returns ; 2 compared
+TEST targeted_review1::d2_temporary_in_loop returns ; 2 compared
+TEST targeted_review1::d5_narrow_bool_borrow returns ; 2 compared
+TEST targeted_review1::lane_copy_under_static_call returns ; 5 compared
+DIFF targeted_review1 tests=6 agree=16 disagree=0 outOfGas=0 stackOverflow=0 agree3=16 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN targeted_review1 Review sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=87
+TEST targeted_review2::destructor_order returns ; 7 compared
+TEST targeted_review2::packed_elements returns ; 10 compared
+TEST targeted_review2::const_strings returns ; 3 compared
+DIFF targeted_review2 tests=3 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=20 agree2=20 targets=1 covered=0
+GEN targeted_review2 Review2 sequences=4 deployed=4 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=132 agree2=132 returned=68
+TEST targeted_review3::packed_element_drop returns ; 4 compared
+TEST targeted_review3::halt_in_codec_set returns ; 2 compared
+TEST targeted_review3::tag_only_reads returns ; 5 compared
+TEST targeted_review3::sweep_fail_aliased returns ; 4 compared
+TEST targeted_review3::put_past_the_word returns ; 3 compared
+DIFF targeted_review3 tests=5 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=18 agree2=18 targets=1 covered=0
+GEN targeted_review3 Review3 sequences=4 deployed=4 agree=0 disagree=0 outOfGas=0 stackOverflow=0 agree3=0 interpDisagree=0 spec=0 notRun=0 noModel=132 agree2=132 returned=84
+TEST time_units::constants_match_solidity returns ; 0 compared
+TEST time_units::constants_relate_to_each_other returns ; 0 compared
+TEST time_units::helpers_scale_to_seconds returns ; 0 compared
+TEST time_units::helpers_agree_with_constants returns ; 0 compared
+TEST time_units::helpers_in_const_context returns ; 0 compared
+TEST time_units::duration_arithmetic returns ; 0 compared
+TEST time_units::duration_ordering returns ; 0 compared
+TEST time_units::timestamp_arithmetic returns ; 0 compared
+TEST time_units::timestamp_ordering returns ; 0 compared
+TEST time_units::later_minus_earlier_only reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST time_units::duration_underflow_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST time_units::reexported_from_std_evm returns ; 0 compared
+TEST time_units::durations_and_timestamps_cross_the_abi returns ; 4 compared
+TEST time_units::time_units_are_snapshots returns ; 0 compared
+DIFF time_units tests=14 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN time_units Vesting sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=96
+TEST trait_effect_lane_writes::keyed_provider returns ; 3 compared
+TEST trait_effect_lane_writes::unkeyed_provider returns ; 3 compared
+TEST trait_effect_lane_writes::forwarded returns ; 3 compared
+TEST trait_effect_lane_writes::forwarded_twice returns ; 3 compared
+TEST trait_effect_lane_writes::provider_from_param returns ; 3 compared
+TEST trait_effect_lane_writes::provider_from_type_effect returns ; 3 compared
+TEST trait_effect_lane_writes::stored_struct_field returns ; 3 compared
+TEST trait_effect_lane_writes::read_only returns ; 4 compared
+TEST trait_effect_lane_writes::field_written_between_calls returns ; 3 compared
+TEST trait_effect_lane_writes::local_providers returns ; 0 compared
+TEST trait_effect_lane_writes::value_provider returns ; 0 compared
+DIFF trait_effect_lane_writes tests=11 agree=28 disagree=0 outOfGas=0 stackOverflow=0 agree3=28 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN trait_effect_lane_writes Packed sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+GEN trust Child sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+GEN trust Trust sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=40
+TEST tslot_values::multi_word_values_keep_their_words returns ; 2 compared
+DIFF tslot_values tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN tslot_values Cells sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST tstorptr_field_projection_shapes::t returns ; 2 compared
+DIFF tstorptr_field_projection_shapes tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN tstorptr_field_projection_shapes C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST tstorptr_struct_field::pointer_persists_flag_is_transient returns ; 4 compared
+DIFF tstorptr_struct_field tests=1 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN tstorptr_struct_field C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=107
+TEST tuple_return_abi_params::test_tuple_return_is_encoded_as_param_list returns ; 2 compared
+TEST tuple_return_abi_params::test_tuple_return_typed_call_round_trips returns ; 3 compared
+TEST tuple_return_abi_params::test_nested_tuple_return_layout returns ; 2 compared
+TEST tuple_return_abi_params::test_single_dynamic_return_keeps_offset_word returns ; 3 compared
+DIFF tuple_return_abi_params tests=4 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN tuple_return_abi_params Info sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=112
+TEST tuple_struct::construct_and_access returns ; 0 compared
+TEST tuple_struct::field_assignment returns ; 0 compared
+TEST tuple_struct::patterns returns ; 0 compared
+TEST tuple_struct::generics returns ; 0 compared
+TEST tuple_struct::where_clause_and_ctor_value returns ; 0 compared
+TEST tuple_struct::nesting returns ; 0 compared
+TEST tuple_struct::qualified_path returns ; 0 compared
+TEST tuple_struct::storage_field returns ; 4 compared
+DIFF tuple_struct tests=8 agree=4 disagree=0 outOfGas=0 stackOverflow=0 agree3=4 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN tuple_struct CounterContract sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=109
+TEST typed_calls::bounded_calls_copy_at_most_capacity returns ; 6 compared
+TEST typed_calls::send_value_transfers_ether returns ; 0 compared
+TEST typed_calls::erc165_probes returns ; 12 compared
+TEST typed_calls::address_from_word_truncates returns ; 0 compared
+DIFF typed_calls tests=4 agree=18 disagree=0 outOfGas=0 stackOverflow=0 agree3=18 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN typed_calls Target sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=58
+GEN typed_calls Plain sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=94
+TEST unchecked_signed_negation::wrapping_negation_roundtrip returns ; 7 compared
+DIFF unchecked_signed_negation tests=1 agree=7 disagree=0 outOfGas=0 stackOverflow=0 agree3=7 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN unchecked_signed_negation Negation sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=98
+TEST unchecked_storage_compound_assignment::storage_compound_assignment_wraps returns ; 2 compared
+DIFF unchecked_storage_compound_assignment tests=1 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN unchecked_storage_compound_assignment Wrapping sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=104
+TEST vault::test_vault_multiuser returns ; 16 compared
+DIFF vault tests=1 agree=16 disagree=0 outOfGas=0 stackOverflow=0 agree3=16 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=2 covered=2
+GEN vault Vault sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=84
+GEN vault VaultUser sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST voting::test_voting returns ; 19 compared
+DIFF voting tests=1 agree=19 disagree=0 outOfGas=0 stackOverflow=0 agree3=19 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN voting Voting sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=92
+TEST wei_units::constants_match_solidity returns ; 0 compared
+TEST wei_units::helpers_agree_with_constants returns ; 0 compared
+TEST wei_units::helpers_in_const_context returns ; 0 compared
+TEST wei_units::arithmetic returns ; 0 compared
+TEST wei_units::mul_div_for_fees_and_shares returns ; 0 compared
+TEST wei_units::ordering returns ; 0 compared
+TEST wei_units::underflow_reverts reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000011; 0 compared
+TEST wei_units::amounts_cross_the_abi_and_storage returns ; 5 compared
+TEST wei_units::amounts_as_map_keys returns ; 5 compared
+TEST wei_units::wei_is_a_snapshot returns ; 0 compared
+DIFF wei_units tests=10 agree=10 disagree=0 outOfGas=0 stackOverflow=0 agree3=10 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN wei_units Bank sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=75
+TEST wide_function_arguments::wide_recv returns ; 2 compared
+TEST wide_function_arguments::argument_boundaries returns ; 0 compared
+TEST wide_function_arguments::recursive_calls_preserve_arguments returns ; 0 compared
+TEST wide_function_arguments::wide_call_preserves_mutable_effect returns ; 0 compared
+TEST wide_function_arguments::wide_result_with_sixteen_arguments returns ; 0 compared
+TEST wide_function_arguments::packed_arguments_keep_their_types returns ; 0 compared
+TEST wide_function_arguments::terminal_calls_pack_arguments reverts with 4e487b710000000000000000000000000000000000000000000000000000000000000012; 0 compared
+DIFF wide_function_arguments tests=7 agree=2 disagree=0 outOfGas=0 stackOverflow=0 agree3=2 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN wide_function_arguments Wide sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=0
+TEST zero_option_result::never_written_state_is_none_and_ok returns ; 3 compared
+TEST zero_option_result::zeroed_memory_is_none_and_ok returns ; 0 compared
+DIFF zero_option_result tests=2 agree=3 disagree=0 outOfGas=0 stackOverflow=0 agree3=3 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 targets=1 covered=1
+GEN zero_option_result C sequences=4 deployed=4 agree=132 disagree=0 outOfGas=0 stackOverflow=0 agree3=132 interpDisagree=0 spec=0 notRun=0 noModel=0 agree2=0 returned=107
