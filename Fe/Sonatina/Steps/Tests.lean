@@ -173,4 +173,26 @@ example : BC bc_bad_not (replay bc_bad_not) = false := by decide +kernel
 example : BC bc_bad_cond (replay bc_bad_cond) = false := by decide +kernel
 example : BC bc_bad_target (replay bc_bad_target) = false := by decide +kernel
 
+/-! ## Facts (ruling R-11.3) -/
+
+machine_steps_file cc_bad_facts "Fe/Sonatina/Steps/Tests/cc_bad_facts.json"
+machine_steps_file cc_bad_unread "Fe/Sonatina/Steps/Tests/cc_bad_unread.json"
+machine_steps_file rd_demand_empty "Fe/Sonatina/Steps/Tests/rd_demand_empty.json"
+machine_steps_file rd_demand_none "Fe/Sonatina/Steps/Tests/rd_demand_none.json"
+
+/-- A step of a kind that reads no facts is rejected if it carries known bits, or a key no
+checker reads. -/
+example : CC cc_bad_facts (replay cc_bad_facts) = false := by decide +kernel
+example : CC cc_bad_unread (replay cc_bad_unread) = false := by decide +kernel
+
+/-- The first function step's facts. -/
+def facts₀ (r : MachineSteps) : Schemas.StepFacts :=
+  (((r.passes.head?.bind (·.steps.head?)).bind (·.funcs.head?)).map (·.facts)).getD {}
+
+/-- `"demanded_bits": []` is read as a demand round with no demanded value, `null` as none. -/
+example : (facts₀ rd_demand_empty).demanded = some [] := by decide
+example : (facts₀ rd_demand_none).demanded = none := by decide
+example : (facts₀ cc_bad_facts).knownBits = [(3, 0, 1)] := by decide
+example : (facts₀ cc_bad_unread).unread = ["ranges"] := by decide
+
 end Fe.Sonatina.Steps.Tests

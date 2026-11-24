@@ -37,13 +37,14 @@ def parseStepKind (s : String) : P StepKind :=
   | some k => pure k
   | none => throw s!"unknown step kind {s}"
 
-/-- A step's facts, each kept as its key and its JSON, unread; keys whose value is empty (`[]`
-    or `null`, as every key of a step without facts is) are dropped. -/
+/-- A step's facts, each kept as its key and its JSON, for `Schemas.readFacts`; keys whose value
+    is empty (`[]` or `null`, as every key of a step without facts is) are dropped, but for
+    `demanded_bits`, where `[]` is a demand round in which no value has a demanded bit. -/
 def parseFacts : Json → P (List (String × String))
   | .null => pure []
   | .obj kvs => pure (kvs.toList.filterMap fun (k, v) => match v with
     | .null => none
-    | .arr a => if a.isEmpty then none else some (k, v.compress)
+    | .arr a => if a.isEmpty && k != "demanded_bits" then none else some (k, v.compress)
     | v => some (k, v.compress))
   | j => throw s!"facts: expected an object, got {j.compress}"
 
@@ -68,7 +69,8 @@ def parseMachineSteps (j : Json) : P MachineSteps := do
         let out ← parseFuncSnap (← fs.getObjVal? "out")
         return ({ func := out.func.name
                   out
-                  facts := ← parseFacts ((fs.getObjVal? "facts").toOption.getD .null) } : FuncStep)
+                  facts := ← Schemas.readFacts
+                    (← parseFacts ((fs.getObjVal? "facts").toOption.getD .null)) } : FuncStep)
       return ({ kind := ← parseStepKind (← st.getObjValAs? String "kind"), funcs } : Step)
     return ({ name := ← p.getObjValAs? String "kind", funcBehavior, steps } : Pass)
   return { version := 5, profile := ← j.getObjValAs? String "profile", lowered, passes }

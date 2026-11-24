@@ -375,3 +375,15 @@ write("bc_bad_target.json", bcr(cr_in, snap("f", P, R, [
     (3, ["br v1 block2 block1"]),
     (1, ["return 1.i256"]), (2, ["return 2.i256"])],
     [[0, 2], [3], [4], [5]])))
+
+# Facts (ruling R-11.3): a step of a kind that reads no facts is rejected if it carries any,
+# known bits or a key no checker reads.
+def with_facts(**kw):
+    d = dict(NOFACTS); d.update(kw); return d
+write("cc_bad_facts.json", one("cfg_cleanup", "f", mg_in, mg_out(),
+    with_facts(known_bits=[[3, "0", "1"]])))
+write("cc_bad_unread.json", one("cfg_cleanup", "f", mg_in, mg_out(),
+    with_facts(ranges=[[3, "0", "5"]])))
+# The reader keeps `"demanded_bits": []` (a demand round in which no value has a demanded bit).
+write("rd_demand_empty.json", one("known_bits_simplify", "f", es_in, es_in, with_facts(demanded_bits=[])))
+write("rd_demand_none.json", one("known_bits_simplify", "f", es_in, es_in))

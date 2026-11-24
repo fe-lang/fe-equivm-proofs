@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.CfgCleanupSound
+import Fe.Sonatina.Steps.BranchCanonSound
 import Fe.Sonatina.CheckCert
 
 /-!
@@ -215,20 +216,23 @@ theorem machine_sound_edgeSplit {s : Sidecar} {rr ri : MachineSteps}
         (fun _ => True) :=
   machine_sound (fun k hk => by simp at hk; subst hk; exact edgeSplit_stepSound) hr hi hc
 
-/-- `machine_sound` for records that use only the proved kinds, `edge_split` and `cfg_cleanup`:
-    no hypothesis. -/
+/-- `machine_sound` for records that use only the proved kinds, `edge_split`, `cfg_cleanup`,
+    `branch_canonicalize` and `branch_conditions`: no hypothesis. -/
 theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
-    (hr : validateWith [.edgeSplit, .cfgCleanup] (s.symbolsOf "runtime") rr
-      (s.machineOf "runtime") = true)
-    (hi : validateWith [.edgeSplit, .cfgCleanup] (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hr : validateWith [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
+      (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
+      (s.symbolsOf "init") ri (s.machineOf "init") = true)
     (hc : check s = true) :
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) :=
   machine_sound (fun k hk => by
     simp only [List.mem_cons, List.not_mem_nil, or_false] at hk
-    rcases hk with rfl | rfl
+    rcases hk with rfl | rfl | rfl | rfl
     · exact edgeSplit_stepSound
-    · exact cfgCleanup_stepSound) hr hi hc
+    · exact cfgCleanup_stepSound
+    · exact branchCanon_stepSound
+    · exact branchConditions_stepSound) hr hi hc
 
 end Fe.Sonatina.Steps

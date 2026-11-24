@@ -681,6 +681,10 @@ theorem returns_lift_some {α : Type} {P : α → Prop} {a : α} (h : Returns P 
     P a :=
   h default someWorld a someWorld (by simp only [Steps.lift, Fe.M.exec_pure])
 
+/-- The output's environment binds only values of the output. -/
+def DomSub (f' : Func) (env : Env) : Prop :=
+  ∀ k, (env[k]?).isSome = true → ((defsOf f').find? k).isSome = true
+
 theorem defsOf_isSome {f : Func} {k : Nat} {d : Def} (h : (k, d) ∈ defList f) :
     ((defsOf f).find? k).isSome = true := by
   rw [defsOf, NatMap.find?_ofList, List.lookup_isSome_iff]

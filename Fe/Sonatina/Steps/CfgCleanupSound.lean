@@ -385,10 +385,6 @@ section run
 
 variable {O : Option (List Summary)} {f f' : Func}
 
-/-- The output's environment binds only values of the output. -/
-def DomSub (f' : Func) (env : Env) : Prop :=
-  ∀ k, (env[k]?).isSome = true → ((defsOf f').find? k).isSome = true
-
 theorem tunnel_spec {t t₂ : Nat} {tb : Block} (h : (CCtx.of O f f').tunnel t = some (tb, t₂)) :
     f.block? t = some tb ∧ tb.body = [] ∧ f'.block? t = none ∧ (CCtx.of O f f').live t = true ∧
       tb.term = .jump t₂ := by
@@ -1022,6 +1018,7 @@ theorem cfgCleanup_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Or
 end sound
 
 theorem cfgCleanup_stepSound : StepSound .cfgCleanup :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => cfgCleanup_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    cfgCleanup_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 end Fe.Sonatina.Steps

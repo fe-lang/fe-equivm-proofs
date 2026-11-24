@@ -18,7 +18,11 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `EdgeSplit.lean` | `termRel` (terminators slot by slot, shared with `cfg_cleanup`), `approx_runTerm`, `checkEdgeSplit`, `edgeSplit_sound` |
 | `Summary.lean` | `noRet`, `trimIdx`, `cut`, `liveSet`, `noRetOk`, `SummariesOk`, `NoRetHolds`, `summariesOk_sound` |
 | `CfgCleanup.lean` | `Inst.mapOps`/`Term.mapOps`, `CCtx` (the check's context), `sigmaOf`, `walk`, `slotOk`, `linkOk`, `chainFrom`, `blockOk`, `blockIdsOk`, `checkCfgCleanup` |
-| `CfgCleanupSound.lean` | `Fol`, `enterOpt`, unique definitions, `DomTree.anc_antisymm`, `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
+| `Run.lean` | lemmas the simulations share: `Inst.mapOps`/`Term.mapOps`, `inc`, `Fol`, `enterOpt`, binding lemmas, `UniqueDefs`, `DomTree.anc_antisymm`, `phi_has_pred`, `blockInv_of_point`, `enter_total`, `DomSub` |
+| `L2.lean` | `Inst.pure`, `pureVals`, `runInst_pure`, `Before`, `PureInv`, `BlockPure`, `pureInv_enter`, `pureInv_stmt`, `pureInv_take`, `pureInv_step`, `l2` |
+| `CfgCleanupSound.lean` | `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
+| `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
+| `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
 | `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `machine_sound_proved` |
@@ -110,8 +114,8 @@ of `PointInv`.
    invariant gives that the input's terminator reads words, so it is not stuck where the output
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
-3. **`checkFunc` accepts `edge_split` and `cfg_cleanup`** (phase 2); every other kind is
-   rejected.  `checkFunc` takes the pass's table, the input's instruction ids and the output
+3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize` and
+   `branch_conditions`** (phase 2); every other kind is rejected.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
 4. **Final comparison by name.** The machine IR prints a section's functions in another order
@@ -204,6 +208,56 @@ Deviations and choices:
   "every slot relates to the target", which for `edge_split` accepts exactly what the old rule
   did.
 
+## L2 (phase 2, ruling R-11.2)
+
+`L2.lean`, the equational lemma of design §5.3 and review M-1, general: for a well-formed
+function in strict SSA on a valid tree, on a run from the entry (`l2`), at every point `(b, k)`
+each statement of a reachable block that comes before the point (`Before`: in a strict tree
+ancestor of `b`, or earlier in `b`) whose instruction is pure (`Inst.pure`: `bin`, `cmp`,
+`is_zero`, `not`, `neg`, `ctz`, `ovf`, `cast`, `select`) has its results bound to the
+instruction's values on the current environment, as their types (`PureInv`, `pureVals`, with
+`runInst_pure`: such an instruction runs to `pureVals` or is stuck).  The proof: unique
+definitions, `ssa`'s uses (an operand's definition comes before the statement), D1's edge
+condition and the tree's antisymmetry; the preservation lemmas (`pureInv_enter`,
+`pureInv_stmt`, `pureInv_take`, `pureInv_step`) serve simulations that walk the input
+themselves, as `branch_canonicalize`'s does.  `clz` is not pure here (it traps before Osaka),
+nor `keccak_words`, `sym_addr`/`sym_size` or `addmod`/`mulmod`; adding one is a case of
+`pureVals`, `runInst_pure` and `pureVals_congr`.
+
+## `branch_canonicalize` and `branch_conditions` (phase 2)
+
+What Sonatina does (`crates/codegen/src/optim/branch_canonicalize.rs` at `664cd128`; design
+§4.4 and review M-3 describe less):
+- `:70-88`: peel the condition through `is_zero` (and through `not` only when the argument is
+  `i1`, which machine IR never has: on `i256` only `is_zero` is peeled), swapping the targets
+  each time;
+- `:91-97`: on the peeled value, a zero compare (`zero_compare_branch_rewrite`, `:210-259`:
+  `eq x 0`, `eq 0 x`, `ne`, `gt x 0`, `lt 0 x`, `le x 0`, `ge 0 x` at `:244-252`) becomes a new
+  `is_zero x` inserted before the terminator (`:257`), swapping as the compare says;
+- `:98-109`: else a compare whose inverse is cheaper (`le`, `ge`, `sle`, `sge`, `ne`) becomes the
+  inverse, a new compare inserted before the terminator (`insert_compare_before`, `:274`), the
+  targets swapped;
+- the peeled `is_zero`s and the replaced compare are deleted if dead.
+
+The checker (`checkBranchCanon`, peel-only, by the coordinator's ruling): the output has the
+input's blocks in order, with their ids and phis; each block's statements are the input's in
+order less deleted `is_zero`s, each with one result that the output neither defines nor uses
+(`bodyOk`, `deletable`, `unusedOk`); each terminator is the input's (`termRel` with equal
+targets), or `br c' a' b'` for `br c a b` where `c` is `is_zero^k c'`, `k ≥ 1`, each `is_zero` a
+statement of a reachable block, the targets swapped iff `k` is odd (`peelOk`); the input's tree
+is valid and the input in SSA; instruction ids are kept (phis, terminators) or a subsequence
+(statements).  `branch_conditions` (`machine/branch.rs`) is the case `k = 1` and uses the same
+checker.  The proof (`branchCanon_sound`): block-for-block simulation (`BR`), the deleted
+`is_zero`s input-only steps (total by the definedness invariant), the peeled branch's condition
+read through L2 (`peel_sound`).
+
+**OPEN:** the zero-compare → new `is_zero` rewrite (`:91-97`, `:244-257`) and the inverted-compare
+rewrite (`:98-109`) are rejected and counted: 0 of 767 `branch_canonicalize` steps in the four
+corpora (FeProofs `-O0` 0, `-O1` 73, `-Os` 73, the 265 sidecars of `corpus-v5-full` 621) use
+them.  They come after
+`coalesce_copies`; the fresh condition instruction is then a new output value, its term unfolded
+through output definitions (ruling R-11.1).
+
 ## Review 6 (phase 1) findings taken up in phase 2
 
 - F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
@@ -280,16 +334,28 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
     `coalesce_copies` step; `-O1` and `-Os` 1 accepted, 39 rejected at their first
     `branch_canonicalize` step.  Every `cfg_cleanup` step (92 at `-O1`, 91 at `-Os`) and every
     `edge_split` step (6, 89, 89) is accepted; no pass's summary table fails.
-  - The `-O1` dialect corpus (`dialect/corpus-v5-full`, 325 sidecars, 650 sections): 24
-    accepted; 604 rejected at their first `branch_canonicalize` step, 21 at `coalesce_copies`,
-    1 at `known_bits_simplify`.  All 600 `cfg_cleanup` and 591 `edge_split` steps are accepted;
-    no summary table fails.  Unproved steps: `branch_canonicalize` 767, `coalesce_copies` 229,
-    `sccp_fold` 203, `known_bits_simplify` 110, `scalar_canonicalize` 92, `gvn_rewrite` 49,
-    `lower_switches` 48, `adce` 23, `gvn_prune` 4.
+  - The `-O1` dialect corpus (`dialect/corpus-v5-full`; these counts include its
+    `feproofs-O0/-O1/-Os` subdirectories, 325 sidecars and 650 sections in all, so FeProofs is
+    counted twice): 24 accepted; 604 rejected at their first `branch_canonicalize` step, 21 at
+    `coalesce_copies`, 1 at `known_bits_simplify`.  All 600 `cfg_cleanup` and 591 `edge_split`
+    steps are accepted; no summary table fails.
+
+- Phase 2, with `branch_canonicalize` and `branch_conditions` checked (sections accepted end to
+  end with the four proved kinds; the per-step counts replay past steps that have no checker,
+  trusting the record):
+  - FeProofs `corpus-v5b`, 40 sections per level: `-O0` 19 accepted, 21 rejected at
+    `coalesce_copies`; `-O1` 21 accepted, 19 rejected (first unproved kind: `scalar_canonicalize`
+    8, `known_bits_simplify` 7, `sccp_fold` 4); `-Os` the same 21 and 8/7/4.  Every
+    `branch_canonicalize` step (73 at `-O1` and `-Os`) is accepted.
+  - The 265 sidecars of `corpus-v5-full` (top level only, 530 sections): 351 accepted; 179
+    rejected, first at `known_bits_simplify` 80, `sccp_fold` 57, `scalar_canonicalize` 30,
+    `lower_switches` 12.  All 621 `branch_canonicalize`, 417 `cfg_cleanup` and 407 `edge_split`
+    steps are accepted; no summary table fails.  Unproved steps: `sccp_fold` 133,
+    `known_bits_simplify` 94, `scalar_canonicalize` 48, `lower_switches` 45, `coalesce_copies`
+    28, `gvn_rewrite` 23, `adce` 9, `gvn_prune` 4.
 
 ## Not done
 
-- `branch_canonicalize`: no checker, no soundness (a `StepSound` hypothesis; `checkFunc`
-  rejects it); it needs L2 at program points.
+- `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 - The summary table's effect and `will_return` claims are not checked (no consumer).
 - The `mcopy` gas lemma and semantics change (above).
