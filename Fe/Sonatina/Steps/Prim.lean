@@ -14,14 +14,39 @@ open Ethereum Fe Fe.EVM
 
 /-! ## Instructions of the machine IR -/
 
-/-- An instruction the machine IR may have: neither `evm_malloc` nor `alloca`, which read the
-    size of memory. -/
-def _root_.Fe.Sonatina.Inst.machine : Inst → Bool
-  | .malloc _ | .alloca _ => false
+/-- An operand other than `undef`. -/
+def _root_.Fe.Sonatina.Operand.defined : Operand → Bool
+  | .undef _ => false
   | _ => true
 
-/-- Every statement of every block of the function is of the machine IR. -/
-def _root_.Fe.Sonatina.Func.machine (f : Func) : Bool := f.blocks.all fun b => b.body.all (·.inst |> Inst.machine)
+/-- The operands an instruction reads. -/
+def _root_.Fe.Sonatina.Inst.args : Inst → List Operand
+  | .bin _ a b | .cmp _ a b | .ovf _ a b | .mstore a b _ | .memzero a b | .extractValue a b =>
+    [a, b]
+  | .isZero a | .not a | .neg a | .clz a | .ctz a | .cast _ a _ | .mload a _ | .malloc a => [a]
+  | .select a b c | .insertValue a b c => [a, b, c]
+  | .evm _ args | .keccakWords args | .call _ args => args
+  | .alloca _ | .symAddr _ | .symSize _ => []
+
+/-- The operands a terminator reads. -/
+def _root_.Fe.Sonatina.Term.args : Term → List Operand
+  | .br c _ _ => [c]
+  | .brTable s _ cases => s :: cases.map (·.1)
+  | .ret vs => vs
+  | .evmReturn a l | .evmRevert a l => [a, l]
+  | .jump _ | .evmStop | .evmInvalid | .unreachable => []
+
+/-- An instruction the machine IR may have: no `undef` operand, and neither `evm_malloc` nor
+    `alloca`, which read the size of memory, nor an aggregate's.  Its values are integers. -/
+def _root_.Fe.Sonatina.Inst.machine (i : Inst) : Bool :=
+  i.args.all Operand.defined && match i with
+    | .malloc _ | .alloca _ | .insertValue .. | .extractValue .. => false
+    | _ => true
+
+/-- Every phi, statement and terminator of every block of the function is of the machine IR. -/
+def _root_.Fe.Sonatina.Func.machine (f : Func) : Bool := f.blocks.all fun b =>
+  b.phis.all (fun phi => phi.incoming.all (·.1.defined)) && b.body.all (·.inst.machine) &&
+    b.term.args.all Operand.defined
 
 def _root_.Fe.Sonatina.Module.machine (m : Module) : Bool := m.funcs.all Func.machine
 
@@ -29,9 +54,25 @@ theorem _root_.Fe.Sonatina.Module.machine_func {m : Module} (h : m.machine = tru
     (hf : m.func? name = some f) : f.machine = true :=
   List.all_eq_true.mp h f (List.mem_of_find?_eq_some hf)
 
+theorem _root_.Fe.Sonatina.Func.machine_of_mem {f : Func} (h : f.machine = true) {b : Block}
+    (hb : b ∈ f.blocks) :
+    (∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) ∧
+      (∀ s ∈ b.body, s.inst.machine = true) ∧ ∀ o ∈ b.term.args, o.defined = true := by
+  have := List.all_eq_true.mp h b hb
+  simp only [Bool.and_eq_true, List.all_eq_true] at this
+  exact ⟨this.1.1, this.1.2, this.2⟩
+
 theorem _root_.Fe.Sonatina.Func.machine_block {f : Func} (h : f.machine = true) {id : Nat} {b : Block}
-    (hb : f.block? id = some b) : ∀ s ∈ b.body, s.inst.machine = true := fun s hs =>
-  List.all_eq_true.mp (List.all_eq_true.mp h b (List.mem_of_find?_eq_some hb)) s hs
+    (hb : f.block? id = some b) :
+    (∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) ∧
+      (∀ s ∈ b.body, s.inst.machine = true) ∧ ∀ o ∈ b.term.args, o.defined = true :=
+  Func.machine_of_mem h (List.mem_of_find?_eq_some hb)
+
+theorem _root_.Fe.Sonatina.Inst.machine_args {i : Inst} (h : i.machine = true) :
+    ∀ o ∈ i.args, o.defined = true := by
+  unfold Inst.machine at h
+  simp only [Bool.and_eq_true, List.all_eq_true] at h
+  exact h.1
 
 /-! ## Operands as options
 
@@ -242,7 +283,7 @@ macro_rules
 theorem Approx.runInst {env' env : Env} (h : EnvSub env' env) {c' c : Ctx}
     (hc : c'.symbol = c.symbol) (i : Inst) (hi : i.machine = true) :
     Approx Eq (Fe.Sonatina.runInst c' env' i) (Fe.Sonatina.runInst c env i) := by
-  cases i <;> simp only [Inst.machine, Bool.false_eq_true] at hi <;>
+  cases i <;> simp only [Inst.machine, Bool.and_false, Bool.false_eq_true] at hi <;>
     simp only [Fe.Sonatina.runInst, hc] <;> approx_auto
 
 theorem Approx.bindVals (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) :
@@ -255,5 +296,301 @@ theorem Approx.enter (env : Env) (prev : Option Nat) (b : Block) :
   unfold Fe.Sonatina.enter
   refine Approx.bind (R := Eq) (Approx.mapM (fun phi => ?_) _) fun _ _ e => e ▸ bindVals _ _ _
   approx_auto
+
+/-! ## Integer values
+
+A machine function's values are integers: it is called with integers, each instruction gives
+integers, and so do its calls when the oracle returns integers on integers.  `Returns P x`:
+every value `x` returns satisfies `P`; `Total P x`: `x` returns, leaving the world as it was, a
+value satisfying `P`. -/
+
+def _root_.Fe.Sonatina.Val.isInt : Val → Bool
+  | .int _ _ => true
+  | .agg _ => false
+
+/-- Values that are all integers. -/
+def IntVals (vs : List Val) : Prop := vs.all Val.isInt = true
+
+theorem intVals_iff {vs : List Val} : IntVals vs ↔ ∀ v ∈ vs, v.isInt = true := List.all_eq_true
+
+/-- An environment that binds only integers. -/
+def EnvInt (env : Env) : Prop := ∀ (k : Nat) (v : Val), env[k]? = some v → v.isInt = true
+
+theorem EnvInt.empty : EnvInt {} := fun _ _ h => by simp at h
+
+/-- Every value a run returns satisfies `P`. -/
+def Returns {α : Type} (P : α → Prop) (x : FeM α) : Prop :=
+  ∀ I w a w', x.exec I w = some (.ok (a, w')) → P a
+
+/-- A run that returns, leaving the world as it was, a value satisfying `P`. -/
+def Total {α : Type} (P : α → Prop) (x : FeM α) : Prop :=
+  ∀ I w, ∃ a, x.exec I w = some (.ok (a, w)) ∧ P a
+
+namespace Returns
+
+variable {α β : Type}
+
+theorem pure {P : α → Prop} {a : α} (h : P a) : Returns P (Pure.pure a : FeM α) := by
+  intro I w a' w' hx
+  simp only [Fe.M.exec_pure, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at hx
+  exact hx.1 ▸ h
+
+theorem diverge (P : α → Prop) : Returns P (Fe.M.diverge : FeM α) := by
+  intro I w a w' hx; simp only [Fe.M.exec_diverge, reduceCtorEq] at hx
+
+theorem stuck (P : α → Prop) : Returns P (Fe.Sonatina.stuck : FeM α) := Returns.diverge P
+
+theorem bind {P : α → Prop} {Q : β → Prop} {x : FeM α} {k : α → FeM β} (hx : Returns P x)
+    (hk : ∀ a, P a → Returns Q (k a)) : Returns Q (x >>= k) := by
+  intro I w b w' h
+  rw [Fe.M.exec_bind] at h
+  rcases hx' : x.exec I w with _ | (e | ⟨a, w₁⟩) <;> rw [hx'] at h
+  · simp at h
+  · simp at h
+  · exact hk a (hx I w a w₁ hx') I w₁ b w' h
+
+theorem bind_any {Q : β → Prop} {x : FeM α} {k : α → FeM β} (hk : ∀ a, Returns Q (k a)) :
+    Returns Q (x >>= k) := Returns.bind (P := fun _ => True) (fun _ _ _ _ _ => trivial) fun a _ => hk a
+
+theorem mono {P Q : α → Prop} {x : FeM α} (h : Returns P x) (hPQ : ∀ a, P a → Q a) :
+    Returns Q x := fun I w a w' hx => hPQ a (h I w a w' hx)
+
+theorem and {P Q : α → Prop} {x : FeM α} (h₁ : Returns P x) (h₂ : Returns Q x) :
+    Returns (fun a => P a ∧ Q a) x := fun I w a w' hx => ⟨h₁ I w a w' hx, h₂ I w a w' hx⟩
+
+theorem lift {P : α → Prop} {x : Option α} (h : ∀ a, x = some a → P a) :
+    Returns P (Steps.lift x) := by
+  cases x with
+  | none => exact Returns.stuck P
+  | some a => exact Returns.pure (h a rfl)
+
+theorem mapM {γ : Type} {P : α → Prop} {f : γ → FeM α} :
+    ∀ {l : List γ}, (∀ a ∈ l, Returns P (f a)) → Returns (fun bs => ∀ b ∈ bs, P b) (l.mapM f)
+  | [], _ => by rw [List.mapM_nil]; exact Returns.pure fun _ h => nomatch h
+  | a :: l, h => by
+    rw [List.mapM_cons]
+    exact Returns.bind (h a (List.mem_cons_self ..)) fun b hb =>
+      Returns.bind (Returns.mapM fun a' ha' => h a' (List.mem_cons_of_mem _ ha')) fun bs hbs =>
+        Returns.pure fun x hx => by
+          rcases List.mem_cons.mp hx with rfl | hx
+          · exact hb
+          · exact hbs x hx
+
+end Returns
+
+namespace Total
+
+variable {α β : Type}
+
+theorem pure {P : α → Prop} {a : α} (h : P a) : Total P (Pure.pure a : FeM α) :=
+  fun _ _ => ⟨a, rfl, h⟩
+
+theorem bind {P : α → Prop} {Q : β → Prop} {x : FeM α} {k : α → FeM β} (hx : Total P x)
+    (hk : ∀ a, P a → Total Q (k a)) : Total Q (x >>= k) := by
+  intro I w
+  obtain ⟨a, hxa, hPa⟩ := hx I w
+  obtain ⟨b, hkb, hQb⟩ := hk a hPa I w
+  exact ⟨b, by rw [Fe.M.exec_bind, hxa]; exact hkb, hQb⟩
+
+theorem lift {P : α → Prop} {x : Option α} {a : α} (hx : x = some a) (h : P a) :
+    Total P (Steps.lift x) := by
+  subst hx; exact Total.pure h
+
+theorem mapM {γ : Type} {P : γ → α → Prop} {f : γ → FeM α} :
+    ∀ {l : List γ}, (∀ a ∈ l, Total (P a) (f a)) → Total (fun bs => List.Forall₂ P l bs) (l.mapM f)
+  | [], _ => by rw [List.mapM_nil]; exact Total.pure .nil
+  | a :: l, h => by
+    rw [List.mapM_cons]
+    exact Total.bind (h a (List.mem_cons_self ..)) fun b hb =>
+      Total.bind (Total.mapM fun a' ha' => h a' (List.mem_cons_of_mem _ ha')) fun bs hbs =>
+        Total.pure (.cons hb hbs)
+
+end Total
+
+/-- An approximation whose right side returns values satisfying `P` relates them too. -/
+theorem Approx.strengthen {α : Type} {S : α → α → Prop} {P : α → Prop} {x' x : FeM α}
+    (h : Approx S x' x) (hP : Returns P x) : Approx (fun a' a => S a' a ∧ P a) x' x := by
+  intro I w' w hw
+  have h1 := h I w' w hw
+  have h2 : ∀ a w₁, x.exec I w = some (.ok (a, w₁)) → P a := fun a w₁ => hP I w a w₁
+  revert h1 h2
+  generalize x'.exec I w' = r'
+  generalize x.exec I w = r
+  rcases r' with _ | (_ | ⟨a', _⟩) <;> rcases r with _ | (_ | ⟨a, w₁⟩) <;> simp only [ResRel] <;>
+    first
+      | exact fun h1 _ => h1
+      | exact fun h1 h2 => ⟨⟨h1.1, h2 a w₁ rfl⟩, h1.2⟩
+      | trivial
+
+/-- A pure value approximates a run that returns a related value and leaves the world. -/
+theorem Approx.pure_total {α : Type} {S : α → α → Prop} {a' : α} {x : FeM α}
+    (h : Total (S a') x) : Approx S (Pure.pure a') x := by
+  intro I w' w hw
+  obtain ⟨a, hx, hS⟩ := h I w
+  simp only [Fe.M.exec_pure, hx, ResRel]
+  exact ⟨hS, hw⟩
+
+/-- The computations of the model library that `returns_auto` proves by lemma. -/
+syntax "returns_prim" : tactic
+macro_rules
+  | `(tactic| returns_prim) => `(tactic| fail "no primitive")
+
+/-- Prove that a computation returns integers: binds piecewise, matches split. -/
+syntax "returns_auto" : tactic
+macro_rules
+  | `(tactic| returns_auto) => `(tactic| repeat' (first
+    | exact Returns.pure rfl
+    | exact Returns.stuck _
+    | exact Returns.diverge _
+    | exact Empty.elim ‹Empty›
+    | returns_prim
+    | refine Returns.bind_any fun _ => ?_
+    | split))
+
+theorem Val.as_isInt {v : Val} (h : v.isInt = true) (ty : Ty) : (v.as ty).isInt = true := by
+  cases v with
+  | agg => cases h
+  | int b n => cases ty <;> rfl
+
+theorem opVal_int {env : Env} (h : EnvInt env) {o : Operand} (ho : o.defined = true) {v : Val}
+    (hv : opVal env o = some v) : v.isInt = true := by
+  cases o with
+  | var id => exact h id v hv
+  | imm => simp only [opVal, Option.some.injEq] at hv; subst hv; rfl
+  | undef => simp [Operand.defined] at ho
+
+theorem returns_evalOperand {env : Env} (h : EnvInt env) {o : Operand} (ho : o.defined = true) :
+    Returns (fun v => v.isInt = true) (evalOperand env o) := by
+  rw [evalOperand_eq]; exact Returns.lift fun v hv => opVal_int h ho hv
+
+theorem returns_evalOperands {env : Env} (h : EnvInt env) {os : List Operand}
+    (ho : ∀ o ∈ os, o.defined = true) : Returns IntVals (os.mapM (evalOperand env)) :=
+  Returns.mono (Returns.mapM fun o hm => returns_evalOperand h (ho o hm)) fun _ hb =>
+    intVals_iff.mpr hb
+
+set_option maxHeartbeats 4000000 in
+theorem returns_evmRun (op : EvmOp) (args : List UInt256) : Returns IntVals (op.run args) := by
+  unfold EvmOp.run
+  dsimp only
+  split <;> returns_auto
+
+macro_rules
+  | `(tactic| returns_prim) => `(tactic| exact returns_evmRun _ _)
+
+set_option maxHeartbeats 4000000 in
+/-- An instruction of the machine IR returns integers in an environment of integers. -/
+theorem returns_runInst {env : Env} (h : EnvInt env) (c : Ctx) (i : Inst) (hi : i.machine = true) :
+    Returns IntVals (runInst c env i) := by
+  have ha := Inst.machine_args hi
+  cases i <;> simp only [Inst.machine, Bool.and_false, Bool.false_eq_true] at hi
+  case select cnd a b =>
+    have ha' : a.defined = true := ha a (by simp [Inst.args])
+    have hb' : b.defined = true := ha b (by simp [Inst.args])
+    simp only [runInst]
+    refine Returns.bind_any fun x => ?_
+    rcases x with ⟨_, n⟩
+    dsimp only
+    refine Returns.bind (returns_evalOperand h (o := if n != 0 then a else b) ?_) fun v hv =>
+      Returns.pure ?_
+    · split
+      · exact ha'
+      · exact hb'
+    · simp only [IntVals, List.all_cons, List.all_nil, hv, Bool.and_true]
+  all_goals (simp only [runInst]; returns_auto)
+
+/-! ## Binding -/
+
+/-- One binding of `bind`. -/
+def bindStep (env : Env) (x : (Nat × Ty) × Val) : Env := env.insert x.1.1 (x.2.as x.1.2)
+
+theorem foldl_bindStep {g : Env → (Nat × Ty) × Val → Env} (hg : ∀ e x, g e x = bindStep e x) :
+    ∀ (l : List ((Nat × Ty) × Val)) (env : Env), l.foldl g env = l.foldl bindStep env
+  | [], _ => rfl
+  | x :: l, env => by rw [List.foldl_cons, List.foldl_cons, hg]; exact foldl_bindStep hg l _
+
+/-- `bind` gives the environment with each value at its id, as its type. -/
+theorem returns_bind (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) :
+    Returns (fun env' => dsts.length = vals.length ∧ env' = (dsts.zip vals).foldl bindStep env)
+      (bind env dsts vals) := by
+  unfold bind
+  split
+  · next hl =>
+    exact Returns.pure ⟨by simpa using hl,
+      foldl_bindStep (fun e x => by rcases x with ⟨⟨_, _⟩, _⟩; rfl) _ _⟩
+  · exact Returns.stuck _
+
+theorem env_insert_get {env : Env} {k id : Nat} {v : Val} :
+    (env.insert k v)[id]? = if k = id then some v else env[id]? := by
+  rw [Std.TreeMap.getElem?_insert]
+  by_cases h : k = id
+  · subst h; simp
+  · have : ¬compare k id = .eq := by rw [compare_eq_iff_eq]; exact h
+    simp [this, h]
+
+/-- A binding keeps every value bound. -/
+theorem fold_keep : ∀ (l : List ((Nat × Ty) × Val)) (env : Env) (k : Nat),
+    (env[k]?).isSome = true → ((l.foldl bindStep env)[k]?).isSome = true
+  | [], _, _, h => h
+  | x :: l, env, k, h => by
+    rw [List.foldl_cons]
+    refine fold_keep l _ k ?_
+    unfold bindStep; rw [env_insert_get]; split <;> simp_all
+
+/-- A binding binds each of its ids. -/
+theorem fold_binds : ∀ (dsts : List (Nat × Ty)) (vals : List Val) (env : Env),
+    dsts.length = vals.length → ∀ d ∈ dsts, (((dsts.zip vals).foldl bindStep env)[d.1]?).isSome = true
+  | [], _, _, _, d, hd => nomatch hd
+  | _ :: _, [], _, h, _, _ => by simp at h
+  | d₀ :: ds, v :: vs, env, h, d, hd => by
+    rw [List.zip_cons_cons, List.foldl_cons]
+    rcases List.mem_cons.mp hd with rfl | hd
+    · exact fold_keep _ _ _ (by unfold bindStep; rw [env_insert_get]; simp)
+    · exact fold_binds ds vs _ (by simpa using h) d hd
+
+/-- A binding of integers keeps an environment of integers. -/
+theorem fold_int : ∀ (l : List ((Nat × Ty) × Val)) (env : Env), EnvInt env →
+    (∀ x ∈ l, x.2.isInt = true) → EnvInt (l.foldl bindStep env)
+  | [], _, h, _ => h
+  | x :: l, env, h, hl => by
+    rw [List.foldl_cons]
+    refine fold_int l _ ?_ fun y hy => hl y (List.mem_cons_of_mem _ hy)
+    intro k v hv
+    unfold bindStep at hv; rw [env_insert_get] at hv
+    split at hv
+    · simp only [Option.some.injEq] at hv; subst hv
+      exact Val.as_isInt (hl x (List.mem_cons_self ..)) _
+    · exact h k v hv
+
+theorem returns_bind_int {env : Env} (h : EnvInt env) {dsts : List (Nat × Ty)} {vals : List Val}
+    (hv : IntVals vals) : Returns EnvInt (bind env dsts vals) :=
+  Returns.mono (returns_bind env dsts vals) fun env' ⟨_, e⟩ => by
+    rw [e]; exact fold_int _ _ h fun x hx => intVals_iff.mp hv _ (List.of_mem_zip hx).2
+
+/-- What `enter` binds: a value for each phi, each returned by its operand's evaluation. -/
+theorem returns_enter (env : Env) (prev : Option Nat) (b : Block) {P : Val → Prop}
+    (hp : ∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, Returns P (evalOperand env p.1)) :
+    Returns (fun env' => ∃ vals, (∀ v ∈ vals, P v) ∧
+      (b.phis.map fun phi => (phi.dst, phi.ty)).length = vals.length ∧
+      env' = ((b.phis.map fun phi => (phi.dst, phi.ty)).zip vals).foldl bindStep env)
+      (enter env prev b) := by
+  unfold enter
+  refine Returns.bind (Returns.mapM fun phi hphi => ?_) fun vals hvals =>
+    Returns.mono (returns_bind _ _ _) fun env' ⟨hl, e⟩ => ⟨vals, hvals, hl, e⟩
+  cases prev with
+  | none => exact Returns.stuck _
+  | some p =>
+    dsimp only
+    cases hf : phi.incoming.find? (·.2 == p) with
+    | none => exact Returns.stuck _
+    | some x =>
+      obtain ⟨o, q⟩ := x
+      exact hp phi hphi (o, q) (List.mem_of_find?_eq_some hf)
+
+theorem returns_enter_int {env : Env} (h : EnvInt env) (prev : Option Nat) (b : Block)
+    (hd : ∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) :
+    Returns EnvInt (enter env prev b) :=
+  Returns.mono (returns_enter env prev b fun phi hphi p hp => returns_evalOperand h (hd phi hphi p hp))
+    fun env' ⟨vals, hvals, _, e⟩ => by
+      rw [e]; exact fold_int _ _ h fun x hx => hvals _ (List.of_mem_zip hx).2
 
 end Fe.Sonatina.Steps

@@ -6,9 +6,10 @@ import Fe.Sonatina.CheckCert
 
 `Sidecar.lowered s rr ri` is the sidecar with each section's machine IR replaced by the module
 right after lowering that its record `rr` (runtime) or `ri` (init) starts from.  When both
-records validate against the sidecar's machine IR, the machine IR implements the lowered
-module in the sense of partial correctness (`machine_implementsP`), and with `check_sound` the
-bytes refine the lowered module (`machine_sound`).
+records validate against the sidecar's machine IR, with the names of each section's symbols
+(`Sidecar.symbolsOf`), the machine IR implements the lowered module in the sense of partial
+correctness (`machine_implementsP`), and with `check_sound` the bytes refine the lowered module
+(`machine_sound`).
 -/
 
 namespace Fe.Sonatina.Steps
@@ -24,6 +25,26 @@ def _root_.Fe.Sonatina.Sidecar.withMachine (s : Sidecar) (name : String) (m : Mo
 /-- The machine IR of section `name`, empty if it has none. -/
 def _root_.Fe.Sonatina.Sidecar.machineOf (s : Sidecar) (name : String) : Module :=
   (((s.section? name).bind (·.lowering)).map (·.machine)).getD default
+
+/-- The names of section `name`'s symbols, none if it has no section of the name. -/
+def _root_.Fe.Sonatina.Sidecar.symbolsOf (s : Sidecar) (name : String) : List String :=
+  (((s.section? name).map (·.symbols)).getD []).map (·.1)
+
+/-- A context that looks symbols up in a list has each of its names. -/
+theorem lookup_has (heap : Nat) (structs : List (String × List Ty)) :
+    ∀ l : List (String × Nat × Nat), Ctx.Has ⟨(l.lookup ·), heap, structs⟩ (l.map (·.1))
+  | [] => fun _ h => nomatch h
+  | (k, v) :: l => by
+    intro s hs
+    simp only [List.map_cons, List.mem_cons] at hs
+    show (List.lookup s ((k, v) :: l)).isSome = true
+    simp only [List.lookup]
+    split
+    · rfl
+    · next he =>
+      rcases hs with rfl | hs
+      · simp at he
+      · exact lookup_has heap structs l s hs
 
 /-- The sidecar whose machine IR is, per section, the module right after lowering. -/
 def _root_.Fe.Sonatina.Sidecar.lowered (s : Sidecar) (rr ri : MachineSteps) : Sidecar :=
@@ -61,8 +82,8 @@ theorem endsAsP_of_resRel {r' r : Option (Except (Exit World) (ByteArray × Worl
 /-- The run of a section approximates the run of the same section with its machine IR
     replaced by a module it refines. -/
 theorem runSection_approx {s : Sidecar} {name : String} {m' : Module}
-    (h : ∀ low, (s.section? name).bind (·.lowering) = some low →
-      low.machine.machine = true ∧ ModRefines low.machine m') :
+    (h : ∀ code low, s.section? name = some code → code.lowering = some low →
+      low.machine.machine = true ∧ ModRefines (code.symbols.map (·.1)) low.machine m') :
     Approx Eq (s.runSection name .machine) ((s.withMachine name m').runSection name .machine) := by
   unfold Sidecar.runSection Sidecar.runSectionWith
   rw [withMachine_section?]
@@ -83,15 +104,15 @@ theorem runSection_approx {s : Sidecar} {name : String} {m' : Module}
   cases hl : code.lowering with
   | none => exact Approx.stuck _
   | some low =>
-  obtain ⟨hm, href⟩ := h low (by simp [hc, hl])
+  obtain ⟨hm, href⟩ := h code low hc hl
   simp only [Option.map_some, Option.bind_some, show (Level.machine == Level.machine) = true from rfl,
     ite_true, runFuncG_none]
   have key : ∀ e, Approx Eq
       (runFunc low.machine ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩ e [])
       (runFunc m' ⟨(code.symbols.lookup ·), m'.fixedEnd, m'.structs⟩ e []) := fun e =>
     (runFunc_ctx (c' := ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩)
-      (c := ⟨(code.symbols.lookup ·), m'.fixedEnd, m'.structs⟩) hm rfl e []).trans_eq
-      (href _ e [])
+      (c := ⟨(code.symbols.lookup ·), m'.fixedEnd, m'.structs⟩) hm rfl e [] rfl).trans_eq
+      (href _ (lookup_has _ _ code.symbols) e [] rfl)
   repeat' first
     | exact Approx.bind (R := Eq) (key _) fun _ _ _ => Approx.stuck _
     | refine Approx.bind (R := Eq) (approx_mstore _ _) fun _ _ _ => ?_
@@ -124,21 +145,25 @@ theorem withMachine_lowering (s : Sidecar) (name : String) (m : Module) :
 
 /-- The hypothesis of `runSection_approx` from a validated record. -/
 theorem section_refines {allowed : List StepKind} {s : Sidecar} {name : String} {r : MachineSteps}
-    (hk : ∀ k ∈ allowed, StepSound k) (h : validateWith allowed r (s.machineOf name) = true) :
-    ∀ low, (s.section? name).bind (·.lowering) = some low →
-      low.machine.machine = true ∧ ModRefines low.machine (r.module (s.machineOf name).structs) := by
-  intro low hlow
-  have hm : s.machineOf name = low.machine := by simp [Sidecar.machineOf, hlow]
+    (hk : ∀ k ∈ allowed, StepSound k)
+    (h : validateWith allowed (s.symbolsOf name) r (s.machineOf name) = true) :
+    ∀ code low, s.section? name = some code → code.lowering = some low →
+      low.machine.machine = true ∧
+        ModRefines (code.symbols.map (·.1)) low.machine (r.module (s.machineOf name).structs) := by
+  intro code low hc hl
+  have hm : s.machineOf name = low.machine := by simp [Sidecar.machineOf, hc, hl]
+  have hsy : s.symbolsOf name = code.symbols.map (·.1) := by simp [Sidecar.symbolsOf, hc]
   obtain ⟨_, hfm, href⟩ := validate_sound hk h
+  rw [hsy] at href
   rw [hm] at hfm href ⊢
-  exact ⟨hfm, href⟩
+  exact ⟨Module.wf_machine hfm, href⟩
 
 /-- When both sections' records validate, the machine IR implements the lowered modules in the
     sense of partial correctness, on every call and every deployment. -/
 theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
     (hk : ∀ k ∈ allowed, StepSound k)
-    (hr : validateWith allowed rr (s.machineOf "runtime") = true)
-    (hi : validateWith allowed ri (s.machineOf "init") = true) :
+    (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true) :
     ImplementsP ((s.lowered rr ri).model .machine) (s.model .machine) CalldataFits ∧
       ImplementsDeployP ((s.lowered rr ri).model .machine) (s.model .machine) (s.code "init")
         .empty .empty (fun _ => True) := by
@@ -153,9 +178,9 @@ theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : Mac
     have e := runSection_withMachine_ne (s := s) (name := "runtime") (n := "init")
       (rr.module (s.machineOf "runtime").structs) (by decide) .machine
     rw [← e]
-    refine runSection_approx fun low hlow => ?_
-    rw [withMachine_section?_ne s _ (by decide)] at hlow
-    have := section_refines hk hi low hlow
+    refine runSection_approx fun code low hc hl => ?_
+    rw [withMachine_section?_ne s _ (by decide)] at hc
+    have := section_refines hk hi code low hc hl
     simpa [Sidecar.machineOf, withMachine_section?_ne s _ (show "init" ≠ "runtime" by decide)]
       using this
   constructor
@@ -170,8 +195,9 @@ theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : Mac
     lowered modules, composed by `RefinesOn.of_implementsP`. -/
 theorem machine_sound {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
     (hk : ∀ k ∈ allowed, StepSound k)
-    (hr : validateWith allowed rr (s.machineOf "runtime") = true)
-    (hi : validateWith allowed ri (s.machineOf "init") = true) (hc : check s = true) :
+    (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : check s = true) :
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) := by
@@ -181,8 +207,9 @@ theorem machine_sound {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSt
 
 /-- `machine_sound` for records that use only `edge_split`: no hypothesis. -/
 theorem machine_sound_edgeSplit {s : Sidecar} {rr ri : MachineSteps}
-    (hr : validateWith [.edgeSplit] rr (s.machineOf "runtime") = true)
-    (hi : validateWith [.edgeSplit] ri (s.machineOf "init") = true) (hc : check s = true) :
+    (hr : validateWith [.edgeSplit] (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith [.edgeSplit] (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : check s = true) :
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) :=

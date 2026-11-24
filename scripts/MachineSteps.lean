@@ -10,10 +10,14 @@ kernel-evaluated: the verdicts are `validateWith`'s, the reasons a diagnostic re
 
 open Fe.Sonatina Fe.Sonatina.Steps
 
-/-- The first reason `validateWith allowed r final` rejects, or `none` if it accepts. -/
-def diagnose (allowed : List StepKind) (r : MachineSteps) (final : Module) : Option String := Id.run do
+/-- The first reason `validateWith allowed syms r final` rejects, or `none` if it accepts. -/
+def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (final : Module) :
+    Option String := Id.run do
   let lowered := r.module final.structs
-  if !lowered.machine then return some "lowered: not machine IR (malloc/alloca)"
+  if !lowered.machine then return some "lowered: not machine IR (malloc, alloca, aggregates, undef)"
+  for f in lowered.funcs do
+    if !f.wf lowered.sig syms then return some s!"lowered: {f.name} not well formed"
+  if !r.lowered.all FuncSnap.idsOk then return some "lowered: instruction ids do not match"
   let mut M := lowered
   for p in r.passes do
     let mut i := 0
@@ -21,10 +25,14 @@ def diagnose (allowed : List StepKind) (r : MachineSteps) (final : Module) : Opt
       if !allowed.contains st.kind then
         return some s!"{st.kind.name}: kind not allowed (pass {p.name}, step {i})"
       for fs in st.funcs do
-        if !(checkStep st.kind p.funcBehavior M [fs]) then
+        if !(checkStep st.kind syms p.funcBehavior M [fs]) then
           let why := if !fs.facts.isEmpty then "facts present"
             else if !fs.out.func.machine then "output not machine IR"
+            else if !fs.out.wf M.sig syms then "output not well formed"
             else if (M.func? fs.func).isNone then "no such function"
+            else if !((M.func? fs.func).any (sameSig · fs.out.func)) then "signature changed"
+            else if st.kind == .edgeSplit && !((M.func? fs.func).any fun f =>
+                (domTree f).valid f && ssa f (domTree f)) then "input dominators or SSA rejected"
             else "check rejects"
           return some s!"{st.kind.name}: {why} ({fs.func}, pass {p.name}, step {i})"
       M := stepOut M st.funcs
@@ -47,8 +55,9 @@ def main (args : List String) : IO Unit := do
         | .ok none => IO.println s!"{path}\t{sec.name}\tNO RECORD"
         | .ok (some r) =>
           let kindsPresent := (r.kinds.eraseDups.map (·.name))
-          let verdict := validateWith allowed r low.machine
-          let reason := (diagnose allowed r low.machine).getD "-"
+          let syms := sec.symbols.map (·.1)
+          let verdict := validateWith allowed syms r low.machine
+          let reason := (diagnose allowed syms r low.machine).getD "-"
           let size := low.machine.funcs.foldl (fun n f => n + f.blocks.foldl
             (fun n b => n + b.phis.length + b.body.length + 1) 0) 0
           IO.println s!"{path}\t{sec.name}\t{if verdict then "ACCEPT" else "REJECT"}\t{reason}\tinsts={size}\tkinds={kindsPresent}"
