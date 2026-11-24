@@ -7,7 +7,7 @@ sidecars in `Fe/Sonatina/Fixtures/` (IR and bytecode from one compilation, `fe b
 sidecar`) at each level, the IR after optimization, each section's IR after the backend's pipeline
 and its machine IR, and the pinned bytecode with the `.sona` file committed beside it.  Then
 checks each fixture's lowering hints against its bytes (`Fe/Sonatina/Hints.lean`).  Run with
-`lake env lean --load-dynlib=.lake/ffi/libfeffi.dylib scripts/SonatinaDiff.lean` (the library
+`lake lean scripts/SonatinaDiff.lean -- --load-dynlib=.lake/ffi/libfeffi.dylib` (the library
 that `scripts/build_ffi.sh` builds runs the SHA-256 precompile the deposit contract calls).
 -/
 

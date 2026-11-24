@@ -2,7 +2,7 @@ import FeProofs
 /-! Lists the declarations of `FeProofs.*` modules that no capstone theorem uses: a contract's
 Stele certificate (`fe…ContractCorrect`), a refinement certificate (`fe…Refines…`) or a
 conservation theorem (`…conserves…`).
-Run: `lake env lean scripts/Unused.lean`. -/
+Run: `lake lean scripts/Unused.lean`. -/
 open Lean Meta
 
 def closureOf (env : Environment) (roots : Array Name) : NameSet := Id.run do

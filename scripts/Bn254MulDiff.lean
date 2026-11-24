@@ -12,7 +12,7 @@ ones: points on the curve, the point at infinity, points off the curve and coord
 above the modulus, times the scalars 0, 1, 2, `r - 1`, `r`, `r + 1`, `2 ^ 256 - 1` and random
 ones, and inputs cut short or extended.
 
-`lake env lean scripts/Bn254MulDiff.lean` prints a line per disagreement and a total.
+`lake lean scripts/Bn254MulDiff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM Weierstrass

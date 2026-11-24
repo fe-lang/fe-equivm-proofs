@@ -12,7 +12,7 @@ points on the curve, sums of a point with itself, with its negation and with the
 infinity, points off the curve, coordinates at and above the modulus, and inputs cut short or
 extended.
 
-`lake env lean scripts/Bn254AddDiff.lean` prints a line per disagreement and a total.
+`lake lean scripts/Bn254AddDiff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM Weierstrass

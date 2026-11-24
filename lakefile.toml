@@ -8,8 +8,17 @@ name = "EquiVM"
 git = "https://github.com/sbillig/EquiVM"
 rev = "e108ee74abb3a4375af37fb1abad7553f1a0bb4e"
 
+# fe-spec, a formal semantics of Fe: the model monad of exported code (`Fe.Core`, `Fe.Partial`,
+# `Fe.Embed`) and the interpreter of the compiler's normalized IR, which `Fe/EVM/SpecHost.lean`
+# runs on the EVM world.
+[[require]]
+name = "fe-spec"
+path = "../fe-spec-evm"
+
+# The model library: this package's modules under `Fe`.  fe-spec's library has the others.
 [[lean_lib]]
-name = "Fe"
+name = "FeModel"
+globs = ["FeModel", "Fe.EVM.+", "Fe.Sonatina.+"]
 
 [[lean_lib]]
 name = "FeProofs"

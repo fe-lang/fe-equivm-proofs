@@ -12,7 +12,7 @@ word or nothing.  The inputs are go-ethereum's `ecRecover` vectors and the vecto
 signatures by random keys, with their `v` and with 26, 29 and the other parity, with `r` or `s`
 at 0, `n - 1` and `n`, and inputs cut short or extended.
 
-`lake env lean scripts/EcrecoverPrecompileDiff.lean` prints a line per disagreement and a total.
+`lake lean scripts/EcrecoverPrecompileDiff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM Weierstrass

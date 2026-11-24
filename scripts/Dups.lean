@@ -1,6 +1,6 @@
 import FeProofs
 /-! Lists `FeProofs.*` theorems whose statement exactly matches (up to binder names) another
-theorem's, in this project or in its dependencies. Run: `lake env lean scripts/Dups.lean`. -/
+theorem's, in this project or in its dependencies. Run: `lake lean scripts/Dups.lean`. -/
 open Lean Meta
 
 #eval show CoreM Unit from do

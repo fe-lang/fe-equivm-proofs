@@ -12,7 +12,7 @@ cd "$(dirname "$0")/.."
 expected=scripts/expected/audit.txt
 actual=.lake/audit.txt
 mkdir -p .lake
-lake env lean scripts/Audit.lean > "$actual"
+lake --log-level=error lean scripts/Audit.lean > "$actual"
 [ -n "${BLESS:-}" ] && cp "$actual" "$expected"
 status=0
 std='(Classical\.choice|Quot\.sound|propext)'

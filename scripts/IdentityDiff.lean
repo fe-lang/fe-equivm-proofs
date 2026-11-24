@@ -9,7 +9,7 @@ behind a fallback arm) on call data, and EVMLean's IDENTITY, `Ξ_ID`, on the sam
 must return what `Ξ_ID` outputs, which is the input.  The inputs are generated, of lengths around
 the lanes of eight bytes the copy moves at a time and others up to 300 bytes.
 
-`lake env lean scripts/IdentityDiff.lean` prints a line per disagreement and a total.
+`lake lean scripts/IdentityDiff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

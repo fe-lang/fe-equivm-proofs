@@ -44,7 +44,7 @@ def frameSafeInputs : List (String × ByteArray) := Id.run do
   ($prefix)
 EOF
   } > $file
-  FRAMESAFE_LOG=$out/$name.log lake env lean $file > $out/$name.txt 2>&1 || true
+  FRAMESAFE_LOG=$out/$name.log lake lean $file > $out/$name.txt 2>&1 || true
   grep "^FRAMESAFE\|^CLOBBER\|^DIFFER\|error" $out/$name.txt | head -20
 }
 
@@ -66,7 +66,7 @@ for driver in "$@"; do
   file=$out/${base}FrameSafe.lean
   sed -e 's/^import Fe.Sonatina.Diff$/import Fe.Sonatina.SpillDiff/' \
     -e 's/Fe\.Sonatina\.targetsOf/Fe.Sonatina.spillTargetsOf/' $driver > $file
-  lake env lean $file > $out/$base.txt 2>&1 || true
+  lake lean $file > $out/$base.txt 2>&1 || true
   spill=$(grep -c "^DISAGREE.*5350494c4c20" $out/$base.txt || true)
   echo "FRAMESAFE $base spill-disagreements=$spill"
   grep "^DIFF \|^GENERATED\|^DISAGREE.*5350494c4c20" $out/$base.txt | head -20

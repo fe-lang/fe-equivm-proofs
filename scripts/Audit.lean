@@ -3,7 +3,7 @@ import FeProofs
 `native_decide` evaluations instead of listing them.  The capstones are each contract's Stele certificate
 (`fe…ContractCorrect`), the refinement certificates (`fe…Refines…`), the conservation theorems
 (`…conserves…`) and the invariants through every call and from deployment (`fe…Keeps…`,
-`fe…Solvent…`).  Run: `lake env lean scripts/Audit.lean`. -/
+`fe…Solvent…`).  Run: `lake lean scripts/Audit.lean`. -/
 open Lean
 
 #eval show CoreM Unit from do

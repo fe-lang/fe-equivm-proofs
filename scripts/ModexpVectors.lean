@@ -9,7 +9,7 @@ behind a fallback arm) on go-ethereum's `modexp` and `modexp_eip2565` vectors, a
 it returns with the vectors' expected outputs: a reference independent of EVMLean, with bases
 and moduli of up to 1,024 bytes (`scripts/ModexpDiff.lean` compares with EVMLean's `Ξ_EXPMOD`).
 
-`lake env lean scripts/ModexpVectors.lean` prints a line per disagreement and a total.
+`lake lean scripts/ModexpVectors.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

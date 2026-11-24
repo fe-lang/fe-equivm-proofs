@@ -23,7 +23,7 @@ and `2 ^ 64`, and checks three things on each:
    (odd moduli with a base longer than the modulus, and for five or more limbs the conversion of
    the base to Montgomery form, or the single squaring for `e = 2`).
 
-`lake env lean scripts/ModexpKnuth.lean` prints a line per disagreement and the counts per branch.
+`lake lean scripts/ModexpKnuth.lean` prints a line per disagreement and the counts per branch.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

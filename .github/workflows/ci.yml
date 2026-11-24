@@ -97,7 +97,7 @@ jobs:
           key: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-${{ github.sha }}
           restore-keys: lean-build-${{ runner.os }}-${{ hashFiles('lean-toolchain', 'lake-manifest.json') }}-
       - name: Build the model library
-        run: scripts/check_build.sh Fe
+        run: scripts/check_build.sh FeModel
       - name: Check out Fe
         run: scripts/fetch_fe.sh .lake/fe
       - name: Install Rust

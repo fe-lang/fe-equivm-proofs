@@ -11,7 +11,7 @@ vectors of the RIPEMD-160 paper (Dobbertin, Bosselaers and Preneel), whose hashe
 and generated ones: lengths around the 55, 56 and 64 bytes where the padding takes another block,
 and others up to 300 bytes.
 
-`lake env lean scripts/Ripemd160Diff.lean` prints a line per disagreement and a total.
+`lake lean scripts/Ripemd160Diff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

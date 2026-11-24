@@ -1,6 +1,6 @@
 import FeProofs.Common.Tactics
 
-/-! Side-goal search regressions. Run: `lake env lean scripts/Tactics.lean`. -/
+/-! Side-goal search regressions. Run: `lake lean scripts/Tactics.lean`. -/
 
 open Lean Meta Elab Tactic Ethereum Reasoning.Theory Reasoning.Reach FeProofs.RDTactic
 

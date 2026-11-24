@@ -16,7 +16,7 @@ it the two differ by design, and there the model is only checked to fail.  Modul
 have exponents of at most 3 bytes, since the model runs slowly there in the interpreter.
 `scripts/ModexpVectors.lean` tests the model on go-ethereum's vectors.
 
-`lake env lean scripts/ModexpDiff.lean` prints a line per disagreement and a total.
+`lake lean scripts/ModexpDiff.lean` prints a line per disagreement and a total.
 -/
 
 open Ethereum Ethereum.EVM Fe Fe.EVM

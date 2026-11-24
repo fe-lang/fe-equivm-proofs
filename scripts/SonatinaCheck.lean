@@ -13,7 +13,7 @@ of a factory's creation, of a leading-zeros probe's `CLZ` and of the memory spil
 check), per section whose lowering record's spill stores and reloads disagree with its plan
 (`recordDisagreements`), and per sidecar the reader rejects, counting the sections each accepts
 and why `checkSpills` rejects the others.
-Run with `lake env lean scripts/SonatinaCheck.lean`.
+Run with `lake lean scripts/SonatinaCheck.lean`.
 -/
 
 open Fe.Sonatina

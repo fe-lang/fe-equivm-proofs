@@ -12,7 +12,7 @@ data, and EVMLean's BLAKE2 F, `Ξ_BLAKE2_F`, on the same bytes: the model must r
 runs 2 ^ 32 - 1 rounds, and generated ones: 213 bytes with round counts from 0 to 100,
 final flags 0 and 1 and invalid ones, and inputs a byte short or long.
 
-`lake env lean scripts/Blake2FDiff.lean` prints a line per disagreement and a total, in about half
+`lake lean scripts/Blake2FDiff.lean` prints a line per disagreement and a total, in about half
 an hour: the model's rounds run slowly in the interpreter.
 -/
 

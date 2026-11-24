@@ -256,7 +256,7 @@ contract reaches, once, and `Exported/<Contract>.lean` each contract's own.
 and the safegcd inversion of `FeProofs/Precompiles/Inverse`. `scripts/<Contract>Diff.lean` runs an
 exported contract against EVMLean's precompile (`Ξ_BN_ADD`, `Ξ_BN_MUL`, `Ξ_BLAKE2_F`, `Ξ_RIP160`,
 `Ξ_ECREC`, `Ξ_ID`, `Ξ_EXPMOD`) on go-ethereum's vectors, EVMLean's or the RIPEMD-160 paper's, and on
-generated inputs (`lake env lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
+generated inputs (`lake lean scripts/<name>.lean`); `scripts/ModexpVectors.lean` runs `Modexp`
 on go-ethereum's MODEXP vectors against their outputs. `Modexp` bounds each length at 1,024 bytes
 (EIP-7823), which EVMLean does not, so `ModexpDiff` checks only that the model fails above it.
 `scripts/ModexpKnuth.lean` builds inputs that reach the rare branches of `Modulus::reduce` (the
@@ -310,13 +310,16 @@ After pruning and running `scripts/static_twins.py`, run `scripts/share_static_p
 the contract directory to share eligible prefixes with static-mode twins, then run
 `scripts/prune_blocks.py` again to update the block indexes.
 
-`Fe/` is the model library, independent of any contract: the monad of exported code
-(`Core.lean`), the EVM world and its primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`,
-`Calls.lean`), the refinement relation (`EVM/Refine.lean`, `Reach.lean`), invariants through
-reentrant calls (`EVM/FrameCalls.lean` and `Invariant.lean`, which import EVMLean only, and
-`RefineInvariant.lean`),
-facts about exported entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`,
-`Generate.lean`), and the commands that embed exported text (`Embed.lean`).
+`Fe/` is the model library (`FeModel`), independent of any contract: the EVM world and its
+primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`, `Calls.lean`), the refinement relation
+(`EVM/Refine.lean`, `Reach.lean`), invariants through reentrant calls (`EVM/FrameCalls.lean` and
+`Invariant.lean`, which import EVMLean only, and `RefineInvariant.lean`), facts about exported
+entry code (`EVM/Entry.lean`) and the differential tests (`EVM/Diff.lean`, `Generate.lean`). The monad of exported code
+(`Fe.Core`, `Fe.Partial`) and the commands that embed exported text (`Fe.Embed`) are
+fe-spec's (`../fe-spec-evm`), a dependency by path: one library under the root `Fe` per package,
+each naming its modules (`globs`). Lean's search path cannot split a root between two packages,
+so a file that imports both elaborates with `lake lean <file>`, which hands `lean` the location
+of each module, not with `lake env lean`.
 
 `FeProofs/Common/` is shared by the contracts:
 
@@ -365,7 +368,7 @@ The exported models are checked with the Fe commit pinned in `fe.pin`:
 
 ```sh
 fe=$(scripts/fetch_fe.sh)        # checks it out in .lake/fe
-scripts/check_build.sh Fe
+scripts/check_build.sh FeModel
 scripts/check_sync.sh "$fe"      # the golden test passes; Exported.lean and .trust files hold its output
 scripts/check_bytecode.sh "$fe"  # each contract whose *.build.json names that commit compiles to its pinned bytes
 scripts/check_corpus.sh "$fe"    # the export audit, against scripts/expected/exports.txt
