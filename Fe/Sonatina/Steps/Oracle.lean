@@ -85,6 +85,9 @@ def runTerm (env : Env) : Term → FeM Next
   | .evmInvalid => do
     let e ← trap
     nomatch e
+  | .evmSelfDestruct a => do
+    let e ← Fe.EVM.selfdestruct (← evalWord env a)
+    nomatch e
   | .unreachable => do
     let e ← trap
     nomatch e
@@ -254,6 +257,9 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
       | .evmInvalid => do
         let e ← trap
         nomatch e
+      | .evmSelfDestruct a => do
+        let e ← Fe.EVM.selfdestruct (← evalWord env a)
+        nomatch e
       | .unreachable => do
         let e ← trap
         nomatch e)
@@ -294,6 +300,10 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
   | evmInvalid =>
     simp only [runTerm, bind_assoc]
     exact Approx.bind approx_trap fun e _ _ => nomatch e
+  | evmSelfDestruct a =>
+    simp only [runTerm, bind_assoc]
+    exact Approx.bind_eq (Approx.evalWord hr a) fun _ =>
+      Approx.bind (approx_selfdestruct _) fun e _ _ => nomatch e
   | unreachable =>
     simp only [runTerm, bind_assoc]
     exact Approx.bind approx_trap fun e _ _ => nomatch e

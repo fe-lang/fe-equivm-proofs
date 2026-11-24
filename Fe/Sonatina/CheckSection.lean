@@ -691,8 +691,8 @@ theorem exitOf_succ {c : Ctx} {t : Term} {e : Exit} {ee : ExecutionEnv} {ρ : Na
         · obtain ⟨x', hx', he'⟩ := ih hm
           exact ⟨x', List.mem_cons_of_mem _ hx', he'⟩
   | _ =>
-    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
-    (try (obtain ⟨_, _, _, _, rfl⟩ := h))
+    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h <;>
+    (try (obtain ⟨_, _, _, _, rfl⟩ := h)) <;>
     simp [Exit.next] at hn
 
 /-- The halting terminators the checker reads. -/
@@ -758,8 +758,8 @@ theorem exitOf_only {c : Ctx} {t : Term} {e : Exit} {S : Nat} (h : c.exitOf t = 
     obtain ⟨ce, -, rfl⟩ := h
     simp [Exit.selected] at hs
   | _ =>
-    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
-    (try (obtain ⟨_, _, _, _, rfl⟩ := h))
+    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h <;>
+    (try (obtain ⟨_, _, _, _, rfl⟩ := h)) <;>
     simp [Exit.selected] at hs
 
 theorem table_vals {env : Env} : ∀ {cases : List (Operand × Nat)} {cs : List (Nat × Nat)},

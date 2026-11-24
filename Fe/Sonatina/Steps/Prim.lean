@@ -194,11 +194,13 @@ macro_rules
     | with_reducible exact approx_call _ _ _ _ _ _ _
     | with_reducible exact approx_staticcall _ _ _ _ _ _
     | with_reducible exact approx_delegatecall _ _ _ _ _ _
+    | with_reducible exact approx_callcode _ _ _ _ _ _ _
     | with_reducible exact approx_zeroMem _ _
     | with_reducible exact approx_returnData _ _
     | with_reducible exact approx_revertData _ _
     | with_reducible exact approx_stopCall
-    | with_reducible exact approx_trap)
+    | with_reducible exact approx_trap
+    | with_reducible exact approx_selfdestruct _)
 
 /-- Prove that a computation approximates its copy, with an environment `EnvSub` in context:
     binds, conditionals and matches piecewise, operands and primitives by their lemmas. -/

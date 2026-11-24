@@ -161,12 +161,45 @@ def OvfOp.eval (op : OvfOp) (bits x y : Nat) : Nat × Bool :=
   | .ssubo => (wrap bits (sx - sy), !fitsSigned bits (sx - sy))
   | .smulo => (wrap bits (sx * sy), !fitsSigned bits (sx * sy))
 
+/-- The saturating operation at width `bits` on `x` and `y`, a word, as Sonatina's interpreter
+    computes `evm_uaddsat` … `evm_smulsat` (`crates/ir/src/interpret/evm/mod.rs`, `EvmUaddsat`
+    and the rest): both operands truncated to the width (`Immediate::trunc`), the operation
+    saturated at it (`Immediate::saturating_uadd` …), and the result zero-extended to 256 bits
+    for the unsigned ones, sign-extended for the signed ones.  The backend emits it for widths
+    below 256 only (`emit_narrow_unsigned_saturating_binary`,
+    `emit_narrow_signed_saturating_binary`, `isa/evm/emit/stack.rs`). -/
+def SatOp.eval (op : SatOp) (bits x y : Nat) : Nat :=
+  let x := x % 2 ^ bits
+  let y := y % 2 ^ bits
+  let sx := signed bits x
+  let sy := signed bits y
+  let clampU (n : Int) : Nat := if n < 0 then 0 else min n.toNat (2 ^ bits - 1)
+  let clampS (n : Int) : Nat := wrap 256 (max (-(2 ^ (bits - 1) : Int)) (min n (2 ^ (bits - 1) - 1)))
+  match op with
+  | .uadd => clampU (x + y)
+  | .usub => clampU (x - y : Int)
+  | .umul => clampU (x * y)
+  | .sadd => clampS (sx + sy)
+  | .ssub => clampS (sx - sy)
+  | .smul => clampS (sx * sy)
+
 def CastOp.eval (op : CastOp) (bits x bits' : Nat) : Nat :=
   match op with
   | .sext => wrap bits' (signed bits x)
   | .zext | .trunc | .ptrToInt | .intToPtr | .bitcast => wrap bits' x
 
-/-- An EVM instruction on its operands: the value it gives, if any. -/
+/-- `callcode(gas, addr, value, args_offset, args_len, ret_offset, ret_len)`: the code at `addr`
+    runs as this contract, with `value`, which the contract sends to itself: the message call
+    EVMLean's `CALLCODE` makes (`Fe.EVM.message?` reads it so), with no failure under a static
+    call, as only `CALL` with value has one. -/
+def callcode (gas addr value argsPtr argsLen retPtr retLen : UInt256) : FeM UInt256 := do
+  let I ← read
+  message gas I.codeOwner I.codeOwner (AccountAddress.ofUInt256 addr) value value argsPtr argsLen
+    retPtr retLen I.perm
+
+/-- An EVM instruction on its operands: the value it gives, if any.  `evm_msize` is stuck: it
+    reads the size of the bytes' memory, which the backend's placement and spills make, and
+    which the interpreter's memory is not. -/
 def EvmOp.run (op : EvmOp) (args : List UInt256) : FeM (List Val) :=
   let one (m : FeM UInt256) : FeM (List Val) := do return [word (← m)]
   let none' (m : FeM Unit) : FeM (List Val) := do m; return []
@@ -215,6 +248,7 @@ def EvmOp.run (op : EvmOp) (args : List UInt256) : FeM (List Val) :=
   | .call, [g, a, v, ap, al, rp, rl] => one (Fe.EVM.call g a v ap al rp rl)
   | .staticCall, [g, a, ap, al, rp, rl] => one (Fe.EVM.staticcall g a ap al rp rl)
   | .delegateCall, [g, a, ap, al, rp, rl] => one (Fe.EVM.delegatecall g a ap al rp rl)
+  | .callCode, [g, a, v, ap, al, rp, rl] => one (callcode g a v ap al rp rl)
   | .addMod, [a, b, m] => pure [word (UInt256.addMod a b m)]
   | .mulMod, [a, b, m] => pure [word (UInt256.mulMod a b m)]
   | _, _ => stuck
@@ -237,7 +271,8 @@ def Inst.fixedEnds : Inst → List (Option Nat)
     | .create2, [_, d, l, _] => [constRange d l]
     | .log _, p :: l :: _ => [constRange p l]
     | .mcopy, [d, s, l] => [constRange d l, constRange s l]
-    | .call, [_, _, _, ap, al, rp, rl] | .staticCall, [_, _, ap, al, rp, rl]
+    | .call, [_, _, _, ap, al, rp, rl] | .callCode, [_, _, _, ap, al, rp, rl]
+    | .staticCall, [_, _, ap, al, rp, rl]
     | .delegateCall, [_, _, ap, al, rp, rl] => [constRange ap al, constRange rp rl]
     | _, _ => []
   | _ => []
@@ -307,6 +342,10 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
     let (bits, x, y) ← evalPair env a b
     let (r, o) := op.eval bits x y
     return [.int bits r, bool o]
+  | .sat op a b ty => do
+    let (_, x) ← evalInt env a
+    let (_, y) ← evalInt env b
+    return [.int 256 (op.eval ty.bits x y)]
   | .cast op a ty => do
     let (bits, x) ← evalInt env a
     return [.int ty.bits (op.eval bits x ty.bits)]
@@ -332,6 +371,11 @@ def runInst (c : Ctx) (env : Env) : Inst → FeM (List Val)
   | .symSize s => do
     let some (_, size) := c.symbol s | stuck
     return [.int 256 size]
+  -- The function's offset in the section's symbol table.
+  | .funcPtr f => do
+    let some (offset, _) := c.symbol s!"%{f}" | stuck
+    return [.int 256 offset]
+  | .blackBox a => do return [← evalOperand env a]
   | .insertValue agg index value => do
     let .agg fields ← evalOperand env agg | stuck
     let (_, i) ← evalInt env index
@@ -467,6 +511,9 @@ def runBlocksG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (f : Func) (e
   | .evmInvalid => do
     let e ← trap
     nomatch e
+  | .evmSelfDestruct a => do
+    let e ← Fe.EVM.selfdestruct (← evalWord env a)
+    nomatch e
   | .unreachable => do
     let e ← trap
     nomatch e
@@ -546,6 +593,9 @@ theorem runBlocks_eq (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Optio
         nomatch e
       | .evmInvalid => do
         let e ← trap
+        nomatch e
+      | .evmSelfDestruct a => do
+        let e ← Fe.EVM.selfdestruct (← evalWord env a)
         nomatch e
       | .unreachable => do
         let e ← trap

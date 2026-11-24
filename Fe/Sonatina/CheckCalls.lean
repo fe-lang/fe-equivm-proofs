@@ -1533,6 +1533,9 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         Option.some.injEq] at hex
       obtain ⟨_, _, rfl⟩ := hex
       exact hjmp.elim
+    | evmSelfDestruct a =>
+      rw [ht] at hex
+      simp [Ctx.exitOf] at hex
   · cases hr
     left; left
     subst hex0

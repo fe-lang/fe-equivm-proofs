@@ -67,6 +67,12 @@ inductive OvfOp where
   | uaddo | saddo | usubo | ssubo | umulo | smulo
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
+/-- Arithmetic at the width of a type that saturates instead of wrapping (`evm_uaddsat` …
+    `evm_smulsat`): its result is a word. -/
+inductive SatOp where
+  | uadd | sadd | usub | ssub | umul | smul
+  deriving Repr, BEq, Inhabited, Lean.ToExpr
+
 inductive CastOp where
   | zext | sext | trunc | ptrToInt | intToPtr | bitcast
   deriving Repr, BEq, Inhabited, Lean.ToExpr
@@ -82,8 +88,11 @@ inductive EvmOp where
   | mload | mstore
   | sload | sstore | tload | tstore | keccak256 | mcopy | mstore8
   | log (topics : Nat)
-  | create | create2 | call | staticCall | delegateCall
+  | create | create2 | call | staticCall | delegateCall | callCode
   | addMod | mulMod
+  /-- `evm_msize`, the size of the bytes' memory: outside the subset Sonatina certifies
+      (`docs/memory.md`, E4), as it observes the backend's memory placement and spills. -/
+  | msize
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 
 inductive Inst where
@@ -96,6 +105,8 @@ inductive Inst where
   | clz (arg : Operand)
   | ctz (arg : Operand)
   | ovf (op : OvfOp) (lhs rhs : Operand)
+  /-- `evm_uaddsat lhs rhs T` …: at the width of `T`. -/
+  | sat (op : SatOp) (lhs rhs : Operand) (ty : Ty)
   | cast (op : CastOp) (arg : Operand) (ty : Ty)
   | select (cond onTrue onFalse : Operand)
   | evm (op : EvmOp) (args : List Operand)
@@ -112,6 +123,10 @@ inductive Inst where
       or `.` for the running section. -/
   | symAddr (sym : String)
   | symSize (sym : String)
+  /-- `get_function_ptr %func`: the address of the function's code. -/
+  | funcPtr (func : String)
+  /-- `black_box v`: `v`, which no pass may see through. -/
+  | blackBox (arg : Operand)
   | insertValue (agg index value : Operand)
   | extractValue (agg index : Operand)
   /-- `evm_keccak256_words w…`: the hash of the words, each as 32 big-endian bytes. -/
@@ -130,6 +145,8 @@ inductive Term where
   | evmRevert (addr len : Operand)
   | evmStop
   | evmInvalid
+  /-- `evm_self_destruct addr`. -/
+  | evmSelfDestruct (addr : Operand)
   | unreachable
   deriving Repr, BEq, Inhabited, Lean.ToExpr
 

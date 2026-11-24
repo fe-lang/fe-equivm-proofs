@@ -908,7 +908,10 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
   let some pc := place b.id | throw s!"block{b.id} has no place"
   let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
   let some (events, calls) := c.segments (sp.guard b.id) 0 b.body
-    | throw s!"block{b.id}: an instruction outside the class"
+    | throw (if b.body.any (·.inst matches .evm .msize _) then
+        -- `docs/memory.md`, E4: it reads the bytes' memory size, outside the certified subset.
+        s!"block{b.id}: evm_msize, which reads the memory the backend placed"
+      else s!"block{b.id}: an instruction outside the class")
   let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
   if isRoot && b.id == entryBlock.id then
     unless stack.isEmpty do throw "the entry block's entry stack is not empty"
