@@ -8,7 +8,15 @@ import Fe.Sonatina.Steps.SchemasFacts
 Both steps keep the control flow and every terminator, and change the function by aliasing:
 `change_to_alias(v, x)` replaces every use of `v` by `x` (an immediate or a value), and the
 instruction that defined `v` is erased (`remove_rewritten_inst`, SCCP's `fold`).  `sccp_fold`
-may also replace an instruction in place by `is_zero x` (`SimplifyAction::BuildIsZero`).
+may also replace an instruction in place by `is_zero x` (`SimplifyAction::BuildIsZero`, the
+only in-place replacement `sccp.rs` builds on machine IR: `Bitcast` and `FoldFreshInsert` build
+instructions machine IR does not have), and alias a phi whose executable incoming operands are
+one value (`try_fold_phi`).
+
+**Frame** (review 13, finding 3).  The checks stand on their own under `f.wf` of the input: the
+output keeps the input's name, parameters and results, is machine IR, every output operand is
+well formed (`Operand.wf`: an `i256` immediate below `2 ^ 256`), and both snapshots have one id
+per line of every block (no `zip` truncates).
 
 **Pairing** (`pairBlock`).  The output has the input's blocks, in order, with the same ids.  In
 each block the output's lines are input lines of the same instruction id, in order; the input
@@ -29,15 +37,19 @@ line with σ applied to its operands (`mapLine`), except, for `sccp_fold`, a rep
   schema (`checkDemand`) on the demanded bits of `v`, and `x` a value whose demand contains
   `v`'s.
 
-Unfolding (`unfold`) goes through pure statements of the snapshot's own definitions (the input's
-for `T_in`, the output's for `T_out`), to the same depth on both sides, 1 to 3.  Its leaves are
-values: paired ones on the output side (the output's strict SSA rejects a use of a deleted one),
-any value of the input on the input side.
+Unfolding (`unfold`) goes through pure statements other than `clz` of the snapshot's own
+definitions (the input's for `T_in`, the output's for `T_out`): the same depth on both sides, 1
+to 3, or the output side a leaf and the input side 0 to 3 levels (ruling R-11.1).  Its leaves
+are values: paired ones on the output side (the output's strict SSA rejects a use of a deleted
+one), any value of the input on the input side.  An entry may also go through a chain of at most
+three deleted operands, each step justified (`resolve_replacements` collapses copy chains).  No
+term has `clz` (review H-2, review 13 finding 2).
 
 **Facts**, checked on the input (design §3.3, ruling 8): known bits as a post-fixpoint
-(`kbFactsOk`); SCCP's dead edges and constants on the executable blocks, the least fixpoint from
-the entry over the slots not claimed dead (`sccpFactsOk`, review H-2); demanded bits over every
-instruction (`dbFactsOk`).  Both snapshots are checked in strict SSA under a validated dominator
+(`kbFactsOk`); SCCP's dead edges and constants on the executable blocks, a set the check
+validates itself: it holds the entry and is closed under every slot not claimed dead
+(`execClosed`, review 13 finding 1; the fixpoint computed is only a candidate); demanded bits
+over every instruction (`dbFactsOk`).  Both snapshots are checked in strict SSA under a validated dominator
 tree.
 
 `checkKnownBitsSimplify f ids s F` and `checkSccpFold f ids s F`: the input function `f` with
@@ -73,13 +85,20 @@ def unfold (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) : Nat → Opera
     | none => match d with
       | 0 => .atom v
       | d + 1 => match (defStmt B D v).bind (pureInst? ·.inst) with
+        | some (.op1 .clz _) | none => .atom v
         | some p => termOf (unfold B D cs d) p
-        | none => .atom v
 
-/-- The term of a pure instruction, its operands unfolded `d` levels. -/
+/-- A pure instruction other than `clz`. -/
+def noClz : PureInst → Bool
+  | .op1 .clz _ => false
+  | _ => true
+
+/-- The term of a pure instruction other than `clz`, its operands unfolded `d` levels. -/
 def instTerm (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) (d : Nat) (i : Inst) :
     Option Term :=
-  (pureInst? i).map (termOf (unfold B D cs d))
+  match pureInst? i with
+  | some p => if noClz p then some (termOf (unfold B D cs d) p) else none
+  | none => none
 
 /-! ## Pairing the two snapshots -/
 
@@ -116,11 +135,18 @@ def lineDefs : Line → List Nat
   | .stmt s => s.dsts.map (·.1)
   | .term _ => []
 
+/-- A block's line count: its phis, statements and terminator. -/
+def lineCount (b : Block) : Nat := b.phis.length + b.body.length + 1
+
+/-- One id per line of every block. -/
+def idsFit (bs : List Block) (ids : List (List Nat)) : Bool :=
+  ids.length == bs.length && (bs.zip ids).all fun bi => bi.2.length == lineCount bi.1
+
 /-- The input lines paired with the output's, and the deleted ones, block by block. -/
 def pairFunc (f : Func) (ids : List (List Nat)) (s : FuncSnap) :
     Option (List (Line × Line) × List Line) :=
-  if f.blocks.length == s.func.blocks.length && ids.length == f.blocks.length &&
-      f.blocks.map (·.id) == s.func.blocks.map (·.id) then
+  if f.blocks.length == s.func.blocks.length && idsFit f.blocks ids &&
+      idsFit s.func.blocks s.insts && f.blocks.map (·.id) == s.func.blocks.map (·.id) then
     ((f.blocks.zip ids).zip (s.func.blocks.zip s.insts)).foldlM (fun acc bb =>
       (pairUp (idLines bb.1.1 bb.1.2) (idLines bb.2.1 bb.2.2)).map fun r =>
         (acc.1 ++ r.1, acc.2 ++ r.2)) ([], [])
@@ -212,21 +238,30 @@ def slotTaken (cs : NatMap Nat) (t : Fe.Sonatina.Term) (k : Nat) : Bool :=
   | .br c _ _ => match constOf cs c with
     | some x => (if x != 0 then 0 else 1) == k
     | none => true
-  | .brTable sc _ cases => match constOf cs sc with
-    | some x => match (cases.zipIdx.find? fun ci => constOf cs ci.1.1 == some x) with
-      | some ci => ci.2 + 1 == k
-      | none => k == 0
+  | .brTable sc d cases => match constOf cs sc with
+    | some x =>
+      if d.isNone || !cases.all (fun ci => (constOf cs ci.1).isSome) then true
+      else match (cases.zipIdx.find? fun ci => constOf cs ci.1.1 == some x) with
+        | some ci => ci.2 + 1 == k
+        | none => k == 0
     | none => true
   | _ => true
 
 /-- The blocks the entry reaches over slots not claimed dead. -/
 def execSet (f : Func) (dead : List (Nat × Nat)) : NatMap Unit :=
   let S : NatMap (List Nat) := .ofList (f.blocks.map fun b =>
-    (b.id, (b.term.succs.zipIdx.filter fun tk => !dead.contains (b.id, tk.2)).map (·.1)))
+    (b.id, ((b.term.succs.zipIdx.filter fun tk => !dead.contains (b.id, tk.2)).map (·.1)).eraseDups))
   let n := f.blocks.length
   match f.blocks.head? with
   | none => .empty
   | some e => reachAux S (4 * n * (n + 1) + 4) [e.id] .empty
+
+/-- The executable set is closed (review 13, finding 1): it holds the entry, and every slot not
+    claimed dead of a block in it goes to a block in it.  The proof reads this, not `reachAux`. -/
+def execClosed (f : Func) (E : NatMap Unit) (dead : List (Nat × Nat)) : Bool :=
+  (f.blocks.head?.any fun e => (E.find? e.id).isSome) && f.blocks.all fun b =>
+    (E.find? b.id).isNone || b.term.succs.zipIdx.all fun tk =>
+      dead.contains (b.id, tk.2) || (E.find? tk.1).isSome
 
 /-- The edge `p → b` is executable: `p` is, and a slot of its terminator not claimed dead goes to
     `b`. -/
@@ -238,10 +273,10 @@ def edgeExec (B : NatMap Block) (E : NatMap Unit) (dead : List (Nat × Nat)) (p 
     a schema maps its term to the literal. -/
 def stmtConstOk (B : NatMap Block) (D : NatMap Def) (K : NatMap KB) (cs : NatMap Nat) (p : PureInst)
     (c : Nat) : Bool :=
-  (match (p.args.mapM (constOf cs)) with
+  noClz p && ((match (p.args.mapM (constOf cs)) with
     | some xs => evalConst p.op xs == some c
     | none => false) ||
-  [1, 2, 3].any fun d => checkExact (kbOf K) (termOf (unfold B D cs d) p) (.lit c)
+  [0, 1, 2, 3].any fun d => checkExact (kbOf K) (termOf (unfold B D cs d) p) (.lit c))
 
 /-- SCCP's facts (design §3.3): every dead edge from an executable block is one its terminator
     does not take under the constants; every constant of a value in an executable block holds,
@@ -255,6 +290,7 @@ def sccpFactsOk (f : Func) (B : NatMap Block) (D : NatMap Def) (K : NatMap KB) (
     let cs : NatMap Nat := .ofList consts
     let E := execSet f F.deadEdges
     distinct (consts.map (·.1)) && consts.all (fun e => decide (e.2 < W)) &&
+    execClosed f E F.deadEdges &&
     F.deadEdges.all (fun pk => (E.find? pk.1).isNone ||
       (B.find? pk.1).any fun blk => !slotTaken cs blk.term pk.2) &&
     consts.all fun e => match D.find? e.1 with
@@ -280,7 +316,7 @@ def demandHas (DB : NatMap Nat) (m : Nat) : Operand → Bool
     function gives; a phi with demanded bits demands them of every incoming operand. -/
 def dbFactsOk (f : Func) (ds : List (Nat × Nat)) : Bool :=
   let DB := dbMap ds
-  distinct (ds.map (·.1)) && f.blocks.all fun b =>
+  distinct (ds.map (·.1)) && ds.all (fun e => decide (e.2 < W)) && f.blocks.all fun b =>
     b.phis.all (fun p => p.incoming.all fun ob => demandHas DB (dOf DB p.dst) ob.1) &&
     b.body.all (fun s => match pureInst? s.inst, s.dsts with
       | some p, [(r, _)] =>
@@ -308,6 +344,11 @@ structure StepCtx where
   K : NatMap KB
   /-- SCCP's constants, as literals of the terms. -/
   cs : NatMap Nat
+  /-- The input's dominator tree. -/
+  T : DomTree
+  /-- SCCP's executable blocks and dead edges (`sccp_fold`). -/
+  E : NatMap Unit
+  dead : List (Nat × Nat)
 
 def StepCtx.of (f : Func) (s : FuncSnap) (F : StepFacts) (useConsts : Bool) : StepCtx where
   inB := .ofListBy (·.id) f.blocks
@@ -316,6 +357,9 @@ def StepCtx.of (f : Func) (s : FuncSnap) (F : StepFacts) (useConsts : Bool) : St
   outD := defsOf s.func
   K := kbMap F
   cs := if useConsts then .ofList (F.consts.getD []) else .empty
+  T := domTree f
+  E := execSet f F.deadEdges
+  dead := F.deadEdges
 
 /-- `T_in` of value `v` at depth `d`: its input definition, unfolded. -/
 def StepCtx.tin (X : StepCtx) (d v : Nat) : Option Term :=
@@ -323,6 +367,9 @@ def StepCtx.tin (X : StepCtx) (d v : Nat) : Option Term :=
 
 /-- `T_out` of an output operand at depth `d`. -/
 def StepCtx.tout (X : StepCtx) (d : Nat) (o : Operand) : Term := unfold X.outB X.outD X.cs d o
+
+/-- The depths tried, `(input, output)`: equal, 1 to 3, or the output a leaf (R-11.1). -/
+def depths : List (Nat × Nat) := [(1, 1), (2, 2), (3, 3), (0, 0), (1, 0), (2, 0), (3, 0)]
 
 /-- How a σ entry may be justified. -/
 inductive Mode where
@@ -333,28 +380,62 @@ inductive Mode where
   /-- `sccp_fold`. -/
   | sccp
 
-/-- The justification of a σ entry `v ↦ x`. -/
-def entryOk (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
+/-- `x` is an immediate, or a parameter, or defined in a strict dominator of block `b` of the
+    input: its value is the same on every entry of `b`. -/
+def StepCtx.above (X : StepCtx) (b : Nat) : Operand → Bool
+  | .imm _ _ => true
+  | .var w => match X.inD.find? w with
+    | some .param => true
+    | some (.phi d) | some (.stmt d _) => d != b && X.T.anc d b
+    | none => false
+  | .undef _ => false
+
+/-- `try_fold_phi`: the deleted phi `v` of block `b`, whose operands on executable edges are `x`
+    or `v` itself, with at least one `x`, and `x` the same on every entry of `b`. -/
+def StepCtx.phiFold (X : StepCtx) (v : Nat) (x : Operand) : Bool :=
+  match X.inD.find? v with
+  | some (.phi b) => X.above b x && (phiOf X.inB b v).any fun p =>
+      let live := p.incoming.filter fun ob => edgeExec X.inB X.E X.dead ob.2 b
+      live.any (·.1 == x) && live.all fun ob => ob.1 == x || ob.1 == .var v
+  | _ => false
+
+/-- One justification of `v ↦ x`, without chains. -/
+def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
   match m with
-  | .exact => [1, 2, 3].any fun d => (X.tin d v).any fun t => checkExact (kbOf X.K) t (X.tout d x)
+  | .exact => depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
   | .sccp =>
     (match x with
       | .imm _ c => X.cs.find? v == some (c % W) && decide (c < W)
-      | _ => false) ||
-    [1, 2, 3].any fun d => (X.tin d v).any fun t => checkExact (kbOf X.K) t (X.tout d x)
+      | _ => false) || X.phiFold v x ||
+    depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
   | .demand DB =>
     (match x with
       | .var a => dOf DB v &&& M &&& dOf DB a == dOf DB v &&& M
       | _ => true) &&
-    (X.tin 1 v).any fun t => checkDemand (kbOf X.K) (dOf DB v) t (X.tout 1 x)
+    depths.any fun dd => (X.tin dd.1 v).any fun t =>
+      checkDemand (kbOf X.K) (dOf DB v) t (X.tout dd.2 x)
 
-/-- `sccp_fold`'s in-place replacement of a statement (`BuildIsZero`): the same results, a pure
-    instruction, and a schema maps the input's term to the output's. -/
+/-- The input operands of `v`'s definition. -/
+def StepCtx.inOps (X : StepCtx) (v : Nat) : List Operand :=
+  ((defStmt X.inB X.inD v).map (·.inst.args)).getD []
+
+/-- The justification of a σ entry `v ↦ x`: directly, or through a deleted operand `u` of `v`'s
+    definition with `v ↦ u` justified and `u ↦ x` in turn, at most `n` links. -/
+def entryOk (X : StepCtx) (m : Mode) (dels : List Nat) : Nat → Nat → Operand → Bool
+  | 0, v, x => entryDirect X m v x
+  | n + 1, v, x => entryDirect X m v x || (X.inOps v).any fun o => match o with
+    | .var u => dels.contains u && entryDirect X m v (.var u) && entryOk X m dels n u x
+    | _ => false
+
+/-- `sccp_fold`'s in-place replacement of a statement (`BuildIsZero`): the same results, the
+    output `is_zero`, the input pure and not `clz`, and a schema maps the input's term to the
+    output's. -/
 def replaceOk (X : StepCtx) (s s' : Stmt) : Bool :=
-  s.dsts == s'.dsts && [1, 2, 3].any fun d =>
-    match instTerm X.inB X.inD X.cs d s.inst, instTerm X.outB X.outD X.cs d s'.inst with
-    | some t, some t' => checkExact (kbOf X.K) t t'
-    | _, _ => false
+  s.dsts == s'.dsts && (match s'.inst with | .isZero _ => true | _ => false) &&
+    depths.any fun dd =>
+      match instTerm X.inB X.inD X.cs dd.1 s.inst, instTerm X.outB X.outD X.cs dd.2 s'.inst with
+      | some t, some t' => checkExact (kbOf X.K) t t'
+      | _, _ => false
 
 /-- The values σ maps that the paired input lines read. -/
 def sigmaKeys (pairs : List (Line × Line)) (σ : NatMap Operand) : List Nat :=
@@ -365,89 +446,82 @@ def sigmaKeys (pairs : List (Line × Line)) (σ : NatMap Operand) : List Nat :=
 /-- Strict SSA under a validated dominator tree. -/
 def ssaOk (f : Func) : Bool := (domTree f).valid f && ssa f (domTree f)
 
-/-- The shared check, in a mode. -/
-def checkAliasStep (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
-    (F : StepFacts) : Bool :=
-  match ids, pairFunc f (ids.getD []) s with
-  | some _, some (pairs, deleted) =>
+/-- Every operand of the function is well formed. -/
+def opsWf (f : Func) : Bool := f.blocks.all fun b =>
+  b.phis.all (·.incoming.all (·.1.wf)) && b.body.all (·.inst.args.all Operand.wf) &&
+    b.term.args.all Operand.wf
+
+/-- Why a step is rejected. -/
+inductive Reject where
+  | noIds | frame | pairing | sigma | inputSsa | outputSsa | deletion | changed | kbFacts
+  | dbFacts | sccpFacts | unread | wrongFacts | notDeleted (v : Nat) | noSchema (v : Nat)
+  deriving Repr, DecidableEq
+
+/-- The shared check, in a mode: why it rejects, or `none`. -/
+def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Option Reject :=
+  match ids with
+  | none => some .noIds
+  | some is =>
+  if !(s.func.name == f.name && decide (s.func.params = f.params) && decide (s.func.rets = f.rets)
+      && s.func.machine && opsWf s.func) then some .frame else
+  match pairFunc f is s with
+  | none => some .pairing
+  | some (pairs, deleted) =>
     let X := StepCtx.of f s F (match m with | .sccp => true | _ => false)
     match sigmaOf pairs with
-    | none => false
+    | none => some .sigma
     | some σ =>
       let dels := deleted.flatMap lineDefs
-      ssaOk f && ssaOk s.func && deleted.all deletable &&
-      pairs.all (fun LL => lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
-        | .sccp, .stmt a, .stmt b => replaceOk X a b
-        | _, _, _ => false) &&
-      (F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) &&
-      (sigmaKeys pairs σ).all (fun v => dels.contains v && match σ.find? v with
-        | some x => entryOk X m v x
-        | none => false)
-  | _, _ => false
+      if !ssaOk f then some .inputSsa
+      else if !ssaOk s.func then some .outputSsa
+      else if !deleted.all deletable then some .deletion
+      else if !pairs.all (fun LL => lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
+          | .sccp, .stmt a, .stmt b => replaceOk X a b
+          | _, _, _ => false) then some .changed
+      else if !(F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) then some .kbFacts
+      else
+        let keys := sigmaKeys pairs σ
+        match keys.find? (fun v => !dels.contains v) with
+        | some v => some (.notDeleted v)
+        | none => match keys.find? (fun v => !((σ.find? v).any (entryOk X m dels 3 v))) with
+          | some v => some (.noSchema v)
+          | none => none
+
+def kbsReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
+    Option Reject :=
+  if !F.unread.isEmpty then some .unread
+  else if F.consts.isSome || !F.deadEdges.isEmpty then some .wrongFacts
+  else match F.demanded with
+    | none => aliasReject .exact f ids s F
+    | some ds => if !dbFactsOk f ds then some .dbFacts else aliasReject (.demand (dbMap ds)) f ids s F
+
+def sccpReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
+    Option Reject :=
+  if !F.unread.isEmpty then some .unread
+  else if F.demanded.isSome then some .wrongFacts
+  else if !sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F then some .sccpFacts
+  else aliasReject .sccp f ids s F
 
 /-- `known_bits_simplify` (design §4.5, review C-2): a round of exact rewrites, or, with
     demanded bits, a round of demand rewrites only.  Range facts are not read: a step that has
     them is rejected (I6 is not done). -/
 def checkKnownBitsSimplify (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
     (F : StepFacts) : Bool :=
-  F.unread.isEmpty && F.consts.isNone && match F.demanded with
-    | none => checkAliasStep .exact f ids s F
-    | some ds => dbFactsOk f ds && checkAliasStep (.demand (dbMap ds)) f ids s F
+  (kbsReject f ids s F).isNone
 
 /-- `sccp_fold` (design §4.7, review H-2, H-4). -/
 def checkSccpFold (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Bool :=
-  F.unread.isEmpty && F.demanded.isNone &&
-    sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F &&
-    checkAliasStep .sccp f ids s F
+  (sccpReject f ids s F).isNone
 
-/-! ## Diagnosis (not for the kernel) -/
-
-/-- The first failing check of `checkAliasStep`, by name. -/
-def diagnoseAliasStep (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
-    (F : StepFacts) : Option String :=
-  match ids with
-  | none => some "no input instruction ids"
-  | some is =>
-  match pairFunc f is s with
-  | none => some "blocks or lines do not pair"
-  | some (pairs, deleted) =>
-    let X := StepCtx.of f s F (match m with | .sccp => true | _ => false)
-    match sigmaOf pairs with
-    | none => some "operand changes are not a function of input values"
-    | some σ =>
-      let dels := deleted.flatMap lineDefs
-      if !ssaOk f then some "input not in strict SSA"
-      else if !ssaOk s.func then some "output not in strict SSA"
-      else if !deleted.all deletable then some "a deleted line is not a pure statement or phi"
-      else match pairs.find? (fun LL => !(lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
-          | .sccp, .stmt a, .stmt b => replaceOk X a b
-          | _, _, _ => false)) with
-        | some _ => some "a paired line changed beyond σ"
-        | none =>
-          if !(F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) then some "known bits facts"
-          else
-            let keys := sigmaKeys pairs σ
-            match keys.find? (fun v => !dels.contains v) with
-            | some v => some s!"σ maps v{v}, which is not deleted"
-            | none => match keys.find? (fun v => !((σ.find? v).any (entryOk X m v))) with
-              | some v => some s!"no schema for v{v} ↦ {repr (σ.find? v)}"
-              | none => none
-
+/-- The first failing check, by name (for measurement). -/
 def diagnoseKnownBitsSimplify (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
     (F : StepFacts) : Option String :=
-  if !F.unread.isEmpty then some s!"unread facts {F.unread}"
-  else if F.consts.isSome then some "SCCP facts in a known_bits_simplify step"
-  else match F.demanded with
-    | none => diagnoseAliasStep .exact f ids s F
-    | some ds => if !dbFactsOk f ds then some "demanded bits facts"
-      else diagnoseAliasStep (.demand (dbMap ds)) f ids s F
+  (kbsReject f ids s F).map fun r => s!"{repr r}"
 
 def diagnoseSccpFold (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Option String :=
-  if !F.unread.isEmpty then some s!"unread facts {F.unread}"
-  else if F.demanded.isSome then some "demanded bits in an sccp_fold step"
-  else if !sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F then some "SCCP facts"
-  else diagnoseAliasStep .sccp f ids s F
+  (sccpReject f ids s F).map fun r => s!"{repr r}"
 
 end Fe.Sonatina.Steps.Schemas

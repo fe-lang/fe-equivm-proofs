@@ -134,3 +134,79 @@ write("kb_and_badfact.json", one(KBS, bf_in, bf_out, facts(kb=[(2, M ^ 255, 0)])
 # Rejected: an unknown fact key for the step's kind is not ignored.
 write("kb_add0_unread.json", one(KBS, add_in, add_out, facts(gvn={"class": [[1, 2]]})))
 write("sc_const_unread.json", one(SCCP, sc_in, sc_out, facts(consts=[(1, 128)], gvn={"class": [[1, 2]]})))
+
+# Review 13, finding 1: 52 table slots to block1 exhaust execSet's fuel before block2.
+cases = " ".join(f"({k}.i256 block1)" for k in range(51)) + " (51.i256 block2)"
+r1_in = snap("f", P, R, [(0, [f"br_table v0 block1 {cases}"]), (1, ["return v0"]),
+    (2, ["v1.i256 = add v0 1.i256", "return v1"])], [[0], [1], [2, 3]])
+r1_out = snap("f", P, R, [(0, [f"br_table v0 block1 {cases}"]), (1, ["return v0"]),
+    (2, ["return 999.i256"])], [[0], [1], [3]])
+write("r13_f1_fuel.json", one(SCCP, r1_in, r1_out, facts(consts=[(1, 999)])))
+# Finding 2: clz replaced in place by add 256 0, and the reverse.
+c_in = snap("f", P, R, [(0, ["v1.i256 = clz 0.i256", "return v1"])], [[0, 1]])
+c_out = snap("f", P, R, [(0, ["v1.i256 = add 256.i256 0.i256", "return v1"])], [[0, 1]])
+write("r13_f2_clz_out.json", one(SCCP, c_in, c_out, facts(consts=[])))
+write("r13_f2_clz_in.json", one(SCCP, c_out, c_in, facts(consts=[])))
+# Finding 3: a base for the truncated-ids mutants (built in Lean), swapped parameters, an
+# out-of-range literal and a literal of another width.
+t_in = snap("f", P, R, [(0, ["return v0"])], [[0]])
+t_out = snap("f", P, R, [(0, ["return 42.i256"])], [[0]])
+write("r13_f3_ids_base.json", one(KBS, t_in, t_out, facts()))
+p_in = snap("f", ["v0.i256", "v1.i256"], R, [(0, ["return v0"])], [[0]])
+p_out = snap("f", ["v1.i256", "v0.i256"], R, [(0, ["return v0"])], [[0]])
+write("r13_f3_params.json", one(KBS, p_in, p_out, facts()))
+write("r13_f3_params_sccp.json", one(SCCP, p_in, p_out, facts(consts=[])))
+z_in = snap("f", [], R, [(0, ["v1.i256 = add 0.i256 0.i256", "return v1"])], [[0, 1]])
+# (The parser reduces literals modulo 2^width, so the out-of-range literal itself is built in
+# SchemasStepTests.lean; read from text this record is the correct add 0 0 -> 0.)
+write("r13_f3_bigimm.json", one(KBS, z_in, snap("f", [], R, [(0, [f"return {2**256}.i256"])], [[1]]), facts()))
+write("r13_f3_i8imm.json", one(SCCP, z_in, snap("f", [], R, [(0, ["return 0.i8"])], [[1]]), facts(consts=[(1, 0)])))
+
+# Review 13, finding 4 (1): a same-round operand rewrite (v1 -> v0 in v2, and v3 -> v2).
+sr_in = snap("f", P, R, [(0, ["v1.i256 = add v0 0.i256", "v2.i256 = add v1 1.i256",
+    "v3.i256 = add v2 0.i256", "return v3"])], [[0, 1, 2, 3]])
+sr_out = snap("f", P, R, [(0, ["v2.i256 = add v0 1.i256", "return v2"])], [[1, 3]])
+write("r13_f4_same_round.json", one(KBS, sr_in, sr_out, facts()))
+# (1) in a demand round.
+srd_in = snap("f", P, R, [(0, ["v1.i256 = or v0 1.i256", "v2.i256 = and v1 65280.i256",
+    "v3.i256 = or v2 2.i256", "v4.i256 = shr 8.i256 v3", "return v4"])], [[0, 1, 2, 3, 4]])
+srd_out = snap("f", P, R, [(0, ["v2.i256 = and v0 65280.i256", "v4.i256 = shr 8.i256 v2",
+    "return v4"])], [[1, 3, 4]])
+srd_db = [(4, M), (3, hi), (2, hi), (1, hi), (0, hi)]
+write("r13_f4_same_round_demand.json", one(KBS, srd_in, srd_out,
+    facts(kb=[(2, M ^ 65280, 0)], db=srd_db)))
+# (2) an undone shift over a deep pure chain.
+dp_in = snap("f", P, R, [(0, ["v4.i256 = add v0 1.i256", "v5.i256 = add v4 2.i256",
+    "v2.i256 = and v5 255.i256", "v1.i256 = shl 8.i256 v2", "v3.i256 = shr 8.i256 v1",
+    "return v3"])], [[0, 1, 2, 3, 4, 5]])
+dp_out = snap("f", P, R, [(0, ["v4.i256 = add v0 1.i256", "v5.i256 = add v4 2.i256",
+    "v2.i256 = and v5 255.i256", "v1.i256 = shl 8.i256 v2", "return v2"])], [[0, 1, 2, 3, 5]])
+write("r13_f4_deep.json", one(KBS, dp_in, dp_out, facts(kb=[(2, M ^ 255, 0)])))
+# (3) a chain collapsed in one round, both kinds.
+ch_in = snap("f", P, R, [(0, ["v1.i256 = add v0 0.i256", "v2.i256 = add v1 0.i256", "return v2"])],
+    [[0, 1, 2]])
+ch_out = snap("f", P, R, [(0, ["return v0"])], [[2]])
+write("r13_f4_chain.json", one(KBS, ch_in, ch_out, facts()))
+write("r13_f4_chain_sccp.json", one(SCCP, ch_in, ch_out, facts(consts=[])))
+# Finding 6: the modular identities of #591, and try_fold_phi.
+mi = {"addmod1": "evm_add_mod v0 v9 1.i256", "mulmod1": "evm_mul_mod v0 v9 1.i256",
+      "mulmod0a": "evm_mul_mod 0.i256 v9 v0", "mulmod0b": "evm_mul_mod v0 0.i256 v9"}
+for k, i in mi.items():
+    write(f"r13_f6_{k}.json", one(SCCP, snap("f", ["v0.i256", "v9.i256"], R,
+        [(0, [f"v1.i256 = {i}", "return v1"])], [[0, 1]]),
+        snap("f", ["v0.i256", "v9.i256"], R, [(0, ["return 0.i256"])], [[1]]), facts(consts=[(1, 0)])))
+# Rejected: addmod by 2 is no identity.
+write("r13_f6_addmod2_bad.json", one(SCCP, snap("f", ["v0.i256", "v9.i256"], R,
+    [(0, ["v1.i256 = evm_add_mod v0 v9 2.i256", "return v1"])], [[0, 1]]),
+    snap("f", ["v0.i256", "v9.i256"], R, [(0, ["return 0.i256"])], [[1]]), facts(consts=[(1, 0)])))
+pf_in = snap("f", P, R, [(0, ["jump block1"]), (1, ["v1.i256 = phi (v0 block0)", "return v1"])],
+    [[0], [1, 2]])
+pf_out = snap("f", P, R, [(0, ["jump block1"]), (1, ["return v0"])], [[0], [2]])
+write("r13_f6_phi_fold.json", one(SCCP, pf_in, pf_out, facts(consts=[])))
+# Rejected: a phi of two different executable operands.
+pf2_in = snap("f", ["v0.i256", "v9.i256"], R, [(0, ["br v0 block1 block2"]), (1, ["jump block3"]),
+    (2, ["jump block3"]), (3, ["v1.i256 = phi (v0 block1) (v9 block2)", "return v1"])],
+    [[0], [1], [2], [3, 4]])
+pf2_out = snap("f", ["v0.i256", "v9.i256"], R, [(0, ["br v0 block1 block2"]), (1, ["jump block3"]),
+    (2, ["jump block3"]), (3, ["return v0"])], [[0], [1], [2], [4]])
+write("r13_f6_phi_fold_bad.json", one(SCCP, pf2_in, pf2_out, facts(consts=[])))

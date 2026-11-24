@@ -1,0 +1,70 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v9.i256) -> i256 {\n    block0:\n        br v0 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        v1.i256 = phi (v0 block1) (v9 block2);\n        return v1;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "sccp_fold",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "sccp_fold",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v9.i256) -> i256 {\n    block0:\n        br v0 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        return v0;\n}\n",
+        "insts": [
+         [
+          0
+         ],
+         [
+          1
+         ],
+         [
+          2
+         ],
+         [
+          4
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": {
+         "consts": [],
+         "dead_edges": []
+        },
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

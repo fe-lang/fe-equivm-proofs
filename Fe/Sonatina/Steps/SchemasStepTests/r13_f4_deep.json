@@ -1,0 +1,63 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v4.i256 = add v0 1.i256;\n        v5.i256 = add v4 2.i256;\n        v2.i256 = and v5 255.i256;\n        v1.i256 = shl 8.i256 v2;\n        v3.i256 = shr 8.i256 v1;\n        return v3;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "known_bits_simplify",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "known_bits_simplify",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v4.i256 = add v0 1.i256;\n        v5.i256 = add v4 2.i256;\n        v2.i256 = and v5 255.i256;\n        v1.i256 = shl 8.i256 v2;\n        return v2;\n}\n",
+        "insts": [
+         [
+          0,
+          1,
+          2,
+          3,
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [
+         [
+          2,
+          "115792089237316195423570985008687907853269984665640564039457584007913129639680",
+          "0"
+         ]
+        ],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

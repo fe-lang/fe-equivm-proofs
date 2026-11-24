@@ -65,6 +65,15 @@ schema_step sc_phi "Fe/Sonatina/Steps/SchemasStepTests/sc_phi.json"
 schema_step sc_phi_bad_cond "Fe/Sonatina/Steps/SchemasStepTests/sc_phi_bad_cond.json"
 schema_step sc_phi_bad_dead "Fe/Sonatina/Steps/SchemasStepTests/sc_phi_bad_dead.json"
 
+schema_step r13_f1_fuel "Fe/Sonatina/Steps/SchemasStepTests/r13_f1_fuel.json"
+schema_step r13_f2_clz_out "Fe/Sonatina/Steps/SchemasStepTests/r13_f2_clz_out.json"
+schema_step r13_f2_clz_in "Fe/Sonatina/Steps/SchemasStepTests/r13_f2_clz_in.json"
+schema_step r13_f3_ids_base "Fe/Sonatina/Steps/SchemasStepTests/r13_f3_ids_base.json"
+schema_step r13_f3_params "Fe/Sonatina/Steps/SchemasStepTests/r13_f3_params.json"
+schema_step r13_f3_params_sccp "Fe/Sonatina/Steps/SchemasStepTests/r13_f3_params_sccp.json"
+schema_step r13_f3_bigimm "Fe/Sonatina/Steps/SchemasStepTests/r13_f3_bigimm.json"
+schema_step r13_f3_i8imm "Fe/Sonatina/Steps/SchemasStepTests/r13_f3_i8imm.json"
+
 example : KBS kb_add0 = true := by decide +kernel
 example : KBS kb_add0_bad_const = false := by decide +kernel
 example : KBS kb_add0_unread = false := by decide +kernel
@@ -91,5 +100,68 @@ example : SCCP sc_is_zero_bad = false := by decide +kernel
 example : SCCP sc_phi = true := by decide +kernel
 example : SCCP sc_phi_bad_cond = false := by decide +kernel
 example : SCCP sc_phi_bad_dead = false := by decide +kernel
+
+schema_step r13_f4_chain "Fe/Sonatina/Steps/SchemasStepTests/r13_f4_chain.json"
+schema_step r13_f4_chain_sccp "Fe/Sonatina/Steps/SchemasStepTests/r13_f4_chain_sccp.json"
+schema_step r13_f4_deep "Fe/Sonatina/Steps/SchemasStepTests/r13_f4_deep.json"
+schema_step r13_f4_same_round "Fe/Sonatina/Steps/SchemasStepTests/r13_f4_same_round.json"
+schema_step r13_f4_same_round_demand "Fe/Sonatina/Steps/SchemasStepTests/r13_f4_same_round_demand.json"
+schema_step r13_f6_addmod1 "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_addmod1.json"
+schema_step r13_f6_addmod2_bad "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_addmod2_bad.json"
+schema_step r13_f6_mulmod0a "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_mulmod0a.json"
+schema_step r13_f6_mulmod0b "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_mulmod0b.json"
+schema_step r13_f6_mulmod1 "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_mulmod1.json"
+schema_step r13_f6_phi_fold "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_phi_fold.json"
+schema_step r13_f6_phi_fold_bad "Fe/Sonatina/Steps/SchemasStepTests/r13_f6_phi_fold_bad.json"
+
+/-! ## Review 13: the reviewer's inputs for findings 1 to 3, each expected rejected -/
+
+/-- Finding 3's truncated ids: the output's ids emptied, or its block's ids emptied. -/
+def r13_f3_ids_none : OneStep :=
+  (r13_f3_ids_base.1, r13_f3_ids_base.2.1, { r13_f3_ids_base.2.2.1 with insts := [] }, r13_f3_ids_base.2.2.2)
+def r13_f3_ids_empty : OneStep :=
+  (r13_f3_ids_base.1, r13_f3_ids_base.2.1, { r13_f3_ids_base.2.2.1 with insts := [[]] }, r13_f3_ids_base.2.2.2)
+def r13_f3_ids_none_sccp : OneStep :=
+  (r13_f3_ids_none.1, r13_f3_ids_none.2.1, r13_f3_ids_none.2.2.1, { r13_f3_ids_none.2.2.2 with consts := some [] })
+
+example : SCCP r13_f1_fuel = false := by decide +kernel
+example : SCCP r13_f2_clz_out = false := by decide +kernel
+example : SCCP r13_f2_clz_in = false := by decide +kernel
+example : KBS r13_f3_ids_base = false := by decide +kernel
+example : KBS r13_f3_ids_none = false := by decide +kernel
+example : KBS r13_f3_ids_empty = false := by decide +kernel
+example : SCCP r13_f3_ids_none_sccp = false := by decide +kernel
+example : KBS r13_f3_params = false := by decide +kernel
+example : SCCP r13_f3_params_sccp = false := by decide +kernel
+/-- The parser reads `2^256.i256` as `0`: this one is the correct `add 0 0 → 0`. -/
+example : KBS r13_f3_bigimm = true := by decide +kernel
+/-- The output's literal `2 ^ 256` itself, unreduced, as a record could only give by bypassing
+    the parser: rejected by `Operand.wf`. -/
+def r13_f3_bigimm_raw : OneStep :=
+  (r13_f3_bigimm.1, r13_f3_bigimm.2.1,
+    { r13_f3_bigimm.2.2.1 with func := { r13_f3_bigimm.2.2.1.func with
+      blocks := r13_f3_bigimm.2.2.1.func.blocks.map fun b =>
+        { b with term := .ret [.imm 256 (2 ^ 256)] } } }, r13_f3_bigimm.2.2.2)
+example : KBS r13_f3_bigimm_raw = false := by decide +kernel
+example : SCCP r13_f3_i8imm = false := by decide +kernel
+
+/-! ## Review 13, findings 4 and 6: what the compiler does, accepted -/
+
+example : KBS r13_f4_chain = true := by decide +kernel
+example : SCCP r13_f4_chain_sccp = true := by decide +kernel
+example : KBS r13_f4_deep = true := by decide +kernel
+example : KBS r13_f4_same_round = true := by decide +kernel
+example : KBS r13_f4_same_round_demand = true := by decide +kernel
+example : SCCP r13_f6_addmod1 = true := by decide +kernel
+example : SCCP r13_f6_addmod2_bad = false := by decide +kernel
+example : SCCP r13_f6_mulmod0a = true := by decide +kernel
+example : SCCP r13_f6_mulmod0b = true := by decide +kernel
+example : SCCP r13_f6_mulmod1 = true := by decide +kernel
+example : SCCP r13_f6_phi_fold = true := by decide +kernel
+example : SCCP r13_f6_phi_fold_bad = false := by decide +kernel
+
+-- Review 13, finding 8: a fact key twice is an error (evaluated, not a proof).
+#guard (readFacts [("known_bits", "[]"), ("known_bits", "[]")]).toOption.isNone
+#guard (readFacts [("known_bits", "[]")]).toOption.isSome
 
 end Fe.Sonatina.Steps.Schemas.StepTests
