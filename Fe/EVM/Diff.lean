@@ -358,7 +358,6 @@ def differs (model interp : Outcome) : Option String :=
 def describeSpec : Fe.Sem.SpecError → String
   | .unsupported what => s!"unsupported {what}"
   | .malformed what => s!"malformed {what}"
-  | e => s!"{repr e}"
 
 /-- How the interpreter's run went, for one creation or call. -/
 inductive Interp where
@@ -369,10 +368,15 @@ inductive Interp where
   /-- It ran: how it compares with the bytecode, and where it differs from the model. -/
   | ran (bytecode : Verdict) (model : Option String)
 
-/-- The interpreter's outcome: a Fe outcome, or the error the specification gave up with. -/
+/-- The steps each call the entry code makes may take in the interpreter. -/
+def interpFuel : Nat := 10000000
+
+/-- The interpreter's outcome: a Fe outcome, or the error the specification gave up with.  A run
+    with no result is one that did not finish within `interpFuel` steps of a call, or one whose
+    host diverged (`alloc` past `2 ^ 256`, the feed run dry), which the model's would too. -/
 def interpOutcome : Option (Except (Exit World) (Except Fe.Sem.SpecError ByteArray × World)) →
     Except String Outcome
-  | none => .ok none
+  | none => .error s!"no result: more than {interpFuel} steps in a call, or the host diverges"
   | some (.error e) => .ok (some (.error e))
   | some (.ok (.error e, _)) => .error (describeSpec e)
   | some (.ok (.ok out, w)) => .ok (some (.ok (out, w)))
@@ -386,9 +390,6 @@ def compareInterp (evm : Except ExecutionException (ExecutionResult State)) (mod
     match run () with
     | .error why => .spec why
     | .ok i => .ran (compare evm i "interpreter") (differs model i)
-
-/-- The steps each call the entry code makes may take in the interpreter. -/
-def interpFuel : Nat := 10000000
 
 /-! ## Tests -/
 

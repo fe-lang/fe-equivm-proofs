@@ -241,8 +241,9 @@ reservation of low memory, and is compared with the bytecode and with the model 
 excepted: the interpreter keeps locals in cells of its own. A call agrees three ways (`agree3`
 in the totals), or the interpreter disagrees with one side (a `DIFF3` line naming the pairs that
 differ: `interp≠model`, `interp≠bytecode`, `model≠bytecode`, each with both outcomes), or the
-interpreter gives up (`SPEC`, with fe-spec's `unsupported` or `malformed` reason, or
-`outOfFuel` past `interpFuel` steps of a call). A target the serializer refused, or whose IR
+interpreter gives up (`SPEC`, with fe-spec's `unsupported` or `malformed` reason, `malformed
+typing: …` when a value of the machine is not of its type, checked after every step, or no
+result within `interpFuel` steps of a call). A target the serializer refused, or whose IR
 does not read, has a `NOIR` line and is compared two ways only. Lines comparing model and
 bytecode (`DISAGREE`, `agree`, `disagree`) mean what they did before. `scripts/tally_diff.py`
 totals all of them, with the distinct `SPEC` reasons and their counts.

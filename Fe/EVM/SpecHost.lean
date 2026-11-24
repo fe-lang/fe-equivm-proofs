@@ -1,7 +1,7 @@
 import Fe.EVM.Calls
 import Fe.EVM.Refine
 import Fe.IR.Json
-import Fe.Sem.Contract
+import Fe.Sem.Bounded
 
 /-!
 # fe-spec's interpreter on the EVM
@@ -98,22 +98,25 @@ def specHost (regionLen : Nat) (creations : List (String × ByteArray)) :
     | some (_, creation) =>
       return some ((← initCodeOffset creation).toNat, (← initCodeLen creation).toNat)
 
-/-- An interpreter run in the model monad, from reserved memory, each call of the entry code
-    bounded by `fuel` steps: what it returns, or the error the specification gives up with. -/
-def interp {α : Type} (fuel : Nat) (m : Fe.Sem.InterpM Env World α) :
-    FeM (Except Fe.Sem.SpecError α) := do
+/-- An interpreter run in the model monad, from reserved memory: what it returns, or the error
+    the specification gives up with.  Each call of the entry code runs at most `fuel` steps,
+    checking after each that every value of the machine is of its type (`runChecked`); one that
+    does not finish within them does not terminate. -/
+def interp {α : Type} (m : Fe.Sem.InterpM Env World α) : FeM (Except Fe.Sem.SpecError α) := do
   reserve
-  return (← (m.run { fuel := some fuel }).run).map (·.1)
+  return (← (m.run {}).run).map (·.1)
 
 /-- The runtime entry of `prog`, whose runtime code is `regionLen` bytes. -/
 def specRuntime (prog : Fe.IR.Program) (regionLen : Nat) (creations : List (String × ByteArray))
     (fuel : Nat) : FeM (Except Fe.Sem.SpecError Empty) :=
-  interp fuel (Fe.Sem.runtime prog (specHost regionLen creations))
+  let host := specHost regionLen creations
+  interp (Fe.Sem.runtime prog host (Fe.Sem.runChecked prog host fuel))
 
 /-- The deployment entry of `prog`, whose creation code is `regionLen` bytes: the bytes of the
     immutable fields. -/
 def specInit (prog : Fe.IR.Program) (regionLen : Nat) (creations : List (String × ByteArray))
     (fuel : Nat) : FeM (Except Fe.Sem.SpecError ByteArray) :=
-  interp fuel (Fe.Sem.initEntry prog (specHost regionLen creations))
+  let host := specHost regionLen creations
+  interp (Fe.Sem.initEntry prog host (Fe.Sem.runChecked prog host fuel))
 
 end Fe.EVM
