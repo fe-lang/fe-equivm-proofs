@@ -21,6 +21,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Run.lean` | lemmas the simulations share: `Inst.mapOps`/`Term.mapOps`, `inc`, `Fol`, `enterOpt`, binding lemmas, `UniqueDefs`, `DomTree.anc_antisymm`, `phi_has_pred`, `blockInv_of_point`, `enter_total`, `DomSub` |
 | `L2.lean` | `Inst.pure`, `pureVals`, `runInst_pure`, `Before`, `PureInv`, `BlockPure`, `pureInv_enter`, `pureInv_stmt`, `pureInv_take`, `pureInv_step`, `l2` |
 | `CfgCleanupSound.lean` | `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
+| `Coalesce.lean` | `addrNorm`, `useCount`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce`, `allowBase` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
@@ -114,8 +115,13 @@ of `PointInv`.
    invariant gives that the input's terminator reads words, so it is not stuck where the output
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
-3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize` and
-   `branch_conditions`** (phase 2); every other kind is rejected.  `checkFunc` takes the pass's table, the input's instruction ids and the output
+3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
+   `branch_conditions` and `coalesce_copies`** (phase 2; the last has a checker and no proof
+   yet, so `machine_sound_proved` does not include it); every other kind is rejected.  Facts
+   (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that `Schemas.readFacts` reads
+   at read time; `checkFunc` takes them; each of these kinds requires `noFacts` (no known bits,
+   no demand round, no SCCP facts, no unread key); `StepSound.of_func` quantifies over them.
+   `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
 4. **Final comparison by name.** The machine IR prints a section's functions in another order
@@ -210,6 +216,9 @@ Deviations and choices:
 
 ## L2 (phase 2, ruling R-11.2)
 
+(`evm_add_mod` and `evm_mul_mod` count as pure since `e4c6694`, cherry-picked from
+`m1-schemas` `7c6254b`, so that there is one notion of purity.)
+
 `L2.lean`, the equational lemma of design §5.3 and review M-1, general: for a well-formed
 function in strict SSA on a valid tree, on a run from the entry (`l2`), at every point `(b, k)`
 each statement of a reachable block that comes before the point (`Before`: in a strict tree
@@ -257,6 +266,69 @@ corpora (FeProofs `-O0` 0, `-O1` 73, `-Os` 73, the 265 sidecars of `corpus-v5-fu
 them.  They come after
 `coalesce_copies`; the fresh condition instruction is then a new output value, its term unfolded
 through output definitions (ruling R-11.1).
+
+## `coalesce_copies` (phase 2, stage 1 of ruling R-11.4)
+
+What Sonatina does (`crates/codegen/src/isa/evm/machine/copy.rs` at `machine-steps` `0585e54f`,
+called last in `machine/pipeline.rs:76-79`; design §4.10 and review H-6 describe less):
+- `copy_run` (`:109-172`), from each start position of a block, greedily, the longest valid
+  prefix: `evm_mload` of the source address plus `32 i`, `evm_mstore` of load `i`'s result at the
+  destination address plus `32 i`, with only `evm_mload`, `evm_mstore`, `add`, `sub` in the
+  window (`:167`: any `add`/`sub`), `n ≥ 2` words, each load's result used once (`:131`);
+- addresses as affine forms (`address`, `:69-107`): `add x imm`, `add imm x`, `sub x imm` chains
+  of any length, to an immediate or a base value, offsets modulo `2 ^ 256`;
+- all loads before the first store (snapshot), or both ranges constant (`u32`) and disjoint
+  (`:149-155`); a constant address must have a `u32` range (`:152`); wrapping is left to EVM gas
+  (`:156-158`);
+- the last store is replaced in place (its instruction id) by `evm_mcopy dest src len`, `dest`
+  and `src` the first store's and the first load's address operands as written, `len` a new
+  immediate; the window's other instructions are erased if they have no result or an unused one
+  (`:27-38`): the loads, the other stores, unused `add`/`sub`; used ones stay in place.
+
+In the four corpora (FeProofs `-O0`/`-O1`/`-Os` and the 265 sidecars of `corpus-v5-full`): 229
+steps, 819 copies; every change is a store replaced by `evm_mcopy` or a deleted `evm_mload`,
+`evm_mstore` or `add`; source and destination normalize to constants in 676 copies (278 snapshot,
+398 interleaved, none overlapping, none past `u32`), to a base value in 143 (all snapshot).
+
+The checker (`checkCoalesce`, stage 1): the output has the input's blocks in order with their
+ids, phis and terminators; each output block's statements are the input block's in order, where
+a window may become its kept `add`/`sub` statements, in order, then the copy (`cbodyOk`,
+`keptOk`); a window (`runOk`) holds only loads with one result, stores, and `add`/`sub` with one
+result, ends in a store, has `n ≥ 2` loads `l_i` at `s + 32 i` and `n` stores `t_i` of `l_i`'s
+result at `d + 32 i` (`addrNorm` over the input's definitions in reachable blocks, a bounded
+walk whose early stop only leaves a larger base), each load used once in the input function
+(`useCount`), the copy `evm_mcopy d s (32 n)` with `d`, `s` the first store's and first load's
+address operands; both ranges constant, each ending at or below `2 ^ 256` in `Nat` (the
+checker's own bound, not the compiler's `u32`), and snapshot or disjoint in `Nat`.  Deletions
+are only a window's loads, its other stores and its `add`/`sub` (a deleted store is tied to its
+window), and every deleted result is neither defined nor used in the output (`unusedOk'`).  The
+copy's `d` and `s` are values the output must have bound at the copy: the check does not check
+the output's SSA; an unbound operand makes the output stuck, which the simulation allows, and
+`unusedOk'` keeps every value the output reads defined in it.  Several windows in one block and
+in one function are accepted.  Tests: two words snapshot and interleaved, `add`/`sub` chains (the
+arithmetic deleted, three words), a kept `add`, two runs in a block and one in another;
+mutants: overlapping interleaved ranges, a length other than `32 n`, store `i` of another load,
+a load used twice, a base-relative run, a deleted store outside a window, a changed copy operand,
+non-contiguous addresses, another instruction in the window, one word, a range past `2 ^ 256`, a
+kept `add` moved after the copy.
+
+**OPEN (stage 2, ruling R-11.4):** base-relative runs are rejected and counted (`allowBase =
+false`): 143 of 819 copies; steps rejected FeProofs `-O0` 68 of 149, `-O1` 12 of 26, `-Os` 12 of
+26, the 265 14 of 28; sections with a base-relative copy FeProofs `-O0` 7, `-O1` 5, `-Os` 5, the
+265 7.  Reason: the model's `mcopy` (`Fe/EVM/World.lean:131`) reads and writes at `Nat` addresses
+and never diverges, while the `add`s that build a base-relative run's addresses wrap modulo
+`2 ^ 256`; review C-1's divergence of `evm_mcopy` past `2 ^ 256` is not implemented.  Stage 2
+(the model's `mcopy` diverging, the byte checker's `MCOPY` event, the out-of-gas lemma) goes to
+the dialect line.
+
+**OPEN: the soundness proof of stage 1 is not done** (the user's pause).  What it needs: a
+memory lemma (the window's loads and stores, snapshot or disjoint, leave the bytes `mcopy d s L`
+leaves; stated on the memory alone, so that a diverging `mcopy` in stage 2 only adds a case), the
+round trip of a word through `readWithPadding` and `mstore`; the soundness of `addrNorm` (L2 on
+the input: a normalized address's value is the base's plus the offset modulo `2 ^ 256`, as
+`branch_canonicalize`'s `peel_sound` does for `is_zero`); the window's execution on both sides
+(no calls, total by the definedness invariant); and the block-for-block simulation of
+`BranchCanonSound` with windows in place of deleted `is_zero`s.
 
 ## Review 6 (phase 1) findings taken up in phase 2
 
@@ -353,6 +425,13 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
     steps are accepted; no summary table fails.  Unproved steps: `sccp_fold` 133,
     `known_bits_simplify` 94, `scalar_canonicalize` 48, `lower_switches` 45, `coalesce_copies`
     28, `gvn_rewrite` 23, `adce` 9, `gvn_prune` 4.
+
+- Phase 2, with the `coalesce_copies` checker (stage 1; no proof yet) allowed as well, the
+  sections accepted end to end by the checkers: FeProofs `-O0` 33 of 40 (7 rejected, all at a
+  base-relative copy); `-O1` 21 of 40 and `-Os` 21 of 40 (first rejected kind unchanged:
+  `scalar_canonicalize` 8, `known_bits_simplify` 7, `sccp_fold` 4); the 265: 351 of 530 (first
+  rejected kind unchanged).  With the four proved kinds only: `-O0` 19, `-O1` 21, `-Os` 21, the
+  265 351.
 
 ## Not done
 
