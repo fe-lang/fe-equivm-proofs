@@ -21,7 +21,10 @@ namespace FeProofs.ScalarStore.Spec
     contracts. -/
 abbrev host : Fe.Host.Host Env World := specHost 0 []
 
-/-- The interpreter's runtime entry of FeScalarStore on the EVM (`specEntry`). -/
+/-- The interpreter's runtime entry of FeScalarStore on the EVM (`specEntry`).  `specEntry`'s
+    `reserve` (low memory grown to `0x60` bytes) is an EVM-host entry shim outside
+    `Fe.Sem.runtime`, the same one the exported entry starts with; a `SpecError` is made
+    divergence, which `runtime_exits` rules out. -/
 def runtimeM : FeM ByteArray := specEntry (Fe.Sem.runtime Fe.Proofs.scalarStore host)
 
 /-- On calldata with the selector of `get()`, the interpreter's runtime entry ends as the
@@ -161,15 +164,58 @@ theorem runtime_endsAs (I : ExecutionEnv) (w : World) (hmem : w.memory.size + 32
   · exact get_endsAs I w hmem hsz hfits h0 h1
   · exact noMatch_endsAs I w hsz hfits h0 h1
 
+/-- **The interpreter never gives up on FeScalarStore**: on calldata below `2 ^ 64` bytes, the
+    interpreter's runtime entry on the EVM host, from reserved memory, ends in a Fe exit (a
+    return, a revert or a stop): never a `SpecError` and never divergence.  (`RefinesOn` alone
+    would admit a model that diverges where the bytecode is `Exhausted`; this rules it out.) -/
+theorem runtime_exits (I : ExecutionEnv) (w : World) (hmem : w.memory.size + 32 < UInt256.size)
+    (hfits : I.calldata.size < 2 ^ 64) :
+    ∃ f, (((Fe.Sem.runtime Fe.Proofs.scalarStore host).run {}).run).exec I w.reserved =
+      some (.error f) := by
+  have hm : ∃ y, Model.runtime.exec I w = some y := by
+    by_cases hsz : 4 ≤ I.calldata.size
+    swap
+    · exact ⟨_, runtime_short (by omega)⟩
+    by_cases h0 : selIs I (feScalarStoreSelBytes 0)
+    · by_cases hwv : I.weiValue = ⟨0⟩
+      swap
+      · exact ⟨_, runtime_set_value hsz h0 hwv⟩
+      by_cases hbad : BadHead I.calldata 1
+      · exact ⟨_, runtime_set_head hsz h0 hwv hbad⟩
+      cases hperm : I.perm
+      · exact ⟨_, runtime_set_static hsz h0 hwv hbad hperm⟩
+      · exact ⟨_, runtime_set hsz h0 hwv hbad hperm⟩
+    by_cases h1 : selIs I (feScalarStoreSelBytes 1)
+    · by_cases hwv : I.weiValue = ⟨0⟩
+      · exact ⟨_, runtime_get hsz h0 h1 hwv⟩
+      · exact ⟨_, runtime_get_value hsz h0 h1 hwv⟩
+    · exact ⟨_, runtime_noMatch hsz h0 h1⟩
+  have h := runtime_endsAs I w hmem hfits
+  obtain ⟨y, hy⟩ := hm
+  rw [hy] at h
+  generalize hr : runtimeM.exec I w = r at h
+  cases h <;> obtain ⟨f, -, hf⟩ := specEntry_exits hr <;> exact ⟨f, hf⟩
+
 /-- FeScalarStore with the interpreter's runtime entry.  Deployment is the exported one: the
-    interpreter's `initEntry` is not proved here. -/
+    interpreter's `initEntry` is proved in `SpecDeploy.lean` (`fullContract`). -/
 def contract : ContractModel := { Exported.contract with runtime := runtimeM }
 
 /-- **The runtime bytecode of FeScalarStore refines fe-spec's interpreter** of its serialized
     program on the EVM host, at profile `P1` (accounts, return data, logs and revert payloads),
     on calldata below `2 ^ 64` bytes: the exported contract's `P1` certificate
     (`feScalarStoreRefinesExportedP1`, through the Sonatina sidecar), transferred because the
-    interpreter and the exported entry both end as the hand-written model does. -/
+    interpreter and the exported entry both end as the hand-written model does.
+
+    The claim is this theorem together with `runtime_exits`: `RefinesOn` admits a diverging
+    model wherever the bytecode is `Exhausted`, and `specEntry` makes a `SpecError` divergence,
+    so this type alone does not say the interpreter never gives up; `runtime_exits` does.
+
+    `CalldataFits` is load-bearing.  For calldata of `2 ^ 64` bytes or more the interpreter and
+    the bytecode differ in both directions: the interpreter, following std, checks the
+    calldata size truncated to `u64` (`size % 2 ^ 64 < 36`, `set_entry_spec`), while the
+    bytecode checks the full size (`BadHead`: Sonatina removes the `trunc i64; zext i256` of
+    the size under its calldata-size bound).  This is the known calldata-size assumption of
+    every certificate here, not a new divergence. -/
 theorem feScalarStoreRefinesSpec : RefinesOn .P1 feScalarStoreBytecode contract CalldataFits :=
   RefinesOn.of_common Sonatina.feScalarStoreRefinesExportedP1 rfl Model.runtime
     (fun σ A feed I hfits => Exported.runtime_endsAs I (World.init σ A feed)

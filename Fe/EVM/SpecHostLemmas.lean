@@ -142,6 +142,20 @@ def specEntry (m : Fe.Sem.InterpM Env World Empty) : FeM ByteArray := do
   | .ok (e, _) => nomatch e
   | .error _ => Fe.M.diverge
 
+/-- An interpreter entry on the EVM host that ends ends in a Fe exit of the interpreter's own
+    run (from reserved memory), never in a `SpecError`, which `specEntry` makes divergence. -/
+theorem specEntry_exits {m : Fe.Sem.InterpM Env World Empty} {I : ExecutionEnv} {w : World}
+    {y : Except (Exit World) (ByteArray × World)} (h : (specEntry m).exec I w = some y) :
+    ∃ f, y = .error f ∧ ((m.run {}).run).exec I w.reserved = some (.error f) := by
+  simp only [specEntry, M.exec_bind, exec_reserve] at h
+  rcases hx : ((m.run {}).run).exec I w.reserved with _ | f | ⟨r, w'⟩
+  · simp [hx] at h
+  · simp only [hx, Option.some.injEq] at h
+    exact ⟨f, h.symm, rfl⟩
+  · rcases r with e | ⟨e, _⟩
+    · simp [hx] at h
+    · exact e.elim
+
 /-- A result that agrees with a run agrees with the run it ends as. -/
 theorem Agrees.to_endsAs {p : Profile} {evm : EvmResult}
     {e m : Option (Except (Exit World) (ByteArray × World))}
