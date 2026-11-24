@@ -232,7 +232,7 @@ on sequences of generated calls, in an Osaka block, the fork Fe compiles for (EV
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
 The audit compares a third run of each creation and call: fe-spec's interpreter
-(`../fe-spec-evm`, a formal semantics of Fe) on the contract's normalized IR, which the
+(`../fe-spec`, a formal semantics of Fe) on the contract's normalized IR, which the
 exporter's corpus driver serializes next to each Lean file (`<file>_<n>.ir.json`, or
 `<file>_<n>.ir.refused` with the construct the serializer stopped at). The interpreter runs on
 `specHost` (`Fe/EVM/SpecHost.lean`), fe-spec's host interface implemented by the operations of
@@ -361,7 +361,7 @@ primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`, `Calls.lean`), the ref
 entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`) and the
 host they run fe-spec's interpreter on (`EVM/SpecHost.lean`). The monad of exported code
 (`Fe.Core`, `Fe.Partial`) and the commands that embed exported text (`Fe.Embed`) are
-fe-spec's (`../fe-spec-evm`), a dependency by path: one library under the root `Fe` per package,
+fe-spec's (`../fe-spec`), a dependency by path: one library under the root `Fe` per package,
 each naming its modules (`globs`). Lean's search path cannot split a root between two packages,
 so a file that imports both elaborates with `lake lean <file>`, which hands `lean` the location
 of each module, not with `lake env lean`.

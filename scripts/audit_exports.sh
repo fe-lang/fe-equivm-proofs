@@ -4,7 +4,7 @@
 # file also runs its Fe tests in EVMLean and compares each call they make on an exported
 # contract with the contract's model (`Fe/EVM/Diff.lean`), and does the same for sequences of
 # generated calls on each contract (`Fe/EVM/Generate.lean`).  Each comparison also runs fe-spec's
-# interpreter (`../fe-spec-evm`) on the contract's IR, which the exporter's corpus driver writes
+# interpreter (`../fe-spec`) on the contract's IR, which the exporter's corpus driver writes
 # next to each file, and compares it with the model and the bytecode (`Fe/EVM/SpecHost.lean`).
 #
 # Usage: scripts/audit_exports.sh <fe checkout> [regex over file paths]

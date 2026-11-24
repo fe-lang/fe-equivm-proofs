@@ -6,7 +6,7 @@ import Fe.Sem.Bounded
 /-!
 # fe-spec's interpreter on the EVM
 
-fe-spec (`../fe-spec-evm`) defines what a Fe program means by an interpreter of the compiler's
+fe-spec (`../fe-spec`) defines what a Fe program means by an interpreter of the compiler's
 normalized IR, parametric in a host: the primitive operations of the target, in the model monad
 `Fe.M`.  `specHost` is that host on the world of an exported model, each operation the one of
 `World.lean` or `Calls.lean` that exported code calls for it, with words as `Nat`s at the

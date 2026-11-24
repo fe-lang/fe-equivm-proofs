@@ -6,7 +6,7 @@
    "name": "«fe-spec»",
    "manifestFile": "lake-manifest.json",
    "inherited": false,
-   "dir": "../fe-spec-proofs",
+   "dir": "../fe-spec",
    "configFile": "lakefile.toml"},
   {"url": "https://github.com/sbillig/EquiVM",
    "type": "git",

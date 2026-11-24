@@ -8,7 +8,7 @@
 # Usage: scripts/check_corpus.sh <fe checkout>
 #   BLESS=1 first copies the results to the expected file.  EXPECTED names another expected
 #   file: scripts/expected/exports3.txt holds the three-way audit's, with fe-spec at
-#   ../fe-spec-evm and a Fe checkout whose exporter serializes the IR (README, "Differential
+#   ../fe-spec and a Fe checkout whose exporter serializes the IR (README, "Differential
 #   tests").
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd -P)
