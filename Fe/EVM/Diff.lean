@@ -369,6 +369,7 @@ def differs (model interp : Outcome) : Option String :=
 def describeSpec : Fe.Sem.SpecError → String
   | .unsupported what => s!"unsupported {what}"
   | .malformed what => s!"malformed {what}"
+  | .obligation o what => s!"obligation {repr o} broken: {what}"
 
 /-- How the interpreter's run went, for one creation or call. -/
 inductive Interp where
