@@ -422,8 +422,8 @@ structure Interface where
 /-- A contract: its creation code without arguments, its runtime code without immutable
     fields, its exported model if the exporter exports it, and its interface.  `ir` is where the corpus driver
     wrote the contract's IR, `<ir>.ir.json`, or why it is not serialized, `<ir>.ir.refused`; empty
-    when the interpreter is not run on the target.  `load` reads it into `spec`: the program, or
-    why there is none. -/
+    when the interpreter is not run on the target.  `irLibrary` is the library file the contract's
+    IR is linked against.  `load` reads them into `spec`: the program, or why there is none. -/
 structure Target where
   name : String
   creation : ByteArray
@@ -431,6 +431,7 @@ structure Target where
   model : Option ContractModel
   interface : Interface := {}
   ir : String := ""
+  irLibrary : String := ""
   spec : Option (Except String Fe.IR.Program) := none
   /-- The creation codes of the contracts the contract may deploy, by name. -/
   creations : List (String × ByteArray) := []
@@ -446,7 +447,7 @@ def Target.load (t : Target) : IO Target := do
   let refused : System.FilePath := t.ir ++ ".ir.refused"
   let spec ←
     if ← json.pathExists then
-      pure (match Fe.IR.Program.ofJson (← IO.FS.readFile json) with
+      pure (match Fe.IR.Program.ofJson (← IO.FS.readFile t.irLibrary) (← IO.FS.readFile json) with
         | .ok prog => .ok prog
         | .error e => .error s!"the IR does not read: {e}")
     else if ← refused.pathExists then
