@@ -249,3 +249,12 @@ fn sweep_fail_aliased() uses (evm: mut Evm) {
     let _ = send(r, encode_msg_calldata(Review3Msg::Fail { v: 7 }))
     let _ = send(r, encode_msg_calldata(Review3Msg::Aliased {}))
 }
+
+/// Elements whose lane `locate` puts past the slot's 256 bits (key 40: offset 320), where
+/// `runChecked` reports a typing violation.
+#[test]
+fn put_past_the_word() uses (evm: mut Evm) {
+    let r = evm.create2<Review3>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(r, encode_msg_calldata(Review3Msg::Put { k: 2, v: 2 }))
+    let _ = send(r, encode_msg_calldata(Review3Msg::Put { k: 40, v: 2 }))
+}
