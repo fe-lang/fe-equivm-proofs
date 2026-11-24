@@ -355,17 +355,39 @@ def Expr.isOp : Expr → Bool
   | .atom _ | .const _ | .op1 .ISZERO _ => false
   | _ => true
 
+/-- The instruction's word is a message call's success flag, 0 or 1. -/
+def _root_.Fe.Sonatina.Inst.flag : Inst → Bool
+  | .evm .call _ | .evm .staticCall _ | .evm .delegateCall _ => true
+  | _ => false
+
+/-- A comparison, whose word is 0 or 1. -/
+def Expr.isCmp : Expr → Bool
+  | .op2 op _ _ => [Operation.LT, .SLT, .EQ].contains op
+  | _ => false
+
+/-- Two `ISZERO`s of an expression. -/
+def Expr.notNot (e : Expr) : Expr := .op1 .ISZERO (.op1 .ISZERO e)
+
+/-- The node naming value `id` by two `ISZERO`s of it, if its word is 0 or 1 (`b`): after a
+    comparison or a message call the backend drops a run of `ISZERO`s to its parity (`stack.rs`,
+    `prune_redundant_opcode_sequences`, `is_bool_producer_opcode`), so the bytes hand on the
+    flag where the IR has `is_zero` of `is_zero` of it. -/
+def Canon.flagNodes (id : Nat) (b : Bool) : List (Expr × Nat) :=
+  if b then [((Expr.atom id).notNot, id)] else []
+
 /-- Number one more definition: a pure value is the first value with its operation on the
     same expressions (its node), or the constant the operation folds to; any other value is
     itself.  A value numbered already keeps its expression, as `List.lookup` finds a value's
-    first definition. -/
+    first definition.  A message call's flag and a comparison also name two `ISZERO`s of
+    themselves (`Canon.flagNodes`). -/
 def Canon.step (symbols : List (String × Nat × Nat)) (k : Canon) (d : Nat × Inst) : Canon :=
   if (k.vals.lookup d.1).isSome then k else
   match pureWith k.expand symbols d.2 with
-  | none => ⟨(d.1, .atom d.1) :: k.vals, k.nodes⟩
+  | none => ⟨(d.1, .atom d.1) :: k.vals, Canon.flagNodes d.1 d.2.flag ++ k.nodes⟩
   | some e => match k.nodes.lookup e with
     | some w => ⟨(d.1, .atom w) :: k.vals, k.nodes⟩
-    | none => if e.isOp then ⟨(d.1, .atom d.1) :: k.vals, (e, d.1) :: k.nodes⟩
+    | none => if e.isOp then
+        ⟨(d.1, .atom d.1) :: k.vals, (e, d.1) :: Canon.flagNodes d.1 e.isCmp ++ k.nodes⟩
       else ⟨(d.1, e) :: k.vals, k.nodes⟩
 
 /-- The expressions of the values of definitions, numbered in order. -/

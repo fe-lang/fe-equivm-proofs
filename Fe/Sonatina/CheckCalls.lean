@@ -973,14 +973,20 @@ theorem exitOf_ret_eq {c : Ctx} {t : Term} {vals : List Expr}
       cases h
   | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
 
+/-- The word `complete` gives a value an instruction defines: a pure instruction's, and zero
+    for a message call's flag. -/
+def wordOf (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat))
+    (inst : Inst) : Option UInt256 :=
+  instWord ee ρ symbols inst <|> if inst.flag then some (.ofNat 0) else none
+
 /-- The valuation `ρ` with each value the statements define, if `keep` lacks it and its
-    instruction computes a word, set to that word, in order. -/
+    instruction computes a word or is a message call, set to that word (`wordOf`), in order. -/
 def complete (ee : ExecutionEnv) (symbols : List (String × Nat × Nat)) (keep : List Nat) :
     List Stmt → (Nat → UInt256) → Nat → UInt256
   | [], ρ => ρ
   | s :: rest, ρ => complete ee symbols keep rest (match s.local? with
     | some (id, inst) => if id ∈ keep then ρ else
-      ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+      ((wordOf ee ρ symbols inst).map (Function.update ρ id)).getD ρ
     | none => ρ)
 
 /-- A value no statement sets keeps its word. -/
@@ -999,7 +1005,7 @@ theorem complete_same {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)
       dsimp only
       split_ifs with hk
       · rfl
-      · cases hw : instWord ee ρ symbols inst with
+      · cases hw : wordOf ee ρ symbols inst with
         | none => rfl
         | some v =>
           have hne : id ≠ j := fun he => hk (by subst he; exact h s (by simp) _ hj rfl)
@@ -1029,7 +1035,7 @@ theorem complete_eqn {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
     rcases List.mem_cons.mp hs with rfl | hs
     · set ρ1 := (match s.local? with
         | some (id, inst) => if id ∈ keep then ρ else
-          ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+          ((wordOf ee ρ symbols inst).map (Function.update ρ id)).getD ρ
         | none => ρ) with hρ1
       have hinst := local_inst hl
       simp only at hinst
@@ -1044,9 +1050,17 @@ theorem complete_eqn {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
         complete_same rest ρ1 fun t ht p hp he => by
           obtain ⟨ty', hty'⟩ := local_dst hp
           exact absurd (he ▸ hx) (definedAfter_fresh hd t ht _ hty')
-      intro ex e he
+      refine ⟨fun ex e he => ?_, fun hf => ?_⟩
+      swap
+      · have hnw : instWord ee ρ symbols s.inst = none := by
+          unfold Inst.flag at hf
+          split at hf <;> simp_all [instWord, evmPureOpcode]
+        have hρ1 : ρ1 = Function.update ρ id (.ofNat 0) := by
+          simp [hρ1, hl, hk, wordOf, hnw, hf]
+        rw [hkeep id (List.mem_append_right _ (List.mem_map_of_mem hty)), hρ1]
+        simp
       obtain ⟨v, hv⟩ := instWord_some (ee := ee) (ρ := ρ) he fun op args h => har s (by simp) op args h
-      have hρ1 : ρ1 = Function.update ρ id v := by simp [hρ1, hl, hk, hv]
+      have hρ1 : ρ1 = Function.update ρ id v := by simp [hρ1, hl, hk, hv, wordOf]
       have hsame : ∀ x ∈ D, complete ee symbols keep rest ρ1 x = ρ x := fun x hx => by
         rw [hkeep x (List.mem_append_left _ hx), hρ1,
           Function.update_of_ne (fun h : x = id => hidD (by rw [← h]; exact hx))]

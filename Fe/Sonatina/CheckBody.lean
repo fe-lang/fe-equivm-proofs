@@ -287,6 +287,68 @@ theorem bind_one (env : Env) (id : Nat) (ty : Ty) (v : Val) :
 
 theorem bind_nil (env : Env) : Fe.Sonatina.bind env [] [] = pure env := rfl
 
+/-- A message call's word is its success flag, 0 or 1. -/
+theorem message_flag {I : ExecutionEnv} {w w' : World}
+    {gasArg value value' argsPtr argsLen retPtr retLen x : UInt256}
+    {source recipient t : AccountAddress} {perm : Bool}
+    (h : (Fe.EVM.message gasArg source recipient t value value' argsPtr argsLen retPtr retLen
+      perm).exec I w = some (.ok (x, w'))) :
+    x = .ofNat 0 ∨ x = .ofNat 1 := by
+  cases hf : w.feed with
+  | nil => simp [Fe.EVM.message, Fe.EVM.next, hf] at h
+  | cons s rest =>
+    simp only [Fe.EVM.message, Fe.EVM.next, hf, Fe.M.exec_bind, Fe.M.exec_read, Fe.M.exec_get,
+      Fe.M.exec_set, Fe.M.exec_pure] at h
+    split at h <;> simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at h <;>
+      rw [← h.1] <;> split <;> first | exact .inr rfl | exact .inl rfl
+
+theorem call_flag {I : ExecutionEnv} {w w' : World} {g a v ap al rp rl x : UInt256}
+    (h : (Fe.EVM.call g a v ap al rp rl).exec I w = some (.ok (x, w'))) :
+    x = .ofNat 0 ∨ x = .ofNat 1 := by
+  unfold Fe.EVM.call at h
+  simp only [Fe.M.exec_bind, Fe.M.exec_read] at h
+  split at h
+  · change (Fe.M.fail .static : FeM UInt256).exec I w = _ at h
+    simp at h
+  · exact message_flag h
+
+theorem staticcall_flag {I : ExecutionEnv} {w w' : World} {g a ap al rp rl x : UInt256}
+    (h : (Fe.EVM.staticcall g a ap al rp rl).exec I w = some (.ok (x, w'))) :
+    x = .ofNat 0 ∨ x = .ofNat 1 := by
+  unfold Fe.EVM.staticcall at h
+  simp only [Fe.M.exec_bind, Fe.M.exec_read] at h
+  exact message_flag h
+
+theorem delegatecall_flag {I : ExecutionEnv} {w w' : World} {g a ap al rp rl x : UInt256}
+    (h : (Fe.EVM.delegatecall g a ap al rp rl).exec I w = some (.ok (x, w'))) :
+    x = .ofNat 0 ∨ x = .ofNat 1 := by
+  unfold Fe.EVM.delegatecall at h
+  simp only [Fe.M.exec_bind, Fe.M.exec_read] at h
+  exact message_flag h
+
+theorem evRun_flag {ee : ExecutionEnv} {opc : Operation} {args : List UInt256} {w w' : World}
+    {x : UInt256} (hc : opc = .CALL ∨ opc = .STATICCALL ∨ opc = .DELEGATECALL)
+    (h : (evRun opc args).exec ee w = some (.ok (some x, w'))) : x = .ofNat 0 ∨ x = .ofNat 1 := by
+  rcases hc with rfl | rfl | rfl
+  all_goals
+    unfold evRun at h
+    split at h
+    all_goals first | (rename_i heq; simp at heq; done) | skip
+    all_goals (try simp only [Fe.M.exec_map] at h)
+    all_goals (try split at h)
+    all_goals (try simp only [Option.some.injEq, Except.ok.injEq, Prod.mk.injEq,
+      reduceCtorEq] at h)
+    all_goals (try simp at h)
+  · rename_i heq; obtain ⟨rfl, -⟩ := h; exact call_flag heq
+  · rename_i heq; obtain ⟨rfl, -⟩ := h; exact staticcall_flag heq
+  · rename_i heq; obtain ⟨rfl, -⟩ := h; exact delegatecall_flag heq
+
+/-- A message call's instruction is not pure. -/
+theorem flag_pure {inst : Inst} (hf : inst.flag = true) (ex : Nat → Option Expr)
+    (symbols : List (String × Nat × Nat)) : pureWith ex symbols inst = none := by
+  unfold Inst.flag at hf
+  split at hf <;> simp_all [pureWith, evmPureOpcode]
+
 /-- A read gives a word, a write none. -/
 theorem evRun_result {ee : ExecutionEnv} {opc : Operation} {args : List UInt256} {w w' : World}
     {r : Option UInt256} (h : (evRun opc args).exec ee w = some (.ok (r, w'))) :
@@ -330,6 +392,14 @@ theorem eventWith_cases {expand : Nat → Option Expr} {inst : Inst} {opc : Oper
     obtain ⟨rfl, rfl⟩ := h
     exact .inr ⟨a, _, rfl, rfl, rfl, ha⟩
   | _ => simp [eventWith] at h
+
+/-- A message call's instruction is an event of `CALL`, `STATICCALL` or `DELEGATECALL`. -/
+theorem flag_opc {expand : Nat → Option Expr} {inst : Inst} {opc : Operation} {es : List Expr}
+    (hf : inst.flag = true) (h : eventWith expand inst = some (opc, es)) :
+    opc = .CALL ∨ opc = .STATICCALL ∨ opc = .DELEGATECALL := by
+  rcases eventWith_cases h with ⟨op, os, rfl, hopc, -⟩ | ⟨a, e, rfl, -, -, -⟩
+  · cases op <;> simp_all [Inst.flag, evmEventOpcode]
+  · simp [Inst.flag] at hf
 
 theorem evmEvent_not_pure {op : EvmOp} {opc : Operation} (h : evmEventOpcode op = some opc) :
     evmPureOpcode op = none := by
@@ -524,13 +594,14 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
       have hc' : ∀ ρ, WordsOf env₁ ρ (D ++ [id]) → Cons ee ρ c (D ++ [id]) := by
         intro ρ hρ
         have hc0 := hc ρ (WordsOf.agree hagree (fun id' h' => hρ id' (List.mem_append_left _ h')))
-        have heqn : Eqn ee ρ c.symbols id s.inst := fun _ _ _ => by
+        have heqn : Eqn ee ρ c.symbols id s.inst := ⟨fun _ _ _ => by
           have hsame := WordsOf.same (WordsOf.agree hagree (fun x hx => hρ x
             (List.mem_append_left _ hx))) hw₁
           rw [instWord_congr hsame hr, hv]
           congr 1
           exact word_inj (Option.some.inj ((show env₁[id]? = some (Val.int 256 v.toNat) by
-            simp [env₁]).symm.trans (hρ id (by simp))))
+            simp [env₁]).symm.trans (hρ id (by simp)))), fun hf => by
+          rw [Ctx.pureExpr, flag_pure hf] at hpe; cases hpe⟩
         refine hc0.mono (fun x hx => List.mem_append_left _ hx) fun id' h' hn => ?_
         have : id' = id := by simpa [hn] using h'
         subst this
@@ -650,9 +721,12 @@ theorem body_run {ee : ExecutionEnv} {m : Module} {ic : Fe.Sonatina.Ctx} {c : Ct
           have hc' : ∀ ρ, WordsOf env₁ ρ (D ++ [id]) → Cons ee ρ c (D ++ [id]) := by
             intro ρ hρ
             have hc0 := hc ρ (WordsOf.agree hagree fun id' h' => hρ id' (hsub id' h'))
-            have heqn : Eqn ee ρ c.symbols id s.inst := fun ex e he' => by
+            have heqn : Eqn ee ρ c.symbols id s.inst := ⟨(fun ex e he' => by
               rw [hnp] at he'
-              cases he'
+              cases he'), fun hf => by
+              rw [← word_inj (Option.some.inj ((show env₁[id]? = some (Val.int 256 v.toNat) by
+                simp [env₁]).symm.trans (hρ id (by simp))))]
+              exact evRun_flag (flag_opc hf hev) hE⟩
             refine hc0.mono hsub fun id' h' hn => ?_
             have : id' = id := by simpa [hn] using h'
             subst this
