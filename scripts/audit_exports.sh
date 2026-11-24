@@ -23,8 +23,8 @@ ln -sfn "$out" "$root/.lake/export-corpus/latest"
 # bytewise, so that the order does not depend on the locale or on where the checkouts are.
 files=$( {
   ls -d "$fe"/crates/fe/tests/fixtures/fe_test/*.fe | LC_ALL=C sort
-  # The exporter's IR fixtures of fe-spec's code reviews, and others the interpreter's tests
-  # name, which the corpus does not reach.
+  # The IR fixtures of the exporter for the code reviews of fe-spec, and others the tests of
+  # the interpreter name, which the corpus does not reach.
   ls -d "$fe"/crates/lean-export/tests/fixtures/ir/*.fe | LC_ALL=C sort
   for name in lane_holds immutables trust; do ls -d "$fe/crates/lean-export/tests/fixtures/$name.fe"; done
   ls -d "$root"/FeProofs/*/*.fe | LC_ALL=C sort
