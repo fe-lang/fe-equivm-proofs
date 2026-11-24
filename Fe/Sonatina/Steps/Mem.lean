@@ -458,8 +458,7 @@ theorem approx_selfdestruct (a : UInt256) :
   unfold Fe.EVM.selfdestruct
   refine Approx.read_bind fun I => Approx.ite (Approx.fail _ (by simp))
     (Approx.bind_eq approx_next fun sp => Approx.get_bind fun w' w hw => ?_)
-  simp only [hw.accounts]
-  exact Approx.bind (Approx.set ⟨rfl, rfl, hw.3, rfl, rfl, rfl⟩) fun _ _ _ => by
-    unfold Fe.M.stop; approx_prim
+  exact Approx.bind (Approx.set ⟨by simp only [hw.accounts], hw.logs, hw.memory, hw.returnData,
+    hw.feed, hw.calls⟩) fun _ _ _ => by unfold Fe.M.stop; approx_prim
 
 end Fe.Sonatina.Steps
