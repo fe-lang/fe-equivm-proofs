@@ -172,18 +172,21 @@ def Expr.cmp : Expr → Expr → Ordering
 /-- The commutative opcodes. -/
 def commutative : List Operation := [.ADD, .MUL, .AND, .OR, .XOR, .EQ]
 
-/-- An operation on two operands in one form: `GT` and `SGT` as `LT` and `SLT` on swapped
-    operands, a commutative operation with the greater operand on top. -/
-def normalize (op : Operation) (a b : Expr) : Expr :=
-  if op == .GT then .op2 .LT b a
-  else if op == .SGT then .op2 .SLT b a
-  else if commutative.contains op && a.cmp b == .lt then .op2 op b a
-  else .op2 op a b
-
 /-- An operation on one operand in one form: three `ISZERO`s as one. -/
 def unary : Operation → Expr → Expr
   | .ISZERO, .op1 .ISZERO (.op1 .ISZERO a) => .op1 .ISZERO a
   | op, a => .op1 op a
+
+/-- An operation on two operands in one form: `EQ` with zero as `ISZERO`, as the backend emits
+    `PUSH0 EQ` (`stack.rs`, the stack peepholes), `GT` and `SGT` as `LT` and `SLT` on swapped
+    operands, a commutative operation with the greater operand on top. -/
+def normalize (op : Operation) (a b : Expr) : Expr :=
+  if op == .EQ && b == .const 0 then unary .ISZERO a
+  else if op == .EQ && a == .const 0 then unary .ISZERO b
+  else if op == .GT then .op2 .LT b a
+  else if op == .SGT then .op2 .SLT b a
+  else if commutative.contains op && a.cmp b == .lt then .op2 op b a
+  else .op2 op a b
 
 /-- An expression of an operation on operands, top first; on constants an arithmetic or logic
     operation is its result, as the bytes compute a constant the IR writes as one. -/
@@ -614,10 +617,18 @@ inductive Way where
   | exit (e : Exit)
   | never
 
-/-- The case a condition compares the scrutinee `s` with. -/
+/-- The case a condition compares the scrutinee `s` with: `ISZERO` of it is case zero. -/
 def Expr.caseOf (s : Expr) : Expr → Option Nat
   | .op2 .EQ (.const k) s' | .op2 .EQ s' (.const k) => if s' == s then some k else none
+  | .op1 .ISZERO s' => if s' == s then some 0 else none
   | _ => none
+
+/-- An expression without the `ISZERO`s around it, and whether they are an odd number: the
+    expression's word is not zero just when the rest's is not, or is, for an odd number.  The
+    backend drops two `ISZERO`s before a `JUMPI` (`stack.rs`, the stack peepholes). -/
+def Expr.peel : Expr → Expr × Bool
+  | .op1 .ISZERO a => (a.peel.1, !a.peel.2)
+  | e => (e, false)
 
 /-- What a jump's condition says of the block's exit when the jump is taken (`true`) or not:
     the successor it selects, the `br_table` with more cases ruled out, or that the jump never
@@ -631,8 +642,8 @@ def Exit.way (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
         some (.succ (if kc % UInt256.size != 0 then nz else z))
       else some .never
     | _, _ =>
-      if cond == c then some (.succ (if taken then nz else z))
-      else if cond == .op1 .ISZERO c then some (.succ (if taken then z else nz))
+      if cond.peel.1 == c.peel.1 then
+        some (.succ (if taken != (cond.peel.2 != c.peel.2) then nz else z))
       else none
   | .table s default cases ruled =>
     match s.caseOf cond with
