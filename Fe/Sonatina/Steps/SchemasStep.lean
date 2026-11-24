@@ -15,8 +15,11 @@ one value (`try_fold_phi`).
 
 **Frame** (review 13, finding 3).  The checks stand on their own under `f.wf` of the input: the
 output keeps the input's name, parameters and results, is machine IR, every output operand is
-well formed (`Operand.wf`: an `i256` immediate below `2 ^ 256`), and both snapshots have one id
-per line of every block (no `zip` truncates).
+well formed (`Operand.wf`: an `i256` immediate below `2 ^ 256`), and both snapshots have one
+distinct id per line of every block (no `zip` truncates).  The output is also `wordTyped`,
+`cfgOk` and its terminators `Term.wf`: with the pairing (every output statement but an
+`is_zero` is an input statement with operands substituted) that makes it `Func.wf` under the
+input's `sig` and `syms`, which L2 on the output side needs.
 
 **Pairing** (`pairBlock`).  The output has the input's blocks, in order, with the same ids.  In
 each block the output's lines are input lines of the same instruction id, in order; the input
@@ -464,7 +467,9 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
   | none => some .noIds
   | some is =>
   if !(s.func.name == f.name && decide (s.func.params = f.params) && decide (s.func.rets = f.rets)
-      && s.func.machine && opsWf s.func) then some .frame else
+      && s.func.machine && opsWf s.func && s.func.wordTyped && s.func.cfgOk &&
+      s.func.blocks.all (·.term.wf s.func.rets.length) && distinct is.flatten &&
+      distinct s.insts.flatten) then some .frame else
   match pairFunc f is s with
   | none => some .pairing
   | some (pairs, deleted) =>
