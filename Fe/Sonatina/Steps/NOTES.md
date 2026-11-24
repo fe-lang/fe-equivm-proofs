@@ -252,8 +252,9 @@ checker.  The proof (`branchCanon_sound`): block-for-block simulation (`BR`), th
 read through L2 (`peel_sound`).
 
 **OPEN:** the zero-compare → new `is_zero` rewrite (`:91-97`, `:244-257`) and the inverted-compare
-rewrite (`:98-109`) are rejected and counted: 0 of 913 `branch_canonicalize` steps in the four
-corpora (FeProofs `-O0` 0, `-O1` 73, `-Os` 73, `corpus-v5-full` 767) use them.  They come after
+rewrite (`:98-109`) are rejected and counted: 0 of 767 `branch_canonicalize` steps in the four
+corpora (FeProofs `-O0` 0, `-O1` 73, `-Os` 73, the 265 sidecars of `corpus-v5-full` 621) use
+them.  They come after
 `coalesce_copies`; the fresh condition instruction is then a new output value, its term unfolded
 through output definitions (ruling R-11.1).
 
@@ -333,12 +334,11 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
     `coalesce_copies` step; `-O1` and `-Os` 1 accepted, 39 rejected at their first
     `branch_canonicalize` step.  Every `cfg_cleanup` step (92 at `-O1`, 91 at `-Os`) and every
     `edge_split` step (6, 89, 89) is accepted; no pass's summary table fails.
-  - The `-O1` dialect corpus (`dialect/corpus-v5-full`, 325 sidecars, 650 sections): 24
-    accepted; 604 rejected at their first `branch_canonicalize` step, 21 at `coalesce_copies`,
-    1 at `known_bits_simplify`.  All 600 `cfg_cleanup` and 591 `edge_split` steps are accepted;
-    no summary table fails.  Unproved steps: `branch_canonicalize` 767, `coalesce_copies` 229,
-    `sccp_fold` 203, `known_bits_simplify` 110, `scalar_canonicalize` 92, `gvn_rewrite` 49,
-    `lower_switches` 48, `adce` 23, `gvn_prune` 4.
+  - The `-O1` dialect corpus (`dialect/corpus-v5-full`; these counts include its
+    `feproofs-O0/-O1/-Os` subdirectories, 325 sidecars and 650 sections in all, so FeProofs is
+    counted twice): 24 accepted; 604 rejected at their first `branch_canonicalize` step, 21 at
+    `coalesce_copies`, 1 at `known_bits_simplify`.  All 600 `cfg_cleanup` and 591 `edge_split`
+    steps are accepted; no summary table fails.
 
 - Phase 2, with `branch_canonicalize` and `branch_conditions` checked (sections accepted end to
   end with the four proved kinds; the per-step counts replay past steps that have no checker,
@@ -347,9 +347,12 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
     `coalesce_copies`; `-O1` 21 accepted, 19 rejected (first unproved kind: `scalar_canonicalize`
     8, `known_bits_simplify` 7, `sccp_fold` 4); `-Os` the same 21 and 8/7/4.  Every
     `branch_canonicalize` step (73 at `-O1` and `-Os`) is accepted.
-  - `corpus-v5-full`, 650 sections: 412 accepted; 238 rejected, first at `known_bits_simplify`
-    94, `sccp_fold` 65, `scalar_canonicalize` 46, `coalesce_copies` 21, `lower_switches` 12.  All
-    767 `branch_canonicalize` steps are accepted.  No summary table fails.
+  - The 265 sidecars of `corpus-v5-full` (top level only, 530 sections): 351 accepted; 179
+    rejected, first at `known_bits_simplify` 80, `sccp_fold` 57, `scalar_canonicalize` 30,
+    `lower_switches` 12.  All 621 `branch_canonicalize`, 417 `cfg_cleanup` and 407 `edge_split`
+    steps are accepted; no summary table fails.  Unproved steps: `sccp_fold` 133,
+    `known_bits_simplify` 94, `scalar_canonicalize` 48, `lower_switches` 45, `coalesce_copies`
+    28, `gvn_rewrite` 23, `adce` 9, `gvn_prune` 4.
 
 ## Not done
 
