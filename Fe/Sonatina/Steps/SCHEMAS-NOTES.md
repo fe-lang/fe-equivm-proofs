@@ -312,11 +312,45 @@ exclude the FeProofs copies it also holds):
 | full | `known_bits_simplify` | 94 / 0 | 84 / 0 |
 | full | `sccp_fold` | 133 / 0 | 98 / 0 |
 
-With `--mutate` (every SCCP constant `c` made `c + 1`, else the first known-bits claim made all
-zeros), on `corpus-v5-full`: every mutated step rejected (203 `sccp_fold` by "SCCP facts", 103
-`known_bits_simplify` by "known bits facts"); the 7 `known_bits_simplify` steps with no facts were
-not mutated. No step in either corpus has `demanded_bits` or `ranges` facts: the demand mode is
+Mutations on `corpus-v5-full` (`--mutate-facts`, `--mutate-out`; review 13 finding 7): every
+mutant of every real step is rejected. Facts mutated, output as recorded: `const+1` (constants
+plus one, modulo `2^256`) 203, `dead-live` (a slot the run may take claimed dead) 182, `kb-flip`
+275, `kb-contra` (`kz = ko = 1`) 275. Output mutated, facts as recorded: `sigma-lit` 309,
+`sigma-var` 5, `sigma-one` (one of two substituted uses changed) 63, `opcode` 293, `swap-br`
+292, `phi-block` 145, `del-used` 293, `del-effect` 313, `kept-use` 309, `ssa` (a use of a later
+value) 295, `params` 63, `ids-short` 313, `imm-range` (`2^256` unreduced) 313. Counts include the
+FeProofs copies; each mutant kind applies where its place exists. No step in either corpus has `demanded_bits` or `ranges` facts: the demand mode is
 exercised by the hand-written records only, and I6 does not occur.
+
+## Review 13 (`reviews/review-13-lean-step-checkers.md`)
+
+The reviewer's inputs for findings 1–3 were added as records first (`r13_*`), and the checker at
+`9674f04` accepted every one of them except `r13_f3_ids_empty`, which `deletable` rejects
+because the terminator would be deleted.
+
+- **Finding 1, confirmed and fixed** (`1cd7126`): `execSet` could run out of fuel on repeated
+  table targets. `sccpFactsOk` now validates the set itself (`execClosed`: the entry in it,
+  closed under every slot not claimed dead), and successors are deduplicated. No other set is
+  computed without validation: `domTree`'s reachable set is validated by `DomTree.valid`.
+- **Finding 2, confirmed and fixed** (`1cd7126`): no `clz` in an in-place replacement, in
+  `stmtConstOk`, or in any unfolded term (`unfold` leaves a `clz` result an atom). An in-place
+  replacement must build `is_zero`, the one instruction `sccp.rs` builds in place on machine IR
+  (`BuildIsZero`; `Bitcast` and `FoldFreshInsert` build instructions machine IR lacks).
+- **Finding 3, confirmed and fixed** (`1cd7126`): the checkers check name, parameters, results,
+  `machine` and `Operand.wf` of every output operand, and one id per line in every block of both
+  snapshots (`idsFit`); every `zip` is now behind a length check. The parser reduces literals
+  modulo `2^width`, so the out-of-range case is built unreduced in Lean (`r13_f3_bigimm_raw`).
+- **Finding 4, fixed** (`1cd7126`): `entryOk` also tries the output side as a leaf with the
+  input side at depths 0–3, and goes through at most three deleted operands, each link justified
+  (`resolve_replacements`); the three examples are tests, accepted.
+- **Finding 5** (`Read.parseFacts` dropping `"demanded_bits": []`): fixed on the phase 2 line.
+- **Finding 6, fixed**: the four `evm_add_mod`/`evm_mul_mod` identities in `schemaModop`, proved
+  (`9d9f8ea`); `try_fold_phi` (`StepCtx.phiFold`): a deleted phi whose operands on executable edges
+  are `x` or itself, with `x` an immediate, a parameter, or defined strictly above the phi's
+  block (`1cd7126`). Pruning a phi's arms in place is not accepted.
+- **Finding 7, fixed**: the mutations above.
+- **Finding 8, fixed**: duplicate fact keys rejected (`edce1b2`, `SchemasFacts.lean` only), demands
+  below `2^256`, no dead edges in a `known_bits_simplify` step, `slotTaken` sound without `wf`.
 
 ## For the checker authors
 
