@@ -44,9 +44,11 @@ def addSub : Term → Term → Bool
   | .op2 .add x y, r => addSubHalf x y r || addSubHalf y x r
   | _, _ => false
 
-/-- All the GVN schemas. -/
+/-- All the GVN schemas.  G4 and G6 put both forms in one class, and GVN replaces whichever
+    comes later by whichever dominates, so both directions (review 9, finding 3). -/
 def checkG (kb : Nat → KB) (l r : Term) : Bool :=
-  subAdd l r || addSub l r || eqZero kb l r || mulPow2 kb l r
+  subAdd l r || addSub l r || eqZero kb l r || eqZero kb r l || mulPow2 kb l r ||
+    mulPow2 kb r l
 
 theorem add_sub_words {a b : Nat} (ha : a < W) (hb : b < W) :
     Op2.eval .add (Op2.eval .sub a b) b = a ∧ Op2.eval .add b (Op2.eval .sub a b) = a ∧
@@ -88,11 +90,13 @@ theorem addSub_sound {l r : Term} (h : addSub l r = true) : l.eval ρ = r.eval �
 theorem checkG_sound (hf : FactsHold kb ρ) {l r : Term} (h : checkG kb l r = true) :
     l.eval ρ = r.eval ρ := by
   simp only [checkG, Bool.or_eq_true] at h
-  rcases h with ((h | h) | h) | h
+  rcases h with ((((h | h) | h) | h) | h) | h
   · exact subAdd_sound h
   · exact addSub_sound h
   · exact eqZero_sound hf h
+  · exact (eqZero_sound hf h).symm
   · exact mulPow2_sound hf h
+  · exact (mulPow2_sound hf h).symm
 
 /-! ## Branches -/
 
@@ -114,8 +118,8 @@ def zeroCmp (kb : Nat → KB) (c₀ x : Term) : Option Bool :=
   | _ => none
 
 /-- The output condition `c'` stands for the input condition `c`, with the targets swapped if
-    `swap` (B1–B3). -/
-def checkBranch (kb : Nat → KB) (c c' : Term) (swap : Bool) : Bool :=
+    `swap` (B1–B3, as review M-3 states them). -/
+def checkBranch1 (kb : Nat → KB) (c c' : Term) (swap : Bool) : Bool :=
   let odd := (peelIsZero c).1 % 2 == 1
   (c' == (peelIsZero c).2 && swap == odd) ||
     match c' with
@@ -124,6 +128,24 @@ def checkBranch (kb : Nat → KB) (c c' : Term) (swap : Bool) : Bool :=
       | some s => swap == (odd ^^ s)
       | none => false
     | _ => false
+
+/-- B1–B3 with `is_zero` peeled from both conditions: `branch_conditions` strips one `is_zero`
+    (`br (is_zero a) nz z → br a z nz`), which leaves `c'` an `is_zero` when `c` had two, and
+    composed forms (review 9, finding 6). -/
+def checkBranch2 (kb : Nat → KB) (c c' : Term) (swap : Bool) : Bool :=
+  let odd := ((peelIsZero c).1 + (peelIsZero c').1) % 2 == 1
+  ((peelIsZero c').2 == (peelIsZero c).2 && swap == odd) ||
+    match zeroCmp kb (peelIsZero c).2 (peelIsZero c').2 with
+    | some s => swap == (odd ^^ !s)
+    | none => false
+
+def checkBranch (kb : Nat → KB) (c c' : Term) (swap : Bool) : Bool :=
+  checkBranch1 kb c c' swap || checkBranch2 kb c c' swap
+
+theorem odd_add (k k' : Nat) : ((k + k') % 2 == 1) = ((k % 2 == 1) ^^ (k' % 2 == 1)) := by
+  rcases Nat.mod_two_eq_zero_or_one k with h | h <;>
+    rcases Nat.mod_two_eq_zero_or_one k' with h' | h' <;>
+    simp [h, h', Nat.add_mod]
 
 theorem truthy_isZero (x : Nat) : truthy (Op1.eval .isZero x) = !truthy x := by
   by_cases h : x = 0 <;> simp [truthy, Op1.eval, ofBool, h]
@@ -183,11 +205,11 @@ theorem zeroCmp_sound (hf : FactsHold kb ρ) {c₀ x : Term} {s : Bool}
 
 /-- Soundness of the branch check: the output condition is truthy exactly when the input one
     is, unless the targets are swapped. -/
-theorem checkBranch_sound (hf : FactsHold kb ρ) {c c' : Term} {swap : Bool}
-    (h : checkBranch kb c c' swap = true) :
+theorem checkBranch1_sound (hf : FactsHold kb ρ) {c c' : Term} {swap : Bool}
+    (h : checkBranch1 kb c c' swap = true) :
     truthy (c'.eval ρ) = (truthy (c.eval ρ) ^^ swap) := by
   have hp := peelIsZero_sound ρ c
-  unfold checkBranch at h
+  unfold checkBranch1 at h
   simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
   rcases h with ⟨rfl, rfl⟩ | h
   · rw [hp, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
@@ -201,6 +223,36 @@ theorem checkBranch_sound (hf : FactsHold kb ρ) {c c' : Term} {swap : Bool}
           cases ((peelIsZero c).1 % 2 == 1) <;> rfl
       · cases h
     · cases h
+
+theorem checkBranch2_sound (hf : FactsHold kb ρ) {c c' : Term} {swap : Bool}
+    (h : checkBranch2 kb c c' swap = true) :
+    truthy (c'.eval ρ) = (truthy (c.eval ρ) ^^ swap) := by
+  have hp := peelIsZero_sound ρ c
+  have hp' := peelIsZero_sound ρ c'
+  unfold checkBranch2 at h
+  simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+  rw [hp, hp']
+  rcases h with ⟨he, rfl⟩ | h
+  · rw [he, odd_add]
+    cases truthy ((peelIsZero c).2.eval ρ) <;> cases ((peelIsZero c).1 % 2 == 1) <;>
+      cases ((peelIsZero c').1 % 2 == 1) <;> rfl
+  · split at h
+    · next s hs =>
+      simp only [beq_iff_eq] at h; subst h
+      have hz := zeroCmp_sound hf hs
+      simp only [Term.eval, truthy_isZero] at hz
+      rw [hz, odd_add]
+      cases truthy ((peelIsZero c').2.eval ρ) <;> cases s <;>
+        cases ((peelIsZero c).1 % 2 == 1) <;> cases ((peelIsZero c').1 % 2 == 1) <;> rfl
+    · cases h
+
+theorem checkBranch_sound (hf : FactsHold kb ρ) {c c' : Term} {swap : Bool}
+    (h : checkBranch kb c c' swap = true) :
+    truthy (c'.eval ρ) = (truthy (c.eval ρ) ^^ swap) := by
+  simp only [checkBranch, Bool.or_eq_true] at h
+  rcases h with h | h
+  · exact checkBranch1_sound hf h
+  · exact checkBranch2_sound hf h
 
 /-- The block a branch goes to, as `runBlocks` picks it. -/
 def branchTarget (w nz z : Nat) : Nat := if w != 0 then nz else z
