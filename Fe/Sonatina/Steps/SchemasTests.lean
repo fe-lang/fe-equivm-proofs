@@ -1,5 +1,4 @@
-import Fe.Sonatina.Steps.SchemasG
-import Fe.Sonatina.Steps.SchemasD
+import Fe.Sonatina.Steps.SchemasCheck
 
 /-!
 # Tests of the schema library, evaluated by `decide`
@@ -252,6 +251,48 @@ example : checkD (fun v => if v = 1 then ⟨0xff, 0⟩ else unknown) 0xff (.op2 
 example : checkD (fun v => if v = 1 then ⟨0xff, 0⟩ else unknown) 0x1ff (.op2 .or x y) x = false := by
   decide +kernel
 
+
+/-! ## Review 9: cases rejected before, accepted now -/
+
+-- Finding 3: GVN replaces whichever of `eq x 0` / `is_zero x`, `mul x 2^k` / `shl k x` comes
+-- later by the one that dominates.
+example : checkG none' (.op1 .isZero x) (.op2 .eq x (n 0)) = true := by decide +kernel
+example : checkG none' (.op2 .shl (n 3) x) (.op2 .mul x (n 8)) = true := by decide +kernel
+-- Finding 3: commutative operands canonicalized by rank.
+example : checkExact none' (.op2 .add y x) (.op2 .add x y) = true := by decide +kernel
+example : checkExact none' (.op2 .mul y x) (.op2 .mul x y) = true := by decide +kernel
+example : checkExact none' (.op2 .and y x) (.op2 .and x y) = true := by decide +kernel
+example : checkExact none' (.op2 .or y x) (.op2 .or x y) = true := by decide +kernel
+example : checkExact none' (.op2 .xor y x) (.op2 .xor x y) = true := by decide +kernel
+example : checkExact none' (.op2 .eq x (n 0)) (.op2 .eq (n 0) x) = true := by decide +kernel
+example : checkExact none' (.op2 .mul x (n 8)) (.op2 .mul (n 8) x) = true := by decide +kernel
+example : checkExact none' (.op2 .sub y x) (.op2 .sub x y) = false := by decide +kernel
+-- Commutative equality inside a schema: G2 with `c` a commuted copy of `b`.
+example : checkExact none' (.op2 .sub (.op2 .add x (.op2 .and y x)) (.op2 .and x y)) x = true := by
+  decide +kernel
+example : Term.commEq (.op2 .add (.op2 .xor y x) (n 1)) (.op2 .add (n 1) (.op2 .xor x y)) = true := by
+  decide +kernel
+-- Finding 6: `branch_conditions` strips one `is_zero`; composed zero compares.
+example : checkBranch none' (.op1 .isZero (.op1 .isZero x)) (.op1 .isZero x) true = true := by
+  decide +kernel
+example : checkBranch none' (.op2 .eq x (n 0)) x true = true := by decide +kernel
+example : checkBranch none' (.op2 .gt x (n 0)) x false = true := by decide +kernel
+example : checkBranch none' (.op2 .gt x (n 0)) x true = false := by decide +kernel
+example : checkBranchOn none' (.op2 .eq (n 0) (.op2 .xor y x)) (.op1 .isZero (.op2 .xor x y)) false
+    = true := by decide +kernel
+-- Finding 8: `fold_constant_comparison`'s output with its operands in the other order.
+example : checkS none' (.op2 .eq (.op2 .add x (n 3)) (n 10)) (.op2 .eq (n 7) x) = true := by
+  decide +kernel
+-- Finding 4: each round of `ScalarCanonicalize::run` is its own step: `eq (xor x 1) 1` becomes
+-- `eq x 0` in one round (the Rust emits `eq`, never `is_zero`, from
+-- `fold_constant_comparison`), then `is_zero x` in the next.
+example : checkExact none' (.op2 .eq (.op2 .xor x (n 1)) (n 1)) (.op2 .eq x (n 0)) = true := by
+  decide +kernel
+example : checkExact none' (.op2 .eq x (n 0)) (.op1 .isZero x) = true := by decide +kernel
+example : checkExact none' (.op2 .udiv x (n (2 ^ 248))) (.op2 .shr (n 248) x) = true := by
+  decide +kernel
+example : checkExact none' (.op2 .shr (n 248) x) (.op2 .byte (n 0) x) = true := by decide +kernel
+
 end Fe.Sonatina.Steps.Schemas.Tests
 
 -- The axioms the library's lemmas use.
@@ -265,3 +306,7 @@ end Fe.Sonatina.Steps.Schemas.Tests
 #print axioms Fe.Sonatina.Steps.Schemas.demand2_sound
 #print axioms Fe.Sonatina.Steps.Schemas.checkD_sound
 #print axioms Fe.Sonatina.Steps.Schemas.Term.fold_eval
+#print axioms Fe.Sonatina.Steps.Schemas.checkExact_sound
+#print axioms Fe.Sonatina.Steps.Schemas.checkDemand_sound
+#print axioms Fe.Sonatina.Steps.Schemas.checkBranchOn_target
+#print axioms Fe.Sonatina.Steps.Schemas.factsOn_env
