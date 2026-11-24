@@ -135,11 +135,37 @@ def validatePass (p : Pass) (M : Module) : Option Module :=
 def MachineSteps.module (r : MachineSteps) (structs : List (String × List Ty)) : Module :=
   ⟨structs, r.lowered.map (·.func)⟩
 
+/-- `F` has the functions of `M`, by name (the machine IR prints them in another order than
+    the record lists them). -/
+def sameFuncs (M F : Module) : Bool :=
+  F.funcs.all (fun f => decide (M.func? f.name = some f)) &&
+    M.funcs.all (fun g => decide (F.func? g.name = some g))
+
+theorem sameFuncs_func? {M F : Module} (h : sameFuncs M F = true) (n : String) :
+    F.func? n = M.func? n := by
+  simp only [sameFuncs, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
+  cases hF : F.func? n with
+  | some f =>
+    have hn : f.name = n := by simpa using List.find?_some hF
+    rw [← hn, h.1 f (List.mem_of_find?_eq_some hF)]
+  | none =>
+    cases hM : M.func? n with
+    | none => rfl
+    | some g =>
+      have hn : g.name = n := by simpa using List.find?_some hM
+      have := h.2 g (List.mem_of_find?_eq_some hM)
+      rw [hn, hF] at this; cases this
+
+theorem sameFuncs_machine {M F : Module} (h : sameFuncs M F = true) (hM : M.machine = true) :
+    F.machine = true := by
+  simp only [sameFuncs, Bool.and_eq_true, List.all_eq_true, decide_eq_true_eq] at h
+  exact List.all_eq_true.mpr fun f hf => Module.machine_func hM (h.1 f hf)
+
 /-- Validate a record against the final machine IR, with only the step kinds `allowed`. -/
 def validateWith (allowed : List StepKind) (r : MachineSteps) (final : Module) : Bool :=
   r.kinds.all allowed.contains && (r.module final.structs).machine &&
     match r.passes.foldlM (fun M p => validatePass p M) (r.module final.structs) with
-    | some M => decide (M = final)
+    | some M => sameFuncs M final
     | none => false
 
 def validate (r : MachineSteps) (final : Module) : Bool := validateWith StepKind.all r final
@@ -192,10 +218,13 @@ theorem validate_sound {allowed : List StepKind} {r : MachineSteps} {final : Mod
       N'.machine = true ∧ ModRefines N' N by
     split at hfold
     · next M hM =>
-      simp only [decide_eq_true_eq] at hfold
       obtain ⟨hm, href⟩ := H r.passes hks _ M hlm hM
-      subst hfold
-      exact ⟨hlm, hm, href⟩
+      have hfm := sameFuncs_machine hfold hm
+      refine ⟨hlm, hfm, (modRefines_of_funcs hm hfm fun c name => ?_).trans href⟩
+      rw [sameFuncs_func? hfold]
+      cases hg : M.func? name with
+      | none => exact FuncRef.none _ c
+      | some g => exact FuncRef.refl (runFunc_mono hm c) c (Module.machine_func hm hg)
     · cases hfold
   intro ps
   induction ps with

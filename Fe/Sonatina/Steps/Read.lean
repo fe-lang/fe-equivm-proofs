@@ -37,10 +37,14 @@ def parseStepKind (s : String) : P StepKind :=
   | some k => pure k
   | none => throw s!"unknown step kind {s}"
 
-/-- A step's facts, each kept as its key and its JSON, unread. -/
+/-- A step's facts, each kept as its key and its JSON, unread; keys whose value is empty (`[]`
+    or `null`, as every key of a step without facts is) are dropped. -/
 def parseFacts : Json → P (List (String × String))
   | .null => pure []
-  | .obj kvs => pure (kvs.toList.map fun (k, v) => (k, v.compress))
+  | .obj kvs => pure (kvs.toList.filterMap fun (k, v) => match v with
+    | .null => none
+    | .arr a => if a.isEmpty then none else some (k, v.compress)
+    | v => some (k, v.compress))
   | j => throw s!"facts: expected an object, got {j.compress}"
 
 def parseSummary (j : Json) : P Summary := do
@@ -51,9 +55,9 @@ def parseSummary (j : Json) : P Summary := do
            writes := ← j.getObjValAs? Bool "writes"
            mutates := ← j.getObjValAs? Bool "mutates" }
 
+/-- The record, as sidecar version 5 writes it (`sidecar-v5.md` of the export): no version key,
+    a pass's `kind`, a function step named by its `out`. -/
 def parseMachineSteps (j : Json) : P MachineSteps := do
-  let version ← j.getObjValAs? Nat "version"
-  unless version == 1 do throw s!"machine_steps version {version}, not 1"
   let lowered ← (← j.getObjValAs? (Array Json) "lowered").toList.mapM parseFuncSnap
   let passes ← (← j.getObjValAs? (Array Json) "passes").toList.mapM fun p => do
     let funcBehavior ← match ← p.getObjVal? "func_behavior" with
@@ -61,12 +65,13 @@ def parseMachineSteps (j : Json) : P MachineSteps := do
       | b => some <$> ((← b.getArr?).toList.mapM parseSummary)
     let steps ← (← p.getObjValAs? (Array Json) "steps").toList.mapM fun st => do
       let funcs ← (← st.getObjValAs? (Array Json) "funcs").toList.mapM fun fs => do
-        return ({ func := ← fs.getObjValAs? String "func"
-                  out := ← parseFuncSnap (← fs.getObjVal? "out")
+        let out ← parseFuncSnap (← fs.getObjVal? "out")
+        return ({ func := out.func.name
+                  out
                   facts := ← parseFacts ((fs.getObjVal? "facts").toOption.getD .null) } : FuncStep)
       return ({ kind := ← parseStepKind (← st.getObjValAs? String "kind"), funcs } : Step)
-    return ({ name := ← p.getObjValAs? String "name", funcBehavior, steps } : Pass)
-  return { version, profile := ← j.getObjValAs? String "profile", lowered, passes }
+    return ({ name := ← p.getObjValAs? String "kind", funcBehavior, steps } : Pass)
+  return { version := 5, profile := ← j.getObjValAs? String "profile", lowered, passes }
 
 /-- The record of section `name` of a sidecar, if its lowering has one. -/
 def sectionSteps (text : String) (name : String) : P (Option MachineSteps) := do

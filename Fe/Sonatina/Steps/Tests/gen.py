@@ -12,12 +12,15 @@ def func(name, params, rets, blocks):
 def snap(name, params, rets, blocks, insts):
     return {"func": name, "func_ref": 0, "text": func(name, params, rets, blocks), "insts": insts}
 
+NOFACTS = {"known_bits": [], "demanded_bits": None, "sccp": None, "finite_loops": [], "gvn": None,
+           "ranges": None}
+
 def record(lowered, passes):
-    return {"version": 1, "profile": "speed", "lowered": lowered, "passes": passes}
+    return {"profile": "speed", "lowered": lowered, "passes": passes}
 
 def one(kind, name, inp, out, facts=None):
-    return record([inp], [{"name": kind, "func_behavior": None,
-        "steps": [{"kind": kind, "funcs": [{"func": name, "out": out, "facts": facts or {}}]}]}])
+    return record([inp], [{"kind": kind, "func_behavior": None,
+        "steps": [{"kind": kind, "funcs": [{"out": out, "facts": facts or NOFACTS}]}]}])
 
 def write(fn, r):
     with open(fn, "w") as f:

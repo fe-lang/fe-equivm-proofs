@@ -1,5 +1,4 @@
 {
- "version": 1,
  "profile": "speed",
  "lowered": [
   {
@@ -23,14 +22,13 @@
  ],
  "passes": [
   {
-   "name": "edge_split",
+   "kind": "edge_split",
    "func_behavior": null,
    "steps": [
     {
      "kind": "edge_split",
      "funcs": [
       {
-       "func": "f",
        "out": {
         "func": "f",
         "func_ref": 0,
@@ -52,7 +50,14 @@
          ]
         ]
        },
-       "facts": {}
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
       }
      ]
     }
