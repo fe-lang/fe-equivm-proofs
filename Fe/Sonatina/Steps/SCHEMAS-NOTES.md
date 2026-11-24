@@ -26,6 +26,9 @@ are what the entry points are proved from.
 | `KnownBitsDemand.lean` | `Agree`, `Agree.mono`; `demand1/2/3` and `demand1/2/3_sound` |
 | `SchemasD.lean` | D1–D3: `checkD`, `checkD_sound` |
 | `SchemasCheck.lean` | `Op2.comm`, `Term.norm`, `Term.norm_eval`, `Term.commEq`, `Term.nf`, `Term.hasAtom`, `Term.hasClz`; `FactsOn`, `restrict`, `factsHold_restrict`, `envWord`, `factsOn_env`, `eval_atom_env`; `checkExact`, `checkDemand`, `checkBranchOn` and their soundness |
+| `SchemasFacts.lean` | `StepFacts`, `readFacts` (no schema or `Validate` import) |
+| `SchemasStep.lean` | `checkKnownBitsSimplify`, `checkSccpFold`, their fact checks (`kbFactsOk`, `sccpFactsOk`, `dbFactsOk`) and `diagnose…` |
+| `SchemasStepTests.lean`, `SchemasStepTests/` | records and mutants of the two step kinds |
 | `SchemasTests.lean` | `decide +kernel` tests, the H-7 counterexamples as rejected cases, `#print axioms` |
 
 ## Axioms
@@ -209,8 +212,9 @@ standalone program against the pinned crate). Input: `evm_signextend 31.i256 5.i
 operands constants, `5` nonzero with bit 255 clear) reaching any pass that calls
 `simplify_evm_signextend_known` with both constants (SCCP folding, GVN, `known_bits_simplify`,
 `simplify_binary_with_facts`). The other signextend paths (`…_copy_with_facts`, the known-bits
-and demanded-bits functions) test `sign_width >= width` first and are fine. Fix: return `value`
-for `byte >= 31`.
+and demanded-bits functions) test `sign_width >= width` first and are fine. Review 9 found a
+second copy in the IR interpreter (`crates/ir/src/interpret/evm/mod.rs:120-131`). Status: both
+fixed in Sonatina `c8da675b`, open as sonatina #615 (CI green).
 
 Known, not new: Sonatina folds and deletes `clz` on every fork; Lean traps before Osaka (review
 M-5, H-2).
@@ -251,14 +255,68 @@ M-5, H-2).
   `lit`s; `isC` reads facts anyway); `KB.exact v` assumes `v < W` (every caller passes a word);
   I6 is live on machine IR when `known_bits_simplify` runs range analysis
   (`known_bits_simplify.rs:104-117`), so steps using it are rejected until range facts exist.
-- **Findings 1, 2, 7 (Rust)** are handled elsewhere. Finding 1 (GVN edge predicates peel `not`
-  on `i256`) is outside this library: edge predicates (G8/G9) are not schemas here. Finding 2
-  adds a second copy of the signextend panic in `crates/ir/src/interpret/evm/mod.rs:120-131`.
+- **Findings 1, 2, 7 (Rust), closed on the Rust side.** Finding 1 (GVN edge predicates peel `not`
+  on `i256`, `gvn.rs:1222`): fixed and merged upstream as sonatina #592; edge predicates (G8/G9)
+  are not schemas here. Finding 2 (the interpreter's second `signextend` site): fixed in
+  `c8da675b`, open as sonatina #615. Finding 7 (`smulsat` on `i1` copies on `1.i1`): the guard is
+  missing, but the verifier rejects every saturating operation on `i1` (`IR0600`), so no verified
+  program reaches it; left unfixed, on record.
 
 Rust behaviour none of these checks accepts (seen while verifying): GVN's operand replacement
 through edge predicates (`infer_value_at_block`), value phis and class leaders other than by
-term equality (G7–G10, the checker's); I6 (range); `scalar_canonicalize` steps where an operand's
-definition changed in the same round, if the checker unfolds it (above).
+term equality (G7–G10, the checker's); I6 (range). On finding 4's same-round operand, ruling
+R-11.1 (design §11): a leaf of `T_in`/`T_out` is an argument or a value defined in both snapshots
+by paired instructions, whatever the two definitions; unfolding may continue through a pure
+non-phi definition of the side being unfolded (input for `T_in`, output for `T_out`) within E3's
+depth, justified by L2 on that side (built once on the phase 2 line, ruling R-11.2).
+
+## The `known_bits_simplify` and `sccp_fold` checkers (`SchemasStep.lean`)
+
+Interface (ruling R-11.3): `readFacts : List (String × String) → Except String StepFacts`
+(`SchemasFacts.lean`, which imports neither the schema library nor `Validate`, so `Read` can
+import it), and
+
+```lean
+def checkKnownBitsSimplify (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Bool
+def checkSccpFold (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) : Bool
+```
+
+with `f` the input function, `ids` its instruction ids, `s` the output snapshot, `F` the step's
+facts. Planned soundness (the `StepSound.of_func` shape): `Oracle.Mono o → o.IntRet →
+f.wf sig syms = true → check f ids s F = true → FuncRef o c (some s.func) (some f)`. **Not proved
+yet.** A checker handed a fact key it does not read rejects.
+
+What they check: blocks and lines paired by id; deleted lines are phis or pure single-result
+statements other than `clz`; σ from the changed operands, a function, its keys deleted values;
+each entry justified by an SCCP constant, or `checkExact` on terms unfolded to the same depth
+(1–3) on both sides (SCCP constants as literals), or in a demand round (`demanded_bits` present,
+review C-2) `checkDemand` with `D(v) ⊆ D(x)`; `sccp_fold`'s in-place replacement by a schema;
+known bits as a post-fixpoint, SCCP dead edges and constants on the executable blocks (least
+fixpoint over non-dead slots), demanded bits over every instruction, all on the input; strict
+SSA under a validated dominator tree on both snapshots. Tests: `SchemasStepTests.lean`, 27
+records (`SchemasStepTests/gen.py`), 8 accepted and 19 mutants rejected, by `decide +kernel`.
+
+### Measured (`scripts/SchemasSteps.lean`, interpreted; `scripts/SchemasStepsTab.py`)
+
+`corpus-v5b` (FeProofs) at `-O0`, `-O1`, `-Os` (`-O0` runs no machine passes: no step of these
+kinds), and `corpus-v5-full` (265 contracts, `-O1`, its 530 sections; the table's `full` rows
+exclude the FeProofs copies it also holds):
+
+| corpus, level | kind | function steps accepted / rejected | sections accepted / rejected |
+| --- | --- | --- | --- |
+| v5b `-O1` | `known_bits_simplify` | 8 / 0 | 7 / 0 |
+| v5b `-O1` | `sccp_fold` | 35 / 0 | 14 / 0 |
+| v5b `-Os` | `known_bits_simplify` | 8 / 0 | 7 / 0 |
+| v5b `-Os` | `sccp_fold` | 35 / 0 | 14 / 0 |
+| full | `known_bits_simplify` | 94 / 0 | 84 / 0 |
+| full | `sccp_fold` | 133 / 0 | 98 / 0 |
+
+With `--mutate` (every SCCP constant `c` made `c + 1`, else the first known-bits claim made all
+zeros), on `corpus-v5-full`: every mutated step rejected (203 `sccp_fold` by "SCCP facts", 103
+`known_bits_simplify` by "known bits facts"); the 7 `known_bits_simplify` steps with no facts were
+not mutated. No step in either corpus has `demanded_bits` or `ranges` facts: the demand mode is
+exercised by the hand-written records only, and I6 does not occur.
 
 ## For the checker authors
 
