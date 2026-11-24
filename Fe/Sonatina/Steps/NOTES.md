@@ -1,4 +1,4 @@
-# M1, first Lean phase: notes and deviations
+# M1, Lean phases 1 and 2: notes and deviations
 
 Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10, review 1).
 
@@ -8,22 +8,23 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | --- | --- |
 | `Refine.lean` (existing) | `EndsAsP`, `ImplementsP`, `ImplementsDeployP`, transitivity, `RefinesOn.of_implementsP`, `RefinesDeploy.of_implementsP` |
 | `Mem.lean` | `write_getD`, `MemEq`, `MemEq.write` (Mem0), `WRel`, `ExitRel`, `ResRel`, `Approx` (the order `⊑`), Mem0 for every model-library primitive |
-| `Prim.lean` | `EnvSub`, operand evaluation as `lift`, `Approx.runInst` (an instruction approximates itself in a smaller environment and a related world), `approx_auto` |
-| `Oracle.lean` | `runStmtO`/`runBodyO`/`stepBlock`/`runBlocksO`/`runFuncO`, `runBlocks_iter`, `runFunc_approx`, `runFunc_ctx` (C0 and reflexivity), `runFuncO_approx`, `ModRefines`, `FuncRef`, C1 `modRefines_of_funcs` |
+| `Prim.lean` | `Inst.machine`/`Func.machine` (no `undef`, `evm_malloc`, `alloca`, aggregates), `EnvSub`, operand evaluation as `lift`, `Approx.runInst`, `approx_auto`; integer values (`IntVals`, `EnvInt`, `Returns`, `Total`, `Approx.strengthen`, `returns_runInst`, `returns_bind`, `returns_enter`) |
+| `Oracle.lean` | `runStmtO`/`runBodyO`/`stepBlock`/`runBlocksO`/`runFuncO`, `runBlocks_iter`, `runFunc_approx`, `runFunc_intRet`, `runFunc_ctx` (C0 and reflexivity), `runFuncO_approx`, `Ctx.Has`, `ModRefines syms`, `FuncRef`, C1 `modRefines_of_funcs`; `Oracle.IntRet` |
+| `Wf.lean` | `Func.wf`, `Module.wf`, `FuncSnap.wf` (review C-6), `VFunc`, `defsOf`, `ssa` (review H-1, M-1), `DomAt`, `useOk_sound`, `phiUseOk_sound` |
+| `Defined.lean` | the definedness invariant: `BlockInv`, `PointInv`, `stepBlock_inv`, `Reaches`, `reaches_inv`, `defined`, `term_defined`, `phis_defined` |
 | `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps` |
 | `NatMap.lean` | bit trie, `find?_insert`, `find?_ofList`, `find?_ofListBy` |
 | `Eq.lean` | `DecidableEq` for the IR |
-| `EdgeSplit.lean` | `checkEdgeSplit`, `edgeSplit_sound` |
+| `EdgeSplit.lean` | `checkEdgeSplit` (with `br c a a → jump a` and all-identical `br_table` → `jump`), `edgeSplit_sound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
-| `Validate.lean` | `checkStep`, `StepSound`, `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit` |
-| `Dom.lean` | `domTree`, `DomTree.valid` (review H-1), D1 `DomTree.dominates` |
+| `Validate.lean` | `checkStep`, `StepSound`, `stepOut_wf`, `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit` |
+| `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
 
 The `Steps` modules are not in the default `lake build` target (neither is `Fe.lean`); build
-them with `lake build Fe.Sonatina.Steps.Tests` (it imports all of them but `Dom`) and
-`lake build Fe.Sonatina.Steps.Dom`.
+them with `lake build Fe.Sonatina.Steps.Tests`, which imports all of them.
 
 ## C1: how it went
 
@@ -53,16 +54,52 @@ Within a pass every step uses the pass input's semantics as the oracle (`validat
 `StepSound` is stated for any self-approximating oracle, so the two kinds of this phase do not
 need the pass-level discipline, but later kinds that read `func_behavior` will.
 
+## Integers: what the oracle framework assumes (phase 2)
+
+`FuncRef`, `ModRefines`, `Oracle.Le` and `Oracle.Mono` compare runs on integer arguments only
+(`IntVals`), and `StepSound` assumes an oracle that returns integers on integers
+(`Oracle.IntRet`).  Without that, `edge_split`'s `br c a a → jump a` is unsound: `bind` keeps an
+aggregate argument an aggregate even under an `i256` parameter (`Val.as`), so with `c` a
+parameter (or a call's result) bound to an aggregate the input is stuck at `evalInt` and the
+output goes on.  A machine function is called with integers by a section entry (no arguments)
+and by its callers, and returns integers: `runFunc_intRet` (by fixpoint induction over the
+module's runner, `Func.machine` giving no `undef` operand and no aggregate instruction); C1
+and C0 (`runFunc_approx`) carry `EnvInt` through the run.
+
+`ModRefines syms` and `StepSound` also take the section's symbol names: only contexts that give
+each of them a place (`Ctx.Has syms`, review C-6 and review 6 F-5), which `runSection_approx`
+discharges from `code.symbols` (`lookup_has`).  No proof of this phase needs `Ctx.Has`; a
+deleting kind (a dead `sym_addr`) will.  `StepSound` is a plain `∀ … → …` statement, so the
+summary-table hypothesis (`SummariesOk`, review 6 F-5) is one more premise beside `c.Has syms`.
+
+## The definedness invariant
+
+`Defined.lean`.  For a well-formed function (`Func.wf`, which gives the `i256` types, distinct
+block ids and `Func.machine`) and a tree `DomTree.valid` accepts, along any run from the entry
+with integer parameters and an integer-returning oracle, every reached block state satisfies
+`BlockInv`, and every point `(b, k)` of its block `PointInv`: each value whose definition
+dominates the point (`DomAt`: a parameter, a phi of `b`, a result of a statement of `b` before
+`k`, a definition in a strict tree ancestor of `b`) is bound, to an `i256`.  This needs neither
+`ssa`'s use check nor unique definitions: the run binds phis on entry and results after each
+statement and never unbinds; at an edge `p → b` from a reachable `p`, a strict ancestor of `b`
+is an ancestor-or-self of `p` (the edge condition, `anc_of_edge`); `idom` acyclicity is not used.
+`ssa` then says every use is such a value or an immediate (`useOk_sound`, `phiUseOk_sound`), so
+it evaluates to an `i256` (`defined`, `term_defined`, `phis_defined`).  L2 (values, not only
+definedness) is not built; it needs the uniqueness `ssa` checks and per-point reasoning on top
+of `PointInv`.
+
 ## Deviations from the design
 
 1. **`StepSound` has no `summariesOK` hypothesis.** No checker of this phase reads
    `func_behavior`; when one does, `StepSound` gains the hypothesis that the table holds of the
    oracle's module.
-2. **`edge_split`: `br c a a → jump a` only when `c` is an immediate.**  Under partial
-   correctness the input evaluates `c` and may be stuck (unbound, or an aggregate) where the
-   output, which no longer evaluates it, goes on.  Accepting it in general needs the
-   definedness invariant that `ssa` would give (not built).  `br_table → jump` is rejected for
-   the same reason (and for a defaultless table, review C-6).
+2. **`edge_split` restriction lifted (phase 2).**  `br c a a → jump a` for any `c`, and
+   `br_table s (some d) cases → jump d'` when every case goes to `d` (`ESCtx.termOk`).  The
+   checker computes the input's dominator tree, `DomTree.valid` and `ssa` (`checkEdgeSplit`);
+   with `Func.wf` of the input (from `Module.wf` of the step input, a `StepSound` premise) the
+   invariant gives that the input's terminator reads words, so it is not stuck where the output
+   goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
+   C-6; also by `wf`).
 3. **Noreturn trims, `cfg_cleanup`, `branch_canonicalize`: no checker.** `checkFunc` rejects every
    kind but `edge_split`.  See "Not done".
 4. **Final comparison by name.** The machine IR prints a section's functions in another order
@@ -70,15 +107,42 @@ need the pass-level discipline, but later kinds that read `func_behavior` will.
 5. **The record reader** follows `sidecar-v5.md` of the export, not design §3.1 (no version
    key; `Pass.kind`; a function step named by `out.func`; every fact key present, empty ones
    dropped by the reader).  `Parse.lean` accepts sidecar versions 4 and 5.
-6. **`wf` and `ssa` (design §4.1, review C-6, H-1) are not built.**  `validate` checks that every
-   snapshot is machine IR (`Inst.machine`: no `evm_malloc`, no `alloca`; `evm_msize` is not in
-   `Syntax.lean`), not the rest of `wf`.  `edge_split` deletes nothing, so its soundness needs
-   none of C-6; `cfg_cleanup` and every deleting kind will.  `validate` does not take the
-   symbol names yet (C-6).
+6. **`wf` and `ssa` (phase 2).**  `validateWith` checks `Module.wf syms` of the lowered module and
+   the instruction ids of its snapshots; `checkStep` checks every output function well formed
+   in the input module, with its instruction ids, and the input's signature (parameters and
+   results, `sameSig`), so every module of the replay is well formed (`stepOut_wf`) and
+   `validate_sound` returns `Module.wf` of both ends.  `ssa` is checked where a kind needs it:
+   `edge_split` on its input.  Deviations from §4.1: `wf` does not check that phis lead their
+   block (the parser makes it so, and now rejects a phi after a statement: review 6 F-1), nor
+   that a block has exactly one terminator (the parser), nor the text against `insts` beyond
+   their shape and distinct ids (the parser pairs them); `ssa` checks uses only in blocks the
+   tree claims reachable, and phi operands only from such predecessors (review H-1).  `Func.wf`
+   does not check result counts of instructions other than `call` (a wrong count is stuck in
+   `bind`, on both sides alike).
 7. **D1 needs no acyclicity.**  `DomTree.dominates` is proved for the inductive ancestry `Anc`
-   with `idom entry = none`, the closed reachable set and the edge condition; a cycle in `idom`
-   only makes the checker's climbing (`anc`, at most `size` steps) fail.  Pre/post numbering is
-   not used; `anc` climbs, which is O(depth).
+   with `idom entry = none`, the closed reachable set and the edge condition.  Pre/post
+   numbering is not used; `anc` climbs, which is O(depth).  Phase 2 adds review 6 F-8's check
+   (`anc entry b` for every block of the reachable set, `valid_root`), which excludes cycles of
+   `idom` on the reachable set; no proof assumes antisymmetry.
+8. **`Inst.machine` excludes `undef` operands, `insert_value` and `extract_value` (phase 2)**,
+   beside `evm_malloc` and `alloca`: C1 needs runs to stay integer-valued.
+
+## Review 6 (phase 1) findings taken up in phase 2
+
+- F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
+  to `Parse.lean`); a scan of the repository's 58 JSON fixtures (1785 blocks) found no such line.
+  `wf` checks the `insts` shape and distinct ids kernel side (`FuncSnap.idsOk`).
+- F-2: adopted.  `ESCtx.predOf` takes the distinct blocks whose slots target the block.
+- F-3: adopted.  `domTree` walks successors without repeats (`succMapOnce`); `valid` reads
+  `succMap`.
+- F-5: adopted for the symbols (above); the summary table is left to the next worker.
+- F-8: adopted (deviation 7).
+- Not taken up here (out of item 1): F-4, F-6, F-7, F-9, F-10.
+
+## Phase-1 history
+
+Commits 7e6f2c1, 9dbd430 and 04f9f01 do not build alone (each needs a later commit); they were
+left as they are.
 
 ## Memory past 2^256 (ruling 3 as changed by review C-1)
 
@@ -126,12 +190,16 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
     the first `cfg_cleanup` step, 10 at the first `branch_canonicalize` step (no checker for
     either).
 
+- Phase 2, the same runs with `wf` and `ssa` in place: the same verdicts at `-O0` (15
+  accepted, 17 rejected at their first `coalesce_copies`) and at `-O1` (1 accepted, 15 at
+  `cfg_cleanup`, 10 at `branch_canonicalize`).  Every lowered module read is well formed (the
+  diagnosis checks it first), and so is every step output before the first rejected step.
+
 ## Not done
 
 - `cfg_cleanup` and `branch_canonicalize`: no checker, no soundness (enter as `StepSound`
   hypotheses; `checkFunc` rejects them).  `cfg_cleanup` needs the definedness invariant and the
   trivial-phi invariant (`TreeAnc B b → env[v] = env[x]`, preserved by steps given D1's edge
   condition and `ssa`'s use-dominance); `branch_canonicalize` needs L2 at program points.
-- `wf` (C-6) and `ssa` with their soundness; `validate` taking symbol names.
 - Noreturn trims (rejected: no new instruction ids are accepted by any checker).
 - The `mcopy` gas lemma and semantics change (above).
