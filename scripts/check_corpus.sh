@@ -17,7 +17,7 @@ out=$root/.lake/export-corpus/latest
   python3 "$root/scripts/tally_blockers.py" "$out/blockers.txt"
   echo "lean failures: $(wc -l < "$out/leanfail.txt" | tr -d ' ')"
   cat "$out/leanfail.txt"
-  python3 "$root/scripts/tally_diff.py" "$out/diff.txt" | sed -n 1,2p
+  python3 "$root/scripts/tally_diff.py" "$out/diff.txt" | sed -n 1,3p
   echo
   cat "$out/diff.txt"
 } > "$out/summary.txt"

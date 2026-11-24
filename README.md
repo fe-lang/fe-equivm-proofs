@@ -231,6 +231,29 @@ on sequences of generated calls, in an Osaka block, the fork Fe compiles for (EV
 `CLZ` only there). It prints the constructs the exporter stopped at and the
 calls that disagree, and writes its output under `.lake/export-corpus/`.
 
+The audit compares a third run of each creation and call: fe-spec's interpreter
+(`../fe-spec-evm`, a formal semantics of Fe) on the contract's normalized IR, which the
+exporter's corpus driver serializes next to each Lean file (`<file>_<n>.ir.json`, or
+`<file>_<n>.ir.refused` with the construct the serializer stopped at). The interpreter runs on
+`specHost` (`Fe/EVM/SpecHost.lean`), fe-spec's host interface implemented by the operations of
+`World.lean` and `Calls.lean`, from the same world and feed as the model and after the same
+reservation of low memory, and is compared with the bytecode and with the model at `P1`, memory
+excepted: the interpreter keeps locals in cells of its own. A call agrees three ways (`agree3`
+in the totals), or the interpreter disagrees with one side (a `DIFF3` line naming the pairs that
+differ: `interp≠model`, `interp≠bytecode`, `model≠bytecode`, each with both outcomes), or the
+interpreter gives up (`SPEC`, with fe-spec's `unsupported` or `malformed` reason, or
+`outOfFuel` past `interpFuel` steps of a call). A target the serializer refused, or whose IR
+does not read, has a `NOIR` line and is compared two ways only. Lines comparing model and
+bytecode (`DISAGREE`, `agree`, `disagree`) mean what they did before. `scripts/tally_diff.py`
+totals all of them, with the distinct `SPEC` reasons and their counts.
+
+Run it with fe-spec checked out next to this repository and a Fe checkout whose
+`fe-lean-export` has the IR serializer (branch `ir-export` or later):
+
+```sh
+CARGO_TARGET_DIR=<a target directory> scripts/audit_exports.sh <fe checkout>
+```
+
 EVMLean computes ECRECOVER, RIPEMD-160, SHA-256, BLAKE2 F and the BN254 addition and
 multiplication with Lean definitions; SNARKV and the KZG point evaluation still run Python scripts
 of its own, which need packages this repository does not install, and no test of the corpus
@@ -314,7 +337,8 @@ the contract directory to share eligible prefixes with static-mode twins, then r
 primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`, `Calls.lean`), the refinement relation
 (`EVM/Refine.lean`, `Reach.lean`), invariants through reentrant calls (`EVM/FrameCalls.lean` and
 `Invariant.lean`, which import EVMLean only, and `RefineInvariant.lean`), facts about exported
-entry code (`EVM/Entry.lean`) and the differential tests (`EVM/Diff.lean`, `Generate.lean`). The monad of exported code
+entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`) and the
+host they run fe-spec's interpreter on (`EVM/SpecHost.lean`). The monad of exported code
 (`Fe.Core`, `Fe.Partial`) and the commands that embed exported text (`Fe.Embed`) are
 fe-spec's (`../fe-spec-evm`), a dependency by path: one library under the root `Fe` per package,
 each naming its modules (`globs`). Lean's search path cannot split a root between two packages,

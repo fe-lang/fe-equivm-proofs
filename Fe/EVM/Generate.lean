@@ -5,8 +5,8 @@ import Fe.EVM.Diff
 
 The Fe tests of a contract call it on the inputs their author thought of.  `generated` deploys
 each contract with generated constructor arguments and sends it sequences of generated calls,
-each from the state the last one left, and compares every creation and call with the model as
-`Fe/EVM/Diff.lean` does for the calls of a test.
+each from the state the last one left, and compares every creation and call with the model, and
+the interpreter, as `Fe/EVM/Diff.lean` does for the calls of a test.
 
 Arguments are generated from the ABI types of the contract's interface, so that most calls get
 past decoding: numbers near the ends of their range or near a word the contract's storage
@@ -210,15 +210,20 @@ def genAmount : Gen Nat := do
 def generatedGas : Nat := 30000000
 def generatedSteps : Nat := 50000
 
-/-- Run a frame from the start of a transaction and compare it with `model`.  The model is not
-    run when the EVM runs out of gas or overflows its stack: nothing bounds it then. -/
-def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : FeM ByteArray) :
-    Verdict × Except ExecutionException (ExecutionResult State) :=
+/-- Run a frame from the start of a transaction and compare it with `model`, and with the
+    interpreter's run from the same world, `interp`.  Neither is run when the EVM runs out of gas
+    or overflows its stack: nothing bounds them then. -/
+def frame (σ : AccountMap) (A : Substate) (I : ExecutionEnv) (model : FeM ByteArray)
+    (interp : Env → World → Option (Unit → Except String Outcome)) :
+    Verdict × Interp × Except ExecutionException (ExecutionResult State) :=
   let r := run (fresh σ σ generatedGas A I) generatedSteps
   match r.result with
-  | .error .OutOfGass | .error .OutOfFuel => (.outOfGas, r.result)
-  | .error .StackOverflow => (.stackOverflow, r.result)
-  | _ => (compare r.result (model.exec I (World.init σ A (r.events.toList.map supply))), r.result)
+  | .error .OutOfGass | .error .OutOfFuel => (.outOfGas, .notRun, r.result)
+  | .error .StackOverflow => (.stackOverflow, .notRun, r.result)
+  | _ =>
+    let w := World.init σ A (r.events.toList.map supply)
+    let model := model.exec I w
+    (compare r.result model, compareInterp r.result model (interp I w), r.result)
 
 /-- Deploy `target`, trying a few argument lists until its constructor returns, and send it
     `calls` calls.  Returns the comparisons and how many calls returned. -/
@@ -247,10 +252,10 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
       { env with
           codeOwner := address, sender := creator, source := creator, weiValue := value,
           code := target.creation ++ args, perm := true }
-    let (verdict, result) :=
+    let (verdict, interp, result) :=
       frame σ₁ { A with createdAccounts := A.createdAccounts.insert address } I
-        (target.model.init args >>= fun tail => pure (target.runtime ++ tail))
-    reports := reports.push ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict⟩
+        (target.model.init args >>= fun tail => pure (target.runtime ++ tail)) target.interpInit
+    reports := reports.push ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict, interp⟩
     if let .ok (.success s code) := result then
       σ := s.accountMap.insert address { s.accountMap.getD address default with code := code }
       deployed := true
@@ -278,10 +283,10 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
         { env with
             codeOwner := address, sender := sender, source := sender, weiValue := value,
             calldata := input, code := payee.code, perm := !static }
-      let (verdict, result) := frame σ₁ A I target.model.runtime
+      let (verdict, interp, result) := frame σ₁ A I target.model.runtime target.interpRuntime
       let how := if static then "static " else ""
       reports := reports.push
-        ⟨test, target.name, s!"{how}{Ethereum.toHex input} value {value.toNat}", verdict⟩
+        ⟨test, target.name, s!"{how}{Ethereum.toHex input} value {value.toNat}", verdict, interp⟩
       if let .ok (.success s _) := result then
         σ := s.accountMap
         returned := returned + 1
@@ -291,11 +296,10 @@ def sequence (target : Target) (index calls : Nat) : Gen (Array Report × Nat) :
     that does not agree, and a total per target. -/
 def generated (fixture : String) (targets : List Target) (sequences : Nat := 4)
     (calls : Nat := 32) : IO Unit := do
+  let targets ← targets.mapM Target.load
+  reportIr fixture targets
   for target in targets do
-    let mut agree := 0
-    let mut disagree := 0
-    let mut outOfGas := 0
-    let mut stackOverflow := 0
+    let mut tally : Tally := {}
     let mut deployed := 0
     let mut returned := 0
     for index in [:sequences] do
@@ -303,13 +307,7 @@ def generated (fixture : String) (targets : List Target) (sequences : Nat := 4)
       returned := returned + count
       if reports.any (!·.input.startsWith "init") then deployed := deployed + 1
       for r in reports do
-        match r.verdict with
-        | .agree _ => agree := agree + 1
-        | .outOfGas => outOfGas := outOfGas + 1
-        | .stackOverflow => stackOverflow := stackOverflow + 1
-        | .disagree why =>
-          disagree := disagree + 1
-          IO.println s!"DISAGREE {fixture}::{r.test} {r.target} {r.input}: {why}"
-    IO.println s!"GEN {fixture} {target.name} sequences={sequences} deployed={deployed} agree={agree} disagree={disagree} outOfGas={outOfGas} stackOverflow={stackOverflow} returned={returned}"
+        tally ← tally.add fixture r
+    IO.println s!"GEN {fixture} {target.name} sequences={sequences} deployed={deployed} {tally.fields} returned={returned}"
 
 end Fe.EVM.Diff

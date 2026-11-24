@@ -1,5 +1,4 @@
-import Fe.EVM.Calls
-import Fe.EVM.Refine
+import Fe.EVM.SpecHost
 
 /-!
 # Differential tests of exported models
@@ -16,6 +15,12 @@ each call or creation the contract makes.
 
 Only the calls the test code itself makes are compared.  What a contract calls in turn runs
 inside EVMLean's `Θ` on both sides.
+
+A target with the serialized IR of its contract is also run a third way, by fe-spec's
+interpreter on `specHost` (`SpecHost.lean`), from the same world and feed, and compared with
+both at `P1`: each call agrees three ways, or one of the pairs (interpreter and model,
+interpreter and bytecode, model and bytecode) disagrees, or the interpreter gives up
+(`SpecError`).
 -/
 
 namespace Fe.EVM.Diff
@@ -218,8 +223,8 @@ inductive Verdict where
   | stackOverflow
   | disagree (why : String)
 
-/-- Where two account maps differ, in a few words. -/
-def accountsDiff (evm model : AccountMap) : String := Id.run do
+/-- Where two account maps differ, in a few words, the sides named `left` and `right`. -/
+def accountsDiff (evm model : AccountMap) (left := "EVM") (right := "model") : String := Id.run do
   let mut notes : Array String := #[]
   for a in (evm.keys ++ model.keys).eraseDups do
     let e := evm.getD a default
@@ -227,9 +232,9 @@ def accountsDiff (evm model : AccountMap) : String := Id.run do
     if evm.contains a != model.contains a then
       notes := notes.push s!"account {a.val} exists on one side only"
     if e.balance != m.balance then
-      notes := notes.push s!"balance of {a.val}: EVM {e.balance.toNat}, model {m.balance.toNat}"
+      notes := notes.push s!"balance of {a.val}: {left} {e.balance.toNat}, {right} {m.balance.toNat}"
     if e.nonce != m.nonce then
-      notes := notes.push s!"nonce of {a.val}: EVM {e.nonce.toNat}, model {m.nonce.toNat}"
+      notes := notes.push s!"nonce of {a.val}: {left} {e.nonce.toNat}, {right} {m.nonce.toNat}"
     if e.code != m.code then
       notes := notes.push s!"code of {a.val}"
     for (label, es, ms) in [("slot", e.storage, m.storage), ("transient slot", e.tstorage, m.tstorage)] do
@@ -238,7 +243,7 @@ def accountsDiff (evm model : AccountMap) : String := Id.run do
         let mv := ms.getD k ⟨0⟩
         if ev != mv then
           notes := notes.push
-            s!"{label} {Ethereum.toHex k.toByteArray} of {a.val}: EVM {Ethereum.toHex ev.toByteArray}, model {Ethereum.toHex mv.toByteArray}"
+            s!"{label} {Ethereum.toHex k.toByteArray} of {a.val}: {left} {Ethereum.toHex ev.toByteArray}, {right} {Ethereum.toHex mv.toByteArray}"
   let shown := notes.toList.take 4
   return ", ".intercalate shown ++ (if notes.size > 4 then s!", and {notes.size - 4} more" else "")
 
@@ -255,18 +260,18 @@ def describeEvm : Except ExecutionException (ExecutionResult State) → String
   | .ok (.success _ out) => s!"returns {Ethereum.toHex out}"
   | .ok (.revert _ out) => s!"reverts with {Ethereum.toHex out}"
 
-/-- `Agrees .P1`, decided. -/
+/-- `Agrees .P1`, decided.  The model's side is named `label`. -/
 def compare (evm : Except ExecutionException (ExecutionResult State))
-    (model : Option (Except (Exit World) (ByteArray × World))) : Verdict :=
-  let differ (m : String) := Verdict.disagree s!"EVM {describeEvm evm}, model {m}"
+    (model : Option (Except (Exit World) (ByteArray × World))) (label := "model") : Verdict :=
+  let differ (m : String) := Verdict.disagree s!"EVM {describeEvm evm}, {label} {m}"
   let success (out : ByteArray) (w : World) (m : String) : Verdict :=
     match evm with
     | .ok (.success s o) =>
       if o != out then differ m
       else if s.accountMap != w.accounts then
-        .disagree s!"accounts differ: {accountsDiff s.accountMap w.accounts}"
+        .disagree s!"accounts differ: {accountsDiff s.accountMap w.accounts (right := label)}"
       else if s.substate.logSeries != w.logs then
-        .disagree s!"logs differ: EVM {repr s.substate.logSeries}, model {repr w.logs}"
+        .disagree s!"logs differ: EVM {repr s.substate.logSeries}, {label} {repr w.logs}"
       else .agree "success"
     | _ => differ m
   match evm with
@@ -299,6 +304,92 @@ def compare (evm : Except ExecutionException (ExecutionResult State))
       | .error .InvalidMemoryAccess => .agree "oob"
       | _ => differ (describeExit .oob)
 
+/-! ## The interpreter -/
+
+/-- How a run of the model, or of the interpreter, ends. -/
+abbrev Outcome := Option (Except (Exit World) (ByteArray × World))
+
+/-- What `P1` observes of an outcome: a panic is the revert it is on the EVM. -/
+inductive Observed where
+  | diverges
+  | success (out : ByteArray) (accounts : AccountMap) (logs : LogSeries)
+  | revert (data : ByteArray)
+  | static
+  | trap
+  | oob
+
+def observe : Outcome → Observed
+  | none => .diverges
+  | some (.ok (out, w)) | some (.error (.stop out w)) => .success out w.accounts w.logs
+  | some (.error (.revert data)) => .revert data
+  | some (.error (.panic code)) => .revert (panicData code)
+  | some (.error .static) => .static
+  | some (.error .trap) => .trap
+  | some (.error .oob) => .oob
+
+/-- Bytes as hex, cut short past 64 digits. -/
+def shortHex (bytes : ByteArray) : String :=
+  let digits := Ethereum.toHex bytes
+  if digits.length ≤ 72 then digits else s!"{digits.take 64}…({bytes.size} bytes)"
+
+def Observed.describe : Observed → String
+  | .diverges => "does not terminate"
+  | .success out .. => s!"returns {shortHex out}"
+  | .revert data => s!"reverts with {shortHex data}"
+  | .static => "fails on a write under a static call"
+  | .trap => "traps"
+  | .oob => "reads past the return data"
+
+/-- Where the interpreter's outcome differs from the model's, if it does. -/
+def differs (model interp : Outcome) : Option String :=
+  match observe model, observe interp with
+  | .success mo ma ml, .success io ia il =>
+    if mo != io then some s!"model returns {shortHex mo}, interpreter {shortHex io}"
+    else if ma != ia then
+      some s!"accounts differ: {accountsDiff ma ia "model" "interpreter"}"
+    else if ml != il then some s!"logs differ: model {repr ml}, interpreter {repr il}"
+    else none
+  | .revert md, .revert id => if md == id then none else
+      some s!"model reverts with {shortHex md}, interpreter with {shortHex id}"
+  | .diverges, .diverges | .static, .static | .trap, .trap | .oob, .oob => none
+  | m, i => some s!"model {m.describe}, interpreter {i.describe}"
+
+/-- The error the specification gave up with, as the line that reports it shows it. -/
+def describeSpec : Fe.Sem.SpecError → String
+  | .unsupported what => s!"unsupported {what}"
+  | .malformed what => s!"malformed {what}"
+  | e => s!"{repr e}"
+
+/-- How the interpreter's run went, for one creation or call. -/
+inductive Interp where
+  /-- Not run: the contract has no IR, or the bytecode ran out of gas or of stack. -/
+  | notRun
+  /-- The specification gave up. -/
+  | spec (why : String)
+  /-- It ran: how it compares with the bytecode, and where it differs from the model. -/
+  | ran (bytecode : Verdict) (model : Option String)
+
+/-- The interpreter's outcome: a Fe outcome, or the error the specification gave up with. -/
+def interpOutcome : Option (Except (Exit World) (Except Fe.Sem.SpecError ByteArray × World)) →
+    Except String Outcome
+  | none => .ok none
+  | some (.error e) => .ok (some (.error e))
+  | some (.ok (.error e, _)) => .error (describeSpec e)
+  | some (.ok (.ok out, w)) => .ok (some (.ok (out, w)))
+
+/-- Compare the interpreter's run, if there is one, with the bytecode's and the model's. -/
+def compareInterp (evm : Except ExecutionException (ExecutionResult State)) (model : Outcome)
+    (interp : Option (Unit → Except String Outcome)) : Interp :=
+  match evm, interp with
+  | .error .OutOfGass, _ | .error .OutOfFuel, _ | .error .StackOverflow, _ | _, none => .notRun
+  | _, some run =>
+    match run () with
+    | .error why => .spec why
+    | .ok i => .ran (compare evm i "interpreter") (differs model i)
+
+/-- The steps each call the entry code makes may take in the interpreter. -/
+def interpFuel : Nat := 10000000
+
 /-! ## Tests -/
 
 /-- An entry point: its selector, the canonical tuple type of its arguments as in a selector
@@ -316,13 +407,51 @@ structure Interface where
   arms : List Arm := []
 
 /-- A contract with an exported model: its creation code without arguments, its runtime code
-    without immutable fields, the model, and its interface. -/
+    without immutable fields, the model, and its interface.  `ir` is where the corpus driver
+    wrote the contract's IR, `<ir>.ir.json`, or why it is not serialized, `<ir>.ir.refused`; empty
+    when the interpreter is not run on the target.  `load` reads it into `spec`: the program, or
+    why there is none. -/
 structure Target where
   name : String
   creation : ByteArray
   runtime : ByteArray
   model : ContractModel
   interface : Interface := {}
+  ir : String := ""
+  spec : Option (Except String Fe.IR.Program) := none
+
+/-- Read the target's IR. -/
+def Target.load (t : Target) : IO Target := do
+  if t.ir.isEmpty then return t
+  let json : System.FilePath := t.ir ++ ".ir.json"
+  let refused : System.FilePath := t.ir ++ ".ir.refused"
+  let spec ←
+    if ← json.pathExists then
+      pure (match Fe.IR.Program.ofJson (← IO.FS.readFile json) with
+        | .ok prog => .ok prog
+        | .error e => .error s!"the IR does not read: {e}")
+    else if ← refused.pathExists then
+      pure (.error s!"the serializer refused: {← IO.FS.readFile refused}")
+    else pure (.error s!"no IR at {t.ir}")
+  return { t with spec := some spec }
+
+/-- The interpreter's runtime entry on the target, from the world `w`. -/
+def Target.interpRuntime (t : Target) (I : Env) (w : World) :
+    Option (Unit → Except String Outcome) :=
+  match t.spec with
+  | some (.ok prog) => some fun _ => interpOutcome
+      ((specRuntime prog t.runtime.size interpFuel >>= fun r =>
+        pure (r.map fun e => nomatch e)).exec I w)
+  | _ => none
+
+/-- The interpreter's deployment entry on the target, from the world `w`: the deployed code. -/
+def Target.interpInit (t : Target) (I : Env) (w : World) :
+    Option (Unit → Except String Outcome) :=
+  match t.spec with
+  | some (.ok prog) => some fun _ => interpOutcome
+      ((specInit prog t.creation.size interpFuel >>= fun r =>
+        pure (r.map (t.runtime ++ ·))).exec I w)
+  | _ => none
 
 /-- A Fe test: the selector that runs it, and the balance it starts with. -/
 structure Test where
@@ -337,6 +466,63 @@ structure Report where
   /-- `init`, or the calldata of the call. -/
   input : String
   verdict : Verdict
+  interp : Interp := .notRun
+
+/-- The comparisons of some calls, counted. -/
+structure Tally where
+  agree : Nat := 0
+  disagree : Nat := 0
+  outOfGas : Nat := 0
+  stackOverflow : Nat := 0
+  /-- The interpreter agrees with the model and the bytecode, which agree. -/
+  agree3 : Nat := 0
+  /-- The interpreter disagrees with the model or the bytecode. -/
+  interpDisagree : Nat := 0
+  /-- The specification gave up. -/
+  spec : Nat := 0
+  /-- The interpreter did not run: the contract has no IR, or the harness could not rebuild the
+      frame. -/
+  notRun : Nat := 0
+
+/-- Count the report, and print its lines: `DISAGREE` when the model and the bytecode disagree,
+    `DIFF3` when the interpreter disagrees with either, `SPEC` when it gives up. -/
+def Tally.add (t : Tally) (fixture : String) (r : Report) : IO Tally := do
+  let at_ := s!"{fixture}::{r.test} {r.target} {r.input}"
+  let mut t := t
+  match r.verdict with
+  | .agree _ => t := { t with agree := t.agree + 1 }
+  | .outOfGas => return { t with outOfGas := t.outOfGas + 1 }
+  | .stackOverflow => return { t with stackOverflow := t.stackOverflow + 1 }
+  | .disagree why =>
+    t := { t with disagree := t.disagree + 1 }
+    IO.println s!"DISAGREE {at_}: {why}"
+  let modelBytecode := match r.verdict with
+    | .disagree why => [s!"model≠bytecode ({why})"]
+    | _ => []
+  match r.interp with
+  | .notRun => return { t with notRun := t.notRun + 1 }
+  | .spec why =>
+    IO.println s!"SPEC {at_}: {why}"
+    return { t with spec := t.spec + 1 }
+  | .ran bytecode model =>
+    let pairs := (model.map (s!"interp≠model ({·})")).toList
+      ++ (match bytecode with
+        | .disagree why => [s!"interp≠bytecode ({why})"]
+        | _ => [])
+    if pairs.isEmpty then
+      return if modelBytecode.isEmpty then { t with agree3 := t.agree3 + 1 } else t
+    IO.println s!"DIFF3 {at_}: {"; ".intercalate (pairs ++ modelBytecode)}"
+    return { t with interpDisagree := t.interpDisagree + 1 }
+
+def Tally.fields (t : Tally) : String :=
+  s!"agree={t.agree} disagree={t.disagree} outOfGas={t.outOfGas} stackOverflow={t.stackOverflow} agree3={t.agree3} interpDisagree={t.interpDisagree} spec={t.spec} notRun={t.notRun}"
+
+/-- Print a line `NOIR <fixture> <target>: <why>` for each target meant to run on the
+    interpreter that has no program. -/
+def reportIr (fixture : String) (targets : List Target) : IO Unit := do
+  for t in targets do
+    if let some (.error why) := t.spec then
+      IO.println s!"NOIR {fixture} {t.name}: {why.replace "\n" " "}"
 
 def isPrefix (p b : ByteArray) : Bool := p.size ≤ b.size && b.extract 0 p.size == p
 
@@ -352,8 +538,9 @@ def env : ExecutionEnv := { (default : ExecutionEnv) with header.fork := .Osaka 
     interpreter takes minutes for it, and the calls it made so far are compared. -/
 def testSteps : Nat := 2000000
 
-/-- Compare the model with what the EVM did at one event of the test's frame.  Returns the
-    report, if the event concerns a target, and the contract a creation deployed. -/
+/-- Compare the model, and the interpreter, with what the EVM did at one event of the test's
+    frame.  Returns the report, if the event concerns a target, and the contract a creation
+    deployed. -/
 def check (test : String) (targets : List Target) (deployed : List (AccountAddress × Target)) :
     Event → Option Report × Option (AccountAddress × Target)
   | .gas _ => (none, none)
@@ -366,15 +553,21 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
       | some (_, target), some (σ, g, A, I) =>
         let r := run (fresh σ s.σ₀ g A I) stepBound
         let feed := r.events.toList.map supply
-        let model := target.model.runtime.exec I (World.init σ A feed)
+        let w := World.init σ A feed
+        let model := target.model.runtime.exec I w
         -- The frame as rebuilt here must end as the one `Θ` ran inside the test.
         let made : Bool := match r.result with
           | .ok (.success s' _) => x == ⟨1⟩ && after.accountMap == s'.accountMap
           | _ => x == ⟨0⟩
-        let verdict :=
-          if made then compare r.result model
-          else .disagree s!"harness: the rebuilt frame {describeEvm r.result}, the test's call gave {x.toNat}"
-        (some ⟨test, target.name, Ethereum.toHex m.input, verdict⟩, none)
+        let report : Report :=
+          if made then
+            ⟨test, target.name, Ethereum.toHex m.input, compare r.result model,
+              compareInterp r.result model (target.interpRuntime I w)⟩
+          else
+            ⟨test, target.name, Ethereum.toHex m.input,
+              .disagree s!"harness: the rebuilt frame {describeEvm r.result}, the test's call gave {x.toNat}",
+              .notRun⟩
+        (some report, none)
       | _, _ => (none, none)
     | none =>
       match creationFrame op s cost with
@@ -386,16 +579,21 @@ def check (test : String) (targets : List Target) (deployed : List (AccountAddre
           let args := init.extract target.creation.size init.size
           let r := run (fresh σ s.σ₀ g A I) stepBound
           let feed := r.events.toList.map supply
-          let model := (target.model.init args >>= fun tail => pure (target.runtime ++ tail)).exec I
-            (World.init σ A feed)
+          let w := World.init σ A feed
+          let model := (target.model.init args >>= fun tail => pure (target.runtime ++ tail)).exec I w
           let made : Bool := match r.result with
             | .ok (.success _ _) => x == ⟨0⟩ || x == .ofNat a.val
             | _ => x == ⟨0⟩
-          let verdict :=
-            if made then compare r.result model
-            else .disagree s!"harness: the rebuilt creation {describeEvm r.result}, the test's gave {x.toNat}"
-          (some ⟨test, target.name, s!"init {Ethereum.toHex args}", verdict⟩,
-            if x == ⟨0⟩ then none else some (AccountAddress.ofUInt256 x, target))
+          let input := s!"init {Ethereum.toHex args}"
+          let report : Report :=
+            if made then
+              ⟨test, target.name, input, compare r.result model,
+                compareInterp r.result model (target.interpInit I w)⟩
+            else
+              ⟨test, target.name, input,
+                .disagree s!"harness: the rebuilt creation {describeEvm r.result}, the test's gave {x.toNat}",
+                .notRun⟩
+          (some report, if x == ⟨0⟩ then none else some (AccountAddress.ofUInt256 x, target))
 
 /-- Deploy the tests' object with `suite`, its init code, and run the test, comparing at every
     call on a target.  Returns the reports and how the test ended. -/
@@ -430,24 +628,16 @@ def runTest (targets : List Target) (suite : ByteArray) (t : Test) : Array Repor
     test, and a total. -/
 def main (fixture : String) (targets : List Target) (suite : ByteArray) (tests : List Test) :
     IO Unit := do
-  let mut agree := 0
-  let mut disagree := 0
-  let mut outOfGas := 0
-  let mut stackOverflow := 0
+  let targets ← targets.mapM Target.load
+  let mut tally : Tally := {}
   let mut covered : List String := []
   for t in tests do
     let (reports, ended) := runTest targets suite t
     IO.println s!"TEST {fixture}::{t.name} {ended}; {reports.size} compared"
     for r in reports do
-      match r.verdict with
-      | .agree _ =>
-        agree := agree + 1
+      if let .agree _ := r.verdict then
         if !covered.contains r.target then covered := r.target :: covered
-      | .outOfGas => outOfGas := outOfGas + 1
-      | .stackOverflow => stackOverflow := stackOverflow + 1
-      | .disagree why =>
-        disagree := disagree + 1
-        IO.println s!"DISAGREE {fixture}::{r.test} {r.target} {r.input}: {why}"
-  IO.println s!"DIFF {fixture} tests={tests.length} agree={agree} disagree={disagree} outOfGas={outOfGas} stackOverflow={stackOverflow} targets={targets.length} covered={covered.length}"
+      tally ← tally.add fixture r
+  IO.println s!"DIFF {fixture} tests={tests.length} {tally.fields} targets={targets.length} covered={covered.length}"
 
 end Fe.EVM.Diff

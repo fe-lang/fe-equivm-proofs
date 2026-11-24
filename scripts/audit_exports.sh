@@ -3,11 +3,14 @@
 # each unexported contract stopped at, and elaborates every export with Lean.  Elaborating a
 # file also runs its Fe tests in EVMLean and compares each call they make on an exported
 # contract with the contract's model (`Fe/EVM/Diff.lean`), and does the same for sequences of
-# generated calls on each contract (`Fe/EVM/Generate.lean`).
+# generated calls on each contract (`Fe/EVM/Generate.lean`).  Each comparison also runs fe-spec's
+# interpreter (`../fe-spec-evm`) on the contract's IR, which the exporter's corpus driver writes
+# next to each file, and compares it with the model and the bytecode (`Fe/EVM/SpecHost.lean`).
 #
 # Usage: scripts/audit_exports.sh <fe checkout> [regex over file paths]
 #   NO_LEAN=1 skips elaboration.  AUDIT_JOBS sets how many files elaborate at once (default:
-#   the number of CPUs), LEAN_TIMEOUT the seconds each may take (default 600).
+#   the number of CPUs), LEAN_TIMEOUT the seconds each may take (default 600).  Cargo builds in
+#   the Fe checkout's target directory unless CARGO_TARGET_DIR names another.
 # Output goes to a new directory .lake/export-corpus/<time>/, which `latest` then points at:
 # one .lean file per Fe file with its .log, `blockers.txt`, `leanfail.txt` and `diff.txt`.
 set -u
@@ -46,5 +49,5 @@ echo "lean failures: $(wc -l < "$out/leanfail.txt" | tr -d ' ')"
 while read -r _ name; do
   echo "LEANFAIL $name: $(grep -m1 -o "Could not find native implementation of external declaration '[^']*'" "$out/$name.log" || echo 'timed out or does not elaborate')"
 done < "$out/leanfail.txt" | head -40
-ls "$out"/*.lean.log | LC_ALL=C sort | xargs cat | grep -E "^(DIFF|DISAGREE|TEST|GEN) " > "$out/diff.txt"
+ls "$out"/*.lean.log | LC_ALL=C sort | xargs cat | grep -E "^(DIFF|DISAGREE|DIFF3|SPEC|NOIR|TEST|GEN) " > "$out/diff.txt"
 python3 "$root/scripts/tally_diff.py" "$out/diff.txt"
