@@ -47,8 +47,10 @@ def jPairs (j : Json) : Except String (List (Nat × Nat)) := do
     unless a.size == 2 do throw "expected a pair"
     return (← jNat a[0]!, ← jNat a[1]!)
 
-/-- Read the facts of a function step, as `Read.parseFacts` keeps them (key and JSON). -/
-def readFacts (fs : List (String × String)) : Except String StepFacts :=
+/-- Read the facts of a function step, as `Read.parseFacts` keeps them (key and JSON); a key twice
+    is an error. -/
+def readFacts (fs : List (String × String)) : Except String StepFacts := do
+  unless (fs.map (·.1)).eraseDups.length == fs.length do throw "duplicate fact keys"
   fs.foldlM (fun F (k, v) => do
     let j ← Json.parse v
     match k with
