@@ -349,8 +349,14 @@ because the terminator would be deleted.
   are `x` or itself, with `x` an immediate, a parameter, or defined strictly above the phi's
   block (`1cd7126`). Pruning a phi's arms in place is not accepted.
 - **Finding 7, fixed**: the mutations above.
-- **Finding 8, fixed**: duplicate fact keys rejected (`edce1b2`, `SchemasFacts.lean` only), demands
-  below `2^256`, no dead edges in a `known_bits_simplify` step, `slotTaken` sound without `wf`.
+- **Finding 8, fixed except duplicate keys**: demands below `2^256`, no dead edges in a
+  `known_bits_simplify` step, `slotTaken` sound without `wf`. `readFacts` rejects a key that
+  appears twice in its list (`edce1b2`), but `Lean.Json.parse` keeps only the last of a repeated
+  object key (`{"a": 1, "a": 2}` parses to `{"a": 2}`), so a repeated key in a record never
+  reaches it. Rejecting those records needs a check on the raw text in the reader (`Read.lean`).
+- **Output well-formedness** (`765bfd1`): the output must also be `wordTyped` and `cfgOk`, its
+  terminators `Term.wf`, and both id lists distinct. With the pairing this gives the output's
+  `Func.wf` under the input's `sig` and `syms`, which L2 on the output side needs.
 
 ## For the checker authors
 
