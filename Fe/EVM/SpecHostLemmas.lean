@@ -49,6 +49,11 @@ variable (r : Nat) (c : List (String × ByteArray))
     (specHost r c).memWrite a d = mstoreBytes (.ofNat a) d := rfl
 @[simp] theorem specHost_memRead (a l : Nat) :
     (specHost r c).memRead a l = (do return (← get).memory.readWithPadding a l) := rfl
+@[simp] theorem specHost_codeSize :
+    (specHost r c).ctx .codeSize = (do return (← codesize).toNat) := rfl
+@[simp] theorem specHost_regionLen : (specHost r c).ctx .currentCodeRegionLen = pure r := rfl
+@[simp] theorem specHost_codeRead (o l : Nat) :
+    (specHost r c).codeRead o l = (do return (← read).code.readWithPadding o l) := rfl
 @[simp] theorem specHost_log (ts : Array Nat) (d : ByteArray) :
     (specHost r c).log ts d = emit (ts.map .ofNat) d := rfl
 @[simp] theorem specHost_keccak256 (b : ByteArray) :
