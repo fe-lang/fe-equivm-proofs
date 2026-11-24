@@ -9,7 +9,7 @@
 #
 # Usage: scripts/audit_exports.sh <fe checkout> [regex over file paths]
 #   NO_LEAN=1 skips elaboration.  AUDIT_JOBS sets how many files elaborate at once (default:
-#   the number of CPUs), LEAN_TIMEOUT the seconds each may take (default 600).  Cargo builds in
+#   the number of CPUs), LEAN_TIMEOUT the seconds each may take (default 1800).  Cargo builds in
 #   the Fe checkout's target directory unless CARGO_TARGET_DIR names another.
 # Output goes to a new directory .lake/export-corpus/<time>/, which `latest` then points at:
 # one .lean file per Fe file with its .log, `blockers.txt`, `leanfail.txt` and `diff.txt`.
