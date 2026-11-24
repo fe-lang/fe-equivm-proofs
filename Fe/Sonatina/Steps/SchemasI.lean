@@ -215,9 +215,12 @@ def schemaEvm (kb : Nat → KB) : Term → Term → Bool
   | .op2 .byte _ v, r => isC kb v 0 && isC kb r 0
   | _, _ => false
 
-/-- `evm_add_mod _ _ 0 → 0`, `evm_mul_mod _ _ 0 → 0` (`simplify_evm_modop_known`, review H-7). -/
+/-- `evm_add_mod _ _ 0 → 0`, `evm_mul_mod _ _ 0 → 0` (`simplify_evm_modop_known`, review H-7),
+    and (Sonatina #591) `evm_add_mod _ _ 1`, `evm_mul_mod _ _ 1`, `evm_mul_mod 0 _ _`,
+    `evm_mul_mod _ 0 _ → 0`. -/
 def schemaModop (kb : Nat → KB) : Term → Term → Bool
-  | .op3 _ _ _ m, r => isC kb m 0 && isC kb r 0
+  | .op3 o a b m, r => isC kb r 0 && (isC kb m 0 || isC kb m 1 ||
+      (o == .mulmod && (isC kb a 0 || isC kb b 0)))
   | _, _ => false
 
 /-- `not (not x) → x` (`simplify_unary_with_same_inner`, I20). -/
@@ -609,8 +612,13 @@ theorem schemaModop_sound {l r : Term} (h : schemaModop kb l r = true) : l.eval 
   unfold schemaModop at h
   split at h
   · next o a b m =>
-    simp only [Bool.and_eq_true] at h
-    cases o <;> simp [Term.eval, Op3.eval, addmodW, mulmodW, isC_eval hf h.1, isC_eval hf h.2]
+    simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq] at h
+    obtain ⟨hr, (hm | hm) | ⟨rfl, ha | hb⟩⟩ := h
+    · cases o <;> simp [Term.eval, Op3.eval, addmodW, mulmodW, isC_eval hf hm, isC_eval hf hr]
+    · cases o <;> simp [Term.eval, Op3.eval, addmodW, mulmodW, isC_eval hf hm, isC_eval hf hr,
+        Nat.mod_one]
+    · simp [Term.eval, Op3.eval, mulmodW, isC_eval hf ha, isC_eval hf hr]
+    · simp [Term.eval, Op3.eval, mulmodW, isC_eval hf hb, isC_eval hf hr]
   · cases h
 
 omit hf in
