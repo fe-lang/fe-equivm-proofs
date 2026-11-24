@@ -80,14 +80,19 @@ def domTree (f : Func) : DomTree :=
         if a = b then a
         else if numOf a < numOf b then inter idom fuel ((idom.find? a).getD a) b
         else inter idom fuel a ((idom.find? b).getD b)
-    let round (idom : NatMap Nat) : NatMap Nat := rpo.foldl (fun idom b =>
-      if b = e.id then idom else
+    -- One round over reverse postorder; whether it changed anything.
+    let round (idom : NatMap Nat) : NatMap Nat × Bool := rpo.foldl (fun (idom, ch) b =>
+      if b = e.id then (idom, ch) else
       match ((preds.find? b).getD []).filter (fun p => (idom.find? p).isSome) with
-      | [] => idom
-      | p :: ps => idom.insert b (ps.foldl (fun a q => inter idom (2 * n + 2) a q) p)) idom
+      | [] => (idom, ch)
+      | p :: ps =>
+        let d := ps.foldl (fun a q => inter idom (2 * n + 2) a q) p
+        if idom.find? b == some d then (idom, ch) else (idom.insert b d, true)) (idom, false)
     let rec iter : Nat → NatMap Nat → NatMap Nat
       | 0, idom => idom
-      | k + 1, idom => iter k (round idom)
+      | k + 1, idom => match round idom with
+        | (idom, true) => iter k idom
+        | (idom, false) => idom
     let idom := iter (n + 2) (NatMap.empty.insert e.id e.id)
     -- the entry has no immediate dominator
     let idom := rpo.foldl (fun m b => if b = e.id then m else
