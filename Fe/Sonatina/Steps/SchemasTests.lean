@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.SchemasCheck
+import Fe.Sonatina.Steps.KnownBitsInv
 
 /-!
 # Tests of the schema library, evaluated by `decide`
@@ -310,3 +311,6 @@ end Fe.Sonatina.Steps.Schemas.Tests
 #print axioms Fe.Sonatina.Steps.Schemas.checkDemand_sound
 #print axioms Fe.Sonatina.Steps.Schemas.checkBranchOn_target
 #print axioms Fe.Sonatina.Steps.Schemas.factsOn_env
+#print axioms Fe.Sonatina.Steps.Schemas.kb_reaches
+#print axioms Fe.Sonatina.Steps.Schemas.kb_point
+#print axioms Fe.Sonatina.Steps.Schemas.pureInst?_pure
