@@ -55,8 +55,6 @@ msg DiffMsg {
     NeedsDropString -> bool,
     #[selector = sol("needsDropQuiet()")]
     NeedsDropQuiet -> bool,
-    #[selector = sol("spin(uint256)")]
-    Spin { v: u256 } -> u256,
     #[selector = sol("quiet(uint256)")]
     Quiet { v: u256 } -> u256,
 }
@@ -120,16 +118,43 @@ pub contract Differences {
             core::mem::needs_drop<Quiet>()
         }
 
-        // A destructor that only loops, then a return.
+        // An effect-free destructor whose arithmetic overflows.
+        Quiet { v } -> u256 {
+            let q = Quiet { v }
+            1
+        }
+    }
+}
+
+/// A value whose destructor has an effect.
+struct Loud { v: u256 }
+
+impl Drop for Loud {
+    fn drop(own self) {
+        assert!(self.v != 7, "seven")
+    }
+}
+
+msg SpinMsg {
+    #[selector = sol("spin(uint256)")]
+    Spin { v: u256 } -> u256,
+    #[selector = sol("pair()")]
+    Pair -> u256,
+}
+
+/// The destructor that only loops.  The exported model would run it and never end, so this
+/// contract holds a construct the exporter stops at (the drop of an array of values with
+/// destructors), and the audit compares it between the interpreter and the bytecode only.
+pub contract Spinner {
+    recv SpinMsg {
         Spin { v } -> u256 {
             let s = Spin { v }
             42
         }
 
-        // An effect-free destructor whose arithmetic overflows.
-        Quiet { v } -> u256 {
-            let q = Quiet { v }
-            1
+        Pair -> u256 {
+            let ls = [Loud { v: 1 }, Loud { v: 2 }]
+            0
         }
     }
 }
@@ -163,8 +188,9 @@ fn needs_drop() uses (evm: mut Evm) {
 /// Destructors the EVM may elide: one that only loops, one whose arithmetic overflows.
 #[test]
 fn elided_destructors() uses (evm: mut Evm) {
+    let s = evm.create2<Spinner>(value: Wei::zero(), args: (), salt: 0)
+    let _ = send(s, encode_msg_calldata(SpinMsg::Spin { v: 0x5915 }))
     let r = evm.create2<Differences>(value: Wei::zero(), args: (), salt: 0)
-    let _ = send(r, encode_msg_calldata(DiffMsg::Spin { v: 0x5915 }))
     let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 }))
     let _ = send(r, encode_msg_calldata(DiffMsg::Quiet { v: 1 << 255 }))
 }
