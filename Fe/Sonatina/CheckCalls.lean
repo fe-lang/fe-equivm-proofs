@@ -1520,7 +1520,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         Option.some.injEq] at hex
       obtain ⟨_, _, _, _, rfl⟩ := hex
       exact absurd rfl (hnh _ _)
-    | evmStop | evmInvalid =>
+    | evmStop | evmInvalid | unreachable =>
       rw [ht] at hex
       simp only [Ctx.exitOf, Option.some.injEq] at hex
       subst hex
@@ -1532,11 +1532,6 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
         Option.some.injEq] at hex
       obtain ⟨_, _, rfl⟩ := hex
-      exact hjmp.elim
-    | unreachable =>
-      rw [ht] at hex
-      simp only [Ctx.exitOf, Option.some.injEq] at hex
-      subst hex
       exact hjmp.elim
   · cases hr
     left; left
@@ -1553,7 +1548,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       · simp [evalWord, evalInt, hea, Reasoning.Theory.u256_ofNat_toNat]
       · simp [evalWord, evalInt, hel, Reasoning.Theory.u256_ofNat_toNat]
     rcases exitOf_halt hex with ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ |
-      ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ | ⟨ht, rfl, rfl⟩ | ⟨ht, rfl, rfl⟩
+      ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ | ⟨ht, rfl, rfl⟩ | ⟨ht', rfl, rfl⟩
     · rw [ht] at hterm
       obtain ⟨va, vl, rfl, hva, hvl⟩ := hw2 hterm hea hel hargs
       obtain ⟨n, s', hxs, ha, hl⟩ := hh
@@ -1567,7 +1562,8 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       exact .inr (.inl ⟨n, s', _, w', hxs, by simp [ht, stopCall], ha, hl⟩)
     · simp at hargs; subst hargs
       obtain ⟨n, hxs⟩ := hh
-      exact .inl ⟨n, _, hxs, .inr (.inr (.inr (.inl ⟨rfl, by simp [ht, trap]⟩)))⟩
+      exact .inl ⟨n, _, hxs, .inr (.inr (.inr (.inl ⟨rfl, by
+        rcases ht' with ht | ht <;> simp [ht, trap]⟩)))⟩
 
   · -- A return.
     cases hr

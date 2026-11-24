@@ -22,7 +22,7 @@ The runner is a least fixpoint (`partial_fixpoint`): a run that loops for ever d
 terminate, whatever the bytecode's gas, so a certificate never fails for want of the model's
 fuel.  A run does not terminate either when it reaches what the
 semantics leaves undefined or this subset does not cover (`stuck`): an ill-typed operand, a
-missing block, `unreachable`, a section entry that returns.  A run that does not terminate
+missing block, a section entry that returns.  A run that does not terminate
 agrees with no result of the bytecode, so a gap in the semantics makes a comparison fail, not
 pass.
 
@@ -33,6 +33,8 @@ What the semantics fixes where Sonatina leaves a choice:
   manages out of.  The bytecode places allocations elsewhere; only return data, logs and
   accounts are compared, so the addresses do not matter unless the program makes them
   observable.
+- `unreachable` traps, as `evm_invalid` does: Sonatina's `docs/memory.md` makes it the EVM's
+  `INVALID`, which the backend emits for it.
 - `sym_addr` and `sym_size` read the symbol table of the compiled section, a fact of the
   layout the IR does not fix.
 -/
@@ -465,7 +467,9 @@ def runBlocksG (g : Guard) (m : Module) (c : Ctx) (inh : List Nat) (f : Func) (e
   | .evmInvalid => do
     let e ← trap
     nomatch e
-  | .unreachable => stuck
+  | .unreachable => do
+    let e ← trap
+    nomatch e
 partial_fixpoint
 
 /-- Run function `name` of `m` on `args`, under the guard `g` with the words `inh` protected:
@@ -543,7 +547,9 @@ theorem runBlocks_eq (m : Module) (c : Ctx) (f : Func) (env : Env) (prev : Optio
       | .evmInvalid => do
         let e ← trap
         nomatch e
-      | .unreachable => stuck) := by
+      | .unreachable => do
+        let e ← trap
+        nomatch e) := by
   unfold runBlocks runBody; rw [runBlocksG.eq_1]; rfl
 
 theorem runFunc_eq (m : Module) (c : Ctx) (name : String) (args : List Val) :

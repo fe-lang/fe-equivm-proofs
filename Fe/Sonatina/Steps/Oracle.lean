@@ -85,7 +85,9 @@ def runTerm (env : Env) : Term → FeM Next
   | .evmInvalid => do
     let e ← trap
     nomatch e
-  | .unreachable => stuck
+  | .unreachable => do
+    let e ← trap
+    nomatch e
 
 /-- One block: enter block `id` of `f` from `prev`, run its statements with calls by `o`, and
     its terminator. -/
@@ -252,7 +254,9 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
       | .evmInvalid => do
         let e ← trap
         nomatch e
-      | .unreachable => stuck)
+      | .unreachable => do
+        let e ← trap
+        nomatch e)
     (runTerm env t >>= fun
       | .goto env dest => TB env (some id) dest
       | .done vals => pure vals) := by
@@ -290,7 +294,9 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
   | evmInvalid =>
     simp only [runTerm, bind_assoc]
     exact Approx.bind approx_trap fun e _ _ => nomatch e
-  | unreachable => simp only [runTerm, stuck, Fe.M.diverge]; exact Approx.diverge _
+  | unreachable =>
+    simp only [runTerm, bind_assoc]
+    exact Approx.bind approx_trap fun e _ _ => nomatch e
 
 /-- The run of a module approximates an oracle if the iteration `TB` of `stepBlock` with calls
     by the oracle does, function by function.  By fixpoint induction over the module's mutual

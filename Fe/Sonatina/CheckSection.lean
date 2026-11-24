@@ -702,7 +702,8 @@ theorem exitOf_halt {c : Ctx} {t : Term} {op : Operation} {args : List Expr}
       c.operand a = some ea ∧ c.operand l = some el) ∨
     (∃ a l ea el, t = .evmRevert a l ∧ op = .REVERT ∧ args = [ea, el] ∧
       c.operand a = some ea ∧ c.operand l = some el) ∨
-    (t = .evmStop ∧ op = .STOP ∧ args = []) ∨ (t = .evmInvalid ∧ op = .INVALID ∧ args = []) := by
+    (t = .evmStop ∧ op = .STOP ∧ args = []) ∨
+    ((t = .evmInvalid ∨ t = .unreachable) ∧ op = .INVALID ∧ args = []) := by
   cases t with
   | evmReturn a l =>
     simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
@@ -719,7 +720,10 @@ theorem exitOf_halt {c : Ctx} {t : Term} {op : Operation} {args : List Expr}
     exact .inr (.inr (.inl ⟨rfl, h.1.symm, h.2.symm⟩))
   | evmInvalid =>
     simp only [Ctx.exitOf, Option.some.injEq, Exit.halt.injEq] at h
-    exact .inr (.inr (.inr ⟨rfl, h.1.symm, h.2.symm⟩))
+    exact .inr (.inr (.inr ⟨.inl rfl, h.1.symm, h.2.symm⟩))
+  | unreachable =>
+    simp only [Ctx.exitOf, Option.some.injEq, Exit.halt.injEq] at h
+    exact .inr (.inr (.inr ⟨.inr rfl, h.1.symm, h.2.symm⟩))
   | brTable sc def? cases =>
     cases def? <;> simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
   | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h

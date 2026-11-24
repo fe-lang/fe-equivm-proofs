@@ -192,7 +192,7 @@ def Exit.next (ee : ExecutionEnv) (env : Nat → UInt256) : Exit → Option Nat
   | .br c nz z => (c.eval ee env).map fun v => if v.toNat != 0 then nz else z
   | .table s d cases _ => (s.eval ee env).map fun v =>
     ((cases.find? (UInt256.ofNat ·.1 == v)).map (·.2)).getD d
-  | .halt .. | .ret _ | .unreach => none
+  | .halt .. | .ret _ => none
 
 /-- What a path knows of its exit: a `br_table`'s cases are words, and those ruled out are not
     the scrutinee's value. -/

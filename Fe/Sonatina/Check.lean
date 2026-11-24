@@ -26,7 +26,8 @@ whose entry stacks are then the whole of its frame (`Frame.exact`); its entry bl
 with its arguments on top of it.  A call is a `JUMP` to the callee's entry block with its
 arguments on top, and, if the callee returns, below them the address of a `JUMPDEST` where the
 block's bytes go on with the callee's results on top; a call to a function that does not
-return ends the block, whose terminator is `unreachable`.  A `ret` is a `JUMP` to the return
+return ends the block, whose terminator is `unreachable`, which the bytes never reach.
+`unreachable` elsewhere is the bytes' `INVALID`, as `evm_invalid` is.  A `ret` is a `JUMP` to the return
 address with exactly the values below it.  The section's entry takes no arguments, returns
 nowhere, and no block calls it.
 
@@ -466,8 +467,6 @@ inductive Exit where
   | halt (op : Operation) (args : List Expr)
   /-- A return to the function's return address with the values, top first. -/
   | ret (vals : List Expr)
-  /-- None: the block ends in a call to a function that does not return. -/
-  | unreach
   deriving Repr, Inhabited
 
 def Ctx.exitOf (c : Ctx) : Term → Option Exit
@@ -484,7 +483,8 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .evmInvalid => some (.halt .INVALID [])
   | .ret vals =>
     if c.frame.returns then do return .ret (← vals.mapM (c.operand)) else none
-  | .unreachable => some .unreach
+  -- It traps; after a call to a function that does not return, it is never reached.
+  | .unreachable => some (.halt .INVALID [])
   | _ => none
 
 /-- The expression of an entry slot. -/
@@ -740,7 +740,7 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
                       ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more,
                         keepHeld cs.keep p.held⟩
                   | _ => false)
-              else more.isEmpty && cs.events.isEmpty && (p.exit matches .unreach)
+              else more.isEmpty && cs.events.isEmpty && (p.exit matches .halt .INVALID [])
             | none => false
           | _, _ =>
             if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some t then

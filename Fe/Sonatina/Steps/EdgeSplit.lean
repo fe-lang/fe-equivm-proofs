@@ -235,7 +235,8 @@ theorem approx_runTerm (X : ESCtx) (b : Nat) (env : Env) (t' t : Term)
       fun _ => Approx.bind (approx_revertData _ _) fun e _ _ => nomatch e
   case evmStop.evmStop => unfold runTerm; exact Approx.bind approx_stopCall fun e _ _ => nomatch e
   case evmInvalid.evmInvalid => unfold runTerm; exact Approx.bind approx_trap fun e _ _ => nomatch e
-  case unreachable.unreachable => unfold runTerm; exact Approx.stuck _
+  case unreachable.unreachable =>
+    unfold runTerm; exact Approx.bind approx_trap fun e _ _ => nomatch e
 
 theorem ESCtx.find_B (f f' : Func) (id : Nat) : (ESCtx.of f f').B.find? id = f.block? id := by
   simp only [ESCtx.of, NatMap.find?_ofListBy, Func.block?]
