@@ -29,7 +29,7 @@ def diagnose (allowed : List StepKind) (r : MachineSteps) (final : Module) : Opt
           return some s!"{st.kind.name}: {why} ({fs.func}, pass {p.name}, step {i})"
       M := stepOut M st.funcs
       i := i + 1
-  if M != final then return some "final: composed module differs from machine_ir"
+  if !sameFuncs M final then return some "final: composed module differs from machine_ir"
   return none
 
 def main (args : List String) : IO Unit := do
