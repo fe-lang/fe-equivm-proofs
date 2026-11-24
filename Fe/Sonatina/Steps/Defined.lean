@@ -19,11 +19,12 @@ namespace Fe.Sonatina.Steps
 
 open Ethereum Fe Fe.EVM
 
-/-- An environment of words: each value it binds is an `i256`. -/
-def EnvW (env : Env) : Prop := ∀ (k : Nat) (v : Val), env[k]? = some v → ∃ n, v = .int 256 n
+/-- An environment of words: each value it binds is an `i256`, below `2 ^ 256`. -/
+def EnvW (env : Env) : Prop :=
+  ∀ (k : Nat) (v : Val), env[k]? = some v → ∃ n, n < 2 ^ 256 ∧ v = .int 256 n
 
 theorem EnvW.int {env : Env} (h : EnvW env) : EnvInt env := fun k v hv => by
-  obtain ⟨n, rfl⟩ := h k v hv; rfl
+  obtain ⟨n, _, rfl⟩ := h k v hv; rfl
 
 theorem fold_word : ∀ (l : List ((Nat × Ty) × Val)) (env : Env), EnvW env →
     (∀ x ∈ l, x.1.2 = .int 256 ∧ x.2.isInt = true) → EnvW (l.foldl bindStep env)
@@ -40,7 +41,7 @@ theorem fold_word : ∀ (l : List ((Nat × Ty) × Val)) (env : Env), EnvW env �
       rw [hty]
       revert hi
       cases x.2 with
-      | int b n => intro _; exact ⟨n % 2 ^ 256, rfl⟩
+      | int b n => intro _; exact ⟨n % 2 ^ 256, Nat.mod_lt _ (by positivity), rfl⟩
       | agg => intro hi; cases hi
     · exact h k v hv
 
@@ -284,7 +285,7 @@ theorem intVal_of_wf {env : Env} (hw : EnvW env) {op : Operand} (hop : op.wf = t
   cases op with
   | var v =>
     obtain ⟨val, hval⟩ := Option.isSome_iff_exists.mp (hb v rfl)
-    obtain ⟨n, rfl⟩ := hw v val hval
+    obtain ⟨n, _, rfl⟩ := hw v val hval
     exact ⟨n, by simp only [intVal, opVal, hval]⟩
   | imm bits n =>
     simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq] at hop
@@ -376,7 +377,7 @@ theorem defined (hwf : f.wf sig syms = true) (hv : T.valid f = true) (hs : ssa f
   refine Returns.mono (block_point hwf hv hoi c hi hb k hk) fun env hpi =>
     ⟨fun v hd => ?_, fun op hop => ?_⟩
   · obtain ⟨val, hval⟩ := Option.isSome_iff_exists.mp (hpi.2 v hd)
-    obtain ⟨n, rfl⟩ := hpi.1 v val hval
+    obtain ⟨n, _, rfl⟩ := hpi.1 v val hval
     exact ⟨n, hval⟩
   · obtain ⟨n, hn⟩ := uses_defined hwf hs hb hi.2.2.1 hk hpi op hop
     exact ⟨n, by rw [evalInt_eq, hn]; rfl⟩

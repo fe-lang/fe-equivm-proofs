@@ -178,7 +178,8 @@ def sigOk (b : Block) (φ : Phi) (x : Operand) : Bool :=
   x.wf && (match x with
     | .var u => (X.σ.find? u).isNone && X.strictDom b.id u
     | _ => true) &&
-  ops.all (fun o => o == .var φ.dst || X.hat o == x) && ops.any (X.hat · == x)
+  ops.all (fun o => decide (o = .var φ.dst) || decide (X.hat o = x)) &&
+    ops.any fun o => decide (X.hat o = x)
 
 /-- Every entry of `σ` is checked. -/
 def sigmaOk : Bool := X.cs.all fun bφ => match X.σ.find? bφ.2.dst with
@@ -237,9 +238,9 @@ def arrive (b cm k d' : Nat) (θ : Operand → Operand) (q : Nat) : Bool :=
       | none => true
       | some o' => match ib.phis.find? (·.dst == φ'.dst) with
         | none => false
-        | some φ => φ.ty == φ'.ty && match inc φ q with
+        | some φ => decide (φ.ty = φ'.ty) && match inc φ q with
           | none => false
-          | some o => o' == X.hat (θ o) && useOk X.D X.T cm k (θ o)
+          | some o => decide (o' = X.hat (θ o)) && useOk X.D X.T cm k (θ o)
 
 /-- A slot of the output block `b`, whose chain ends at `cm` (`k` statements), targeting `d'`
     where the input's targets `d`. -/
@@ -304,7 +305,7 @@ def chainBody : List Nat → List Stmt
     claimed-noreturn call, else slot by slot. -/
 def termOk (ob cm : Block) : Bool :=
   match trimIdx X.O cm with
-  | some _ => ob.term == .unreachable
+  | some _ => decide (ob.term = .unreachable)
   | none => termRel (fun d' d => X.slotOk ob.id cm.id cm.body.length d' d) ob.term
       (cm.term.mapOps X.hat)
 
@@ -314,7 +315,7 @@ def blockOk (ob : Block) : Bool :=
   let ch := X.chainFrom X.fuel ob.id
   match X.B.find? ob.id, ch.getLast? >>= X.B.find? with
   | some c0, some cm => X.linksOk ch &&
-      ob.phis.all (fun φ' => c0.phis.any fun φ => φ.dst == φ'.dst && φ.ty == φ'.ty) &&
+      ob.phis.all (fun φ' => c0.phis.any fun φ => φ.dst == φ'.dst && decide (φ.ty = φ'.ty)) &&
       decide (ob.body = (X.chainBody ch).map (Stmt.mapOps X.hat)) && X.termOk ob cm
   | _, _ => false
 
@@ -347,7 +348,7 @@ def blockIdsOk (I I' : NatMap (List Nat)) (inIds : NatMap Unit) (ob : Block) : B
       (match oids.getLast?, cmids.getLast?, trimIdx X.O cm with
         | some t', some t, none => t' == t
         | some t', some t, some k =>
-          if k + 1 == cm.body.length && cm.term == .unreachable then t' == t
+          if k + 1 == cm.body.length && decide (cm.term = .unreachable) then t' == t
           else (inIds.find? t').isNone
         | _, _, _ => false)
     | _, _ => false
