@@ -7,6 +7,11 @@ and demanded bits), §9 ruling 8 (fact-check direction), §10 rows H-7, C-2, L-2
 Everything is in namespace `Fe.Sonatina.Steps.Schemas`. Nothing outside these files is changed.
 `lake build Fe.Sonatina.Steps.SchemasTests` builds all of it (the tests import every module).
 
+**Checker entry points** (after review 9, `SchemasCheck.lean`): `checkExact`, `checkDemand`,
+`checkBranchOn`, each with a soundness lemma under `FactsOn` (facts of the atoms of the terms
+compared only). The per-schema lemmas below (`checkI_sound` …) keep the global `FactsHold` and
+are what the entry points are proved from.
+
 ## Modules
 
 | Module | Contents |
@@ -20,6 +25,7 @@ Everything is in namespace `Fe.Sonatina.Steps.Schemas`. Nothing outside these fi
 | `SchemasG.lean` | GVN G2–G6 (`subAdd`, `addSub`, `checkG`, `checkG_sound`); branches B1–B3 (`truthy`, `peelIsZero`, `checkBranch`, `checkBranch_sound`, `checkBranch_target`) |
 | `KnownBitsDemand.lean` | `Agree`, `Agree.mono`; `demand1/2/3` and `demand1/2/3_sound` |
 | `SchemasD.lean` | D1–D3: `checkD`, `checkD_sound` |
+| `SchemasCheck.lean` | `Op2.comm`, `Term.norm`, `Term.norm_eval`, `Term.commEq`, `Term.nf`, `Term.hasAtom`, `Term.hasClz`; `FactsOn`, `restrict`, `factsHold_restrict`, `envWord`, `factsOn_env`, `eval_atom_env`; `checkExact`, `checkDemand`, `checkBranchOn` and their soundness |
 | `SchemasTests.lean` | `decide +kernel` tests, the H-7 counterexamples as rejected cases, `#print axioms` |
 
 ## Axioms
@@ -209,16 +215,62 @@ for `byte >= 31`.
 Known, not new: Sonatina folds and deletes `clz` on every fork; Lean traps before Osaka (review
 M-5, H-2).
 
+## Review 9 (`reviews/review-9-lean-schemas.md`)
+
+- **Finding 3 (GVN), confirmed.** GVN keys `eq x 0` as `IsZero(x)` and `mul x 2^k` as
+  `Shl(k, x)` (`gvn.rs:1000-1068`, `make_gvn_unary_key`/`make_gvn_binary_key`), and
+  `RedundantCodeRemover` aliases the later instruction of a class to the dominating one
+  (`gvn.rs:2409-2420`); `perform_symbolic_evaluation` sorts the operands of commutative ops by
+  rank (`gvn.rs:935-937`, `is_commutative_binary`: `add mul and or xor eq` on machine IR).
+  `checkG` now takes G4 and G6 both ways. `Term.norm` sorts commutative operands (and reduces
+  literals); `checkExact` runs every schema on the terms and on their folded normal forms
+  (`Term.nf`), so every term equality inside a schema is commutative equality, and
+  `l.nf == r.nf` accepts a commuted copy.
+- **Finding 4 (`scalar_canonicalize` compositions): single-round checks suffice, no normalizer.**
+  `ScalarCanonicalize::run` (`scalar_canonicalize.rs:64-104`): each round first plans every
+  instruction on the unmutated function (`plan_inst` takes `&Function`; one `Option<RewritePlan>`
+  per instruction, so at most one rewrite per instruction per round), then applies the plans.
+  On machine IR every plan is a `ReplaceInst` (the `Copy` plans come from `zext` and casts),
+  `resolved` is empty, and `apply_replace_plan` builds the planned `InstSpec` without reading the
+  function. So a round's rewrite reads only pre-round definitions. A rewrite may name, as an
+  operand, a value whose own instruction is rewritten in the same round (it keeps its value id
+  and its value); the checker must then treat that value id as an atom on both sides (it is
+  justified by its own check), not unfold it through its new definition. Design §4.2 E3 says
+  "atoms are output operands present in the input with the same definition": with that rule
+  such a step would need a composition. `fold_constant_comparison` always emits `eq x k`
+  (`InstSpec::Binary { kind: Eq, … }`, also from `is_zero`), never `is_zero x`; the `eq x 0 →
+  is_zero x` is the next round's S9. So the one-round case the reviewer names does not arise.
+- **Finding 5 (`FactsHold`), confirmed; localized (option a).** `FactsOn kb ρ ts` asks the facts
+  of the atoms of `ts` only. `factsOn_env`: from `hinv : ∀ v x, env[v]? = some (.int 256 x) →
+  (kb v).Sat x` and every atom bound to an `i256` word, `FactsOn kb (envWord env) ts`.
+- **Finding 6 (`checkBranch`), confirmed.** `checkBranch = checkBranch1 || checkBranch2`;
+  `checkBranch2` peels `is_zero` from both conditions (`swap = odd (k + k')` for equal cores,
+  `odd (k + k') ^^ !s` through `zeroCmp`). The M-3 cases (`checkBranch1`) stay as tests.
+- **Finding 8.** Done: `foldConstCmp` accepts its output's operands in either order; `Term.hasClz`;
+  docstring `KB.Sat.le`. Not changed: `Term.fold` does not read `kb` (give SCCP constants as
+  `lit`s; `isC` reads facts anyway); `KB.exact v` assumes `v < W` (every caller passes a word);
+  I6 is live on machine IR when `known_bits_simplify` runs range analysis
+  (`known_bits_simplify.rs:104-117`), so steps using it are rejected until range facts exist.
+- **Findings 1, 2, 7 (Rust)** are handled elsewhere. Finding 1 (GVN edge predicates peel `not`
+  on `i256`) is outside this library: edge predicates (G8/G9) are not schemas here. Finding 2
+  adds a second copy of the signextend panic in `crates/ir/src/interpret/evm/mod.rs:120-131`.
+
+Rust behaviour none of these checks accepts (seen while verifying): GVN's operand replacement
+through edge predicates (`infer_value_at_block`), value phis and class leaders other than by
+term equality (G7–G10, the checker's); I6 (range); `scalar_canonicalize` steps where an operand's
+definition changed in the same round, if the checker unfolds it (above).
+
 ## For the checker authors
 
 - Import `Fe.Sonatina.Steps.SchemasG` and `Fe.Sonatina.Steps.SchemasD` (they import the rest),
   `open Fe.Sonatina.Steps.Schemas`.
 - Build `Term`s with `atom v` for value `v`, `lit w` for an immediate (or `undef`, as 0); map an
   instruction with `pureInst?`. Supply `kb v` = the verified known-bits fact of `v` (or
-  `KB.unknown`); prove `FactsHold kb ρ` from the known-bits invariant (every bound value
-  satisfies its fact) with `ρ v` the bound word.
-- Try `Term.fold`/`Term.constEval` (F), then term equality, then `checkI`, `checkS`, `checkG`
-  (exact mode), or `checkD` (demanded-bits mode only, review C-2).
+  `KB.unknown`); prove `FactsOn kb (envWord env) [l, r]` with `factsOn_env` from the known-bits
+  invariant and the atoms being bound.
+- Call `checkExact kb l r` (F, commutative equality, `checkI`, `checkS`, `checkG`; exact mode),
+  or `checkDemand kb d l r` (D1–D3; demanded-bits mode only, review C-2), or
+  `checkBranchOn kb c c' swap`. Soundness needs `FactsOn kb ρ [l, r]` only (`factsOn_env`).
 - Relate terms to the interpreter with `runInst_pure` / `evalConst_sound`; for a term with
   `clz`, Osaka only.
 - Every check is `Bool` and reduces in the kernel (no well-founded recursion); the tests run
