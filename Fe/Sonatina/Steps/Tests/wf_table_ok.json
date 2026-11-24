@@ -1,0 +1,25 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "g",
+   "func_ref": 0,
+   "text": "func private %g(v0.i256) -> i256 {\n    block0:\n        br_table v0 block2 (1.i256 block1) (2.i256 block3);\n    block1:\n        return v0;\n    block2:\n        return v0;\n    block3:\n        return v0;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3
+    ]
+   ]
+  }
+ ],
+ "passes": []
+}

@@ -257,6 +257,8 @@ def statement (b : OpenBlock) (line : String) : P (OpenBlock ⊕ Block) := do
   let name :: args := rest | throw s!"empty statement: {line}"
   if name == "phi" then
     let [(dst, ty)] := dsts | throw s!"phi defines one value: {line}"
+    -- Phis lead their block: a later one would be read out of its line's place.
+    unless b.body.isEmpty do throw s!"phi after a statement: {line}"
     return .inl { b with phis := ⟨dst, ty, ← pairs args⟩ :: b.phis }
   if dsts.isEmpty then
     if let some term ← parseTerm? name args then

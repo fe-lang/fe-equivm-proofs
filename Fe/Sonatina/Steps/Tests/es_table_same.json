@@ -1,0 +1,54 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "g",
+   "func_ref": 0,
+   "text": "func private %g(v0.i256) -> i256 {\n    block0:\n        br_table v0 block1 (1.i256 block1) (2.i256 block1);\n    block1:\n        return v0;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "edge_split",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "edge_split",
+     "funcs": [
+      {
+       "out": {
+        "func": "g",
+        "func_ref": 0,
+        "text": "func private %g(v0.i256) -> i256 {\n    block0:\n        jump block1;\n    block1:\n        return v0;\n}\n",
+        "insts": [
+         [
+          0
+         ],
+         [
+          1
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

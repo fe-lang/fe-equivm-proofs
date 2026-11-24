@@ -7,8 +7,10 @@ import Fe.Sonatina.Plan
 `domTree f` computes immediate dominators by the iterative algorithm of Cooper, Harvey and
 Kennedy over reverse postorder; nothing about it is proved.  `DomTree.valid` checks the result
 on a reachable set `R` that it checks closed (the entry is in it, and the successors of its
-blocks): the entry has no `idom`; every other block of `R` has one in `R`; and for every edge
-`p → b` with `p ∈ R` and `b` not the entry, `idom b` is an ancestor-or-self of `p`.
+blocks): the entry has no `idom`; every other block of `R` has one in `R`; for every edge
+`p → b` with `p ∈ R` and `b` not the entry, `idom b` is an ancestor-or-self of `p`; and the
+entry is an ancestor-or-self of every block of `R` (`valid_root`), so `idom` has no cycle on the
+blocks of `R`, reachable or not (review 6, F-8).
 
 D1 (`DomTree.dominates`): in a valid tree, an ancestor-or-self `d` of `b` lies on every path
 from the entry to `b`.  By induction on the path.  Ancestry is the inductive `Anc` (`idom`
@@ -20,6 +22,12 @@ namespace Fe.Sonatina.Steps
 
 /-- The successors of each block. -/
 def succMap (f : Func) : NatMap (List Nat) := .ofList (f.blocks.map fun b => (b.id, b.term.succs))
+
+/-- The successors of each block, each once: what the computation walks, so that the number of
+    edges, and the fuel, is bounded by the square of the number of blocks (a `br_table` repeats
+    targets).  The validation reads `succMap`. -/
+def succMapOnce (f : Func) : NatMap (List Nat) :=
+  .ofList (f.blocks.map fun b => (b.id, b.term.succs.eraseDups))
 
 def succsOf (S : NatMap (List Nat)) (b : Nat) : List Nat := (S.find? b).getD []
 
@@ -62,7 +70,7 @@ def DomTree.anc (T : DomTree) (d b : Nat) : Bool := T.ancAux d T.size b
 
 /-- Compute the tree: the iterative algorithm, `idom` of the entry removed at the end. -/
 def domTree (f : Func) : DomTree :=
-  let S := succMap f
+  let S := succMapOnce f
   let n := f.blocks.length
   match f.blocks.head? with
   | none => ⟨.empty, .empty, n⟩
@@ -71,7 +79,7 @@ def domTree (f : Func) : DomTree :=
     -- postorder numbers, and the predecessors of each block
     let num : NatMap Nat := .ofList (post.zipIdx.map fun (b, i) => (b, i))
     let preds : NatMap (List Nat) := f.blocks.foldl (fun m b =>
-      b.term.succs.foldl (fun m s => m.insert s (b.id :: (m.find? s).getD [])) m) .empty
+      b.term.succs.eraseDups.foldl (fun m s => m.insert s (b.id :: (m.find? s).getD [])) m) .empty
     let rpo := post.reverse
     let numOf := fun b => (num.find? b).getD 0
     let rec inter (idom : NatMap Nat) : Nat → Nat → Nat → Nat
@@ -107,13 +115,14 @@ def DomTree.valid (T : DomTree) (f : Func) : Bool :=
   | some e =>
     let inR := fun b => (T.reach.find? b).isSome
     inR e.id && (T.idom.find? e.id).isNone && T.size ≥ f.blocks.length &&
-    f.blocks.all fun blk => !inR blk.id ||
+    (f.blocks.all fun blk => !inR blk.id ||
       ((blk.id == e.id || match T.idom.find? blk.id with
         | some d => inR d
         | none => false) &&
        (succsOf S blk.id).all fun b => inR b && (b == e.id || match T.idom.find? b with
          | some d => T.anc d blk.id
-         | none => false))
+         | none => false))) &&
+    f.blocks.all fun blk => !inR blk.id || T.anc e.id blk.id
 
 /-! ## D1 -/
 
@@ -177,7 +186,7 @@ theorem DomTree.dominates {T : DomTree} {f : Func} {e : Block} (hv : T.valid f =
     (ha : T.Anc d b) : d ∈ bs := by
   simp only [valid, he, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
     Option.isNone_iff_eq_none, decide_eq_true_eq] at hv
-  obtain ⟨⟨⟨hre, hroot⟩, _⟩, hblocks⟩ := hv
+  obtain ⟨⟨⟨⟨hre, hroot⟩, _⟩, hblocks⟩, _⟩ := hv
   -- Every block of a path is in the reachable set.
   have hreach : ∀ {b bs}, Path f e.id b bs → (T.reach.find? b).isSome = true := by
     intro b bs hp
@@ -212,5 +221,15 @@ theorem DomTree.dominates {T : DomTree} {f : Func} {e : Block} (hv : T.valid f =
       · rw [hi] at hd
         rw [hid] at hd
         exact List.mem_cons_of_mem _ (ih (hai.trans (anc_sound hd)))
+
+/-- In a valid tree the entry is an ancestor-or-self of every block of the reachable set. -/
+theorem DomTree.valid_root {T : DomTree} {f : Func} {e : Block} (hv : T.valid f = true)
+    (he : f.blocks.head? = some e) {blk : Block} (hb : blk ∈ f.blocks)
+    (hr : (T.reach.find? blk.id).isSome = true) : T.Anc e.id blk.id := by
+  simp only [valid, he, Bool.and_eq_true, List.all_eq_true, Bool.or_eq_true, Bool.not_eq_true',
+    Option.isNone_iff_eq_none, decide_eq_true_eq] at hv
+  rcases hv.2 blk hb with h | h
+  · rw [hr] at h; cases h
+  · exact anc_sound h
 
 end Fe.Sonatina.Steps

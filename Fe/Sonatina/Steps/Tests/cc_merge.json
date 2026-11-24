@@ -1,0 +1,62 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f() -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        jump block3;\n    block3:\n        v2.i256 = phi (v1 block0) (v1 block5);\n        v3.i256 = add v2 1.i256;\n        jump block4;\n    block4:\n        return v3;\n    block5:\n        jump block3;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3,
+     4
+    ],
+    [
+     5
+    ],
+    [
+     6
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "cfg_cleanup",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "cfg_cleanup",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f() -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v3.i256 = add v1 1.i256;\n        return v3;\n}\n",
+        "insts": [
+         [
+          0,
+          3,
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
