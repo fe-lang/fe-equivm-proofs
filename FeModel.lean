@@ -10,6 +10,7 @@ import Fe.EVM.Invariant
 import Fe.EVM.RefineInvariant
 import Fe.EVM.Reach
 import Fe.EVM.Entry
+import Fe.EVM.SpecHost
 import Fe.EVM.Diff
 import Fe.EVM.Generate
 import Fe.Sonatina.Syntax
