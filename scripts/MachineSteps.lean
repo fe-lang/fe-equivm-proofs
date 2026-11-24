@@ -19,13 +19,16 @@ def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (
     if !f.wf lowered.sig syms then return some s!"lowered: {f.name} not well formed"
   if !r.lowered.all FuncSnap.idsOk then return some "lowered: instruction ids do not match"
   let mut M := lowered
+  let mut I := r.ids
   for p in r.passes do
+    if !SummariesOk p.funcBehavior M then
+      return some s!"summaries: a noreturn claim fails against the pass input (pass {p.name})"
     let mut i := 0
     for st in p.steps do
       if !allowed.contains st.kind then
         return some s!"{st.kind.name}: kind not allowed (pass {p.name}, step {i})"
       for fs in st.funcs do
-        if !(checkStep st.kind syms p.funcBehavior M [fs]) then
+        if !(checkStep st.kind syms p.funcBehavior M I [fs]) then
           let why := if !fs.facts.isEmpty then "facts present"
             else if !fs.out.func.machine then "output not machine IR"
             else if !fs.out.wf M.sig syms then "output not well formed"
@@ -36,6 +39,7 @@ def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (
             else "check rejects"
           return some s!"{st.kind.name}: {why} ({fs.func}, pass {p.name}, step {i})"
       M := stepOut M st.funcs
+      I := stepIds I st.funcs
       i := i + 1
   if !sameFuncs M final then return some "final: composed module differs from machine_ir"
   return none

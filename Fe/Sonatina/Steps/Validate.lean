@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.EdgeSplit
+import Fe.Sonatina.Steps.Summary
 import Fe.Sonatina.Steps.Record
 
 /-!
@@ -12,12 +13,17 @@ output function, which keeps its input's signature: so every module of the repla
 formed (`stepOut_wf`).  `validateWith allowed` also rejects records with a step kind outside
 `allowed`.
 
+The replay also carries each function's instruction ids (`IdTab`), which the module does not
+hold: a step's check reads its input's ids.  Each pass first checks its summary table against
+its input (`SummariesOk`, `Summary.lean`).
+
 `StepSound k`: a step of kind `k` that the check accepts on a well-formed module gives, for
 every function, an output that approximates the input on integers under any oracle that
-approximates itself and returns integers, in any context with the symbols.  `edgeSplit_stepSound`
+approximates itself, returns integers, and never returns from a function the pass's table
+claims does not return (`NoRetHolds`), in any context with the symbols.  `edgeSplit_stepSound`
 proves it for `edge_split`; the other kinds enter `validate_sound` as hypotheses.  Within a pass
-every step runs calls by the pass input's semantics; C1 (`modRefines_of_funcs`) closes each
-pass, and passes compose by `ModRefines.trans`.
+every step runs calls by the pass input's semantics, the module the table is checked against;
+C1 (`modRefines_of_funcs`) closes each pass, and passes compose by `ModRefines.trans`.
 -/
 
 namespace Fe.Sonatina.Steps
@@ -42,10 +48,15 @@ theorem Module.update_func? (M : Module) (fs : List Func) (name : String) :
     simp only [beq_iff_eq] at this
     simp [this]
 
-/-- The check of one function by a step kind.  Kinds without a checker reject. -/
-def checkFunc : StepKind → Func → Func → Bool
-  | .edgeSplit, f, f' => checkEdgeSplit f f'
-  | _, _, _ => false
+/-- Each function's instruction ids, per block (`FuncSnap.insts`): the latest first. -/
+abbrev IdTab := List (String × List (List Nat))
+
+/-- The check of one function by a step kind, given the pass's summary table, the input
+    function, its instruction ids, and the output snapshot.  Kinds without a checker reject. -/
+def checkFunc : StepKind → Option (List Summary) → Func → Option (List (List Nat)) → FuncSnap →
+    Bool
+  | .edgeSplit, _, f, _, s => checkEdgeSplit f s.func
+  | _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/
 def sameSig (f g : Func) : Bool := decide (g.params = f.params) && decide (g.rets = f.rets)
@@ -53,21 +64,25 @@ def sameSig (f g : Func) : Bool := decide (g.params = f.params) && decide (g.ret
 /-- A step: every function it lists exists in the input, is renamed to nothing, keeps its
     signature, has no facts (no kind of this phase reads any), is well formed in the input
     module (whose signatures it keeps) with its instruction ids, and passes its kind's check. -/
-def checkStep (k : StepKind) (syms : List String) (_O : Option (List Summary)) (M : Module)
-    (fs : List FuncStep) : Bool :=
+def checkStep (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
+    (I : IdTab) (fs : List FuncStep) : Bool :=
   fs.all fun s => s.facts.isEmpty && s.out.func.name == s.func && s.out.wf M.sig syms &&
-    (M.func? s.func).any fun f => sameSig f s.out.func && checkFunc k f s.out.func
+    (M.func? s.func).any fun f => sameSig f s.out.func && checkFunc k O f (I.lookup s.func) s.out
 
 /-- A step's output module. -/
 def stepOut (M : Module) (fs : List FuncStep) : Module := M.update (fs.map (·.out.func))
 
+/-- A step's output instruction ids. -/
+def stepIds (I : IdTab) (fs : List FuncStep) : IdTab := fs.map (fun s => (s.func, s.out.insts)) ++ I
+
 /-- `k`'s check is sound: each function of an accepted step's output, its calls run by an
-    oracle that approximates itself and returns integers on integers, approximates the same
-    function of the input on integers, in any context with the symbols. -/
+    oracle that approximates itself, returns integers on integers and never returns from a
+    function the table `O` claims does not return, approximates the same function of the input
+    on integers, in any context with the symbols. -/
 def StepSound (k : StepKind) : Prop :=
-  ∀ (syms : List String) (O : Option (List Summary)) (M : Module) (fs : List FuncStep),
-    M.wf syms = true → checkStep k syms O M fs = true →
-    ∀ (o : Oracle) (c : Ctx), c.Has syms → Oracle.Mono o → o.IntRet →
+  ∀ (syms : List String) (O : Option (List Summary)) (M : Module) (I : IdTab)
+    (fs : List FuncStep), M.wf syms = true → checkStep k syms O M I fs = true →
+    ∀ (o : Oracle) (c : Ctx), c.Has syms → Oracle.Mono o → o.IntRet → NoRetHolds O o →
       ∀ name, FuncRef o c ((stepOut M fs).func? name) (M.func? name)
 
 /-- A function approximates itself under an oracle that does and returns integers. -/
@@ -96,10 +111,11 @@ theorem FuncRef.refl {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx
 theorem FuncRef.none (o : Oracle) (c : Ctx) : FuncRef o c none none := fun _ _ => Approx.stuck _
 
 theorem checkStep_spec {k : StepKind} {syms : List String} {O : Option (List Summary)}
-    {M : Module} {fs : List FuncStep} (h : checkStep k syms O M fs = true) :
+    {M : Module} {I : IdTab} {fs : List FuncStep} (h : checkStep k syms O M I fs = true) :
     ∀ s ∈ fs, s.facts.isEmpty = true ∧ s.out.func.name = s.func ∧
       s.out.func.wf M.sig syms = true ∧
-      ∃ f, M.func? s.func = some f ∧ sameSig f s.out.func = true ∧ checkFunc k f s.out.func = true := by
+      ∃ f, M.func? s.func = some f ∧ sameSig f s.out.func = true ∧
+        checkFunc k O f (I.lookup s.func) s.out = true := by
   intro s hs
   have := List.all_eq_true.mp h s hs
   simp only [Bool.and_eq_true, beq_iff_eq, Option.any_eq_true, FuncSnap.wf] at this
@@ -109,12 +125,12 @@ theorem checkStep_spec {k : StepKind} {syms : List String} {O : Option (List Sum
 /-- A step's output function, if any, of the name of a function `g` of the input: one with the
     signature of `g`, well formed in the input. -/
 theorem stepOut_func {k : StepKind} {syms : List String} {O : Option (List Summary)} {M : Module}
-    {fs : List FuncStep} (h : checkStep k syms O M fs = true) {name : String} {g : Func}
-    (hg : M.func? name = some g) :
+    {I : IdTab} {fs : List FuncStep} (h : checkStep k syms O M I fs = true) {name : String}
+    {g : Func} (hg : M.func? name = some g) :
     (fs.map (·.out.func)).find? (·.name == g.name) = none ∨
       ∃ s ∈ fs, (fs.map (·.out.func)).find? (·.name == g.name) = some s.out.func ∧
         s.out.func.name = g.name ∧ sameSig g s.out.func = true ∧ s.out.func.wf M.sig syms = true ∧
-        checkFunc k g s.out.func = true := by
+        checkFunc k O g (I.lookup s.func) s.out = true := by
   cases hr : (fs.map (·.out.func)).find? (·.name == g.name) with
   | none => exact Or.inl rfl
   | some r =>
@@ -129,7 +145,8 @@ theorem stepOut_func {k : StepKind} {syms : List String} {O : Option (List Summa
 
 /-- A step's output module has the signatures of its input. -/
 theorem stepOut_sig {k : StepKind} {syms : List String} {O : Option (List Summary)} {M : Module}
-    {fs : List FuncStep} (h : checkStep k syms O M fs = true) : (stepOut M fs).sig = M.sig := by
+    {I : IdTab} {fs : List FuncStep} (h : checkStep k syms O M I fs = true) :
+    (stepOut M fs).sig = M.sig := by
   funext name
   unfold Module.sig
   rw [stepOut, Module.update_func?]
@@ -145,8 +162,8 @@ theorem stepOut_sig {k : StepKind} {syms : List String} {O : Option (List Summar
 
 /-- A step's output module is well formed when its input is. -/
 theorem stepOut_wf {k : StepKind} {syms : List String} {O : Option (List Summary)} {M : Module}
-    {fs : List FuncStep} (hM : M.wf syms = true) (h : checkStep k syms O M fs = true) :
-    (stepOut M fs).wf syms = true := by
+    {I : IdTab} {fs : List FuncStep} (hM : M.wf syms = true)
+    (h : checkStep k syms O M I fs = true) : (stepOut M fs).wf syms = true := by
   unfold Module.wf
   rw [stepOut_sig h]
   refine List.all_eq_true.mpr fun g' hg' => ?_
@@ -160,10 +177,11 @@ theorem stepOut_wf {k : StepKind} {syms : List String} {O : Option (List Summary
 
 /-- A step kind whose check of each function gives `FuncRef` is sound. -/
 theorem StepSound.of_func {k : StepKind}
-    (h : ∀ (sig : Sigs) (syms : List String) (o : Oracle) (c : Ctx), Oracle.Mono o → o.IntRet →
-      ∀ f f', f.wf sig syms = true → checkFunc k f f' = true → FuncRef o c (some f') (some f)) :
+    (h : ∀ (O : Option (List Summary)) (sig : Sigs) (syms : List String) (o : Oracle) (c : Ctx),
+      Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s, f.wf sig syms = true →
+        checkFunc k O f ids s = true → FuncRef o c (some s.func) (some f)) :
     StepSound k := by
-  intro syms O M fs hM hc o c _ ho hoi name
+  intro syms O M I fs hM hc o c _ ho hoi hnr name
   rw [stepOut, Module.update_func?]
   cases hg : M.func? name with
   | none => exact FuncRef.none o c
@@ -172,22 +190,32 @@ theorem StepSound.of_func {k : StepKind}
     dsimp only [Option.map]
     rcases stepOut_func hc hg with hr | ⟨s, _, hr, _, _, _, hck⟩
     · rw [hr]; exact FuncRef.refl ho hoi c (Func.wf_machine hgw)
-    · rw [hr]; exact h _ _ o c ho hoi _ s.out.func hgw hck
+    · rw [hr]; exact h O _ _ o c ho hoi hnr _ _ s.out hgw hck
 
 theorem edgeSplit_stepSound : StepSound .edgeSplit :=
-  StepSound.of_func fun _ _ o c ho hoi _ _ hw h => edgeSplit_sound ho hoi c hw h
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ hw h => edgeSplit_sound ho hoi c hw h
 
 /-! ## Replaying a record -/
 
-/-- One pass from module `M`: each step checked, its output substituted. -/
-def validatePass (p : Pass) (syms : List String) (M : Module) : Option Module :=
-  p.steps.foldlM (fun M st =>
-    if checkStep st.kind syms p.funcBehavior M st.funcs then some (stepOut M st.funcs) else none) M
+/-- One step from a module and its instruction ids: checked, its output substituted. -/
+def validateStep (p : Pass) (syms : List String) (MI : Module × IdTab) (st : Step) :
+    Option (Module × IdTab) :=
+  if checkStep st.kind syms p.funcBehavior MI.1 MI.2 st.funcs then
+    some (stepOut MI.1 st.funcs, stepIds MI.2 st.funcs)
+  else none
+
+/-- One pass from a module and its instruction ids: its summary table checked against the
+    module, then each step checked and its output substituted. -/
+def validatePass (p : Pass) (syms : List String) (MI : Module × IdTab) : Option (Module × IdTab) :=
+  if SummariesOk p.funcBehavior MI.1 then p.steps.foldlM (validateStep p syms) MI else none
 
 /-- The lowered module of a record, with the struct types `structs`, which no machine
     instruction reads. -/
 def MachineSteps.module (r : MachineSteps) (structs : List (String × List Ty)) : Module :=
   ⟨structs, r.lowered.map (·.func)⟩
+
+/-- The instruction ids of the lowered functions. -/
+def MachineSteps.ids (r : MachineSteps) : IdTab := r.lowered.map fun s => (s.func.name, s.insts)
 
 /-- `F` has the functions of `M`, by name (the machine IR prints them in another order than
     the record lists them). -/
@@ -224,8 +252,8 @@ theorem sameFuncs_wf {syms : List String} {M F : Module} (h : sameFuncs M F = tr
 def validateWith (allowed : List StepKind) (syms : List String) (r : MachineSteps)
     (final : Module) : Bool :=
   r.kinds.all allowed.contains && (r.module final.structs).wf syms && r.lowered.all FuncSnap.idsOk &&
-    match r.passes.foldlM (fun M p => validatePass p syms M) (r.module final.structs) with
-    | some M => sameFuncs M final
+    match r.passes.foldlM (fun MI p => validatePass p syms MI) (r.module final.structs, r.ids) with
+    | some MI => sameFuncs MI.1 final
     | none => false
 
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=
@@ -233,19 +261,23 @@ def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=
 
 theorem validatePass_sound {syms : List String} {p : Pass}
     (hk : ∀ st ∈ p.steps, StepSound st.kind) :
-    ∀ {M M' : Module}, M.wf syms = true → validatePass p syms M = some M' →
-      M'.wf syms = true ∧ ModRefines syms M' M := by
-  intro M M' hM h
+    ∀ {MI MI' : Module × IdTab}, MI.1.wf syms = true → validatePass p syms MI = some MI' →
+      MI'.1.wf syms = true ∧ ModRefines syms MI'.1 MI.1 := by
+  intro MI MI' hM h
+  unfold validatePass at h
+  split at h
+  case isFalse => cases h
+  next hS =>
+  let M := MI.1
   have hMm := Module.wf_machine hM
-  -- Within the pass, every step runs calls by `M`'s semantics.
+  -- Within the pass, every step runs calls by `M`'s semantics, of which the table holds.
   suffices H : ∀ (steps : List Step), (∀ st ∈ steps, StepSound st.kind) → ∀ N N',
-      N.wf syms = true →
-      (∀ c : Ctx, c.Has syms → ∀ name, FuncRef (runFunc M c) c (N.func? name) (M.func? name)) →
-      steps.foldlM (fun M st => if checkStep st.kind syms p.funcBehavior M st.funcs then
-        some (stepOut M st.funcs) else none) N = some N' →
-      N'.wf syms = true ∧
-        ∀ c : Ctx, c.Has syms → ∀ name, FuncRef (runFunc M c) c (N'.func? name) (M.func? name) by
-    obtain ⟨hm', href⟩ := H p.steps hk M M' hM (fun c _ name => by
+      N.1.wf syms = true →
+      (∀ c : Ctx, c.Has syms → ∀ name, FuncRef (runFunc M c) c (N.1.func? name) (M.func? name)) →
+      steps.foldlM (validateStep p syms) N = some N' →
+      N'.1.wf syms = true ∧
+        ∀ c : Ctx, c.Has syms → ∀ name, FuncRef (runFunc M c) c (N'.1.func? name) (M.func? name) by
+    obtain ⟨hm', href⟩ := H p.steps hk MI MI' hM (fun c _ name => by
       cases h : M.func? name with
       | none => exact FuncRef.none _ c
       | some g =>
@@ -261,13 +293,15 @@ theorem validatePass_sound {syms : List String} {p : Pass}
   | cons st rest ih =>
     intro hks N N' hN href h
     simp only [List.foldlM_cons] at h
+    unfold validateStep at h
     split at h
     · next hc =>
       simp only [Option.bind_eq_bind, Option.bind_some] at h
       refine ih (fun s hs => hks s (List.mem_cons_of_mem _ hs)) _ N' (stepOut_wf hN hc)
         (fun c hcs name => ?_) h
-      exact (hks st (List.mem_cons_self ..) syms p.funcBehavior N st.funcs hN hc (runFunc M c) c
-        hcs (runFunc_mono hMm c) (runFunc_intRet hMm c) name).trans (href c hcs name)
+      exact (hks st (List.mem_cons_self ..) syms p.funcBehavior N.1 N.2 st.funcs hN hc
+        (runFunc M c) c hcs (runFunc_mono hMm c) (runFunc_intRet hMm c)
+        (summariesOk_sound hS c) name).trans (href c hcs name)
     · simp at h
 
 /-- A record that validates: the final machine IR refines the lowered module on the section's
@@ -282,11 +316,12 @@ theorem validate_sound {allowed : List StepKind} {syms : List String} {r : Machi
   have hks : ∀ p ∈ r.passes, ∀ st ∈ p.steps, StepSound st.kind := fun p hp st hst =>
     hk _ (hkinds _ (List.mem_flatMap.mpr ⟨p, hp, List.mem_map.mpr ⟨st, hst, rfl⟩⟩))
   suffices H : ∀ (ps : List Pass), (∀ p ∈ ps, ∀ st ∈ p.steps, StepSound st.kind) → ∀ N N',
-      N.wf syms = true → ps.foldlM (fun M p => validatePass p syms M) N = some N' →
-      N'.wf syms = true ∧ ModRefines syms N' N by
+      N.1.wf syms = true → ps.foldlM (fun MI p => validatePass p syms MI) N = some N' →
+      N'.1.wf syms = true ∧ ModRefines syms N'.1 N.1 by
     split at hfold
-    · next M hM =>
-      obtain ⟨hm, href⟩ := H r.passes hks _ M hlm hM
+    · next MI hM =>
+      let M := MI.1
+      obtain ⟨hm, href⟩ := H r.passes hks _ MI hlm hM
       have hfm := sameFuncs_wf hfold hm
       have hmm := Module.wf_machine hm
       refine ⟨hlm, hfm, (modRefines_of_funcs hmm (Module.wf_machine hfm) fun c _ name => ?_).trans
