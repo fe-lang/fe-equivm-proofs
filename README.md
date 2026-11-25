@@ -233,7 +233,8 @@ calls that disagree, and writes its output under `.lake/export-corpus/`.
 
 The audit compares a third run of each creation and call: fe-spec's interpreter
 (`../fe-spec`, a formal semantics of Fe) on the contract's normalized IR, which the
-exporter's corpus driver serializes next to each Lean file (`<file>_<n>.ir.json`, or
+exporter's corpus driver serializes next to each Lean file (`<file>_<n>.ir.json`, format
+version 2, linked against `library.ir.json`, the library of the whole corpus, or
 `<file>_<n>.ir.refused` with the construct the serializer stopped at). The interpreter runs on
 `specHost` (`Fe/EVM/SpecHost.lean`), fe-spec's host interface implemented by the operations of
 `World.lean` and `Calls.lean`, from the same world and feed as the model and after the same
