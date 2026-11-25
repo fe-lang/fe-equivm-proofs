@@ -34,10 +34,13 @@ theorem creation_provenance :
 
 end FeProofs.ScalarStore
 
-open Lean in
-#eval show IO Unit from do
-  let here ← IO.FS.readBinFile ("FeProofs" / "ScalarStore" / "FeScalarStore.fe")
+open Lean Elab Command in
+#eval show CommandElabM Unit from do
+  -- The source, from the root of this package (the nearest directory above this file with a
+  -- Lake configuration), wherever the build runs.
+  let file := System.FilePath.mk (← getFileName)
+  let root := (← Fe.IR.Load.packageRoot (file.parent.getD ".")).getD "."
+  let here ← IO.FS.readBinFile (root / "FeProofs" / "ScalarStore" / "FeScalarStore.fe")
   let recorded := Fe.Proofs.scalarStore.provenance.sources.map (·.keccak256.data)
   unless recorded == #[(Fe.Host.Keccak.keccak256 here).data] do
-    throw <| IO.userError
-      "FeScalarStore.fe does not hash to the source fixtures/scalar_store.json records"
+    throwError "FeScalarStore.fe does not hash to the source fixtures/scalar_store.json records"

@@ -89,4 +89,4 @@ import FeProofs.Fixtures.Encode
 import FeProofs.Fixtures.Ints
 import FeProofs.Fixtures.State
 import FeProofs.Fixtures.Calls
-
+import FeProofs.ScalarStore.SpecDeploy
