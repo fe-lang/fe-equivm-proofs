@@ -102,7 +102,7 @@ def stepReport (syms : List String) (r : MachineSteps) (final : Module) : List S
 def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (final : Module) :
     Option String := Id.run do
   let lowered := r.module final.structs
-  if !lowered.machine then return some "lowered: not machine IR (malloc, alloca, aggregates, undef)"
+  if !lowered.machine then return some "lowered: not machine IR (malloc, alloca, aggregates)"
   for f in lowered.funcs do
     if !f.wf lowered.sig syms then return some s!"lowered: {f.name} not well formed"
   if !r.lowered.all FuncSnap.idsOk then return some "lowered: instruction ids do not match"

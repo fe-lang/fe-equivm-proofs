@@ -1,0 +1,57 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v9.i256) -> i256 {\n    block0:\n        v1.i256 = evm_mul_mod 0.i256 v9 v0;\n        return v1;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "sccp_fold",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "sccp_fold",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v9.i256) -> i256 {\n    block0:\n        return 0.i256;\n}\n",
+        "insts": [
+         [
+          1
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": {
+         "consts": [
+          [
+           1,
+           "0"
+          ]
+         ],
+         "dead_edges": []
+        },
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

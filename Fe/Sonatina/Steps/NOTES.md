@@ -116,11 +116,13 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions` and `coalesce_copies`** (phase 2; the last has a checker and no proof
-   yet, so `machine_sound_proved` does not include it); every other kind is rejected.  Facts
-   (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that `Schemas.readFacts` reads
-   at read time; `checkFunc` takes them; each of these kinds requires `noFacts` (no known bits,
-   no demand round, no SCCP facts, no unread key); `StepSound.of_func` quantifies over them.
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
+   the last three have a checker and no proof yet, so `machine_sound_proved` does not include
+   them; the last two are `m1-schemas`'s, `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other
+   kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
+   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
+   requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
+   schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.

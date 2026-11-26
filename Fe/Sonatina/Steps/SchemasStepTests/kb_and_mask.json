@@ -1,0 +1,57 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = shr 248.i256 v0;\n        v2.i256 = and v1 255.i256;\n        return v2;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "known_bits_simplify",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "known_bits_simplify",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = shr 248.i256 v0;\n        return v1;\n}\n",
+        "insts": [
+         [
+          0,
+          2
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [
+         [
+          1,
+          "115792089237316195423570985008687907853269984665640564039457584007913129639680",
+          "0"
+         ]
+        ],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
