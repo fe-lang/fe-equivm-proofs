@@ -286,7 +286,8 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
       (World.init σ A feed) (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) none [] []
       hmemh (by rw [hname]; exact hf) he
       (by simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _)
-      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl, rfl, ⟨M, hfeed, rfl⟩⟩, hb, 0, {}, [], hhb, hplace,
+      ⟨hebm, hblk, rfl, ⟨rfl, rfl, rfl, rfl, ⟨M, hfeed, rfl⟩, memoryPaidByGas_initState σ σ₀ g A I⟩,
+        hb, 0, {}, [], hhb, hplace,
         rfl, by simp [enter, hephi, Fe.Sonatina.bind], rfl, by rw [hslots]; exact .nil,
         by simp [hephi], by simp [funcSpill, FuncSpill.spillIn]⟩
       (fun h => by rw [hret] at h; cases h) hnpf

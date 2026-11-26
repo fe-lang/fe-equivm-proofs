@@ -40,6 +40,8 @@ theorem returnValue_run (hf : m.func? "return_value__g7f54" = some returnValueFu
   · rw [ite_eq_left h64]
     simp [Fe.Sonatina.bind]
     repeat ir_step_nat
+    -- `ir_clean` decides `evm_mcopy`'s bounds (`mcopyIR`); its copy is then run here
+    simp only [Fe.M.exec_modify, Option.some.injEq, Except.error.injEq, Fe.Exit.stop.injEq]
     have hX : (M.extract ptr (ptr + S)).size = S := by rw [ByteArray.size_extract]; omega
     rw [copy_past_end _ _ le_rfl le_rfl, write_end _ _ rfl,
       copy_to_end _ (by omega) (by rw [ByteArray.size_append, toByteArray_size]; omega)

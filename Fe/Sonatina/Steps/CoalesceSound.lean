@@ -411,7 +411,7 @@ theorem run_mstore (p v : UInt256) :
     EvmOp.run .mstore [p, v] = (do Fe.EVM.mstore p v; return []) := rfl
 
 theorem run_mcopy (d s l : UInt256) :
-    EvmOp.run .mcopy [d, s, l] = (do Fe.EVM.mcopy d s l; return []) := rfl
+    EvmOp.run .mcopy [d, s, l] = (do mcopyIR d s l; return []) := rfl
 
 theorem evalWord_of {env : Env} {o : Operand} {bits x : Nat} (h : intVal env o = some (bits, x)) :
     evalWord env o = pure (UInt256.ofNat x) := by
@@ -454,12 +454,14 @@ theorem exec_store (c : Ctx) {env : Env} {a v : Operand} {ba xa bv xv : Nat}
 
 theorem exec_mcopy (c : Ctx) {env : Env} {d s : Operand} {L bd xd bs xs : Nat}
     (hd : intVal env d = some (bd, xd)) (hs : intVal env s = some (bs, xs))
+    (hfit : ¬ (0 < L % W256 ∧ (W256 < xd % W256 + L % W256 ∨ W256 < xs % W256 + L % W256)))
     {β : Type} (g : List Val → FeM β) (I : ExecutionEnv) (w : World) :
     (runInst c env (.evm .mcopy [d, s, .imm 256 L]) >>= g).exec I w =
       (g []).exec I { w with memory := w.memory.write (xs % W256) w.memory (xd % W256) (L % W256) } := by
   simp only [runInst, List.mapM_cons, List.mapM_nil, evalWord_of hd, evalWord_of hs,
     evalWord_of (show intVal env (.imm 256 L) = some (256, L) from rfl), pure_bind,
-    run_mcopy, Fe.EVM.mcopy, bind_assoc, Fe.M.exec_bind, Fe.M.exec_modify, toNat_ofNat_mod]
+    run_mcopy, mcopyIR, bind_assoc, Fe.M.exec_bind, toNat_ofNat_mod, size_eq_W256, ite_eq_right hfit,
+    Fe.EVM.mcopy, Fe.M.exec_modify]
 
 theorem exec_mcopy_stuck (c : Ctx) {env : Env} {d s : Operand} {L : Nat}
     (h : intVal env d = none ∨ intVal env s = none)
@@ -971,12 +973,21 @@ theorem win_fol (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c :
   · rw [hrun, exec_mcopy_stuck c (Or.inl hxd)]; trivial
   rcases hxs : intVal e₁' sa with _ | ⟨bs, xs⟩
   · rw [hrun, exec_mcopy_stuck c (Or.inr hxs)]; trivial
-  rw [hrun, exec_mcopy c hxd hxs, bind_ok rfl, pure_bind]
+  have hxd' := hval std hstd da hda' D hNd _ _ hxd
+  have hxs' := hval sts hsts sa hsa' S hNs _ _ hxs
+  have hfit : ¬ (0 < 32 * (win.filterMap asLoad).length % W256 ∧
+      (W256 < xd % W256 + 32 * (win.filterMap asLoad).length % W256 ∨
+        W256 < xs % W256 + 32 * (win.filterMap asLoad).length % W256)) := by
+    have := Nat.mod_le (32 * (win.filterMap asLoad).length) W256
+    have := W.boundS
+    have := W.boundD
+    omega
+  rw [hrun, exec_mcopy c hxd hxs hfit, bind_ok rfl, pure_bind]
   simp only [runBodyO, List.zip_nil_left, List.foldl_nil, Fe.M.exec_pure]
   refine ⟨runBodyO o c e₂ rest >>= K, { w with memory := m₂ }, hinp, ⟨e₂, rfl, hes, hds, hpi₂, hpu₂, hr⟩,
     ⟨hw.accounts, hw.logs, ?_, hw.returnData, hw.feed, hw.calls⟩⟩
   dsimp only
-  rw [hval std hstd da hda' D hNd _ _ hxd, hval sts hsts sa hsa' S hNs _ _ hxs]
+  rw [hxd', hxs']
   have hend := copyMem_end hinv.1
   rw [W.nst] at hend
   exact (MemEq.write hw.memory hw.memory S D _).trans

@@ -526,7 +526,7 @@ macro_rules
       Check.toNat_ofNat, UInt256.size, Fe.EVM.calldatasize, Fe.EVM.calldataload,
       Fe.EVM.callvalue, Fe.EVM.caller, Fe.EVM.logData, Fe.EVM.emit, Fe.EVM.codesize,
       Fe.EVM.codecopy, Fe.EVM.calldatacopy, Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.mstore,
-      Fe.EVM.mload, Fe.EVM.mcopy, Fe.EVM.keccak256, revertData, returnData,
+      Fe.EVM.mload, mcopyIR, Fe.EVM.mcopy, Fe.EVM.keccak256, revertData, returnData,
       Reasoning.Theory.byteArray_readWithPadding_zero, toNat_mod, ofNat_mod, pair_slot,
       error_read, panic_read, Reasoning.Theory.u256_ofNat_toNat, ofNat_zero_eq,
       show (⟨0⟩ : UInt256).toNat = 0 from rfl, Std.TreeMap.getElem_insert,

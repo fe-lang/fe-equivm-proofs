@@ -197,6 +197,17 @@ def callcode (gas addr value argsPtr argsLen retPtr retLen : UInt256) : FeM UInt
   message gas I.codeOwner I.codeOwner (AccountAddress.ofUInt256 addr) value value argsPtr argsLen
     retPtr retLen I.perm
 
+/-- `evm_mcopy(dest, source, len)`: the model library's `mcopy`, except that a copy of `len > 0`
+    bytes whose source or destination range ends past `2 ^ 256` does not terminate (review C-1).
+    `mcopy` reads and writes at `Nat` addresses, where the IR's `add`s that compute addresses
+    wrap; the EVM's `MCOPY` charges the memory expansion to the end of both ranges, which no gas
+    pays there (`Check.mcopy_oog`). -/
+def mcopyIR (dest source len : UInt256) : FeM Unit :=
+  if 0 < len.toNat ∧
+      (UInt256.size < dest.toNat + len.toNat ∨ UInt256.size < source.toNat + len.toNat) then
+    Fe.M.diverge
+  else Fe.EVM.mcopy dest source len
+
 /-- An EVM instruction on its operands: the value it gives, if any.  `evm_msize` is stuck: it
     reads the size of the bytes' memory, which the backend's placement and spills make, and
     which the interpreter's memory is not. -/
@@ -240,7 +251,7 @@ def EvmOp.run (op : EvmOp) (args : List UInt256) : FeM (List Val) :=
   | .tload, [k] => one (Fe.EVM.tload k)
   | .tstore, [k, v] => none' (Fe.EVM.tstore k v)
   | .keccak256, [p, l] => one (Fe.EVM.keccak256 p l)
-  | .mcopy, [d, s, l] => none' (Fe.EVM.mcopy d s l)
+  | .mcopy, [d, s, l] => none' (mcopyIR d s l)
   | .mstore8, [p, v] => none' (Fe.EVM.mstore8 p v)
   | .log _, p :: l :: topics => none' (Fe.EVM.logData p l topics.toArray)
   | .create, [v, p, l] => one (Fe.EVM.create v p l)

@@ -1,4 +1,5 @@
 import Fe.Sonatina.CheckStep
+import Fe.Sonatina.Interp
 import Fe.EVM.World
 import Reasoning.Memory
 import Fe.EVM.LogsAppend
@@ -8,18 +9,20 @@ import Fe.EVM.Invariant
 # One step of the bytes on state
 
 The bytes' steps on an event's opcode against the model's world.  `Agree M s w`: the EVM state
-holds the world's memory, accounts, logs and return data, the world's feed is the one the bytes'
-run supplies from `s`, and the calls the world has made followed by those the bytes' run makes
+holds the world's memory, accounts, logs and return data, its memory is paid for by its gas
+(EVMLean's `memoryPaidByGas`, which every step that goes on keeps), the world's feed is the one
+the bytes' run supplies from `s`, and the calls the world has made followed by those the bytes' run makes
 from `s` are `M` (`Fut`: at each step, the entry `supplyOf` gives, the word `GAS` pushes or the
 inputs a message call reads, and the call or creation `madeOf` gives, what `XstepOk` asks of the
 step).  `Fut.xOk`: a run whose calls and creations satisfy a condition satisfies `XOk`.
 `evRun op args` is what the event does to the world, by the functions of `Fe.EVM` the
-interpreter's EVM instructions run.  `EvMoves`: one `Xstep` runs out of gas or stack, or fails
+interpreter's EVM instructions run (`mcopyIR` for `MCOPY`).  `EvMoves`: one `Xstep` runs out of gas or stack, or fails
 under a static call where the world's operation does (`Fails`: a write under a static call, a
 copy past the return data), or does what it does and moves on with the word it reads on top, the
 states still agreeing.  `event_evMoves` gives it for every opcode of `readOps` and `writeOps`
 from EVMLean's `step_*` lemmas, `CALL` the model's `call` on the feed's entry (`call_evMoves`),
 `CREATE` and `CREATE2` its `create` and `create2` (`create_evMoves`, `create2_evMoves`).
+Where the interpreter's `mcopyIR` does not terminate, `MCOPY` runs out of gas (`mcopy_oog`).
 The logs agree too, so the proof reaches profile `P1`.
 -/
 
@@ -338,13 +341,23 @@ theorem supplyOf_eq {s : State} {op : Operation} {a : Option (UInt256 × Nat)}
 
 /-- The EVM state holds the model's world: its memory, accounts, logs and return data; the
     world's feed is what the bytes' run supplies from there, and the calls the world made and
-    those the bytes' run makes from there are `M`. -/
+    those the bytes' run makes from there are `M`.  The state's memory is paid for by its gas. -/
 structure Agree (M : List Made) (s : State) (w : World) : Prop where
   memory : s.machineState.memory = w.memory
   accounts : s.accountMap = w.accounts
   logs : s.substate.logSeries = w.logs
   returnData : s.machineState.returnData = w.returnData
   fut : ∃ m, Fut s w.feed m ∧ w.calls ++ m = M
+  paid : memoryPaidByGas s
+
+/-- A frame's first state: no memory, and gas below `2 ^ 256`. -/
+theorem memoryPaidByGas_initState (σ σ₀ : AccountMap) (g : UInt256) (A : Substate)
+    (I : ExecutionEnv) :
+    memoryPaidByGas (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) := by
+  simp only [memoryPaidByGas, Cₘ, GasConstants.Gmemory, Cₘ.QuadraticCeofficient]
+  have h0 : (default : State).machineState.activeWords.toNat = 0 := rfl
+  simp only [Reasoning.Theory.initState, h0, Nat.mul_zero, Nat.zero_add, Nat.zero_div]
+  exact g.val.isLt
 
 /-- A calm step that supplies nothing and keeps memory, accounts, logs and return data keeps
     the world agreeing. -/
@@ -359,7 +372,7 @@ theorem Agree.quiet {M : List Made} {s s' : State} {w : World} (hw : Agree M s w
   rw [hq, List.nil_append] at hf
   rw [hc.madeOf, List.nil_append] at hm'
   exact ⟨hm.trans hw.memory, ha.trans hw.accounts, hl.trans hw.logs, hr.trans hw.returnData,
-    ⟨m', by rw [hf]; exact hF', by rw [← hm']; exact hM⟩⟩
+    ⟨m', by rw [hf]; exact hF', by rw [← hm']; exact hM⟩, Xstep_memoryPaidByGas_of_none hw.paid hx⟩
 
 /-- Where the bytes stop at a calm state, the world has made the calls `M`. -/
 theorem Agree.calls_of_stop {M : List Made} {s : State} {w : World} (hw : Agree M s w)
@@ -401,7 +414,7 @@ def evRun : Operation → List UInt256 → FeM (Option UInt256)
   | .MSTORE8, [a, v] => do mstore8 a v; return none
   | .CODECOPY, [d, o, l] => do codecopy d o l; return none
   | .CALLDATACOPY, [d, o, l] => do calldatacopy d o l; return none
-  | .MCOPY, [d, o, l] => do mcopy d o l; return none
+  | .MCOPY, [d, o, l] => do mcopyIR d o l; return none
   | .RETURNDATACOPY, [d, o, l] => do returndatacopy d o l; return none
   | .LOG0, [p, l] => do logData p l #[]; return none
   | .LOG1, [p, l, a] => do logData p l #[a]; return none
@@ -452,7 +465,7 @@ theorem evMoves_ok {M : List Made} {s s' : State} {op : Operation} {args t : Lis
   rw [hq, List.nil_append] at hf'
   rw [hc.madeOf, List.nil_append] at hm'
   exact ⟨r, w', s', he, hx, hpc, hst, henv, ⟨hm, ha, hl, hr, ⟨m', by rw [hf, hf']; exact hF',
-    by rw [hcl, ← hm']; exact hM⟩⟩⟩
+    by rw [hcl, ← hm']; exact hM⟩, Xstep_memoryPaidByGas_of_none hw.paid hx⟩⟩
 
 /-- The word `MLOAD` pushes is the model's `mload`. -/
 theorem mloadValue (mem : ByteArray) (a : UInt256) :
@@ -531,10 +544,76 @@ theorem calldatacopy_evMoves {s : State} {d o l : UInt256} {t : List UInt256}
     (hs : s.machineState.stack = d :: o :: l :: t) : EvMoves s .CALLDATACOPY [d, o, l] t := by
   evmoves_from step_calldatacopy
 
+/-- `MCOPY` of `len > 0` bytes whose source or destination range ends past `2 ^ 256` runs out of
+    gas where the state's memory is paid for by its gas (`memoryPaidByGas`): the memory expands
+    to above `2 ^ 251` words, whose cost `Cₘ` is at least `2 ^ 256`, more than the gas and the
+    cost of the memory before together. -/
+theorem mcopy_oog {s : State} {d o l : UInt256} {t : List UInt256}
+    (hdec : decode s.executionEnv.code s.machineState.pc = some (.MCOPY, none))
+    (hs : s.machineState.stack = d :: o :: l :: t) (hpaid : memoryPaidByGas s)
+    (hbig : 0 < l.toNat ∧
+      (UInt256.size < d.toNat + l.toNat ∨ UInt256.size < o.toNat + l.toNat)) :
+    Xstep (D_J s.executionEnv.code 0) s = .error .OutOfGass := by
+  have hW : UInt256.size =
+      115792089237316195423570985008687907853269984665640564039457584007913129639936 := by
+    norm_num [UInt256.size]
+  have hdlt : d.toNat < UInt256.size := d.val.isLt
+  have holt : o.toNat < UInt256.size := o.val.isLt
+  have hllt : l.toNat < UInt256.size := l.val.isLt
+  have hawlt : s.machineState.activeWords.toNat < UInt256.size := s.machineState.activeWords.val.isLt
+  obtain ⟨k, hk⟩ : ∃ k, l.toNat = k + 1 := ⟨l.toNat - 1, by omega⟩
+  -- the words the memory expands to
+  have hN : 3618502788666131106986593281521497120414687020801267626233049500247285301248 <
+      MachineState.M s.machineState.activeWords.toNat (max d.toNat o.toNat) l.toNat := by
+    have hmax : UInt256.size < max d.toNat o.toNat + l.toNat := by
+      rcases hbig.2 with h | h
+      · exact lt_of_lt_of_le h (Nat.add_le_add_right (le_max_left _ _) _)
+      · exact lt_of_lt_of_le h (Nat.add_le_add_right (le_max_right _ _) _)
+    rw [hk] at hmax ⊢
+    simp only [MachineState.M]
+    refine lt_of_lt_of_le ?_ (le_max_right _ _)
+    omega
+  have hNlt : MachineState.M s.machineState.activeWords.toNat (max d.toNat o.toNat) l.toNat <
+      UInt256.size := MachineState.M_lt_uint256_size hawlt (max_lt hdlt holt) hllt
+  have hcost : memoryExpansionCost s .MCOPY = Cₘ (UInt256.ofNat
+      (MachineState.M s.machineState.activeWords.toNat (max d.toNat o.toNat) l.toNat)) -
+        Cₘ s.machineState.activeWords := by
+    simp [memoryExpansionCost, memoryExpansionCost.μᵢ', hs]
+  generalize MachineState.M s.machineState.activeWords.toNat (max d.toNat o.toNat) l.toNat = N
+    at hN hNlt hcost
+  -- its cost is at least `2 ^ 256`
+  have hC : UInt256.size ≤ Cₘ (UInt256.ofNat N) := by
+    simp only [Cₘ, Cₘ.QuadraticCeofficient, UInt256.toNat_ofNat_of_lt hNlt]
+    have h1 := Nat.div_le_div_right (c := 512) (Nat.mul_le_mul hN.le hN.le)
+    refine le_trans ?_ (le_trans h1 (Nat.le_add_left _ _))
+    rw [hW]; norm_num
+  have hlt : s.machineState.gasAvailable.toNat < memoryExpansionCost s .MCOPY := by
+    unfold memoryPaidByGas at hpaid
+    omega
+  have h := step_mcopy s hdec
+  simp only [hs] at h
+  rw [h]
+  simp [hlt]
+
 theorem mcopy_evMoves {s : State} {d o l : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.MCOPY, none))
     (hs : s.machineState.stack = d :: o :: l :: t) : EvMoves s .MCOPY [d, o, l] t := by
-  evmoves_from step_mcopy
+  by_cases hbig : 0 < l.toNat ∧
+      (UInt256.size < d.toNat + l.toNat ∨ UInt256.size < o.toNat + l.toNat)
+  · exact fun M w hw => .inl (mcopy_oog hdec hs hw.paid hbig)
+  have hrun : evRun .MCOPY [d, o, l] = (do mcopy d o l; return none) := by
+    simp only [evRun, mcopyIR, ite_eq_right hbig]
+  intro M w hw
+  have h := step_mcopy s hdec
+  simp only [hs, hw.memory] at h
+  split_ifs at h
+  · exact .inl h
+  · exact .inl h
+  · exact .inr (.inl h)
+  · exact .inr (.inr (.inr (evMoves_ok (r := none) hw (supplyOf_eq hdec (by decide) (by decide))
+      (calm_of hdec (by decide)) h (by rw [hrun]; simp [Fe.EVM.mcopy]; rfl) rfl
+      (by simp) rfl (by agree_field) (by agree_field) (by agree_field) (by agree_field)
+      (by rfl) (by rfl))))
 
 theorem log0_evMoves {s : State} {p l : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.LOG0, none))
@@ -606,7 +685,7 @@ theorem gas_evMoves {s : State} {t : List UInt256}
     rw [(calm_of hdec (by decide)).madeOf, List.nil_append] at hm'
     refine .inr (.inr (.inr ⟨_, { w with feed := f' }, _,
       by simp [evRun, Fe.EVM.gas, Fe.EVM.next, hf]; rfl, h, rfl, by simp [hs], rfl,
-      ⟨hw.memory, hw.accounts, hw.logs, hw.returnData, ⟨m', hF', by rw [← hm']; exact hM⟩⟩⟩))
+      ⟨hw.memory, hw.accounts, hw.logs, hw.returnData, ⟨m', hF', by rw [← hm']; exact hM⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
 
 theorem sstore_evMoves {s : State} {k v : UInt256} {t : List UInt256}
     (hdec : decode s.executionEnv.code s.machineState.pc = some (.SSTORE, none))
@@ -697,7 +776,7 @@ theorem call_evMoves {s : State} {g a v ap al rp rl : UInt256} {t : List UInt256
           feed := f' })) := by
       simp only [evRun, Fe.M.exec_map, hI, hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, rfl, rfl, ?_, hw.accounts, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]
     · rw [appended_self, Array.append_empty, ← hw.logs]; rfl
     · rw [← hM, hm']
@@ -736,7 +815,7 @@ theorem call_evMoves {s : State} {g a v ap al rp rl : UInt256} {t : List UInt256
           calls := w.calls ++ [.theta T] })) := by
       simp only [evRun, Fe.M.exec_map, hI, hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, by rw [hz]; rfl, rfl, ?_, rfl, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]; rfl
     · show T.run.2.2.1.logSeries =
         w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate T.run.2.2.1
@@ -804,7 +883,7 @@ theorem staticcall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List UIn
       simp only [evRun, Fe.M.exec_map, Fe.EVM.staticcall, Fe.M.exec_bind, Fe.M.exec_read, hI]
       rw [hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, rfl, rfl, ?_, hw.accounts, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]
     · rw [appended_self, Array.append_empty, ← hw.logs]; rfl
     · rw [← hM, hm']
@@ -852,7 +931,7 @@ theorem staticcall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List UIn
       simp only [evRun, Fe.M.exec_map, Fe.EVM.staticcall, Fe.M.exec_bind, Fe.M.exec_read, hI]
       rw [hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, by rw [hz]; rfl, rfl, ?_, rfl, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]; rfl
     · show T.run.2.2.1.logSeries =
         w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate T.run.2.2.1
@@ -920,7 +999,7 @@ theorem delegatecall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List U
       simp only [evRun, Fe.M.exec_map, Fe.EVM.delegatecall, Fe.M.exec_bind, Fe.M.exec_read, hI]
       rw [hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, rfl, rfl, ?_, hw.accounts, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]
     · rw [appended_self, Array.append_empty, ← hw.logs]; rfl
     · rw [← hM, hm']
@@ -969,7 +1048,7 @@ theorem delegatecall_evMoves {s : State} {g a ap al rp rl : UInt256} {t : List U
       simp only [evRun, Fe.M.exec_map, Fe.EVM.delegatecall, Fe.M.exec_bind, Fe.M.exec_read, hI]
       rw [hex]
     refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, by rw [hz]; rfl, rfl, ?_, rfl, ?_, rfl,
-      ⟨m', hF', ?_⟩⟩))
+      ⟨m', hF', ?_⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩))
     · rw [← hw.memory]; rfl
     · show T.run.2.2.1.logSeries =
         w.logs ++ appended (S.addAccessedAccount (.ofUInt256 a)).substate T.run.2.2.1
@@ -1044,7 +1123,7 @@ theorem create_evMoves {s : State} {v p l : UInt256} {t : List UInt256}
       h5 (by rw [← hw.accounts]; exact fun hc => absurd hn (Nat.not_le.mpr hc.1))
     refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
       by simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex],
-      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   rw [ite_eq_right hn] at h
   by_cases hd : v ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth.val < 1024
       ∧ (mem.readWithPadding p.toNat l.toNat).size ≤ 49152
@@ -1065,7 +1144,7 @@ theorem create_evMoves {s : State} {v p l : UInt256} {t : List UInt256}
       h5 (by rw [← hw.accounts, ← hw.memory]; exact fun hc => hd hc.2)
     refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
       by simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex],
-      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   rw [dite_eq_left hd] at h
   set Lc : LambdaCall :=
     { σ := σ.insert I.codeOwner { ((σ.get? I.codeOwner).getD default) with
@@ -1113,7 +1192,7 @@ theorem create_evMoves {s : State} {v p l : UInt256} {t : List UInt256}
         calls := w.calls ++ [.lambda Lc] })) := by
     simp only [evRun, Fe.EVM.create, Fe.M.exec_map, hI, hex]
   refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, ?_, rfl,
-    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩⟩⟩))
+    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   · show (if _ then _ else _) :: t = _
     split
     next hc =>
@@ -1195,7 +1274,7 @@ theorem create2_evMoves {s : State} {v p l sa : UInt256} {t : List UInt256}
       h5 (by rw [← hw.accounts]; exact fun hc => absurd hn (Nat.not_le.mpr hc.1))
     refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
       by simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex],
-      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   rw [ite_eq_right hn] at h
   by_cases hd : v ≤ (σ.get? I.codeOwner |>.option ⟨0⟩ (·.balance)) ∧ I.depth.val < 1024
       ∧ (mem.readWithPadding p.toNat l.toNat).size ≤ 49152
@@ -1216,7 +1295,7 @@ theorem create2_evMoves {s : State} {v p l sa : UInt256} {t : List UInt256}
       h5 (by rw [← hw.accounts, ← hw.memory]; exact fun hc => hd hc.2)
     refine .inr (.inr (.inr ⟨some ⟨0⟩, { w with returnData := ByteArray.empty, feed := f' }, _,
       by simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex],
-      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩⟩⟩))
+      h, rfl, by simp, rfl, ⟨hw.memory, hw.accounts, hw.logs, rfl, ⟨m', hF', by rw [← hM, hm']⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   rw [dite_eq_left hd] at h
   set Lc : LambdaCall :=
     { σ := σ.insert I.codeOwner { ((σ.get? I.codeOwner).getD default) with
@@ -1264,7 +1343,7 @@ theorem create2_evMoves {s : State} {v p l sa : UInt256} {t : List UInt256}
         calls := w.calls ++ [.lambda Lc] })) := by
     simp only [evRun, Fe.EVM.create2, Fe.M.exec_map, hI, hex]
   refine .inr (.inr (.inr ⟨_, _, _, hex', h, rfl, ?_, rfl,
-    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩⟩⟩))
+    ⟨hw.memory, rfl, ?_, rfl, ⟨m', hF', by rw [← hM, hm', List.append_assoc, List.singleton_append]⟩, Xstep_memoryPaidByGas_of_none hw.paid h⟩⟩))
   · show (if _ then _ else _) :: t = _
     split
     next hc =>
