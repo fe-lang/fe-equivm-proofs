@@ -1,0 +1,69 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f() -> i256 {\n    block0:\n        v1.i256 = evm_mload 256.i256;\n        v2.i256 = evm_mload 288.i256;\n        evm_mstore 512.i256 v1;\n        evm_mstore 544.i256 v2;\n        v11.i256 = evm_mload 1024.i256;\n        v12.i256 = evm_mload 1056.i256;\n        evm_mstore 2048.i256 v11;\n        evm_mstore 2080.i256 v12;\n        jump block1;\n    block1:\n        v21.i256 = evm_mload 4096.i256;\n        v22.i256 = evm_mload 4128.i256;\n        evm_mstore 8192.i256 v21;\n        evm_mstore 8224.i256 v22;\n        return 0.i256;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8
+    ],
+    [
+     9,
+     10,
+     11,
+     12,
+     13
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "coalesce_copies",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "coalesce_copies",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f() -> i256 {\n    block0:\n        evm_mcopy 512.i256 256.i256 64.i256;\n        evm_mcopy 2048.i256 1024.i256 64.i256;\n        jump block1;\n    block1:\n        evm_mcopy 8192.i256 4096.i256 64.i256;\n        return 0.i256;\n}\n",
+        "insts": [
+         [
+          3,
+          7,
+          8
+         ],
+         [
+          12,
+          13
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

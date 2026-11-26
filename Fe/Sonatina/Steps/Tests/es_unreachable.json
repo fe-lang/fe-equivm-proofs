@@ -1,0 +1,75 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "h",
+   "func_ref": 0,
+   "text": "func private %h() -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        br v1 block1 block3;\n    block1:\n        jump block3;\n    block3:\n        v2.i256 = phi (v1 block0) (v1 block1) (v9 block5);\n        return v2;\n    block5:\n        v9.i256 = add v1 1.i256;\n        jump block3;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3,
+     4
+    ],
+    [
+     5,
+     6
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "edge_split",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "edge_split",
+     "funcs": [
+      {
+       "out": {
+        "func": "h",
+        "func_ref": 0,
+        "text": "func private %h() -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        br v1 block1 block6;\n    block1:\n        jump block3;\n    block3:\n        v2.i256 = phi (v1 block6) (v1 block1) (v9 block5);\n        return v2;\n    block5:\n        v9.i256 = add v1 1.i256;\n        jump block3;\n    block6:\n        jump block3;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          2
+         ],
+         [
+          3,
+          4
+         ],
+         [
+          5,
+          6
+         ],
+         [
+          7
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

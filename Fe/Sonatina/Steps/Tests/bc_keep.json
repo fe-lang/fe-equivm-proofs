@@ -1,0 +1,64 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i256 = is_zero v1;\n        br v2 block1 block2;\n    block1:\n        return v2;\n    block2:\n        return 2.i256;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2
+    ],
+    [
+     3
+    ],
+    [
+     4
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "branch_canonicalize",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "branch_canonicalize",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        v2.i256 = is_zero v1;\n        br v1 block2 block1;\n    block1:\n        return v2;\n    block2:\n        return 2.i256;\n}\n",
+        "insts": [
+         [
+          0,
+          1,
+          2
+         ],
+         [
+          3
+         ],
+         [
+          4
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

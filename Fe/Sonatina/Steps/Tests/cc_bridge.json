@@ -1,0 +1,86 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        br v0 block1 block5;\n    block1:\n        br v1 block2 block3;\n    block2:\n        jump block4;\n    block3:\n        jump block4;\n    block4:\n        v2.i256 = phi (1.i256 block2) (2.i256 block3);\n        jump block6;\n    block5:\n        jump block6;\n    block6:\n        v3.i256 = phi (v2 block4) (3.i256 block5);\n        return v3;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3
+    ],
+    [
+     4
+    ],
+    [
+     5,
+     6
+    ],
+    [
+     7
+    ],
+    [
+     8,
+     9
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "cfg_cleanup",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "cfg_cleanup",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        v1.i256 = evm_calldata_size;\n        br v0 block1 block5;\n    block1:\n        br v1 block2 block3;\n    block2:\n        jump block6;\n    block3:\n        jump block6;\n    block5:\n        jump block6;\n    block6:\n        v3.i256 = phi (1.i256 block2) (2.i256 block3) (3.i256 block5);\n        return v3;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          2
+         ],
+         [
+          3
+         ],
+         [
+          4
+         ],
+         [
+          7
+         ],
+         [
+          8,
+          9
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

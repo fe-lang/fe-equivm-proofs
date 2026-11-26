@@ -1,0 +1,64 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        br v0 block1 block2;\n    block1:\n        evm_mstore 0.i256 v0;\n        jump block2;\n    block2:\n        v1.i256 = phi (1.i256 block0) (2.i256 block1);\n        return v1;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     4
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "known_bits_simplify",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "known_bits_simplify",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256) -> i256 {\n    block0:\n        br v0 block1 block2;\n    block1:\n        evm_mstore 0.i256 v0;\n        jump block2;\n    block2:\n        v1.i256 = phi (1.i256 block0) (2.i256 block1);\n        return v1;\n}\n",
+        "insts": [
+         [
+          0
+         ],
+         [
+          1,
+          2
+         ],
+         [
+          3,
+          4
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": [],
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

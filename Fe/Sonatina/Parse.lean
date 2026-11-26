@@ -257,6 +257,8 @@ def statement (b : OpenBlock) (line : String) : P (OpenBlock ⊕ Block) := do
   let name :: args := rest | throw s!"empty statement: {line}"
   if name == "phi" then
     let [(dst, ty)] := dsts | throw s!"phi defines one value: {line}"
+    -- Phis lead their block: a later one would be read out of its line's place.
+    unless b.body.isEmpty do throw s!"phi after a statement: {line}"
     return .inl { b with phis := ⟨dst, ty, ← pairs args⟩ :: b.phis }
   if dsts.isEmpty then
     if let some term ← parseTerm? name args then
@@ -476,14 +478,16 @@ def parseLowering (json : Json) : P Lowering := do
            entryFreePtr := ← json.getObjValAs? (Option Nat) "entry_free_ptr"
            funcs, units, redirects }
 
-/-- The sidecar version this reader reads. -/
-def sidecarVersion : Nat := 4
+/-- The sidecar versions this reader reads: 5 adds `machine_steps` to a section's lowering,
+    which `Steps/Read.lean` reads. -/
+def sidecarVersions : List Nat := [4, 5]
 
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
 def parseSidecar (text : String) : P Sidecar := do
   let json ← Json.parse text
   let version ← json.getObjValAs? Nat "version"
-  unless version == sidecarVersion do throw s!"sidecar version {version}, not {sidecarVersion}"
+  unless sidecarVersions.contains version do
+    throw s!"sidecar version {version}, not one of {sidecarVersions}"
   -- The objects are read strictly, since the checker reads each section's entry from them; the
   -- rest of the module only where it is in the subset, as no check needs it.
   let (objectLines, moduleLines) := splitObjects (lines (← json.getObjValAs? String "ir"))
