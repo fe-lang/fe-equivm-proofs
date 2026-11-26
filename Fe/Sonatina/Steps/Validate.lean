@@ -7,13 +7,14 @@ import Fe.Sonatina.Steps.SchemasStep
 /-!
 # Validating a record of machine steps
 
-`validate syms r final` replays the record: from the lowered module, each pass's steps in
-order, each step checked (`checkStep`) and its functions substituted (`Module.update`), and the
-composed module compared with `final`, the sidecar's machine IR.  The lowered module is checked
-well formed (`Module.wf`) against the section's symbol names `syms`, and so is every step's
-output function, which keeps its input's signature: so every module of the replay is well
-formed (`stepOut_wf`).  `validateWith allowed` also rejects records with a step kind outside
-`allowed`.
+`validateWith allowed syms r final` replays the record: from the lowered module, each pass's
+steps in order, each step checked (`checkStep`) and its functions substituted (`Module.update`),
+and the composed module compared with `final`, the sidecar's machine IR.  It rejects records
+with a step kind outside `allowed`.  The lowered module is checked well formed (`Module.wf`)
+against the section's symbol names `syms`, and so is every step's output function, which keeps
+its input's signature: so every module of the replay is well formed (`stepOut_wf`).
+`validate` is `validateWith StepKind.proved`, the kinds with a `StepSound` proof; a kind whose
+checker has no proof yet is accepted only when named to `validateWith`.
 
 The replay also carries each function's instruction ids (`IdTab`), which the module does not
 hold: a step's check reads its input's ids.  Each pass first checks its summary table against
@@ -23,7 +24,8 @@ its input (`SummariesOk`, `Summary.lean`).
 every function, an output that approximates the input on integers under any oracle that
 approximates itself, returns integers, and never returns from a function the pass's table
 claims does not return (`NoRetHolds`), in any context with the symbols.  `edgeSplit_stepSound`
-proves it for `edge_split`; the other kinds enter `validate_sound` as hypotheses.  Within a pass
+proves it for `edge_split`, and `StepKind.proved_sound` (`Machine.lean`) for every proved kind;
+`validate_sound` takes it as a hypothesis on the allowed kinds.  Within a pass
 every step runs calls by the pass input's semantics, the module the table is checked against;
 C1 (`modRefines_of_funcs`) closes each pass, and passes compose by `ModRefines.trans`.
 -/
@@ -266,8 +268,14 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     | some MI => sameFuncs MI.1 final
     | none => false
 
+/-- The step kinds with a `StepSound` proof (`StepKind.proved_sound`), the only kinds `validate`
+    accepts.  `coalesce_copies`, `known_bits_simplify` and `sccp_fold` have checkers and no proof:
+    only `validateWith` given them accepts their steps. -/
+def StepKind.proved : List StepKind := [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
+
+/-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=
-  validateWith StepKind.all syms r final
+  validateWith StepKind.proved syms r final
 
 theorem validatePass_sound {syms : List String} {p : Pass}
     (hk : ∀ st ∈ p.steps, StepSound st.kind) :

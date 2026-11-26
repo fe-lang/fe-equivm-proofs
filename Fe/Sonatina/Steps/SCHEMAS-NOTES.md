@@ -382,9 +382,10 @@ on Osaka only), and a parameter or a result of a statement that is not pure has 
 
 `checkKnownBitsSimplify` and `checkSccpFold` are arms of `checkFunc` on this branch, but there
 is no `StepSound .knownBitsSimplify` or `StepSound .sccpFold`. `validate_sound` and
-`machine_sound` take `∀ k ∈ allowed, StepSound k`, and the proved instances in `Machine.lean`
-use `validateWith` with the proved kinds only, which rejects every record with either kind.
-`validate` (all kinds) can now accept such records, and that acceptance proves nothing. Proved
+`machine_sound` take `∀ k ∈ allowed, StepSound k`; `validate` and `machine_sound_proved` use
+the proved kinds only (`StepKind.proved`), which rejects every record with either kind. Only
+`validateWith` given either kind by name accepts such records, and that acceptance proves
+nothing. Proved
 so far: the schema library (each schema sound on terms), the known-bits invariant above,
 `pureInst?_pure`. Measured, not proved: every step of both corpora accepted, every mutant
 rejected.

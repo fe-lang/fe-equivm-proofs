@@ -25,8 +25,8 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
-| `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `validate`, `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `machine_sound_proved` |
+| `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved` (on `validate`) |
 | `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
@@ -119,9 +119,10 @@ of `PointInv`.
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
    `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
-   the last three have a checker and no proof yet, so `machine_sound_proved` does not include
-   them; the last two are `m1-schemas`'s, `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other
-   kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
+   the last three have a checker and no proof yet, so `StepKind.proved`, the kinds `validate`
+   accepts and `machine_sound_proved` covers, does not include them: only `validateWith` given
+   them by name accepts their steps, as the measurement scripts do; the last two are
+   `m1-schemas`'s, `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
    `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
    requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
    schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
