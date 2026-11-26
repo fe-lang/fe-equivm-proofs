@@ -2,10 +2,13 @@ import Fe.Sonatina.Steps.Machine
 import Fe.Sonatina.Steps.Read
 
 /-!
-`lake env lean --run scripts/MachineSteps.lean <kinds> <sidecar>...`: for each section of each
-version-5 sidecar, whether `validateWith` with the comma-separated step kinds accepts its
-record against its machine IR, and if not, the first step that fails and why.  Interpreted, not
-kernel-evaluated: the verdicts are `validateWith`'s, the reasons a diagnostic replay of it.
+`lake lean scripts/MachineSteps.lean -- --run scripts/MachineSteps.lean <kinds> <sidecar>...`
+(`lake lean` locates each module, as this package and fe-spec share the root `Fe`; `--run`
+takes the file after it): for each section of each version-5 sidecar, whether `validateWith`
+with the comma-separated step kinds accepts its record against its machine IR, and if not, the
+first step that fails and why.  Interpreted, not kernel-evaluated: the verdicts are
+`validateWith`'s, the reasons a diagnostic replay of it.  `validate` takes the proved kinds
+only (`StepKind.proved`); naming others here measures their unproved checkers.
 
 With `steps` for the kinds: every function step of every section, its kind and its check's
 verdict (`ACCEPT`, `REJECT` with the reason, or `UNPROVED` for a kind with no checker), and every

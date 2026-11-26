@@ -8,7 +8,7 @@ the checker accepts in which a block has `is_zero` of `is_zero` of a message cal
 comparison: the section with the inner `is_zero` replaced by `not`, and with the outer one
 reading the flag itself, both of which the bytes contradict.  Then value numbering itself: two
 `is_zero`s of a call's flag are the flag, of a storage read are not.
-Run with `MUTANT_SIDECARS=<path>:… lake env lean scripts/DialectMutants.lean`.
+Run with `MUTANT_SIDECARS=<path>:… lake lean scripts/DialectMutants.lean`.
 -/
 
 open Fe.Sonatina

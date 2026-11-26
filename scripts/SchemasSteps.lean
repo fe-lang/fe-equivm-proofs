@@ -3,7 +3,9 @@ import Fe.Sonatina.Steps.Validate
 import Fe.Sonatina.Steps.Read
 
 /-!
-`lake env lean --run scripts/SchemasSteps.lean [--mutate-facts | --mutate-out] <sidecar>...`:
+`lake lean scripts/SchemasSteps.lean -- --run scripts/SchemasSteps.lean [--mutate-facts |
+--mutate-out] <sidecar>...` (`lake lean` locates each module, as this package and fe-spec share
+the root `Fe`; `--run` takes the file after it):
 replay each version-5 record of each sidecar without checking, and run `checkSccpFold` and
 `checkKnownBitsSimplify` on every function of every step of those kinds.  One line per function
 step: `path  section  kind  func  ACCEPT|REJECT  reason`.  Interpreted, not kernel-evaluated.

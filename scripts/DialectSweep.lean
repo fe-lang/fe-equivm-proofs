@@ -18,7 +18,7 @@ prints one tab-separated line per sidecar and per section:
 - `SIDECAR <file> check=<bool> checkSpills=<bool> fixedSlots=<bool>`: the verdicts of the whole
   sidecar, as the certificates evaluate them.
 
-Run with `SWEEP_DIR=<dir> lake env lean scripts/DialectSweep.lean`.
+Run with `SWEEP_DIR=<dir> lake lean scripts/DialectSweep.lean`.
 -/
 
 open Fe.Sonatina Lean
