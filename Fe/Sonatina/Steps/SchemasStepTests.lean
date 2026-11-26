@@ -34,6 +34,8 @@ elab "schema_step " name:ident path:str : command => do
 
 def KBS (t : OneStep) : Bool := checkKnownBitsSimplify t.1 t.2.1 t.2.2.1 t.2.2.2
 def SCCP (t : OneStep) : Bool := checkSccpFold t.1 t.2.1 t.2.2.1 t.2.2.2
+/-- The demand checker, which the proved one switches off (`demandRounds`). -/
+def KBSD (t : OneStep) : Bool := (kbsRejectWith true t.1 t.2.1 t.2.2.1 t.2.2.2).isNone
 
 schema_step kb_add0 "Fe/Sonatina/Steps/SchemasStepTests/kb_add0.json"
 schema_step kb_add0_bad_const "Fe/Sonatina/Steps/SchemasStepTests/kb_add0_bad_const.json"
@@ -81,9 +83,11 @@ example : KBS kb_and_mask_bad_copy = false := by decide +kernel
 example : KBS kb_and_mask_derived = true := by decide +kernel
 example : KBS kb_and_mask_strong = false := by decide +kernel
 example : KBS kb_bad_del_effect = false := by decide +kernel
-example : KBS kb_demand_mixed = false := by decide +kernel
-example : KBS kb_demand_or = true := by decide +kernel
-example : KBS kb_demand_or_small = false := by decide +kernel
+example : KBSD kb_demand_mixed = false := by decide +kernel
+example : KBSD kb_demand_or = true := by decide +kernel
+example : KBSD kb_demand_or_small = false := by decide +kernel
+/-- Demand rounds are switched off in the proved checker. -/
+example : KBS kb_demand_or = false := by decide +kernel
 example : KBS kb_undo_shift = true := by decide +kernel
 example : KBS kb_undo_shift_256 = false := by decide +kernel
 example : SCCP sc_bad_clz = false := by decide +kernel
@@ -148,7 +152,8 @@ example : KBS r13_f4_chain = true := by decide +kernel
 example : SCCP r13_f4_chain_sccp = true := by decide +kernel
 example : KBS r13_f4_deep = true := by decide +kernel
 example : KBS r13_f4_same_round = true := by decide +kernel
-example : KBS r13_f4_same_round_demand = true := by decide +kernel
+example : KBSD r13_f4_same_round_demand = true := by decide +kernel
+example : KBS r13_f4_same_round_demand = false := by decide +kernel
 example : SCCP r13_f6_addmod1 = true := by decide +kernel
 example : SCCP r13_f6_addmod2_bad = false := by decide +kernel
 example : SCCP r13_f6_mulmod0a = true := by decide +kernel

@@ -450,10 +450,23 @@ def opsWf (f : Func) : Bool := f.blocks.all fun b =>
   b.phis.all (·.incoming.all (·.1.wf)) && b.body.all (·.inst.args.all Operand.wf) &&
     b.term.args.all Operand.wf
 
+/-- Whether the mode reads SCCP's constants. -/
+def Mode.sccp? : Mode → Bool
+  | .sccp => true
+  | _ => false
+
+/-- Every paired output line is its input line with σ applied, or, for `sccp_fold`, a statement
+    replaced in place. -/
+def linesOk (m : Mode) (X : StepCtx) (σ : NatMap Operand) (pairs : List (Line × Line)) : Bool :=
+  pairs.all fun LL => lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
+    | .sccp, .stmt a, .stmt b => replaceOk X a b
+    | _, _, _ => false
+
 /-- Why a step is rejected. -/
 inductive Reject where
   | noIds | frame | pairing | sigma | inputSsa | outputSsa | deletion | changed | kbFacts
   | dbFacts | sccpFacts | unread | wrongFacts | notDeleted (v : Nat) | noSchema (v : Nat)
+  | fresh | demandRound
   deriving Repr, DecidableEq
 
 /-- The shared check, in a mode: why it rejects, or `none`. -/
@@ -469,7 +482,7 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
   match pairFunc f is s with
   | none => some .pairing
   | some (pairs, deleted) =>
-    let X := StepCtx.of f s F (match m with | .sccp => true | _ => false)
+    let X := StepCtx.of f s F m.sccp?
     match sigmaOf pairs with
     | none => some .sigma
     | some σ =>
@@ -477,9 +490,7 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
       if !ssaOk f then some .inputSsa
       else if !ssaOk s.func then some .outputSsa
       else if !deleted.all deletable then some .deletion
-      else if !pairs.all (fun LL => lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
-          | .sccp, .stmt a, .stmt b => replaceOk X a b
-          | _, _, _ => false) then some .changed
+      else if !linesOk m X σ pairs then some .changed
       else if !(F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) then some .kbFacts
       else
         let keys := sigmaKeys pairs σ
@@ -487,15 +498,30 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
         | some v => some (.notDeleted v)
         | none => match keys.find? (fun v => !((σ.find? v).any (entryOk X m dels 3 v))) with
           | some v => some (.noSchema v)
-          | none => none
+          | none =>
+            -- no deleted value is a value of the output (implied by the checks above with the
+            -- input's unique definitions; checked so that the proof need not derive it)
+            if !dels.all (fun v => (X.outD.find? v).isNone) then some .fresh else none
 
-def kbsReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
-    Option Reject :=
+/-- Demand rounds (`known_bits_simplify` with demanded bits, review C-2): their rewrites keep
+    only the demanded bits of a value, and their soundness is not proved
+    (`SchemasStepSound.lean`).  The proved checker rejects them; `kbsRejectWith true` is the
+    unproved demand checker, which the tests exercise. -/
+def demandRounds : Bool := false
+
+def kbsRejectWith (demand : Bool) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Option Reject :=
   if !F.unread.isEmpty then some .unread
   else if F.consts.isSome || !F.deadEdges.isEmpty then some .wrongFacts
   else match F.demanded with
     | none => aliasReject .exact f ids s F
-    | some ds => if !dbFactsOk f ds then some .dbFacts else aliasReject (.demand (dbMap ds)) f ids s F
+    | some ds =>
+      if !demand then some .demandRound
+      else if !dbFactsOk f ds then some .dbFacts else aliasReject (.demand (dbMap ds)) f ids s F
+
+def kbsReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
+    Option Reject :=
+  kbsRejectWith demandRounds f ids s F
 
 def sccpReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Option Reject :=
