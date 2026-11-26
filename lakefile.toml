@@ -1,6 +1,6 @@
 name = "FeEquiVMProofs"
 version = "0.1.0"
-defaultTargets = ["FeProofs"]
+defaultTargets = ["FeModel", "FeProofs"]
 
 # EquiVM's `lean-4.35` branch: Lean 4.35, with EVMLean's `lean-4.35` (and EthLib).
 [[require]]

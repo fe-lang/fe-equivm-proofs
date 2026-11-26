@@ -360,7 +360,10 @@ primitives (`EVM/World.lean`, `Int.lean`, `Storage.lean`, `Calls.lean`), the ref
 (`EVM/Refine.lean`, `Reach.lean`), invariants through reentrant calls (`EVM/FrameCalls.lean` and
 `Invariant.lean`, which import EVMLean only, and `RefineInvariant.lean`), facts about exported
 entry code (`EVM/Entry.lean`), the differential tests (`EVM/Diff.lean`, `Generate.lean`) and the
-host they run fe-spec's interpreter on (`EVM/SpecHost.lean`). The monad of exported code
+host they run fe-spec's interpreter on (`EVM/SpecHost.lean`); and under `Sonatina/` the
+Sonatina IR, the byte checker and the validation of the machine-IR passes
+(`Sonatina/README.md`, `Sonatina/Steps/NOTES.md`). The default `lake build` builds it and
+`FeProofs`. The monad of exported code
 (`Fe.Core`, `Fe.Partial`) and the commands that embed exported text (`Fe.Embed`) are
 fe-spec's (`../fe-spec`), a dependency by path: one library under the root `Fe` per package,
 each naming its modules (`globs`). Lean's search path cannot split a root between two packages,

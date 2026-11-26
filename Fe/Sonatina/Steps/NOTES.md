@@ -31,8 +31,10 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
 
-The `Steps` modules are not in the default `lake build` target (neither is `Fe.lean`); build
-them with `lake build Fe.Sonatina.Steps.Tests`, which imports all of them.
+The `Steps` modules belong to the model library `FeModel` (its globs take every module under
+`Fe/Sonatina`), which the default `lake build` builds; `FeModel.lean` imports `Machine`, `Read`
+and `KnownBitsInv`.  `lake build Fe.Sonatina.Steps.Tests` builds the modules of this file's
+table.
 
 ## C1: how it went
 

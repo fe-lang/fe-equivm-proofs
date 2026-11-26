@@ -34,3 +34,6 @@ import Fe.Sonatina.Diff
 import Fe.Sonatina.Spill
 import Fe.Sonatina.FrameSafe
 import Fe.Sonatina.SpillDiff
+import Fe.Sonatina.Steps.Machine
+import Fe.Sonatina.Steps.Read
+import Fe.Sonatina.Steps.KnownBitsInv
