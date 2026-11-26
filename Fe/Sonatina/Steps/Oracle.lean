@@ -94,7 +94,12 @@ def runTerm (env : Env) : Term → FeM Next
   | .evmInvalid => do
     let e ← trap
     nomatch e
-  | .unreachable => stuck
+  | .evmSelfDestruct a => do
+    let e ← Fe.EVM.selfdestruct (← evalWord env a)
+    nomatch e
+  | .unreachable => do
+    let e ← trap
+    nomatch e
 
 /-- One block: enter block `id` of `f` from `prev`, run its statements with calls by `o`, and
     its terminator. -/
@@ -127,7 +132,7 @@ theorem returns_runStmtO {o : Oracle} (hoi : o.IntRet) (c : Ctx) {env : Env} (h 
   split
   · next callee args heq =>
     rw [heq] at hs
-    exact Returns.bind (returns_evalOperands h (Inst.machine_args hs)) fun vs hv => hoi callee vs hv
+    exact Returns.bind (returns_evalOperands h _) fun vs hv => hoi callee vs hv
   · exact returns_runInst h c _ hs
 
 theorem returns_runBodyO {o : Oracle} (hoi : o.IntRet) (c : Ctx) :
@@ -146,8 +151,8 @@ def NextOk (env : Env) (t : Term) : Next → Prop
   | .goto env' d => env' = env ∧ d ∈ t.succs
   | .done vals => IntVals vals
 
-theorem returns_runTerm {env : Env} (h : EnvInt env) (t : Term)
-    (ht : ∀ o ∈ t.args, o.defined = true) : Returns (NextOk env t) (runTerm env t) := by
+theorem returns_runTerm {env : Env} (h : EnvInt env) (t : Term) :
+    Returns (NextOk env t) (runTerm env t) := by
   cases t with
   | jump d => exact Returns.pure ⟨rfl, List.mem_singleton_self _⟩
   | br c nz z =>
@@ -183,12 +188,13 @@ theorem returns_runTerm {env : Env} (h : EnvInt env) (t : Term)
       · exact Returns.stuck _
   | ret vs =>
     unfold runTerm
-    exact Returns.bind (returns_evalOperands h ht) fun vals hv => Returns.pure hv
+    exact Returns.bind (returns_evalOperands h _) fun vals hv => Returns.pure hv
   | evmReturn a l => unfold runTerm; returns_auto
   | evmRevert a l => unfold runTerm; returns_auto
   | evmStop => unfold runTerm; returns_auto
   | evmInvalid => unfold runTerm; returns_auto
-  | unreachable => exact Returns.stuck _
+  | evmSelfDestruct a => unfold runTerm; returns_auto
+  | unreachable => unfold runTerm; returns_auto
 
 /-- A block goes on with integers, or returns integers. -/
 def NextInt : Next → Prop
@@ -202,10 +208,9 @@ theorem returns_stepBlock {o : Oracle} (hoi : o.IntRet) (c : Ctx) {f : Func}
   cases hb : f.block? id with
   | none => exact Returns.stuck _
   | some b =>
-    obtain ⟨hph, hbody, hterm⟩ := Func.machine_block hf hb
-    exact Returns.bind (returns_enter_int h prev b hph) fun env₁ h₁ =>
-      Returns.bind (returns_runBodyO hoi c env₁ b.body h₁ hbody) fun env₂ h₂ =>
-        Returns.mono (returns_runTerm h₂ b.term hterm) fun n hn => by
+    exact Returns.bind (returns_enter_int h prev b) fun env₁ h₁ =>
+      Returns.bind (returns_runBodyO hoi c env₁ b.body h₁ (Func.machine_block hf hb)) fun env₂ h₂ =>
+        Returns.mono (returns_runTerm h₂ b.term) fun n hn => by
           cases n with
           | goto env' d => obtain ⟨e, _⟩ := hn; subst e; exact h₂
           | done v => exact hn
@@ -228,7 +233,7 @@ theorem Approx.runBodyO {o' o : Oracle} (ho : o'.Le o) (hoi : o.IntRet) {c' c : 
       · next callee args heq =>
         rw [heq] at hs
         exact Approx.bind (Approx.strengthen (Approx.mapM' (Approx.evalOperand h) _)
-          (returns_evalOperands he (Inst.machine_args hs))) fun a a₀ ⟨e, hv⟩ => by
+          (returns_evalOperands he _)) fun a a₀ ⟨e, hv⟩ => by
             cases e; exact ho _ _ hv
       · exact Approx.runInst h hc _ hs
     · cases e
@@ -250,11 +255,10 @@ theorem Approx.stepBlock {o' o : Oracle} (ho : o'.Le o) (hoi : o.IntRet) {c' c :
   cases hb : f.block? id with
   | none => exact Approx.stuck _
   | some b =>
-    obtain ⟨hph, hbody, _⟩ := Func.machine_block hf hb
-    exact Approx.bind (Approx.strengthen (Approx.enter _ _ _) (returns_enter_int he prev b hph))
+    exact Approx.bind (Approx.strengthen (Approx.enter _ _ _) (returns_enter_int he prev b))
       fun env₁ env₀ ⟨e, h₁⟩ => by
         cases e
-        exact Approx.bind (R := Eq) (Approx.runBodyO ho hoi hc env₁ b.body h₁ hbody)
+        exact Approx.bind (R := Eq) (Approx.runBodyO ho hoi hc env₁ b.body h₁ (Func.machine_block hf hb))
           fun env₂ _ e => e ▸ Approx.runTerm _ _
 
 /-- The machine IR's run of a block is one `stepBlock` with the module's semantics as the oracle,
@@ -377,7 +381,12 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
       | .evmInvalid => do
         let e ← trap
         nomatch e
-      | .unreachable => stuck)
+      | .evmSelfDestruct a => do
+        let e ← Fe.EVM.selfdestruct (← evalWord env a)
+        nomatch e
+      | .unreachable => do
+        let e ← trap
+        nomatch e)
     (runTerm env t >>= fun
       | .goto env dest => TB env (some id) dest
       | .done vals => pure vals) := by
@@ -415,7 +424,13 @@ theorem approx_termCont {G TB : Env → Option Nat → Nat → FeM (List Val)}
   | evmInvalid =>
     simp only [runTerm, bind_assoc]
     exact Approx.bind approx_trap fun e _ _ => nomatch e
-  | unreachable => simp only [runTerm, stuck, Fe.M.diverge]; exact Approx.diverge _
+  | evmSelfDestruct a =>
+    simp only [runTerm, bind_assoc]
+    exact Approx.bind_eq (Approx.evalWord hr a) fun _ =>
+      Approx.bind (approx_selfdestruct _) fun e _ _ => nomatch e
+  | unreachable =>
+    simp only [runTerm, bind_assoc]
+    exact Approx.bind approx_trap fun e _ _ => nomatch e
 
 /-- The run of a module approximates an oracle that returns integers if the iteration `TB` of
     `stepBlock` with calls by the oracle does, function by function, on integers.  By fixpoint
@@ -483,7 +498,7 @@ theorem runFunc_approx {N : Module} (hN : N.machine = true) {c' c : Ctx}
         cases inst
         case call callee args =>
           exact Approx.bind (Approx.strengthen (Approx.mapM (Approx.evalOperand (EnvSub.refl env)) _)
-            (returns_evalOperands he (Inst.machine_args hs))) fun a a₀ ⟨e, ha⟩ => by
+            (returns_evalOperands he _)) fun a a₀ ⟨e, ha⟩ => by
               cases e; exact hF _ _ ha
         all_goals exact Approx.runInst (EnvSub.refl env) hc _ hs
       · cases e
@@ -516,8 +531,8 @@ theorem runFunc_approx {N : Module} (hN : N.machine = true) {c' c : Ctx}
       dsimp only
       simp only [bind_assoc, Guard.at, Guard.none, List.lookup, Option.bind_none,
         Option.getD_none]
-      obtain ⟨hph, hbody, _⟩ := Func.machine_block hf hb
-      exact Approx.bind (Approx.strengthen (Approx.enter _ _ _) (returns_enter_int he prev b hph))
+      have hbody := Func.machine_block hf hb
+      exact Approx.bind (Approx.strengthen (Approx.enter _ _ _) (returns_enter_int he prev b))
         fun env₁ env₀ ⟨e, h₁⟩ => by
           cases e
           exact Approx.bind (Approx.strengthen (hH env₁ b.body h₁ hbody)
@@ -530,7 +545,7 @@ theorem runFunc_approx {N : Module} (hN : N.machine = true) {c' c : Ctx}
 theorem returns_termCont {G : Env → Option Nat → Nat → FeM (List Val)}
     (hG : ∀ env prev id, EnvInt env → Returns IntVals (G env prev id)) (id : Nat) {env : Env}
     (he : EnvInt env) :
-    ∀ t : Term, (∀ o ∈ t.args, o.defined = true) → Returns IntVals (match t with
+    ∀ t : Term, Returns IntVals (match t with
       | .jump dest => G env (some id) dest
       | .br cond nz z => do
         let (_, v) ← evalInt env cond
@@ -554,10 +569,15 @@ theorem returns_termCont {G : Env → Option Nat → Nat → FeM (List Val)}
       | .evmInvalid => do
         let e ← trap
         nomatch e
-      | .unreachable => stuck) := by
-  intro t ht
+      | .evmSelfDestruct a => do
+        let e ← Fe.EVM.selfdestruct (← evalWord env a)
+        nomatch e
+      | .unreachable => do
+        let e ← trap
+        nomatch e) := by
+  intro t
   cases t
-  case ret vals => exact returns_evalOperands he ht
+  case ret vals => exact returns_evalOperands he _
   all_goals dsimp only
   all_goals repeat' (first
     | exact hG _ _ _ he
@@ -622,7 +642,7 @@ theorem runFunc_intRet {M : Module} (hM : M.machine = true) (c : Ctx) :
       rcases s with ⟨dsts, inst⟩
       cases inst
       case call callee args =>
-        exact Returns.bind (returns_evalOperands he (Inst.machine_args hs)) fun vs hv => hF callee vs hv
+        exact Returns.bind (returns_evalOperands he _) fun vs hv => hF callee vs hv
       all_goals exact returns_runInst he c _ hs
   case s2 =>
     intro G hG name args hargs
@@ -644,10 +664,9 @@ theorem runFunc_intRet {M : Module} (hM : M.machine = true) (c : Ctx) :
     | some b =>
       dsimp only
       simp only [Guard.at, Guard.none, List.lookup, Option.bind_none, Option.getD_none]
-      obtain ⟨hph, hbody, hterm⟩ := Func.machine_block hf hb
-      exact Returns.bind (returns_enter_int he prev b hph) fun env₁ h₁ =>
-        Returns.bind (hH env₁ b.body h₁ hbody) fun env₂ h₂ =>
-          returns_termCont (fun env prev id he => hG f env prev id hf he) id h₂ b.term hterm
+      exact Returns.bind (returns_enter_int he prev b) fun env₁ h₁ =>
+        Returns.bind (hH env₁ b.body h₁ (Func.machine_block hf hb)) fun env₂ h₂ =>
+          returns_termCont (fun env prev id he => hG f env prev id hf he) id h₂ b.term
 
 /-- C0 and reflexivity: the run of a machine module approximates itself from related worlds,
     under any context with the same symbols: the rest of a context is read only by

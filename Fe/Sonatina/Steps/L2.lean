@@ -165,7 +165,6 @@ theorem pureHolds_keep {env : Env} {s : Stmt} (h : PureHolds env s) (l : List ((
     cases o with
     | var w => exact fold_get_not _ _ _ (ho w hop)
     | imm => rfl
-    | undef => rfl
   · rw [fold_get_not _ _ _ (hd x.1 (List.of_mem_zip hx).1)]; exact hb x hx
 
 /-- An operand of a statement of a reachable block, as `ssa` checks it: a value whose definition
@@ -304,7 +303,6 @@ theorem pureInv_stmt (hwf : f.wf sig syms = true) (hv : T.valid f = true) (hs : 
           · cases hU.fn h hwd
           · exact hne' (Def.stmt.inj (hU.fn h hwd)).1
       | imm => rfl
-      | undef => rfl
     · rw [hkeys]; exact hU.dsts hmem hsk
   · have hbef' : Before T d j b k := by
       rcases hbef with h | ⟨rfl, hj⟩
@@ -368,7 +366,7 @@ theorem pureInv_take (hwf : f.wf sig syms = true) (hv : T.valid f = true) (hs : 
     have hsk : blk.body[k]? = some blk.body[k] := List.getElem?_eq_getElem hlt
     rw [List.take_add_one, hsk, Option.toList_some, runBodyO_append]
     refine Returns.bind (pureInv_take hwf hv hs hoi c hb hr h₀ k (by omega)) fun env ⟨hpi, hpu⟩ => ?_
-    have hm := (Func.machine_block (Func.wf_machine hwf) hb).2.1 _ (List.mem_of_getElem? hsk)
+    have hm := Func.machine_block (Func.wf_machine hwf) hb _ (List.mem_of_getElem? hsk)
     simp only [runBodyO]
     refine Returns.bind (returns_runStmtO_pure hoi c hpi.1.int hm) fun vals ⟨hiv, hpv⟩ =>
       Returns.bind (returns_bind env _ vals) fun env₂ ⟨hl, he⟩ => Returns.pure ?_
@@ -393,8 +391,7 @@ theorem pureInv_step (hwf : f.wf sig syms = true) (hv : T.valid f = true) (hs : 
     have hbody := pureInv_take hwf hv hs hoi c hb hi.2.2.1 h₀ blk.body.length le_rfl
     rw [List.take_length] at hbody
     refine Returns.bind hbody fun env₂ ⟨hpi, hpu⟩ => ?_
-    refine Returns.mono (returns_runTerm hpi.1.int blk.term
-      (Func.machine_block (Func.wf_machine hwf) hb).2.2) fun n hn => ?_
+    refine Returns.mono (returns_runTerm hpi.1.int blk.term) fun n hn => ?_
     cases n with
     | goto env' d =>
       obtain ⟨rfl, _⟩ := hn

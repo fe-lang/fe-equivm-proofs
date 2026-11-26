@@ -95,12 +95,11 @@ def parseNat (cs : List Char) : Option Nat :=
       else none
   | _ => (String.ofList cs).toNat?
 
-/-- An operand: `v<id>`, `undef.T`, or an integer `n.T`, held as its value modulo `2 ^ bits`. -/
+/-- An operand: `v<id>` or an integer `n.T`, held as its value modulo `2 ^ bits`. -/
 def parseOperand (word : String) : P Operand := do
   if let some id := valueId? word then return .var id
   let (head, ty) := splitDot word
   let ty ← parseTy ty
-  if head == "undef" then return .undef ty
   let n : Option Int := match head.toList with
     | '-' :: rest => (parseNat rest).map fun n => -(n : Int)
     | cs => (parseNat cs).map Int.ofNat
@@ -142,6 +141,10 @@ def ovfOps : List (String × OvfOp) :=
   [("uaddo", .uaddo), ("saddo", .saddo), ("usubo", .usubo), ("ssubo", .ssubo),
    ("umulo", .umulo), ("smulo", .smulo)]
 
+def satOps : List (String × SatOp) :=
+  [("evm_uaddsat", .uadd), ("evm_saddsat", .sadd), ("evm_usubsat", .usub),
+   ("evm_ssubsat", .ssub), ("evm_umulsat", .umul), ("evm_smulsat", .smul)]
+
 def castOps : List (String × CastOp) :=
   [("zext", .zext), ("sext", .sext), ("trunc", .trunc), ("ptr_to_int", .ptrToInt),
    ("int_to_ptr", .intToPtr), ("bitcast", .bitcast)]
@@ -169,8 +172,8 @@ def evmOps : List (String × EvmOp × Nat) :=
    ("evm_log1", .log 1, 3), ("evm_log2", .log 2, 4), ("evm_log3", .log 3, 5),
    ("evm_log4", .log 4, 6), ("evm_create", .create, 3), ("evm_create2", .create2, 4),
    ("evm_call", .call, 7), ("evm_static_call", .staticCall, 6),
-   ("evm_delegate_call", .delegateCall, 6), ("evm_add_mod", .addMod, 3),
-   ("evm_mul_mod", .mulMod, 3)]
+   ("evm_delegate_call", .delegateCall, 6), ("evm_call_code", .callCode, 7),
+   ("evm_add_mod", .addMod, 3), ("evm_mul_mod", .mulMod, 3), ("evm_msize", .msize, 0)]
 
 /-- The words of a statement after its name, without parentheses or commas, as operands. -/
 def operands (args : List String) : P (List Operand) :=
@@ -188,6 +191,9 @@ def parseInst (name : String) (args : List String) : P Inst := do
   if let some op := ovfOps.lookup name then
     let [a, b] ← ops () | throw s!"{name} takes two operands"
     return .ovf op a b
+  if let some op := satOps.lookup name then
+    let [a, b, ty] := args | throw s!"{name} takes two operands and a type"
+    return .sat op (← parseOperand a) (← parseOperand b) (← parseTy ty)
   if let some op := castOps.lookup name then
     let [a, ty] := args | throw s!"{name} takes an operand and a type"
     return .cast op (← parseOperand a) (← parseTy ty)
@@ -211,6 +217,10 @@ def parseInst (name : String) (args : List String) : P Inst := do
   | "alloca", [ty] => return .alloca (← parseTy ty)
   | "sym_addr", [s] => return .symAddr (← symbol s)
   | "sym_size", [s] => return .symSize (← symbol s)
+  | "get_function_ptr", [f] =>
+    unless f.startsWith "%" do throw s!"get_function_ptr of {f}"
+    return .funcPtr (f.drop 1).toString
+  | "black_box", [a] => return .blackBox (← parseOperand a)
   | "insert_value", [agg, index, value] =>
     return .insertValue (← parseOperand agg) (← parseOperand index) (← parseOperand value)
   | "extract_value", [agg, index] =>
@@ -237,6 +247,7 @@ def parseTerm? (name : String) (args : List String) : P (Option Term) := do
   | "evm_revert", [a, l] => return some (.evmRevert (← parseOperand a) (← parseOperand l))
   | "evm_stop", [] => return some .evmStop
   | "evm_invalid", [] => return some .evmInvalid
+  | "evm_self_destruct", [a] => return some (.evmSelfDestruct (← parseOperand a))
   | "unreachable", [] => return some .unreachable
   | _, _ => return none
 

@@ -14,19 +14,15 @@ open Ethereum Fe Fe.EVM
 
 /-! ## Instructions of the machine IR -/
 
-/-- An operand other than `undef`. -/
-def _root_.Fe.Sonatina.Operand.defined : Operand → Bool
-  | .undef _ => false
-  | _ => true
-
 /-- The operands an instruction reads. -/
 def _root_.Fe.Sonatina.Inst.args : Inst → List Operand
-  | .bin _ a b | .cmp _ a b | .ovf _ a b | .mstore a b _ | .memzero a b | .extractValue a b =>
-    [a, b]
-  | .isZero a | .not a | .neg a | .clz a | .ctz a | .cast _ a _ | .mload a _ | .malloc a => [a]
+  | .bin _ a b | .cmp _ a b | .ovf _ a b | .sat _ a b _ | .mstore a b _ | .memzero a b
+  | .extractValue a b => [a, b]
+  | .isZero a | .not a | .neg a | .clz a | .ctz a | .cast _ a _ | .mload a _ | .malloc a
+  | .blackBox a => [a]
   | .select a b c | .insertValue a b c => [a, b, c]
   | .evm _ args | .keccakWords args | .call _ args => args
-  | .alloca _ | .symAddr _ | .symSize _ => []
+  | .alloca _ | .symAddr _ | .symSize _ | .funcPtr _ => []
 
 /-- The operands a terminator reads. -/
 def _root_.Fe.Sonatina.Term.args : Term → List Operand
@@ -34,19 +30,17 @@ def _root_.Fe.Sonatina.Term.args : Term → List Operand
   | .brTable s _ cases => s :: cases.map (·.1)
   | .ret vs => vs
   | .evmReturn a l | .evmRevert a l => [a, l]
+  | .evmSelfDestruct a => [a]
   | .jump _ | .evmStop | .evmInvalid | .unreachable => []
 
-/-- An instruction the machine IR may have: no `undef` operand, and neither `evm_malloc` nor
-    `alloca`, which read the size of memory, nor an aggregate's.  Its values are integers. -/
-def _root_.Fe.Sonatina.Inst.machine (i : Inst) : Bool :=
-  i.args.all Operand.defined && match i with
-    | .malloc _ | .alloca _ | .insertValue .. | .extractValue .. => false
-    | _ => true
+/-- An instruction the machine IR may have: neither `evm_malloc` nor `alloca`, which read the
+    size of memory, nor an aggregate's.  Its values are integers. -/
+def _root_.Fe.Sonatina.Inst.machine : Inst → Bool
+  | .malloc _ | .alloca _ | .insertValue .. | .extractValue .. => false
+  | _ => true
 
-/-- Every phi, statement and terminator of every block of the function is of the machine IR. -/
-def _root_.Fe.Sonatina.Func.machine (f : Func) : Bool := f.blocks.all fun b =>
-  b.phis.all (fun phi => phi.incoming.all (·.1.defined)) && b.body.all (·.inst.machine) &&
-    b.term.args.all Operand.defined
+/-- Every statement of every block of the function is of the machine IR. -/
+def _root_.Fe.Sonatina.Func.machine (f : Func) : Bool := f.blocks.all fun b => b.body.all (·.inst.machine)
 
 def _root_.Fe.Sonatina.Module.machine (m : Module) : Bool := m.funcs.all Func.machine
 
@@ -55,24 +49,12 @@ theorem _root_.Fe.Sonatina.Module.machine_func {m : Module} (h : m.machine = tru
   List.all_eq_true.mp h f (List.mem_of_find?_eq_some hf)
 
 theorem _root_.Fe.Sonatina.Func.machine_of_mem {f : Func} (h : f.machine = true) {b : Block}
-    (hb : b ∈ f.blocks) :
-    (∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) ∧
-      (∀ s ∈ b.body, s.inst.machine = true) ∧ ∀ o ∈ b.term.args, o.defined = true := by
-  have := List.all_eq_true.mp h b hb
-  simp only [Bool.and_eq_true, List.all_eq_true] at this
-  exact ⟨this.1.1, this.1.2, this.2⟩
+    (hb : b ∈ f.blocks) : ∀ s ∈ b.body, s.inst.machine = true :=
+  List.all_eq_true.mp (List.all_eq_true.mp h b hb)
 
 theorem _root_.Fe.Sonatina.Func.machine_block {f : Func} (h : f.machine = true) {id : Nat} {b : Block}
-    (hb : f.block? id = some b) :
-    (∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) ∧
-      (∀ s ∈ b.body, s.inst.machine = true) ∧ ∀ o ∈ b.term.args, o.defined = true :=
+    (hb : f.block? id = some b) : ∀ s ∈ b.body, s.inst.machine = true :=
   Func.machine_of_mem h (List.mem_of_find?_eq_some hb)
-
-theorem _root_.Fe.Sonatina.Inst.machine_args {i : Inst} (h : i.machine = true) :
-    ∀ o ∈ i.args, o.defined = true := by
-  unfold Inst.machine at h
-  simp only [Bool.and_eq_true, List.all_eq_true] at h
-  exact h.1
 
 /-! ## Operands as options
 
@@ -87,7 +69,6 @@ def lift {α : Type} : Option α → FeM α
 def opVal (env : Env) : Operand → Option Val
   | .var id => env[id]?
   | .imm bits value => some (.int bits value)
-  | .undef ty => some (Val.zero ty)
 
 def intVal (env : Env) (o : Operand) : Option (Nat × Nat) :=
   match opVal env o with
@@ -98,7 +79,6 @@ theorem evalOperand_eq (env : Env) (o : Operand) : evalOperand env o = lift (opV
   cases o with
   | var id => simp only [evalOperand, opVal]; cases env[id]? <;> rfl
   | imm => rfl
-  | undef => rfl
 
 theorem lift_bind {α β : Type} (x : Option α) (k : α → FeM β) :
     lift x >>= k = match x with | some a => k a | none => stuck := by
@@ -119,7 +99,7 @@ theorem EnvSub.opVal {env' env : Env} (h : EnvSub env' env) {o : Operand} {v : V
     (hv : Steps.opVal env' o = some v) : Steps.opVal env o = some v := by
   cases o with
   | var id => exact h id v hv
-  | imm | undef => exact hv
+  | imm => exact hv
 
 theorem EnvSub.intVal {env' env : Env} (h : EnvSub env' env) {o : Operand} {v : Nat × Nat}
     (hv : Steps.intVal env' o = some v) : Steps.intVal env o = some v := by
@@ -237,11 +217,13 @@ macro_rules
     | with_reducible exact approx_call _ _ _ _ _ _ _
     | with_reducible exact approx_staticcall _ _ _ _ _ _
     | with_reducible exact approx_delegatecall _ _ _ _ _ _
+    | with_reducible exact approx_callcode _ _ _ _ _ _ _
     | with_reducible exact approx_zeroMem _ _
     | with_reducible exact approx_returnData _ _
     | with_reducible exact approx_revertData _ _
     | with_reducible exact approx_stopCall
-    | with_reducible exact approx_trap)
+    | with_reducible exact approx_trap
+    | with_reducible exact approx_selfdestruct _)
 
 /-- Prove that a computation approximates its copy, with an environment `EnvSub` in context:
     binds, conditionals and matches piecewise, operands and primitives by their lemmas. -/
@@ -283,7 +265,7 @@ macro_rules
 theorem Approx.runInst {env' env : Env} (h : EnvSub env' env) {c' c : Ctx}
     (hc : c'.symbol = c.symbol) (i : Inst) (hi : i.machine = true) :
     Approx Eq (Fe.Sonatina.runInst c' env' i) (Fe.Sonatina.runInst c env i) := by
-  cases i <;> simp only [Inst.machine, Bool.and_false, Bool.false_eq_true] at hi <;>
+  cases i <;> simp only [Inst.machine, Bool.false_eq_true] at hi <;>
     simp only [Fe.Sonatina.runInst, hc] <;> approx_auto
 
 theorem Approx.bindVals (env : Env) (dsts : List (Nat × Ty)) (vals : List Val) :
@@ -452,21 +434,19 @@ theorem Val.as_isInt {v : Val} (h : v.isInt = true) (ty : Ty) : (v.as ty).isInt 
   | agg => cases h
   | int b n => cases ty <;> rfl
 
-theorem opVal_int {env : Env} (h : EnvInt env) {o : Operand} (ho : o.defined = true) {v : Val}
+theorem opVal_int {env : Env} (h : EnvInt env) {o : Operand} {v : Val}
     (hv : opVal env o = some v) : v.isInt = true := by
   cases o with
   | var id => exact h id v hv
   | imm => simp only [opVal, Option.some.injEq] at hv; subst hv; rfl
-  | undef => simp [Operand.defined] at ho
 
-theorem returns_evalOperand {env : Env} (h : EnvInt env) {o : Operand} (ho : o.defined = true) :
+theorem returns_evalOperand {env : Env} (h : EnvInt env) (o : Operand) :
     Returns (fun v => v.isInt = true) (evalOperand env o) := by
-  rw [evalOperand_eq]; exact Returns.lift fun v hv => opVal_int h ho hv
+  rw [evalOperand_eq]; exact Returns.lift fun v hv => opVal_int h hv
 
-theorem returns_evalOperands {env : Env} (h : EnvInt env) {os : List Operand}
-    (ho : ∀ o ∈ os, o.defined = true) : Returns IntVals (os.mapM (evalOperand env)) :=
-  Returns.mono (Returns.mapM fun o hm => returns_evalOperand h (ho o hm)) fun _ hb =>
-    intVals_iff.mpr hb
+theorem returns_evalOperands {env : Env} (h : EnvInt env) (os : List Operand) :
+    Returns IntVals (os.mapM (evalOperand env)) :=
+  Returns.mono (Returns.mapM fun o _ => returns_evalOperand h o) fun _ hb => intVals_iff.mpr hb
 
 set_option maxHeartbeats 4000000 in
 theorem returns_evmRun (op : EvmOp) (args : List UInt256) : Returns IntVals (op.run args) := by
@@ -481,21 +461,18 @@ set_option maxHeartbeats 4000000 in
 /-- An instruction of the machine IR returns integers in an environment of integers. -/
 theorem returns_runInst {env : Env} (h : EnvInt env) (c : Ctx) (i : Inst) (hi : i.machine = true) :
     Returns IntVals (runInst c env i) := by
-  have ha := Inst.machine_args hi
-  cases i <;> simp only [Inst.machine, Bool.and_false, Bool.false_eq_true] at hi
+  cases i <;> simp only [Inst.machine, Bool.false_eq_true] at hi
   case select cnd a b =>
-    have ha' : a.defined = true := ha a (by simp [Inst.args])
-    have hb' : b.defined = true := ha b (by simp [Inst.args])
     simp only [runInst]
     refine Returns.bind_any fun x => ?_
     rcases x with ⟨_, n⟩
     dsimp only
-    refine Returns.bind (returns_evalOperand h (o := if n != 0 then a else b) ?_) fun v hv =>
-      Returns.pure ?_
-    · split
-      · exact ha'
-      · exact hb'
-    · simp only [IntVals, List.all_cons, List.all_nil, hv, Bool.and_true]
+    exact Returns.bind (returns_evalOperand h (if n != 0 then a else b)) fun v hv =>
+      Returns.pure (by simp only [IntVals, List.all_cons, List.all_nil, hv, Bool.and_true])
+  case blackBox a =>
+    simp only [runInst]
+    exact Returns.bind (returns_evalOperand h a) fun v hv =>
+      Returns.pure (by simp only [IntVals, List.all_cons, List.all_nil, hv, Bool.and_true])
   all_goals (simp only [runInst]; returns_auto)
 
 /-! ## Binding -/
@@ -586,10 +563,9 @@ theorem returns_enter (env : Env) (prev : Option Nat) (b : Block) {P : Val → P
       obtain ⟨o, q⟩ := x
       exact hp phi hphi (o, q) (List.mem_of_find?_eq_some hf)
 
-theorem returns_enter_int {env : Env} (h : EnvInt env) (prev : Option Nat) (b : Block)
-    (hd : ∀ phi ∈ b.phis, ∀ p ∈ phi.incoming, p.1.defined = true) :
+theorem returns_enter_int {env : Env} (h : EnvInt env) (prev : Option Nat) (b : Block) :
     Returns EnvInt (enter env prev b) :=
-  Returns.mono (returns_enter env prev b fun phi hphi p hp => returns_evalOperand h (hd phi hphi p hp))
+  Returns.mono (returns_enter env prev b fun _ _ p _ => returns_evalOperand h p.1)
     fun env' ⟨vals, hvals, _, e⟩ => by
       rw [e]; exact fold_int _ _ h fun x hx => hvals _ (List.of_mem_zip hx).2
 

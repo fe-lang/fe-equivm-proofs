@@ -219,7 +219,6 @@ theorem evalOperand_some {env : Env} {ρ : Nat → UInt256} {D : List Nat} {o : 
     have hid : id ∈ D := by simpa [reads, Operand.var?] using hr
     exact ⟨_, by simp [evalOperand, hw id hid]; rfl⟩
   | imm bits x => exact ⟨_, rfl⟩
-  | undef ty => exact ⟨_, rfl⟩
 
 /-- Entering a block from `p`, each phi of which has a defined operand from `p`: each phi takes
     its operand's value, other values stay. -/
@@ -692,8 +691,8 @@ theorem exitOf_succ {c : Ctx} {t : Term} {e : Exit} {ee : ExecutionEnv} {ρ : Na
         · obtain ⟨x', hx', he'⟩ := ih hm
           exact ⟨x', List.mem_cons_of_mem _ hx', he'⟩
   | _ =>
-    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
-    (try (obtain ⟨_, _, _, _, rfl⟩ := h))
+    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h <;>
+    (try (obtain ⟨_, _, _, _, rfl⟩ := h)) <;>
     simp [Exit.next] at hn
 
 /-- The halting terminators the checker reads. -/
@@ -703,7 +702,8 @@ theorem exitOf_halt {c : Ctx} {t : Term} {op : Operation} {args : List Expr}
       c.operand a = some ea ∧ c.operand l = some el) ∨
     (∃ a l ea el, t = .evmRevert a l ∧ op = .REVERT ∧ args = [ea, el] ∧
       c.operand a = some ea ∧ c.operand l = some el) ∨
-    (t = .evmStop ∧ op = .STOP ∧ args = []) ∨ (t = .evmInvalid ∧ op = .INVALID ∧ args = []) := by
+    (t = .evmStop ∧ op = .STOP ∧ args = []) ∨
+    ((t = .evmInvalid ∨ t = .unreachable) ∧ op = .INVALID ∧ args = []) := by
   cases t with
   | evmReturn a l =>
     simp only [Ctx.exitOf, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
@@ -720,7 +720,10 @@ theorem exitOf_halt {c : Ctx} {t : Term} {op : Operation} {args : List Expr}
     exact .inr (.inr (.inl ⟨rfl, h.1.symm, h.2.symm⟩))
   | evmInvalid =>
     simp only [Ctx.exitOf, Option.some.injEq, Exit.halt.injEq] at h
-    exact .inr (.inr (.inr ⟨rfl, h.1.symm, h.2.symm⟩))
+    exact .inr (.inr (.inr ⟨.inl rfl, h.1.symm, h.2.symm⟩))
+  | unreachable =>
+    simp only [Ctx.exitOf, Option.some.injEq, Exit.halt.injEq] at h
+    exact .inr (.inr (.inr ⟨.inr rfl, h.1.symm, h.2.symm⟩))
   | brTable sc def? cases =>
     cases def? <;> simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
   | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
@@ -755,8 +758,8 @@ theorem exitOf_only {c : Ctx} {t : Term} {e : Exit} {S : Nat} (h : c.exitOf t = 
     obtain ⟨ce, -, rfl⟩ := h
     simp [Exit.selected] at hs
   | _ =>
-    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
-    (try (obtain ⟨_, _, _, _, rfl⟩ := h))
+    simp [Ctx.exitOf, Option.bind_eq_some_iff] at h <;>
+    (try (obtain ⟨_, _, _, _, rfl⟩ := h)) <;>
     simp [Exit.selected] at hs
 
 theorem table_vals {env : Env} : ∀ {cases : List (Operand × Nat)} {cs : List (Nat × Nat)},

@@ -17,8 +17,7 @@ its spills, under a spill plan, which is data:
 - `Func.instrument` adds the stores the bytes make, as `evm_mstore` statements: after a
   statement defining a spilled value, of each spilled parameter at entry, and at the end of a
   block that jumps to a block with spilled phis, of each such phi (its operand from the block,
-  unless it is the phi itself, which its word holds already, or `undef`, which is stored
-  nowhere: the run does not take `undef` for any word);
+  unless it is the phi itself, which its word holds already);
 - `Func.reloadLive` finds the spilled values reload-live at each point: a reload of the value
   is reachable from there before the value is defined or stored again.  `Func.liveClosed`
   tests that sets satisfy the equations of that liveness, and `Func.live_mono` is what it
@@ -234,7 +233,7 @@ theorem noPanic_evmRun (op : EvmOp) (args : List UInt256) : NoPanic (op.run args
     Fe.EVM.blobbasefee, Fe.EVM.gas, Fe.EVM.cload, Fe.EVM.mload, Fe.EVM.mstore,
     Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.keccak256, Fe.EVM.mcopy,
     Fe.EVM.mstore8, Fe.EVM.logData, Fe.EVM.create, Fe.EVM.create2, Fe.EVM.call,
-    Fe.EVM.staticcall, Fe.EVM.delegatecall, stuck] <;> no_panic
+    Fe.EVM.staticcall, Fe.EVM.delegatecall, callcode, stuck] <;> no_panic
   all_goals first
     | with_reducible exact noPanic_next
     | with_reducible exact noPanic_emit _ _
@@ -270,6 +269,10 @@ theorem noPanic_revertData (a l : UInt256) : NoPanic (revertData a l) := by
 theorem noPanic_stopCall : NoPanic stopCall := by unfold stopCall Fe.M.stop; no_panic
 
 theorem noPanic_trap : NoPanic trap := by unfold trap; no_panic
+
+theorem noPanic_selfdestruct (a : UInt256) : NoPanic (Fe.EVM.selfdestruct a) := by
+  unfold Fe.EVM.selfdestruct Fe.M.stop; no_panic
+  all_goals exact noPanic_next
 
 theorem noPanic_runInst (c : Ctx) (env : Env) (inst : Inst) : NoPanic (runInst c env inst) := by
   unfold runInst
@@ -338,6 +341,7 @@ theorem runFuncG_none_noPanic (m : Module) (c : Ctx) (name : String) (args : Lis
       | exact noPanic_revertData _ _
       | exact noPanic_stopCall
       | exact noPanic_trap
+      | exact noPanic_selfdestruct _
 
 /-- The run of a section never panics, at any level. -/
 theorem runSection_noPanic (s : Sidecar) (name : String) (level : Level) :

@@ -31,6 +31,7 @@ def _root_.Fe.Sonatina.Inst.mapOps (g : Operand → Operand) : Inst → Inst
   | .clz a => .clz (g a)
   | .ctz a => .ctz (g a)
   | .ovf op a b => .ovf op (g a) (g b)
+  | .sat op a b ty => .sat op (g a) (g b) ty
   | .cast op a ty => .cast op (g a) ty
   | .select c a b => .select (g c) (g a) (g b)
   | .evm op args => .evm op (args.map g)
@@ -41,6 +42,8 @@ def _root_.Fe.Sonatina.Inst.mapOps (g : Operand → Operand) : Inst → Inst
   | .alloca ty => .alloca ty
   | .symAddr s => .symAddr s
   | .symSize s => .symSize s
+  | .funcPtr f => .funcPtr f
+  | .blackBox a => .blackBox (g a)
   | .insertValue a i v => .insertValue (g a) (g i) (g v)
   | .extractValue a i => .extractValue (g a) (g i)
   | .keccakWords ws => .keccakWords (ws.map g)
@@ -55,6 +58,7 @@ def _root_.Fe.Sonatina.Term.mapOps (g : Operand → Operand) : Term → Term
   | .ret vs => .ret (vs.map g)
   | .evmReturn a l => .evmReturn (g a) (g l)
   | .evmRevert a l => .evmRevert (g a) (g l)
+  | .evmSelfDestruct a => .evmSelfDestruct (g a)
   | t => t
 
 /-- A phi's first operand from block `p`, the one `enter` takes. -/
@@ -140,6 +144,19 @@ theorem mono {Q Q' : α → FeM (List Val) → Prop} {x' : FeM α} {y : FeM (Lis
   · exact id
   · exact id
   · rintro ⟨y₁, w₁, hy, hq, hw₁⟩; exact ⟨y₁, w₁, hy, hQ _ _ hq, hw₁⟩
+
+/-- What the output's computation returns also satisfies what it is known to return. -/
+theorem strengthen {P : α → Prop} {Q : α → FeM (List Val) → Prop} {x' : FeM α}
+    {y : FeM (List Val)} (h : Fol Q x' y) (hP : Returns P x') :
+    Fol (fun a y₁ => Q a y₁ ∧ P a) x' y := by
+  intro I w' w hw
+  have := h I w' w hw
+  have hP' : ∀ a w₁', x'.exec I w' = some (.ok (a, w₁')) → P a := fun a w₁' => hP I w' a w₁'
+  revert this hP'
+  rcases x'.exec I w' with _ | (e' | ⟨a, w₁'⟩)
+  · exact fun h _ => h
+  · exact fun h _ => h
+  · rintro ⟨y₁, w₁, hy, hq, hw₁⟩ hP'; exact ⟨y₁, w₁, hy, ⟨hq, hP' a w₁' rfl⟩, hw₁⟩
 
 end Fol
 
@@ -488,7 +505,7 @@ theorem Approx.runStmtO_sub {o : Oracle} (ho : Oracle.Mono o) {c : Ctx} {env' en
   · next callee args heq =>
     rw [heq] at hs
     exact Approx.bind (Approx.strengthen (Approx.mapM' (Approx.evalOperand h) _)
-      (returns_evalOperands he (Inst.machine_args hs))) fun a a₀ ⟨e, hv⟩ => by
+      (returns_evalOperands he _)) fun a a₀ ⟨e, hv⟩ => by
         cases e; exact ho _ _ hv
   · exact Approx.runInst h rfl _ hs
 
@@ -672,7 +689,6 @@ theorem wf_imm_word {o : Operand} (h : o.wf = true) {env : Env} {v : Val} (hv : 
     simp only [opVal, Option.some.injEq] at hv
     obtain ⟨rfl, hn⟩ := h
     exact ⟨n, hn, hv.symm⟩
-  | undef => simp [Operand.wf] at h
 
 /-- A world, for runs that do not depend on one. -/
 def someWorld : World := { accounts := default, logs := default }

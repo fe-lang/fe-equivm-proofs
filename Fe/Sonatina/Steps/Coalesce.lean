@@ -62,7 +62,6 @@ def stmtOf (B : NatMap Block) (D : NatMap Def) (T : DomTree) (u : Nat) : Option 
     leaves a larger base). -/
 def addrNorm (B : NatMap Block) (D : NatMap Def) (T : DomTree) : Nat → Operand → Option Nat × Nat
   | _, .imm _ v => (none, v % W256)
-  | _, .undef _ => (none, 0)
   | 0, .var u => (some u, 0)
   | n + 1, .var u => match stmtOf B D T u with
     | some (.bin .add a (.imm _ c)) =>

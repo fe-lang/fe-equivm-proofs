@@ -248,7 +248,6 @@ theorem hat_congr {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
         cases hU.fn (stmt_def hmem hs hdd) hdef
       · exact phi_of_definedIn hU hd hdef ▸ ha
   | imm => rfl
-  | undef => rfl
 
 end tpi
 
@@ -292,7 +291,6 @@ theorem tpi_enter {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
         exact hne (DomTree.anc_antisymm hroot hbroot hanc ha).symm
       · cases hU.fn hd hdu
     | imm => rfl
-    | undef => rfl
   by_cases hBb : B = b
   · subst hBb
     have hcb' : cb = blk := by
@@ -316,7 +314,6 @@ theorem tpi_enter {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
             obtain ⟨cb', cφ', _, _, _, hcdef', _⟩ := sigma_entry F hσu
             exact ht u x' hσu _ hcdef' (phiUse_anc hwf F.ssa hb hr hqr hcφ hom hcdef')
         | imm => simp only [CCtx.hat] at hh; rw [hh]
-        | undef => simp only [CCtx.hat] at hh; rw [hh]
     have hxv : opVal env x = some val := hox ▸ hov
     have hnorm : val.as cφ.ty = val := by
       rw [((Func.wf_words hwf).2 cb hmem).1 cφ hcφ]
@@ -374,7 +371,6 @@ theorem tpi_stmt {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
         rw [hcbB] at hne ha
         exact hne (DomTree.anc_antisymm hroot hbroot hanc ha).symm
     | imm => rfl
-    | undef => rfl
   rw [hx, ← ht v x hσ B hB hanc]
   show (l.foldl bindStep env)[v]? = env[v]?
   exact fold_get_not _ _ _ (hnot v _ hB fun _ h => by cases h)
@@ -493,7 +489,6 @@ theorem walk_run {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
               ((Func.wf_words hwf).2 tb hmem).1 φ hφ, phi_val_word hwf hmem hφ (inc_mem hinc)
                 hi.1 hov]
         | imm bits v => exact hθ (.imm bits v)
-        | undef ty => exact hθ (.undef ty)
       obtain ⟨env₁, hex, hrest⟩ :=
         walk_run hwf F o c hds n _ t t₂ e₂ q θ' hw hbi htp hlt hct hes₂ hθ₂
       exact ⟨env₁, fun I w => (jump_step o c htb hbody hterm he₂ I w).trans (hex I w), hrest⟩
@@ -558,9 +553,9 @@ theorem stmts_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
     obtain ⟨hes, hds, hpi, htp, hr⟩ := hm
     have hsob : s.mapOps (CCtx.of O f f').hat ∈ ob.body := hin s (List.mem_cons_self ..)
     have hmach : (s.mapOps (CCtx.of O f f').hat).inst.machine = true :=
-      (Func.machine_of_mem F.machine' hob).2.1 _ hsob
+      Func.machine_of_mem F.machine' hob _ hsob
     have hsm : s.inst.machine = true :=
-      (Func.machine_block (Func.wf_machine hwf) hb).2.1 s (List.mem_of_getElem? hs)
+      Func.machine_block (Func.wf_machine hwf) hb s (List.mem_of_getElem? hs)
     have hcong : ∀ a ∈ s.inst.args, opVal e ((CCtx.of O f f').hat a) = opVal e a := fun a ha =>
       hat_congr hwf F htp (hid ▸ (ssa_block F.ssa hmem (hid ▸ hr)).2.1 k s hs a ha)
     have happ : Approx Eq (runStmtO o c e' (s.mapOps (CCtx.of O f f').hat)) (runStmtO o c e s) := by
@@ -645,8 +640,7 @@ theorem term_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
     exact ⟨_, by unfold intVal at hn ⊢; rw [hcong a ha]; exact hn⟩
   have happ := approx_runTerm _ hes ob.term _ ht hdef
   rw [runTerm_mapOps _ hcong] at happ
-  have happ2 := Approx.strengthen happ (returns_runTerm hpi.1.int cmb.term
-    (Func.machine_block (Func.wf_machine hwf) hcm).2.2)
+  have happ2 := Approx.strengthen happ (returns_runTerm hpi.1.int cmb.term)
   refine Fol.approx happ2 fun n' n ⟨hn, hok⟩ => ?_
   rcases n' with ⟨ea, d'⟩ | v' <;> rcases n with ⟨eb, d⟩ | v <;> simp only [NextTgt] at hn
   · obtain ⟨⟨hea, heb⟩, hslot⟩ := hn
@@ -709,9 +703,15 @@ theorem linksOk_block {X : CCtx} {c n : Nat} {rest : List Nat}
     obtain ⟨nb, hnb, _⟩ := (linkOk_spec h.2.1).2.1
     exact ⟨nb, hnb⟩
 
+theorem callsNoRet_mapOps (O : Option (List Summary)) (g : Operand → Operand) (s : Stmt) :
+    callsNoRet O (s.mapOps g) = callsNoRet O s := by
+  rcases s with ⟨_, i⟩
+  cases i <;> rfl
+
 /-- An output block's chain against the input's run from its first block. -/
 theorem chain_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
-    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) {ob : Block}
+    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (hnr : NoRetHolds O o)
+    (c : Ctx) {ob : Block}
     (hob : ob ∈ f'.blocks) :
     ∀ (ch : List Nat) (cid : Nat) (cb : Block), f.block? cid = some cb →
       (CCtx.of O f f').linksOk (cid :: ch) = true → ∀ cmb : Block,
@@ -740,9 +740,7 @@ theorem chain_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
     | some k =>
       simp only [htr] at hin hterm ⊢
       simp only [decide_eq_true_eq] at hterm
-      have hk : k < cb.body.length := by
-        obtain ⟨h, _⟩ := List.findIdx?_eq_some_iff_getElem.mp htr
-        exact h
+      obtain ⟨hk, hck, _⟩ := List.findIdx?_eq_some_iff_getElem.mp htr
       have hsplit : runBodyO o c e cb.body = runBodyO o c e (cb.body.take (k + 1)) >>= fun e =>
           runBodyO o c e (cb.body.drop (k + 1)) := by
         rw [← runBodyO_append, List.take_append_drop]
@@ -752,9 +750,13 @@ theorem chain_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
             | .goto e d => runFrom o c f (e, some cid, d)
             | .done v => pure v) (k + 1) 0 e' e (by omega) (by simpa using hin) hm
       simp only [List.drop_zero] at this
-      refine Fol.bind this fun e₂' y₁ _ => ?_
-      rw [hterm]
-      exact Fol.stuck
+      -- The output stops at the call to the claimed-noreturn function: it never reaches its
+      -- `unreachable`.
+      have hmk : cb.body[k] ∈ cb.body.take (k + 1) := by
+        rw [List.mem_iff_getElem]
+        exact ⟨k, by rw [List.length_take]; omega, by rw [List.getElem_take]⟩
+      refine Fol.bind (Fol.strengthen this (noRet_runBodyO hnr c e' _
+        ⟨_, List.mem_map_of_mem hmk, by rw [callsNoRet_mapOps]; exact hck⟩)) fun _ _ h => h.2.elim
     | none =>
       simp only [htr] at hin hterm ⊢
       have := stmts_fol hwf F ho hoi c hcb hob (fun e => runTerm e cb.term >>= fun
@@ -797,7 +799,7 @@ theorem chain_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
       exact ⟨_, hk⟩
     have happ := Approx.strengthen (Approx.pure_left
       (approx_runTerm _ (EnvSub.refl e₁) (.jump n) cb.term hrel hdef))
-      (returns_runTerm hpi₁.1.int cb.term (Func.machine_block (Func.wf_machine hwf) hcb).2.2)
+      (returns_runTerm hpi₁.1.int cb.term)
     rw [show (runBodyO o c e₁' ((CCtx.of O f f').chainBody (n :: ch) |>.map
         (Stmt.mapOps (CCtx.of O f f').hat)) >>= fun e₂' => runTerm e₂' ob.term) =
         (runTerm e₁ (.jump n) >>= fun _ => runBodyO o c e₁' ((CCtx.of O f f').chainBody (n :: ch)
@@ -940,7 +942,8 @@ theorem enter_rel {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
 
 /-- One output block against the input's run from a related state. -/
 theorem block_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
-    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (hnr : NoRetHolds O o)
+    (c : Ctx)
     {s' s : BState} (hR : CR O f f' s' s) :
     Fol (Qs o c O f f' s'.2.2) (stepBlock o c f' s'.1 s'.2.1 s'.2.2) (runFrom o c f s) := by
   obtain ⟨env', prev', b⟩ := s'
@@ -964,15 +967,15 @@ theorem block_fol {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
     fun a' a h => ⟨a, rfl, h⟩) ?_
   rintro e₁' _ ⟨e₁, rfl, hm⟩
   rw [hbody]
-  have := chain_fol hwf F ho hoi c hobm rest b c0 hc0 hlinks cmb hlast hterm
+  have := chain_fol hwf F ho hoi hnr c hobm rest b c0 hc0 hlinks cmb hlast hterm
     (fun s hs => by rw [hbody]; exact List.mem_map_of_mem hs) e₁' e₁ hm
   rwa [hobid] at this
 
 theorem cfg_sim {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
-    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
-    Sim o c f' f (CR O f f') := by
+    (F : CCFacts O f f') {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (hnr : NoRetHolds O o)
+    (c : Ctx) : Sim o c f' f (CR O f f') := by
   intro s' s hR I w' w hw
-  have h := block_fol hwf F ho hoi c hR I w' w hw
+  have h := block_fol hwf F ho hoi hnr c hR I w' w hw
   revert h
   rcases (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w' with _ | (e' | ⟨n, w₁'⟩)
   · intro _; trivial
@@ -988,14 +991,14 @@ theorem cfg_sim {sig : Sigs} {syms : List String} (hwf : f.wf sig syms = true)
       exact ⟨w₁, by rw [hy, Fe.M.exec_pure], hw₁⟩
 
 /-- A `cfg_cleanup` step is sound: the output function, its calls run by an oracle that
-    approximates itself and returns integers on integers, approximates the well-formed input
-    function on integers. -/
+    approximates itself, returns integers on integers and never returns from a function the
+    table claims does not return, approximates the well-formed input function on integers. -/
 theorem cfgCleanup_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Oracle.Mono o)
-    (hoi : o.IntRet) (c : Ctx) {ids : Option (List (List Nat))} {s : FuncSnap}
-    (hwf : f.wf sig syms = true) (h : checkCfgCleanup O f ids s = true) :
+    (hoi : o.IntRet) (hnr : NoRetHolds O o) (c : Ctx) {ids : Option (List (List Nat))}
+    {s : FuncSnap} (hwf : f.wf sig syms = true) (h : checkCfgCleanup O f ids s = true) :
     FuncRef o c (some s.func) (some f) := by
   have F := checkCfgCleanup_facts h
-  have sim := cfg_sim hwf F ho hoi c
+  have sim := cfg_sim hwf F ho hoi hnr c
   obtain ⟨e, e', he, he', hid⟩ := F.head
   intro args hargs
   unfold runFuncO
@@ -1018,7 +1021,7 @@ theorem cfgCleanup_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Or
 end sound
 
 theorem cfgCleanup_stepSound : StepSound .cfgCleanup :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
-    cfgCleanup_sound ho hoi c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
+  StepSound.of_func fun _ _ _ _ c ho hoi hnr _ _ _ _ hw h =>
+    cfgCleanup_sound ho hoi hnr c hw (by simp only [checkFunc, Bool.and_eq_true] at h; exact h.2)
 
 end Fe.Sonatina.Steps

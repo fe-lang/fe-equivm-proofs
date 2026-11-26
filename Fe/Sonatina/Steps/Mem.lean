@@ -429,6 +429,10 @@ theorem approx_delegatecall (g a ap al rp rl : UInt256) :
     Approx Eq (delegatecall g a ap al rp rl) (delegatecall g a ap al rp rl) := by
   unfold delegatecall
   exact Approx.read_bind fun _ => approx_message _ _ _ _ _ _ _ _ _ _ _
+theorem approx_callcode (g a v ap al rp rl : UInt256) :
+    Approx Eq (callcode g a v ap al rp rl) (callcode g a v ap al rp rl) := by
+  unfold callcode
+  exact Approx.read_bind fun _ => approx_message _ _ _ _ _ _ _ _ _ _ _
 theorem approx_createWith (salt : Option ByteArray) (v p n : UInt256) :
     Approx Eq (createWith salt v p n) (createWith salt v p n) := by
   unfold createWith
@@ -449,5 +453,12 @@ theorem approx_revertData (p n : UInt256) : Approx Eq (revertData p n) (revertDa
   unfold revertData Fe.M.revert; approx_prim
 theorem approx_stopCall : Approx Eq stopCall stopCall := by unfold stopCall Fe.M.stop; approx_prim
 theorem approx_trap : Approx Eq (trap : FeM Empty) trap := by unfold trap; approx_prim
+theorem approx_selfdestruct (a : UInt256) :
+    Approx Eq (Fe.EVM.selfdestruct a) (Fe.EVM.selfdestruct a) := by
+  unfold Fe.EVM.selfdestruct
+  refine Approx.read_bind fun I => Approx.ite (Approx.fail _ (by simp))
+    (Approx.bind_eq approx_next fun sp => Approx.get_bind fun w' w hw => ?_)
+  exact Approx.bind (Approx.set ⟨by simp only [hw.accounts], hw.logs, hw.memory, hw.returnData,
+    hw.feed, hw.calls⟩) fun _ _ _ => by unfold Fe.M.stop; approx_prim
 
 end Fe.Sonatina.Steps

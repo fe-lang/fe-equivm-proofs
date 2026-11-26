@@ -26,7 +26,8 @@ whose entry stacks are then the whole of its frame (`Frame.exact`); its entry bl
 with its arguments on top of it.  A call is a `JUMP` to the callee's entry block with its
 arguments on top, and, if the callee returns, below them the address of a `JUMPDEST` where the
 block's bytes go on with the callee's results on top; a call to a function that does not
-return ends the block, whose terminator is `unreachable`.  A `ret` is a `JUMP` to the return
+return ends the block, whose terminator is `unreachable`, which the bytes never reach.
+`unreachable` elsewhere is the bytes' `INVALID`, as `evm_invalid` is.  A `ret` is a `JUMP` to the return
 address with exactly the values below it.  The section's entry takes no arguments, returns
 nowhere, and no block calls it.
 
@@ -171,18 +172,21 @@ def Expr.cmp : Expr → Expr → Ordering
 /-- The commutative opcodes. -/
 def commutative : List Operation := [.ADD, .MUL, .AND, .OR, .XOR, .EQ]
 
-/-- An operation on two operands in one form: `GT` and `SGT` as `LT` and `SLT` on swapped
-    operands, a commutative operation with the greater operand on top. -/
-def normalize (op : Operation) (a b : Expr) : Expr :=
-  if op == .GT then .op2 .LT b a
-  else if op == .SGT then .op2 .SLT b a
-  else if commutative.contains op && a.cmp b == .lt then .op2 op b a
-  else .op2 op a b
-
 /-- An operation on one operand in one form: three `ISZERO`s as one. -/
 def unary : Operation → Expr → Expr
   | .ISZERO, .op1 .ISZERO (.op1 .ISZERO a) => .op1 .ISZERO a
   | op, a => .op1 op a
+
+/-- An operation on two operands in one form: `EQ` with zero as `ISZERO`, as the backend emits
+    `PUSH0 EQ` (`stack.rs`, the stack peepholes), `GT` and `SGT` as `LT` and `SLT` on swapped
+    operands, a commutative operation with the greater operand on top. -/
+def normalize (op : Operation) (a b : Expr) : Expr :=
+  if op == .EQ && b == .const 0 then unary .ISZERO a
+  else if op == .EQ && a == .const 0 then unary .ISZERO b
+  else if op == .GT then .op2 .LT b a
+  else if op == .SGT then .op2 .SLT b a
+  else if commutative.contains op && a.cmp b == .lt then .op2 op b a
+  else .op2 op a b
 
 /-- An expression of an operation on operands, top first; on constants an arithmetic or logic
     operation is its result, as the bytes compute a constant the IR writes as one. -/
@@ -320,7 +324,6 @@ def _root_.Fe.Sonatina.Stmt.local? (s : Stmt) : Option (Nat × Inst) :=
 def operandWith (expand : Nat → Option Expr) : Operand → Option Expr
   | .var id => expand id
   | .imm bits value => if bits == 256 && value < UInt256.size then some (.const value) else none
-  | .undef _ => none
 
 /-- The expression of a pure instruction. -/
 def pureWith (expand : Nat → Option Expr) (symbols : List (String × Nat × Nat)) :
@@ -352,17 +355,39 @@ def Expr.isOp : Expr → Bool
   | .atom _ | .const _ | .op1 .ISZERO _ => false
   | _ => true
 
+/-- The instruction's word is a message call's success flag, 0 or 1. -/
+def _root_.Fe.Sonatina.Inst.flag : Inst → Bool
+  | .evm .call _ | .evm .staticCall _ | .evm .delegateCall _ => true
+  | _ => false
+
+/-- A comparison, whose word is 0 or 1. -/
+def Expr.isCmp : Expr → Bool
+  | .op2 op _ _ => [Operation.LT, .SLT, .EQ].contains op
+  | _ => false
+
+/-- Two `ISZERO`s of an expression. -/
+def Expr.notNot (e : Expr) : Expr := .op1 .ISZERO (.op1 .ISZERO e)
+
+/-- The node naming value `id` by two `ISZERO`s of it, if its word is 0 or 1 (`b`): after a
+    comparison or a message call the backend drops a run of `ISZERO`s to its parity (`stack.rs`,
+    `prune_redundant_opcode_sequences`, `is_bool_producer_opcode`), so the bytes hand on the
+    flag where the IR has `is_zero` of `is_zero` of it. -/
+def Canon.flagNodes (id : Nat) (b : Bool) : List (Expr × Nat) :=
+  if b then [((Expr.atom id).notNot, id)] else []
+
 /-- Number one more definition: a pure value is the first value with its operation on the
     same expressions (its node), or the constant the operation folds to; any other value is
     itself.  A value numbered already keeps its expression, as `List.lookup` finds a value's
-    first definition. -/
+    first definition.  A message call's flag and a comparison also name two `ISZERO`s of
+    themselves (`Canon.flagNodes`). -/
 def Canon.step (symbols : List (String × Nat × Nat)) (k : Canon) (d : Nat × Inst) : Canon :=
   if (k.vals.lookup d.1).isSome then k else
   match pureWith k.expand symbols d.2 with
-  | none => ⟨(d.1, .atom d.1) :: k.vals, k.nodes⟩
+  | none => ⟨(d.1, .atom d.1) :: k.vals, Canon.flagNodes d.1 d.2.flag ++ k.nodes⟩
   | some e => match k.nodes.lookup e with
     | some w => ⟨(d.1, .atom w) :: k.vals, k.nodes⟩
-    | none => if e.isOp then ⟨(d.1, .atom d.1) :: k.vals, (e, d.1) :: k.nodes⟩
+    | none => if e.isOp then
+        ⟨(d.1, .atom d.1) :: k.vals, (e, d.1) :: Canon.flagNodes d.1 e.isCmp ++ k.nodes⟩
       else ⟨(d.1, e) :: k.vals, k.nodes⟩
 
 /-- The expressions of the values of definitions, numbered in order. -/
@@ -467,8 +492,6 @@ inductive Exit where
   | halt (op : Operation) (args : List Expr)
   /-- A return to the function's return address with the values, top first. -/
   | ret (vals : List Expr)
-  /-- None: the block ends in a call to a function that does not return. -/
-  | unreach
   deriving Repr, Inhabited
 
 def Ctx.exitOf (c : Ctx) : Term → Option Exit
@@ -485,7 +508,8 @@ def Ctx.exitOf (c : Ctx) : Term → Option Exit
   | .evmInvalid => some (.halt .INVALID [])
   | .ret vals =>
     if c.frame.returns then do return .ret (← vals.mapM (c.operand)) else none
-  | .unreachable => some .unreach
+  -- It traps; after a call to a function that does not return, it is never reached.
+  | .unreachable => some (.halt .INVALID [])
   | _ => none
 
 /-- The expression of an entry slot. -/
@@ -615,10 +639,18 @@ inductive Way where
   | exit (e : Exit)
   | never
 
-/-- The case a condition compares the scrutinee `s` with. -/
+/-- The case a condition compares the scrutinee `s` with: `ISZERO` of it is case zero. -/
 def Expr.caseOf (s : Expr) : Expr → Option Nat
   | .op2 .EQ (.const k) s' | .op2 .EQ s' (.const k) => if s' == s then some k else none
+  | .op1 .ISZERO s' => if s' == s then some 0 else none
   | _ => none
+
+/-- An expression without the `ISZERO`s around it, and whether they are an odd number: the
+    expression's word is not zero just when the rest's is not, or is, for an odd number.  The
+    backend drops two `ISZERO`s before a `JUMPI` (`stack.rs`, the stack peepholes). -/
+def Expr.peel : Expr → Expr × Bool
+  | .op1 .ISZERO a => (a.peel.1, !a.peel.2)
+  | e => (e, false)
 
 /-- What a jump's condition says of the block's exit when the jump is taken (`true`) or not:
     the successor it selects, the `br_table` with more cases ruled out, or that the jump never
@@ -632,8 +664,8 @@ def Exit.way (e : Exit) (cond : Expr) (taken : Bool) : Option Way :=
         some (.succ (if kc % UInt256.size != 0 then nz else z))
       else some .never
     | _, _ =>
-      if cond == c then some (.succ (if taken then nz else z))
-      else if cond == .op1 .ISZERO c then some (.succ (if taken then z else nz))
+      if cond.peel.1 == c.peel.1 then
+        some (.succ (if taken != (cond.peel.2 != c.peel.2) then nz else z))
       else none
   | .table s default cases ruled =>
     match s.caseOf cond with
@@ -741,7 +773,7 @@ def run (code : ByteArray) (tree : PcTree (Operation × Option Nat × Nat)) (des
                       ⟨k, cs.dsts.map .atom ++ rest', cs.events, p.exit, more,
                         keepHeld cs.keep p.held⟩
                   | _ => false)
-              else more.isEmpty && cs.events.isEmpty && (p.exit matches .unreach)
+              else more.isEmpty && cs.events.isEmpty && (p.exit matches .halt .INVALID [])
             | none => false
           | _, _ =>
             if p.events.isEmpty && p.calls.isEmpty && (p.exit.selected.bind place) == some t then
@@ -820,7 +852,7 @@ def slotDefined (defs : List Nat) (sb : Block) : Slot → Bool
 /-- Block `b` reads only values defined before each read: its entry stack's values `entry`,
     its phis, or those its statements define earlier; it defines none of those again (an entry
     value it defined would be the last run's); and each phi of each successor has an operand
-    from `b`, so defined and not `undef`, and each value of its entry stack is a phi or defined
+    from `b`, so defined, and each value of its entry stack is a phi or defined
     by `b`.  The
     machine IR runs a read of an undefined value nowhere. -/
 def defined (f : Func) (hints : List BlockHint) (sp : FuncSpill) (b : Block)
@@ -830,7 +862,7 @@ def defined (f : Func) (hints : List BlockHint) (sp : FuncSpill) (b : Block)
   | some defs => reads defs b.term.operands && b.term.succs.all fun succ =>
     match f.block? succ with
     | some sb => (sb.phis.all fun phi => match phi.incoming.find? (·.2 == b.id) with
-      | some (.undef _, _) | none => false
+      | none => false
       | some (o, _) => reads defs [o]) &&
       -- A value of the successor's entry stack not its phi is one `b` has defined.
       (hints.find? (·.block == succ)).all (fun h => h.entryStack.all (slotDefined defs sb)) &&
@@ -909,7 +941,10 @@ def checkBlock (code : CodeSection) (low : Lowering) (hint : FuncHint) (f : Func
   let some pc := place b.id | throw s!"block{b.id} has no place"
   let some stack := c.entryStack h | throw s!"block{b.id}: an entry slot is not a value"
   let some (events, calls) := c.segments (sp.guard b.id) 0 b.body
-    | throw s!"block{b.id}: an instruction outside the class"
+    | throw (if b.body.any (·.inst matches .evm .msize _) then
+        -- `docs/memory.md`, E4: it reads the bytes' memory size, outside the certified subset.
+        s!"block{b.id}: evm_msize, which reads the memory the backend placed"
+      else s!"block{b.id}: an instruction outside the class")
   let some exit := c.exitOf b.term | throw s!"block{b.id}: a terminator outside the class"
   if isRoot && b.id == entryBlock.id then
     unless stack.isEmpty do throw "the entry block's entry stack is not empty"

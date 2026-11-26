@@ -20,7 +20,6 @@ open Ethereum Ethereum.EVM
 def opWord (ρ : Nat → UInt256) : Operand → Option UInt256
   | .var id => some (ρ id)
   | .imm bits v => if bits == 256 && v < UInt256.size then some (.ofNat v) else none
-  | .undef _ => none
 
 /-- The word a pure instruction of the class computes, its operands' words given by `ρ`. -/
 def instWord (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat)) :
@@ -45,7 +44,6 @@ theorem operand_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat �
     split_ifs at h with hb
     cases h
     simp [Expr.eval, opWord, hb]
-  | undef _ => cases h
 
 theorem operands_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat → Option Expr}
     {S : List Nat} (hexp : ∀ id e', id ∈ S → expand id = some e' → e'.eval ee ρ = some (ρ id)) :
@@ -141,11 +139,13 @@ theorem pureWith_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {expand : Nat �
     simp [Expr.eval, instWord, hs]
   | _ => cases h
 
-/-- The word the definition of value `id` gives it under `ρ`, if the definition is pure. -/
+/-- The word the definition of value `id` gives it under `ρ`, if the definition is pure, and
+    that it is 0 or 1 if it is a message call's flag. -/
 def Eqn (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat)) (id : Nat)
     (inst : Inst) : Prop :=
-  ∀ (ex : Nat → Option Expr) e, pureWith ex symbols inst = some e →
-    instWord ee ρ symbols inst = some (ρ id)
+  (∀ (ex : Nat → Option Expr) e, pureWith ex symbols inst = some e →
+    instWord ee ρ symbols inst = some (ρ id)) ∧
+  (inst.flag = true → ρ id = .ofNat 0 ∨ ρ id = .ofNat 1)
 
 /-- The values `D` the block has defined are as `ρ` says: the block's expressions are numbered
     from its definitions, each value of `D` the block defines purely reads values of `D` and
@@ -193,6 +193,41 @@ theorem reads_self (ops : List Operand) : reads (ops.filterMap Operand.var?) ops
   | none => rfl
   | some id => simpa [List.contains_iff_mem] using List.mem_filterMap.mpr ⟨o, ho, hv⟩
 
+/-- Two `ISZERO`s of a word that is 0 or 1 are the word. -/
+theorem notNot_eval {ee : ExecutionEnv} {ρ : Nat → UInt256} {r : Nat}
+    (h : ρ r = .ofNat 0 ∨ ρ r = .ofNat 1) : (Expr.atom r).notNot.eval ee ρ = some (ρ r) := by
+  rcases h with h | h <;> simp only [Expr.notNot, Expr.eval, h, opEval, evalOp, Option.bind_eq_bind,
+    Option.bind_some, Option.some_or] <;> rfl
+
+theorem fromBool_flag (b : Bool) : UInt256.fromBool b = .ofNat 0 ∨ UInt256.fromBool b = .ofNat 1 := by
+  cases b
+  · exact .inl rfl
+  · exact .inr rfl
+
+/-- A comparison's word is 0 or 1. -/
+theorem isCmp_flag {ee : ExecutionEnv} {ρ : Nat → UInt256} {e : Expr} {x : UInt256}
+    (hc : e.isCmp = true) (h : e.eval ee ρ = some x) : x = .ofNat 0 ∨ x = .ofNat 1 := by
+  cases e with
+  | op2 op a b =>
+    simp only [Expr.isCmp, List.contains_cons, List.contains_nil, Bool.or_false, Bool.or_eq_true,
+      beq_iff_eq] at hc
+    cases ha : a.eval ee ρ <;> cases hb : b.eval ee ρ <;> simp [Expr.eval, ha, hb] at h
+    rcases hc with rfl | rfl | rfl <;> simp [opEval, evalOp] at h <;> subst h <;>
+      exact fromBool_flag _
+  | _ => simp [Expr.isCmp] at hc
+
+/-- The flag nodes of a value whose word is 0 or 1 when they are asked for are valid. -/
+theorem flagNodes_valid {ee : ExecutionEnv} {ρ : Nat → UInt256} {id : Nat} {b : Bool}
+    (h : b = true → ρ id = .ofNat 0 ∨ ρ id = .ofNat 1) :
+    ∀ p ∈ Canon.flagNodes id b, p.1.eval ee ρ = some (ρ p.2) := by
+  intro p hp
+  unfold Canon.flagNodes at hp
+  split_ifs at hp with hb
+  · simp only [List.mem_singleton] at hp
+    subst hp
+    exact notNot_eval (h hb)
+  · cases hp
+
 /-- Numbering a definition keeps the expressions valid, given its word if it is pure and new. -/
 theorem Canon.Valid.step {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
     {symbols : List (String × Nat × Nat)} {d : Nat × Inst} (hv : k.Valid ee ρ)
@@ -204,15 +239,18 @@ theorem Canon.Valid.step {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
   · next hn =>
     have he := he (lookup_eq_none hn)
     split
-    · refine ⟨fun p hp => ?_, hv.2⟩
-      rcases List.mem_cons.mp hp with rfl | hp
-      · rfl
-      · exact hv.1 p hp
+    · refine ⟨fun p hp => ?_, fun p hp => ?_⟩
+      · rcases List.mem_cons.mp hp with rfl | hp
+        · rfl
+        · exact hv.1 p hp
+      · rcases List.mem_append.mp hp with hp | hp
+        · exact flagNodes_valid he.2 p hp
+        · exact hv.2 p hp
     · next e hpe =>
       have hev : e.eval ee ρ = some (ρ d.1) := by
         rw [pureWith_eval (S := d.2.operands.filterMap Operand.var?) (fun _ _ _ h => hv.expand h)
           (reads_self _) hpe]
-        exact he _ _ hpe
+        exact he.1 _ _ hpe
       split
       · next w hw =>
         have hw' := hv.2 _ (mem_of_lookup hw)
@@ -228,7 +266,9 @@ theorem Canon.Valid.step {ee : ExecutionEnv} {ρ : Nat → UInt256} {k : Canon}
             · exact hv.1 p hp
           · rcases List.mem_cons.mp hp with rfl | hp
             · exact hev
-            · exact hv.2 p hp
+            · rcases List.mem_append.mp hp with hp | hp
+              · exact flagNodes_valid (fun hc => isCmp_flag hc hev) p hp
+              · exact hv.2 p hp
         · refine ⟨fun p hp => ?_, hv.2⟩
           rcases List.mem_cons.mp hp with rfl | hp
           · exact hev
@@ -351,7 +391,6 @@ theorem evalOperand_word {env : Env} {ρ : Nat → UInt256} {D : List Nat} {o : 
     obtain ⟨rfl, hx⟩ := hb
     cases ho
     simp [evalOperand, toNat_ofNat_lt hx]
-  | undef _ => cases ho
 
 theorem as_word (n : Nat) {ty : Ty} (hty : ty.bits = 256) :
     (Val.int 256 n).as ty = .int 256 (UInt256.ofNat n).toNat := by

@@ -134,23 +134,6 @@ theorem gt_eval {ee : ExecutionEnv} (a b : UInt256) :
   simp only [opEval, evalOp, UInt256.sgt, UInt256.slt, UInt256.sgtBool, UInt256.sltBool]
   split_ifs <;> rfl
 
-/-- Normalization keeps the value of an operation on two operands. -/
-theorem normalize_eval {ee : ExecutionEnv} {env : Nat → UInt256} (op : Operation) (a b : Expr) :
-    (normalize op a b).eval ee env = (do opEval ee op [← a.eval ee env, ← b.eval ee env]) := by
-  unfold normalize
-  cases ha : a.eval ee env <;> cases hb : b.eval ee env
-  all_goals
-    by_cases h1 : op = .GT
-    · subst h1; simp [Expr.eval, ha, hb, (gt_eval _ _).1]
-    by_cases h2 : op = .SGT
-    · subst h2; simp [Expr.eval, ha, hb, (gt_eval _ _).2]
-    by_cases h3 : commutative.contains op && a.cmp b == .lt
-    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_left h3]
-      simp only [Bool.and_eq_true] at h3
-      simp [Expr.eval, ha, hb, opEval_comm h3.1]
-    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_right h3]
-      simp [Expr.eval, ha, hb]
-
 theorem isZero_isZero_isZero (a : UInt256) : (a.isZero.isZero).isZero = a.isZero := by
   unfold UInt256.isZero UInt256.eq0
   cases a == { val := 0 } <;> decide
@@ -162,6 +145,43 @@ theorem unary_eval {ee : ExecutionEnv} {env : Nat → UInt256} (op : Operation) 
   next b =>
     cases h : b.eval ee env <;> simp [Expr.eval, opEval, evalOp, h, isZero_isZero_isZero]
   next => rfl
+
+theorem eq_zero_right (a : UInt256) : UInt256.eq a (UInt256.ofNat 0) = a.isZero := by
+  by_cases h : a = UInt256.ofNat 0
+  · subst h; rfl
+  · have : (a == { val := 0 }) = false := by
+      simp only [beq_eq_false_iff_ne]; exact h
+    simp only [UInt256.eq, UInt256.isZero, UInt256.eq0, this, h, decide_false]
+
+theorem eq_zero_left (a : UInt256) : UInt256.eq (UInt256.ofNat 0) a = a.isZero := by
+  rw [← eq_zero_right]; exact (comm_words _ _).2.2.2.2.2
+
+/-- Normalization keeps the value of an operation on two operands. -/
+theorem normalize_eval {ee : ExecutionEnv} {env : Nat → UInt256} (op : Operation) (a b : Expr) :
+    (normalize op a b).eval ee env = (do opEval ee op [← a.eval ee env, ← b.eval ee env]) := by
+  unfold normalize
+  cases ha : a.eval ee env <;> cases hb : b.eval ee env
+  all_goals
+    by_cases h0 : op = .EQ ∧ b = .const 0
+    · obtain ⟨rfl, rfl⟩ := h0
+      simp_all [Expr.eval, unary_eval, opEval, evalOp]
+      all_goals (subst hb; exact (eq_zero_right _).symm)
+    rw [ite_eq_right (by simpa using h0)]
+    by_cases h0' : op = .EQ ∧ a = .const 0
+    · obtain ⟨rfl, rfl⟩ := h0'
+      simp_all [Expr.eval, unary_eval, opEval, evalOp]
+      all_goals (subst ha; exact (eq_zero_left _).symm)
+    rw [ite_eq_right (by simpa using h0')]
+    by_cases h1 : op = .GT
+    · subst h1; simp [Expr.eval, ha, hb, (gt_eval _ _).1]
+    by_cases h2 : op = .SGT
+    · subst h2; simp [Expr.eval, ha, hb, (gt_eval _ _).2]
+    by_cases h3 : commutative.contains op && a.cmp b == .lt
+    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_left h3]
+      simp only [Bool.and_eq_true] at h3
+      simp [Expr.eval, ha, hb, opEval_comm h3.1]
+    · rw [ite_eq_right (by simpa using h1), ite_eq_right (by simpa using h2), ite_eq_right h3]
+      simp [Expr.eval, ha, hb]
 
 /-- An operation's expression has the value the operation computes of its operands. -/
 theorem mkOp_eval {ee : ExecutionEnv} {env : Nat → UInt256} {op : Operation} {args : List Expr}
@@ -192,7 +212,7 @@ def Exit.next (ee : ExecutionEnv) (env : Nat → UInt256) : Exit → Option Nat
   | .br c nz z => (c.eval ee env).map fun v => if v.toNat != 0 then nz else z
   | .table s d cases _ => (s.eval ee env).map fun v =>
     ((cases.find? (UInt256.ofNat ·.1 == v)).map (·.2)).getD d
-  | .halt .. | .ret _ | .unreach => none
+  | .halt .. | .ret _ => none
 
 /-- What a path knows of its exit: a `br_table`'s cases are words, and those ruled out are not
     the scrutinee's value. -/
@@ -275,6 +295,16 @@ theorem caseOf_sound {ee : ExecutionEnv} {env : Nat → UInt256} {s cond : Expr}
       refine ⟨v, rfl, ?_⟩
       rw [eq_toNat]
       simp [eq_comm]
+  next s' =>
+    simp only [beq_iff_eq, Option.ite_none_right_eq_some, Option.some.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    cases hs : s'.eval ee env with
+    | none => simp [Expr.eval, hs] at hc
+    | some v =>
+      simp [Expr.eval, hs, opEval, evalOp] at hc
+      subst hc
+      refine ⟨v, rfl, ?_⟩
+      rw [← eq_zero_left, eq_toNat]
   next => cases h
 
 theorem mem_of_lookup {α β : Type} [BEq α] [LawfulBEq α] {a : α} {b : β} :
@@ -285,6 +315,42 @@ theorem mem_of_lookup {α β : Type} [BEq α] [LawfulBEq α] {a : α} {b : β} :
     split at h
     · next he => cases h; rw [eq_of_beq he]; exact List.mem_cons_self ..
     · exact List.mem_cons_of_mem _ (mem_of_lookup h)
+
+/-- An expression and what is left of it without its `ISZERO`s evaluate together, the first not
+    zero just when the second is not, or is, for an odd number of them. -/
+theorem peel_eval {ee : ExecutionEnv} {env : Nat → UInt256} (e : Expr) :
+    (∀ {v}, e.eval ee env = some v → ∃ u, e.peel.1.eval ee env = some u ∧
+      (v.toNat != 0) = ((u.toNat != 0) != e.peel.2)) ∧
+    (∀ {u}, e.peel.1.eval ee env = some u → ∃ v, e.eval ee env = some v ∧
+      (v.toNat != 0) = ((u.toNat != 0) != e.peel.2)) := by
+  induction e with
+  | op1 op a ih =>
+    by_cases hop : op = .ISZERO
+    · subst hop
+      simp only [Expr.peel]
+      refine ⟨fun {v} h => ?_, fun {u} h => ?_⟩
+      · cases ha : a.eval ee env with
+        | none => simp [Expr.eval, ha] at h
+        | some a' =>
+          simp [Expr.eval, ha, opEval, evalOp] at h
+          subst h
+          obtain ⟨u, hu, hp⟩ := ih.1 ha
+          refine ⟨u, hu, ?_⟩
+          rw [isZero_toNat]
+          cases h1 : a'.toNat == 0 <;> cases h2 : u.toNat != 0 <;> cases h3 : a.peel.2 <;>
+            simp_all [bne]
+      · obtain ⟨a', ha, hp⟩ := ih.2 h
+        refine ⟨a'.isZero, by simp [Expr.eval, ha, opEval, evalOp], ?_⟩
+        rw [isZero_toNat]
+        cases h1 : a'.toNat == 0 <;> cases h2 : u.toNat != 0 <;> cases h3 : a.peel.2 <;>
+          simp_all [bne]
+    · have : (Expr.op1 op a).peel = (.op1 op a, false) := by
+        unfold Expr.peel; split
+        · next h => cases h; exact absurd rfl hop
+        · rfl
+      rw [this]
+      exact ⟨fun h => ⟨_, h, by simp⟩, fun h => ⟨_, h, by simp⟩⟩
+  | _ => exact ⟨fun h => ⟨_, h, by simp [Expr.peel]⟩, fun h => ⟨_, h, by simp [Expr.peel]⟩⟩
 
 /-- What a way says of the exit `e` it is a way of: the successor it goes to, an exit that goes
     where `e` goes, or nothing. -/
@@ -312,25 +378,17 @@ theorem way_sound {ee : ExecutionEnv} {env : Nat → UInt256} {e : Exit} {cond :
       simp [Way.Sound, Exit.next, Expr.eval, toNat_ofNat]
       rfl
     next =>
-      by_cases h1 : (cond == bc) = true
+      by_cases h1 : (cond.peel.1 == bc.peel.1) = true
       · rw [ite_eq_left h1] at h
         cases h
-        simp only [beq_iff_eq] at h1; subst h1
-        simp only [Way.Sound, Exit.next, hc, Option.map_some, ht]
-      rw [ite_eq_right h1] at h
-      by_cases h2 : (cond == .op1 .ISZERO bc) = true
-      · rw [ite_eq_left h2] at h
-        cases h
-        simp only [beq_iff_eq] at h2; subst h2
-        cases hc' : bc.eval ee env with
-        | none => simp [Expr.eval, hc'] at hc
-        | some c' =>
-        simp only [Expr.eval, hc', opEval, evalOp] at hc
-        cases hc
-        rw [isZero_toNat] at ht
-        subst ht
-        cases hz : c'.toNat == 0 <;> simp_all [Way.Sound, Exit.next]
-      · rw [ite_eq_right h2] at h; cases h
+        simp only [beq_iff_eq] at h1
+        obtain ⟨u, hu, hcu⟩ := (peel_eval cond).1 hc
+        rw [h1] at hu
+        obtain ⟨v, hv, hbv⟩ := (peel_eval bc).2 hu
+        simp only [Way.Sound, Exit.next, hv, Option.map_some, Option.some.injEq]
+        rw [hbv, ← ht, hcu]
+        cases (u.toNat != 0) <;> cases cond.peel.2 <;> cases bc.peel.2 <;> rfl
+      · rw [ite_eq_right h1] at h; cases h
   next sc default cases ruled =>
     obtain ⟨hcases, hruled⟩ := hv
     split at h

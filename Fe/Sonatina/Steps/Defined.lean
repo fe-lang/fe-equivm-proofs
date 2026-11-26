@@ -136,10 +136,8 @@ theorem point_zero (hwf : f.wf sig syms = true) (hv : T.valid f = true) {env : E
     (hb : f.block? b = some blk) : Returns (PointInv f T b 0) (enter env prev blk) := by
   obtain ⟨hw, hpar, _, hprev⟩ := hi
   have hmem := List.mem_of_find?_eq_some hb
-  obtain ⟨hph, _, _⟩ := Func.machine_block (Func.wf_machine hwf) hb
   have htys := ((Func.wf_words hwf).2 blk hmem).1
-  refine Returns.mono (returns_enter env prev blk fun phi hphi p hp =>
-    returns_evalOperand hw.int (hph phi hphi p hp)) ?_
+  refine Returns.mono (returns_enter env prev blk fun _ _ p _ => returns_evalOperand hw.int p.1) ?_
   rintro env' ⟨vals, hvals, hl, rfl⟩
   refine ⟨fold_word _ _ hw fun x hx => ?_, fun v hdom => ?_⟩
   · obtain ⟨h1, h2⟩ := List.of_mem_zip hx
@@ -173,7 +171,7 @@ theorem point_succ (hwf : f.wf sig syms = true) {o : Oracle} (hoi : o.IntRet) (c
   obtain ⟨hw, hdom⟩ := hpi
   have hmem := List.mem_of_find?_eq_some hb
   have hsm : s ∈ blk.body := List.mem_of_getElem? hs
-  have hm := (Func.machine_block (Func.wf_machine hwf) hb).2.1 s hsm
+  have hm := Func.machine_block (Func.wf_machine hwf) hb s hsm
   have htys := ((Func.wf_words hwf).2 blk hmem).2 s hsm
   simp only [runBodyO]
   refine Returns.bind (returns_runStmtO hoi c hw.int hm) fun vals hv =>
@@ -237,12 +235,11 @@ theorem stepBlock_inv (hwf : f.wf sig syms = true) (hv : T.valid f = true) {o : 
   cases hb : f.block? b with
   | none => exact Returns.stuck _
   | some blk =>
-    have hterm := (Func.machine_block (Func.wf_machine hwf) hb).2.2
     refine Returns.bind (point_zero hwf hv hi hb) fun env₁ h₀ => ?_
     have hbody := point_take hwf hoi c hb h₀ blk.body.length le_rfl
     rw [List.take_length] at hbody
     refine Returns.bind hbody fun env₂ hpi => ?_
-    refine Returns.mono (returns_runTerm hpi.1.int blk.term hterm) fun n hn => ?_
+    refine Returns.mono (returns_runTerm hpi.1.int blk.term) fun n hn => ?_
     cases n with
     | done _ => trivial
     | goto env' d =>
@@ -291,7 +288,6 @@ theorem intVal_of_wf {env : Env} (hw : EnvW env) {op : Operand} (hop : op.wf = t
     simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq] at hop
     obtain ⟨rfl, _⟩ := hop
     exact ⟨n, rfl⟩
-  | undef => simp [Operand.wf] at hop
 
 /-- The operands the point before statement `k` uses: statement `k`'s, or the terminator's for
     `k` the statement count. -/

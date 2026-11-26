@@ -9,12 +9,12 @@ import Fe.Sonatina.Steps.Record
 `Func.wf sig syms f`: the structural rules every snapshot of the machine stage keeps.  Blocks,
 the entry first, with distinct ids; the entry has no phis and no slot targets it; every target
 is a block; each phi has one operand from each predecessor and none from elsewhere.  Every type
-is `i256`, every immediate an `i256` below `2 ^ 256`, no `undef`; every `sym_addr`/`sym_size`
-names a symbol of `syms`; every `call` names a function of the module (`sig`) with as many
-parameters as arguments and as many results as the statement binds; every `return` returns as
-many values as the function's results; every `br_table` has a default and distinct immediate
-keys; no `evm_malloc`, `alloca`, `insert_value` or `extract_value` (`Syntax.lean` has no
-`evm_msize`).  `FuncSnap.wf` adds the instruction ids: one per line, distinct in the function.
+is `i256`, every immediate an `i256` below `2 ^ 256`; every `sym_addr`/`sym_size` names a
+symbol of `syms`, and every `get_function_ptr %f` the symbol `%f`; every `call` names a function
+of the module (`sig`) with as many parameters as arguments and as many results as the statement
+binds; every `return` returns as many values as the function's results; every `br_table` has a
+default and distinct immediate keys; no `evm_malloc`, `alloca`, `insert_value`, `extract_value`
+or `evm_msize`.  `FuncSnap.wf` adds the instruction ids: one per line, distinct in the function.
 
 `VFunc` is a snapshot with its maps: blocks by id, each block's instruction ids, the block and
 line of each instruction id, the definition of each value (`Def`).
@@ -67,7 +67,6 @@ def _root_.Fe.Sonatina.Ty.word (t : Ty) : Bool := decide (t = .int 256)
 def _root_.Fe.Sonatina.Operand.wf : Operand → Bool
   | .var _ => true
   | .imm bits v => bits == 256 && decide (v < 2 ^ 256)
-  | .undef _ => false
 
 /-- An immediate's value. -/
 def _root_.Fe.Sonatina.Operand.immVal? : Operand → Option Nat
@@ -82,10 +81,13 @@ def _root_.Fe.Sonatina.Module.sig (M : Module) : Sigs :=
 
 /-- An instruction that binds `n` values: of the machine IR, its operands well formed, its
     symbol one of `syms`, its callee a function of `sig` with as many parameters as arguments
-    and `n` results, its memory type `i256`. -/
+    and `n` results, its memory type `i256`; not `evm_msize`, which the semantics leaves
+    stuck. -/
 def _root_.Fe.Sonatina.Inst.wf (sig : Sigs) (syms : List String) (n : Nat) (i : Inst) : Bool :=
   i.machine && i.args.all Operand.wf && match i with
     | .symAddr s | .symSize s => syms.contains s
+    | .funcPtr f => syms.contains s!"%{f}"
+    | .evm .msize _ => false
     | .call callee args => sig callee == some (args.length, n)
     | .mload _ ty | .mstore _ _ ty => ty.word
     | _ => true

@@ -83,10 +83,10 @@ and `freeze`, and the section IR `gep`, none of which the interpreter has a mean
 instruction is the model library's primitive (`sload`, `call`, `logData`, …). Values are typed
 integers held unsigned below `2 ^ bits`, or lists of struct fields. The runner is a least
 fixpoint (`partial_fixpoint`, the same as exported loops): a run that loops for ever, or reaches
-something undefined (`unreachable`, an ill-typed operand, an entry function that returns), does
+something undefined (an ill-typed operand, an entry function that returns), does
 not terminate, which agrees with no EVM result. (It was fuel-bounded before, which made the
 checker's theorem false for a bytecode run, given enough gas, of more blocks than the fuel; the
-fixpoint has no such bound, and the kernel no longer evaluates the runner.) Where Sonatina leaves a choice: `undef` reads as zero, division by zero gives zero,
+fixpoint has no such bound, and the kernel no longer evaluates the runner.) `unreachable` traps, as `evm_invalid` does (Sonatina's `docs/memory.md`; the backend emits `INVALID`). The IR has no `undef` (Sonatina removed it and `freeze`), and the reader rejects one. Where Sonatina leaves a choice: division by zero gives zero,
 `evm_malloc` gives fresh zeroed memory at the end of memory and above every constant-address range
 the module accesses, and `sym_addr`/`sym_size` read the compiled section's symbol table, which the
 IR does not determine. The second rule is Sonatina's: compiler-managed memory is kept out of every
@@ -255,7 +255,7 @@ the sidecar's sections with an ordinary compile for all 248 contracts of the cor
 
 ## The sidecar
 
-JSON per object (version 4, the only version the reader takes), from one compilation: `fe build --emit sidecar`, written by
+JSON per object (versions 4 and 5, which adds `machine_steps`; `DIALECT-NOTES.md` has what version 5 changes for the checker), from one compilation: `fe build --emit sidecar`, written by
 `crates/codegen/src/sonatina/sidecar.rs` of Fe from Sonatina's `SectionLowering`
 (`EvmCompile::with_lowering_record`, `crates/codegen/src/object/lowering.rs` and
 `isa/evm/lowering_record.rs` of Sonatina). Values are `v<n>` and blocks `block<n>` of the module
@@ -340,7 +340,7 @@ block is entered with its arguments on top of the return address if it returns, 
 entry with nothing. A call is a `JUMP` to the callee's entry block with the arguments on top and,
 if the callee returns, below them the address of a `JUMPDEST` at which the block's bytes go on
 with the callee's results on top of what was below the arguments; a call to a function that does
-not return ends the block, which ends in `unreachable`. A `ret` is a `JUMP` to the return address
+not return ends the block, which ends in `unreachable`, never reached (elsewhere `unreachable` is the bytes' `INVALID`). A `ret` is a `JUMP` to the return address
 with exactly the results below it.
 
 Where the function may return from a block, the block's entry stack is the whole of its frame:
@@ -645,13 +645,12 @@ frames. The certificates evaluate `check`, which reads no spill plan; its kernel
 (FeERC20 2.5 s, WETH9 6.0 to 6.4 s, the checker before and after alternating in one process).
 
 **The class.** Functions may spill to memory words; frame spills, dynamic and lazy frames, the
-dynamic stack pointer and call preserves stay outside. `undef` operands are rejected as before (the
-instrumented model never takes `undef` for a word); since Sonatina #537 the machine IR has none.
+dynamic stack pointer and call preserves stay outside. The IR has no `undef` operands.
 
 **The instrumented model** (`Spill.lean`, `Plan.lean`). A `SpillPlan` gives per function each
 spilled value, its word and its reload points; `Func.instrument` adds the stores the bytes make as
 `evm_mstore` statements (after a definition, of parameters at entry, of a successor's phis at the
-end of a jumping block, unless the operand is the phi itself or `undef`). A value is reload-live
+end of a jumping block, unless the operand is the phi itself). A value is reload-live
 at a point if one of its reloads is reachable before it is defined or stored again; a phi whose
 operand from a predecessor is the phi itself stays live across that edge, its word holding it from
 the last iteration (both ECRECOVER runtimes reload such a loop phi after the back edge). The guard

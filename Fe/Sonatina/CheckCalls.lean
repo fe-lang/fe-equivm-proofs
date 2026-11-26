@@ -973,14 +973,20 @@ theorem exitOf_ret_eq {c : Ctx} {t : Term} {vals : List Expr}
       cases h
   | _ => simp [Ctx.exitOf, Option.bind_eq_some_iff] at h
 
+/-- The word `complete` gives a value an instruction defines: a pure instruction's, and zero
+    for a message call's flag. -/
+def wordOf (ee : ExecutionEnv) (ρ : Nat → UInt256) (symbols : List (String × Nat × Nat))
+    (inst : Inst) : Option UInt256 :=
+  instWord ee ρ symbols inst <|> if inst.flag then some (.ofNat 0) else none
+
 /-- The valuation `ρ` with each value the statements define, if `keep` lacks it and its
-    instruction computes a word, set to that word, in order. -/
+    instruction computes a word or is a message call, set to that word (`wordOf`), in order. -/
 def complete (ee : ExecutionEnv) (symbols : List (String × Nat × Nat)) (keep : List Nat) :
     List Stmt → (Nat → UInt256) → Nat → UInt256
   | [], ρ => ρ
   | s :: rest, ρ => complete ee symbols keep rest (match s.local? with
     | some (id, inst) => if id ∈ keep then ρ else
-      ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+      ((wordOf ee ρ symbols inst).map (Function.update ρ id)).getD ρ
     | none => ρ)
 
 /-- A value no statement sets keeps its word. -/
@@ -999,7 +1005,7 @@ theorem complete_same {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)
       dsimp only
       split_ifs with hk
       · rfl
-      · cases hw : instWord ee ρ symbols inst with
+      · cases hw : wordOf ee ρ symbols inst with
         | none => rfl
         | some v =>
           have hne : id ≠ j := fun he => hk (by subst he; exact h s (by simp) _ hj rfl)
@@ -1029,7 +1035,7 @@ theorem complete_eqn {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
     rcases List.mem_cons.mp hs with rfl | hs
     · set ρ1 := (match s.local? with
         | some (id, inst) => if id ∈ keep then ρ else
-          ((instWord ee ρ symbols inst).map (Function.update ρ id)).getD ρ
+          ((wordOf ee ρ symbols inst).map (Function.update ρ id)).getD ρ
         | none => ρ) with hρ1
       have hinst := local_inst hl
       simp only at hinst
@@ -1044,9 +1050,17 @@ theorem complete_eqn {ee : ExecutionEnv} {symbols : List (String × Nat × Nat)}
         complete_same rest ρ1 fun t ht p hp he => by
           obtain ⟨ty', hty'⟩ := local_dst hp
           exact absurd (he ▸ hx) (definedAfter_fresh hd t ht _ hty')
-      intro ex e he
+      refine ⟨fun ex e he => ?_, fun hf => ?_⟩
+      swap
+      · have hnw : instWord ee ρ symbols s.inst = none := by
+          unfold Inst.flag at hf
+          split at hf <;> simp_all [instWord, evmPureOpcode]
+        have hρ1 : ρ1 = Function.update ρ id (.ofNat 0) := by
+          simp [hρ1, hl, hk, wordOf, hnw, hf]
+        rw [hkeep id (List.mem_append_right _ (List.mem_map_of_mem hty)), hρ1]
+        simp
       obtain ⟨v, hv⟩ := instWord_some (ee := ee) (ρ := ρ) he fun op args h => har s (by simp) op args h
-      have hρ1 : ρ1 = Function.update ρ id v := by simp [hρ1, hl, hk, hv]
+      have hρ1 : ρ1 = Function.update ρ id v := by simp [hρ1, hl, hk, hv, wordOf]
       have hsame : ∀ x ∈ D, complete ee symbols keep rest ρ1 x = ρ x := fun x hx => by
         rw [hkeep x (List.mem_append_left _ hx), hρ1,
           Function.update_of_ne (fun h : x = id => hidD (by rw [← h]; exact hx))]
@@ -1359,15 +1373,15 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       have hbitsS := List.all_eq_true.mp hbits Sb hSbmem
       simp only [Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at hbitsS
       have hin : ∀ phi ∈ Sb.phis, ∃ o d, phi.incoming.find? (·.2 == b.id) = some (o, d) ∧
-          reads D' [o] = true ∧ ∀ ty, o ≠ .undef ty := fun phi hp => by
+          reads D' [o] = true := fun phi hp => by
         have := hphisS phi hp
         rcases hf : phi.incoming.find? (fun x => x.2 == b.id) with _ | ⟨o, d⟩
         · simp [hf] at this
         · refine ⟨o, d, hf, ?_⟩
           rw [hf] at this
-          cases o <;> simp_all
+          simpa using this
       obtain ⟨envS, henterS, hphiS, hkeepS⟩ := enter_run (fun phi hp => by
-        obtain ⟨o, d, hf, hr, -⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
+        obtain ⟨o, d, hf, hr⟩ := hin phi hp; exact ⟨o, d, hf, hr⟩) hρ hndS
       obtain ⟨ws', hws', hstk'⟩ := hrel
       refine ⟨hSbmem, by rw [hSid]; exact hSb, henvS, hagS, hbS, pc', envS, ws',
         by rw [hSid]; exact hhbS, by rw [hSid]; exact hplS, hpcS, henterS, hstk', ?_, ?_, ?_⟩
@@ -1378,7 +1392,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
           exact List.all_eq_true.mpr fun x hx => List.all_eq_true.mp this x (slots_sub hx)
         exact arrival_rel hcons hρ (ret := ret) (fun phi hp => by
           obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
-          obtain ⟨o', d', hf', hr', -⟩ := hin phi hp
+          obtain ⟨o', d', hf', hr'⟩ := hin phi hp
           rw [hf] at hf'; cases hf'
           exact ⟨hbitsS.1 phi hp, o, d, val, hf, hr', hev, hS⟩) hkeepS
           (fun h => by
@@ -1387,7 +1401,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
             rw [hρR, hk]; rfl) hall hmapS hws'
       · intro phi hp
         obtain ⟨o, d, val, hf, hev, hS⟩ := hphiS phi hp
-        obtain ⟨o', d', hf', hr', hnu⟩ := hin phi hp
+        obtain ⟨o', d', hf', hr'⟩ := hin phi hp
         rw [hf] at hf'; cases hf'
         have hval : ∃ bits k, val = .int bits k := by
           have hex' : ∀ {a b : FeM Val}, a = b →
@@ -1403,7 +1417,6 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
             have := hex' hev
             simp [evalOperand] at this
             exact ⟨_, _, this.symm⟩
-          | undef ty => exact absurd rfl (hnu ty)
         obtain ⟨bits, k, rfl⟩ := hval
         exact ⟨_, by rw [hS, as_int _ _ (hbitsS.1 phi hp)]; rfl, (UInt256.ofNat k).val.isLt⟩
       -- The words the successor starts with hold its spilled values, as the path knew.
@@ -1425,7 +1438,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
           obtain ⟨⟨o, d⟩, hfo, e', hoe, rfl, rfl⟩ := hfe
           obtain ⟨o', d', val, hf', hev, hS⟩ := hphiS phi hpm
           rw [hfo] at hf'; cases hf'
-          obtain ⟨o'', d'', hf'', hr'', -⟩ := hin phi hpm
+          obtain ⟨o'', d'', hf'', hr''⟩ := hin phi hpm
           rw [hfo] at hf''; cases hf''
           obtain ⟨v, hv, -, hev'⟩ := operand_words hcons hρ hr'' hoe
           rw [hu] at hv; cases hv
@@ -1521,7 +1534,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         Option.some.injEq] at hex
       obtain ⟨_, _, _, _, rfl⟩ := hex
       exact absurd rfl (hnh _ _)
-    | evmStop | evmInvalid =>
+    | evmStop | evmInvalid | unreachable =>
       rw [ht] at hex
       simp only [Ctx.exitOf, Option.some.injEq] at hex
       subst hex
@@ -1534,11 +1547,9 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
         Option.some.injEq] at hex
       obtain ⟨_, _, rfl⟩ := hex
       exact hjmp.elim
-    | unreachable =>
+    | evmSelfDestruct a =>
       rw [ht] at hex
-      simp only [Ctx.exitOf, Option.some.injEq] at hex
-      subst hex
-      exact hjmp.elim
+      simp [Ctx.exitOf] at hex
   · cases hr
     left; left
     subst hex0
@@ -1554,7 +1565,7 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       · simp [evalWord, evalInt, hea, Reasoning.Theory.u256_ofNat_toNat]
       · simp [evalWord, evalInt, hel, Reasoning.Theory.u256_ofNat_toNat]
     rcases exitOf_halt hex with ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ |
-      ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ | ⟨ht, rfl, rfl⟩ | ⟨ht, rfl, rfl⟩
+      ⟨a, l, ea, el, ht, rfl, rfl, hea, hel⟩ | ⟨ht, rfl, rfl⟩ | ⟨ht', rfl, rfl⟩
     · rw [ht] at hterm
       obtain ⟨va, vl, rfl, hva, hvl⟩ := hw2 hterm hea hel hargs
       obtain ⟨n, s', hxs, ha, hl⟩ := hh
@@ -1568,7 +1579,8 @@ theorem block_run {code : CodeSection} {low : Lowering} {hint : FuncHint} {f : F
       exact .inr (.inl ⟨n, s', _, w', hxs, by simp [ht, stopCall], ha, hl⟩)
     · simp at hargs; subst hargs
       obtain ⟨n, hxs⟩ := hh
-      exact .inl ⟨n, _, hxs, .inr (.inr (.inr (.inl ⟨rfl, by simp [ht, trap]⟩)))⟩
+      exact .inl ⟨n, _, hxs, .inr (.inr (.inr (.inl ⟨rfl, by
+        rcases ht' with ht | ht <;> simp [ht, trap]⟩)))⟩
 
   · -- A return.
     cases hr

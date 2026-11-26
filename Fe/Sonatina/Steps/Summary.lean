@@ -76,6 +76,25 @@ theorem cut_call {O : Option (List Summary)} {b : Block} (h : cut O b = true) :
   rw [List.findIdx?_isSome, List.any_eq_true] at h
   exact h
 
+/-- Statements with a call to a function the table claims does not return do not return, under
+    an oracle of which the table holds. -/
+theorem noRet_runBodyO {O : Option (List Summary)} {o : Oracle} (hnr : NoRetHolds O o) (c : Ctx) :
+    ∀ (env : Env) (stmts : List Stmt), (∃ s ∈ stmts, callsNoRet O s = true) →
+      Returns (fun _ => False) (runBodyO o c env stmts)
+  | _, [], ⟨_, hm, _⟩ => nomatch hm
+  | env, s :: rest, ⟨s', hs', hc'⟩ => by
+    unfold runBodyO
+    by_cases hc : callsNoRet O s = true
+    · refine Returns.bind (P := fun _ => False) ?_ fun _ h => h.elim
+      rcases s with ⟨dsts, inst⟩
+      cases inst
+      case call callee args => exact Returns.bind_any fun vs => hnr callee vs hc
+      all_goals simp [callsNoRet] at hc
+    · rcases List.mem_cons.mp hs' with rfl | hm
+      · exact absurd hc' hc
+      exact Returns.bind_any fun _ => Returns.bind_any fun env' =>
+        noRet_runBodyO hnr c env' rest ⟨s', hm, hc'⟩
+
 /-- A terminator whose targets are all in `R` and that is no `return`: its continuation does not
     return, given block runners that do not return from `R`. -/
 theorem noRet_termCont {G : Env → Option Nat → Nat → FeM (List Val)} {R : Nat → Prop}
@@ -104,7 +123,12 @@ theorem noRet_termCont {G : Env → Option Nat → Nat → FeM (List Val)} {R : 
       | .evmInvalid => do
         let e ← trap
         nomatch e
-      | .unreachable => stuck) := by
+      | .evmSelfDestruct a => do
+        let e ← Fe.EVM.selfdestruct (← evalWord env a)
+        nomatch e
+      | .unreachable => do
+        let e ← trap
+        nomatch e) := by
   intro t hr hs
   cases t with
   | jump d => exact hG _ _ _ (hs d (List.mem_singleton_self _))
@@ -145,7 +169,8 @@ theorem noRet_termCont {G : Env → Option Nat → Nat → FeM (List Val)} {R : 
   | evmRevert a l => dsimp only; returns_auto
   | evmStop => dsimp only; returns_auto
   | evmInvalid => dsimp only; returns_auto
-  | unreachable => exact Returns.stuck _
+  | evmSelfDestruct a => dsimp only; returns_auto
+  | unreachable => dsimp only; returns_auto
 
 /-- The table holds of the module it is checked against: its run never returns from a function
     claimed not to return.  By fixpoint induction over the module's mutual runner: a body with a

@@ -223,7 +223,6 @@ theorem peel_sound (hwf : f.wf sig syms = true) (F : BCFacts f f') {X : Nat} {bl
               subst this
               exact Or.inr ⟨hne', ha'⟩
         | imm => trivial
-        | undef => trivial
       obtain ⟨v', hv', htg⟩ := peel_sound hwf F hb hr hpu n c₁ b a h huse₁ (bits, x) hx
       exact ⟨v', hv', htg⟩
 
@@ -325,7 +324,7 @@ theorem bc_stmts (hwf : f.wf sig syms = true) (F : BCFacts f f') {o : Oracle} (h
       exact hd.2
     obtain ⟨hes, hds, hpi, hpu, hr⟩ := hm
     have hmach : s.inst.machine = true :=
-      (Func.machine_block (Func.wf_machine hwf) hb).2.1 s (List.mem_of_getElem? hsk)
+      Func.machine_block (Func.wf_machine hwf) hb s (List.mem_of_getElem? hsk)
     have hv := F.valid
     have hs := F.ssa
     -- the input's statement with its results
@@ -464,7 +463,6 @@ theorem bc_term (hwf : f.wf sig syms = true) (F : BCFacts f f') (o : Oracle) (c 
                 subst this
                 exact Or.inl ⟨hne', ha'⟩
           | imm => trivial
-          | undef => trivial
         obtain ⟨v', hv', htg⟩ := peel_sound hwf F hb hr hpu _ cnd ta tb ht huse vc hvc
         rw [ht']
         unfold runTerm
@@ -479,8 +477,8 @@ theorem bc_term (hwf : f.wf sig syms = true) (F : BCFacts f f') (o : Oracle) (c 
           rcases vc with ⟨_, xc⟩
           exact Approx.pure ⟨⟨rfl, rfl⟩, htg.symm⟩
       · cases ht
-  refine Fol.approx (Approx.strengthen happ (returns_runTerm hpi.1.int blk.term
-    (Func.machine_block (Func.wf_machine hwf) hb).2.2)) fun n' n ⟨hn, hok⟩ => ?_
+  refine Fol.approx (Approx.strengthen happ (returns_runTerm hpi.1.int blk.term))
+    fun n' n ⟨hn, hok⟩ => ?_
   rcases n' with ⟨ea, d'⟩ | v' <;> rcases n with ⟨eb, d⟩ | v <;> simp only [NextTgt] at hn
   · obtain ⟨⟨hea, heb⟩, rfl⟩ := hn
     subst ea eb

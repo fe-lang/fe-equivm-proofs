@@ -310,7 +310,8 @@ def Inst.constAccesses : Inst → List (Nat × Nat) × List (Nat × Nat)
     | .mcopy, [.imm _ d, .imm _ s, .imm _ l] => ([(s, l)], [(d, l)])
     | .mcopy, [_, .imm _ s, .imm _ l] => ([(s, l)], [])
     | .create, [_, .imm _ p, .imm _ l] | .create2, [_, .imm _ p, .imm _ l, _] => ([(p, l)], [])
-    | .call, [_, _, _, ap, al, rp, rl] | .staticCall, [_, _, ap, al, rp, rl]
+    | .call, [_, _, _, ap, al, rp, rl] | .callCode, [_, _, _, ap, al, rp, rl]
+    | .staticCall, [_, _, ap, al, rp, rl]
     | .delegateCall, [_, _, ap, al, rp, rl] =>
       ((match ap, al with | .imm _ a, .imm _ l => [(a, l)] | _, _ => []),
         (match rp, rl with | .imm _ a, .imm _ l => [(a, l)] | _, _ => []))

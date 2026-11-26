@@ -8,7 +8,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | --- | --- |
 | `Refine.lean` (existing) | `EndsAsP`, `ImplementsP`, `ImplementsDeployP`, transitivity, `RefinesOn.of_implementsP`, `RefinesDeploy.of_implementsP` |
 | `Mem.lean` | `write_getD`, `MemEq`, `MemEq.write` (Mem0), `WRel`, `ExitRel`, `ResRel`, `Approx` (the order `⊑`), Mem0 for every model-library primitive |
-| `Prim.lean` | `Inst.machine`/`Func.machine` (no `undef`, `evm_malloc`, `alloca`, aggregates), `EnvSub`, operand evaluation as `lift`, `Approx.runInst`, `approx_auto`; integer values (`IntVals`, `EnvInt`, `Returns`, `Total`, `Approx.strengthen`, `returns_runInst`, `returns_bind`, `returns_enter`) |
+| `Prim.lean` | `Inst.machine`/`Func.machine` (no `evm_malloc`, `alloca`, aggregates), `EnvSub`, operand evaluation as `lift`, `Approx.runInst`, `approx_auto`; integer values (`IntVals`, `EnvInt`, `Returns`, `Total`, `Approx.strengthen`, `returns_runInst`, `returns_bind`, `returns_enter`) |
 | `Oracle.lean` | `runStmtO`/`runBodyO`/`stepBlock`/`runBlocksO`/`runFuncO`, `runBlocks_iter`, `runFunc_approx`, `runFunc_intRet`, `runFunc_ctx` (C0 and reflexivity), `runFuncO_approx`, `Ctx.Has`, `ModRefines syms`, `FuncRef`, C1 `modRefines_of_funcs`; `Oracle.IntRet` |
 | `Wf.lean` | `Func.wf`, `Module.wf`, `FuncSnap.wf` (review C-6), `VFunc`, `defsOf`, `ssa` (review H-1, M-1), `DomAt`, `useOk_sound`, `phiUseOk_sound` |
 | `Defined.lean` | the definedness invariant: `BlockInv`, `PointInv`, `stepBlock_inv`, `Reaches`, `reaches_inv`, `defined`, `term_defined`, `phis_defined` |
@@ -72,7 +72,7 @@ aggregate argument an aggregate even under an `i256` parameter (`Val.as`), so wi
 parameter (or a call's result) bound to an aggregate the input is stuck at `evalInt` and the
 output goes on.  A machine function is called with integers by a section entry (no arguments)
 and by its callers, and returns integers: `runFunc_intRet` (by fixpoint induction over the
-module's runner, `Func.machine` giving no `undef` operand and no aggregate instruction); C1
+module's runner, `Func.machine` giving no aggregate instruction); C1
 and C0 (`runFunc_approx`) carry `EnvInt` through the run.
 
 `ModRefines syms` and `StepSound` also take the section's symbol names: only contexts that give
@@ -105,9 +105,9 @@ of `PointInv`.
    `will_return` have no consumer yet and are not read.  `validatePass` checks the table against
    the pass input and rejects the pass if a claim fails (`sidecar-v5.md`: the table may describe
    an earlier module; the measurement counts such passes).  `StepSound` takes `NoRetHolds O o`.
-   Under the current semantics `cfg_cleanup`'s proof does not use it: after a trimmed call the
-   output ends in `unreachable`, which diverges.  It is needed once ruling 7 makes `unreachable`
-   a trap.
+   `unreachable` traps (ruling 7, from the dialect line), so `cfg_cleanup`'s proof uses it: after
+   a trimmed call the output ends in `unreachable`, which the run never reaches, as the call does
+   not return (`noRet_runBodyO`, `Fol.strengthen`).
 2. **`edge_split` restriction lifted (phase 2).**  `br c a a → jump a` for any `c`, and
    `br_table s (some d) cases → jump d'` when every case goes to `d` (`ESCtx.termOk`).  The
    checker computes the input's dominator tree, `DomTree.valid` and `ssa` (`checkEdgeSplit`);
@@ -146,8 +146,10 @@ of `PointInv`.
    numbering is not used; `anc` climbs, which is O(depth).  Phase 2 adds review 6 F-8's check
    (`anc entry b` for every block of the reachable set, `valid_root`), which excludes cycles of
    `idom` on the reachable set; no proof assumes antisymmetry.
-8. **`Inst.machine` excludes `undef` operands, `insert_value` and `extract_value` (phase 2)**,
-   beside `evm_malloc` and `alloca`: C1 needs runs to stay integer-valued.
+8. **`Inst.machine` excludes `insert_value` and `extract_value` (phase 2)**, beside
+   `evm_malloc` and `alloca`: C1 needs runs to stay integer-valued.  The IR has no `undef` (the
+   dialect line removed it).  `Inst.wf` also rejects `evm_msize`, which the semantics leaves
+   stuck, and checks the symbol of `get_function_ptr` as it does `sym_addr`'s.
 
 ## `cfg_cleanup` (phase 2, item 2)
 

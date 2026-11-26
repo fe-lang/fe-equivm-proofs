@@ -14,6 +14,7 @@ deriving instance DecidableEq for Operand
 deriving instance DecidableEq for BinOp
 deriving instance DecidableEq for CmpOp
 deriving instance DecidableEq for OvfOp
+deriving instance DecidableEq for SatOp
 deriving instance DecidableEq for CastOp
 deriving instance DecidableEq for EvmOp
 deriving instance DecidableEq for Inst

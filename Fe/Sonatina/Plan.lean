@@ -54,7 +54,7 @@ def spillStore (w : Nat) (o : Operand) : Stmt := ⟨[], .evm .mstore [.imm 256 w
 /-- Function `f` with the stores of its spilled values at their `words`: after the statement
     that defines each, of each parameter at the start of the entry block, and at the end of a
     block that jumps to another, of each spilled phi of that block with its operand from the
-    block, unless the operand is the phi itself or `undef`. -/
+    block, unless the operand is the phi itself. -/
 def Func.instrument (words : List (Nat × Nat)) (f : Func) : Func :=
   let store := fun (id : Nat) => (words.lookup id).map (spillStore · (.var id))
   let entry := f.blocks.head?.map (·.id)

@@ -46,6 +46,7 @@ def termRel (P : Nat → Nat → Bool) : Term → Term → Bool
   | .ret vs', .ret vs => decide (vs' = vs)
   | .evmReturn a' l', .evmReturn a l => decide (a' = a ∧ l' = l)
   | .evmRevert a' l', .evmRevert a l => decide (a' = a ∧ l' = l)
+  | .evmSelfDestruct a', .evmSelfDestruct a => decide (a' = a)
   | .evmStop, .evmStop | .evmInvalid, .evmInvalid | .unreachable, .unreachable => true
   | _, _ => false
 
@@ -288,9 +289,16 @@ theorem approx_runTerm (P : Nat → Nat → Bool) {env' env : Env} (hr : EnvSub 
     unfold runTerm
     exact Approx.bind (Approx.evalWord hr a') fun _ _ e => e ▸ Approx.bind (Approx.evalWord hr l')
       fun _ _ e => e ▸ Approx.bind (approx_revertData _ _) fun e _ _ => nomatch e
+  case evmSelfDestruct.evmSelfDestruct a' a =>
+    simp only [decide_eq_true_eq] at h
+    subst h
+    unfold runTerm
+    exact Approx.bind (Approx.evalWord hr a') fun _ _ e => e ▸
+      Approx.bind (approx_selfdestruct _) fun e _ _ => nomatch e
   case evmStop.evmStop => unfold runTerm; exact Approx.bind approx_stopCall fun e _ _ => nomatch e
   case evmInvalid.evmInvalid => unfold runTerm; exact Approx.bind approx_trap fun e _ _ => nomatch e
-  case unreachable.unreachable => unfold runTerm; exact Approx.stuck _
+  case unreachable.unreachable =>
+    unfold runTerm; exact Approx.bind approx_trap fun e _ _ => nomatch e
 
 theorem ESCtx.find_B (f f' : Func) (id : Nat) : (ESCtx.of f f').B.find? id = f.block? id := by
   simp only [ESCtx.of, NatMap.find?_ofListBy, Func.block?]
@@ -396,7 +404,7 @@ theorem edgeSplit_sound {sig : Sigs} {syms : List String} {o : Oracle} (ho : Ora
         have htake := point_take hwf hoi c hbb' h₀ bb.body.length le_rfl
         rw [List.take_length] at htake
         refine Approx.bind (Approx.strengthen (Approx.runBodyO ho hoi rfl env₁ bb.body h₀.1.int
-          (Func.machine_block hm hbb').2.1) htake) fun env₂ env₂' ⟨e, hpi⟩ => ?_
+          (Func.machine_block hm hbb')) htake) fun env₂ env₂' ⟨e, hpi⟩ => ?_
         cases e
         rw [hbbid] at hterm
         have hdef : ∀ op ∈ bb.term.args, ∃ v, intVal env₂ op = some v := fun op hop => by
