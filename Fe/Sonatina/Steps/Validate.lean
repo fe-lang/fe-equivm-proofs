@@ -269,9 +269,10 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     | none => false
 
 /-- The step kinds with a `StepSound` proof (`StepKind.proved_sound`), the only kinds `validate`
-    accepts.  `coalesce_copies`, `known_bits_simplify` and `sccp_fold` have checkers and no proof:
-    only `validateWith` given them accepts their steps. -/
-def StepKind.proved : List StepKind := [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions]
+    accepts.  `known_bits_simplify` and `sccp_fold` have checkers and no proof: only
+    `validateWith` given them accepts their steps. -/
+def StepKind.proved : List StepKind :=
+  [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=

@@ -21,7 +21,8 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Run.lean` | lemmas the simulations share: `Inst.mapOps`/`Term.mapOps`, `inc`, `Fol`, `enterOpt`, binding lemmas, `UniqueDefs`, `DomTree.anc_antisymm`, `phi_has_pred`, `blockInv_of_point`, `enter_total`, `DomSub` |
 | `L2.lean` | `Inst.pure`, `pureVals`, `runInst_pure`, `Before`, `PureInv`, `BlockPure`, `pureInv_enter`, `pureInv_stmt`, `pureInv_take`, `pureInv_step`, `l2` |
 | `CfgCleanupSound.lean` | `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
-| `Coalesce.lean` | `addrNorm`, `useCount`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce`, `allowBase` |
+| `Coalesce.lean` | `addrNorm`, `useCount`, `loadsFirst`, `fresh`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce`, `allowBase` |
+| `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `addrNorm_sound`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
@@ -119,10 +120,10 @@ of `PointInv`.
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
    `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
-   the last three have a checker and no proof yet, so `StepKind.proved`, the kinds `validate`
+   the last two have a checker and no proof yet, so `StepKind.proved`, the kinds `validate`
    accepts and `machine_sound_proved` covers, does not include them: only `validateWith` given
-   them by name accepts their steps, as the measurement scripts do; the last two are
-   `m1-schemas`'s, `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
+   them by name accepts their steps, as the measurement scripts do; they are `m1-schemas`'s,
+   `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
    `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
    requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
    schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
@@ -306,9 +307,10 @@ result at `d + 32 i` (`addrNorm` over the input's definitions in reachable block
 walk whose early stop only leaves a larger base), each load used once in the input function
 (`useCount`), the copy `evm_mcopy d s (32 n)` with `d`, `s` the first store's and first load's
 address operands; both ranges constant, each ending at or below `2 ^ 256` in `Nat` (the
-checker's own bound, not the compiler's `u32`), and snapshot or disjoint in `Nat`.  Deletions
+checker's own bound, not the compiler's `u32`), and snapshot (`loadsFirst`: no load after the window's first store) or disjoint in `Nat`.  Deletions
 are only a window's loads, its other stores and its `add`/`sub` (a deleted store is tied to its
-window), and every deleted result is neither defined nor used in the output (`unusedOk'`).  The
+window); no result of a window statement the output does not keep is defined in the output
+(`keptOk`'s `fresh`) or used in it (`unusedOk'`).  The
 copy's `d` and `s` are values the output must have bound at the copy: the check does not check
 the output's SSA; an unbound operand makes the output stuck, which the simulation allows, and
 `unusedOk'` keeps every value the output reads defined in it.  Several windows in one block and
@@ -328,14 +330,32 @@ and never diverges, while the `add`s that build a base-relative run's addresses 
 (the model's `mcopy` diverging, the byte checker's `MCOPY` event, the out-of-gas lemma) goes to
 the dialect line.
 
-**OPEN: the soundness proof of stage 1 is not done** (the user's pause).  What it needs: a
-memory lemma (the window's loads and stores, snapshot or disjoint, leave the bytes `mcopy d s L`
-leaves; stated on the memory alone, so that a diverging `mcopy` in stage 2 only adds a case), the
-round trip of a word through `readWithPadding` and `mstore`; the soundness of `addrNorm` (L2 on
-the input: a normalized address's value is the base's plus the offset modulo `2 ^ 256`, as
-`branch_canonicalize`'s `peel_sound` does for `is_zero`); the window's execution on both sides
-(no calls, total by the definedness invariant); and the block-for-block simulation of
-`BranchCanonSound` with windows in place of deleted `is_zero`s.
+Proof (`CoalesceSound.lean`, `coalesce_sound`, `coalesceCopies_stepSound`; no hypothesis beyond
+`StepSound.of_func`'s): the block-for-block simulation of `branch_canonicalize` (`BR`, `BMid`,
+`kc_stmts`), a window in place of a deleted `is_zero`.  In a window (`win_walk`) the input runs
+each statement and the output its kept `add`/`sub` alongside, in order, binding the same values
+(`pureVals_sub`); the window's other statements bind results the output does not define
+(`fresh`), so the output's environment still binds less.  Memory (`CopyMem`): after `q` stores
+the input's memory is the window's start memory `m₀` with the first `q` words of `m₀`'s
+`[S, S + 32 n)` written at `D`.  A load reads `m₀`: it comes before every store (`loadsFirst`),
+or its range is disjoint from the destination's.  Store `i` writes load `i`'s word unchanged
+(`toByteArray_uInt256`); `ssa` and unique definitions put that load before the store
+(`store_load_before`).  After the `n`-th store the memory is `m₀.write S m₀ D (32 n)`, and since
+`ByteArray.write` reads its source before it writes, that is the output's `mcopy` on a memory
+related to `m₀` (`copyMem_end`, `MemEq.write`; a length of `2 ^ 256` reads as `0`, and then
+`S = D = 0` and both are the identity, `memEq_write_mod`).  So snapshot windows may overlap in
+either direction, and interleaved ones must be disjoint, as the checker requires.  Addresses: L2
+on the input unfolds each `add`/`sub` that `addrNorm` follows (`addrNorm_sound`, as `peel_sound`
+does for `is_zero`), and the stage-1 bounds make each address a word, its normalized offset.
+
+Two changes to the checker for the proof: (1) `keptOk` requires each window statement it does
+not keep to have no result the output defines (`fresh`, the `deletable` of
+`branch_canonicalize`).  The other checks imply it (argued, not proved in Lean): each output
+statement equals the input statement it is matched with, the matched positions are distinct and
+skip the dropped ones, the phis and parameters are the input's, and the input's definitions are
+unique (`ssa`).  (2) The snapshot test is `loadsFirst` (no load after the first store) in place
+of "the last load's index is below the first store's"; with a load in the window (`n ≥ 2` is
+checked) the two agree.  The tests (`Tests.lean`, `kc_*`) are unchanged and pass.
 
 ## Review 6 (phase 1) findings taken up in phase 2
 
@@ -439,6 +459,15 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
   `scalar_canonicalize` 8, `known_bits_simplify` 7, `sccp_fold` 4); the 265: 351 of 530 (first
   rejected kind unchanged).  With the four proved kinds only: `-O0` 19, `-O1` 21, `-Os` 21, the
   265 351.
+
+- With `coalesce_copies` proved (`StepKind.proved` now has five kinds), sections accepted end to
+  end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted): FeProofs `corpus-v5b`
+  `-O0` 33 of 40 (7 rejected, all at a base-relative copy), `-O1` 21 of 40 and `-Os` 21 of 40
+  (first rejected kind `scalar_canonicalize` 8, `known_bits_simplify` 7, `sccp_fold` 4); the 265
+  sidecars of `corpus-v5-full`: 351 of 530 (`known_bits_simplify` 80, `sccp_fold` 57,
+  `scalar_canonicalize` 30, `lower_switches` 12).  `coalesce_copies` steps accepted: `-O0` 81 of
+  149, `-O1` 14 of 26, `-Os` 14 of 26, the 265 14 of 28; every rejected one is base-relative.  The
+  step and section verdicts are the same as those of the checker before the two changes above.
 
 ## Not done
 
