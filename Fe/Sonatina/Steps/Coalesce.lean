@@ -21,15 +21,15 @@ followed by `evm_mcopy`:
 - the copy is `evm_mcopy d s L` with `d` and `s` the first store's and first load's address
   operands and `L` the literal `32 n`;
 - each load's result has one use in the input function, its store;
-- all loads come before the first store (snapshot), or both ranges are constant and disjoint in
-  `Nat`;
+- all loads come before the first store (snapshot, `loadsFirst`), or both ranges are constant
+  and disjoint in `Nat`;
 - both ranges are constant, `s + L ≤ 2 ^ 256` and `d + L ≤ 2 ^ 256` in `Nat`, unless `allowBase`:
   the interpreter's `mcopy` reads and writes at `Nat` addresses where the `add`s that build a
   base-relative run's addresses wrap (review C-1, design §4.10's extra condition).
 
 What may be deleted: the window's loads and other stores, and `add`/`sub` statements of the
-window whose results the output neither defines nor uses (`unusedOk'`).  Everything else of
-the function is unchanged.  Instruction ids: kept statements keep theirs, a copy has the replaced
+window; no result of a window statement the output does not keep is defined in the output
+(`keptOk`, `fresh`) or used in it (`unusedOk'`).  Everything else of the function is unchanged.  Instruction ids: kept statements keep theirs, a copy has the replaced
 store's.
 -/
 
@@ -97,6 +97,14 @@ def isArith (s : Stmt) : Bool :=
   | .bin .add _ _, [_] | .bin .sub _ _, [_] => true
   | _, _ => false
 
+/-- No load of the window comes after its first store. -/
+def loadsFirst : List Stmt → Bool
+  | [] => true
+  | st :: rest => if (asStore st).isSome then rest.all fun st => (asLoad st).isNone else loadsFirst rest
+
+/-- A statement none of whose results the output defines. -/
+def fresh (OD : NatMap Def) (s : Stmt) : Bool := s.dsts.all fun d => (OD.find? d.1).isNone
+
 /-- What the copy check reads. -/
 structure KCtx where
   f : Func
@@ -143,17 +151,17 @@ def runOk (win : List Stmt) (mc : Stmt) : Bool :=
       (allowBase || (sb.1.isNone && db.1.isNone && decide (sb.2 + L ≤ W256) &&
         decide (db.2 + L ≤ W256))) &&
       -- snapshot, or constant ranges disjoint in `Nat`
-      (let firstStore := win.findIdx fun st => (asStore st).isSome
-       let lastLoad := (win.zipIdx.filter fun (st, _) => (asLoad st).isSome).getLast?.map (·.2)
-       lastLoad.any (· < firstStore) ||
+      (loadsFirst win ||
          (sb.1.isNone && db.1.isNone && (decide (sb.2 + L ≤ db.2) || decide (db.2 + L ≤ sb.2))))
   | _, _, _ => false
 
-/-- `kept` is a subsequence of `win`'s arithmetic. -/
+/-- `kept` is a subsequence of `win`'s arithmetic, and the window's other statements have no
+    result the output defines. -/
 def keptOk : List Stmt → List Stmt → Bool
-  | [], _ => true
+  | [], ws => ws.all (fresh X.OD)
   | _ :: _, [] => false
-  | k :: ks, w :: ws => if decide (k = w) && isArith w then keptOk ks ws else keptOk (k :: ks) ws
+  | k :: ks, w :: ws =>
+    if decide (k = w) && isArith w then keptOk ks ws else fresh X.OD w && keptOk (k :: ks) ws
 
 /-- The output's statements against the input's: each the same, or a window and its copy (at
     most `n` input statements; running out rejects). -/
@@ -170,7 +178,7 @@ def cbodyOk : Nat → List Stmt → List Stmt → Bool
       let win := (i :: is).take (w + 2)
       let k := os.findIdx fun o => match o.inst with | .evm .mcopy _ => true | _ => false
       match os[k]? with
-      | some mc => X.runOk win mc && keptOk (os.take k) win &&
+      | some mc => X.runOk win mc && X.keptOk (os.take k) win &&
           cbodyOk n (os.drop (k + 1)) ((i :: is).drop (w + 2))
       | none => false)
 
