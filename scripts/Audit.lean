@@ -1,18 +1,26 @@
 import FeProofs
+import FeModel
 /-! Prints the axioms each capstone theorem depends on, in order of name, counting the
 `native_decide` evaluations instead of listing them.  The capstones are each contract's Stele certificate
 (`fe…ContractCorrect`), the refinement certificates (`fe…Refines…`), the conservation theorems
 (`…conserves…`) and the invariants through every call and from deployment (`fe…Keeps…`,
-`fe…Solvent…`).  Run: `lake lean scripts/Audit.lean`. -/
+`fe…Solvent…`), and the machine pipeline's theorems under `Fe.Sonatina` (`check_sound`,
+`checkSpills_sound`, `machine_sound_proved`, `StepKind.proved_sound`, each step kind's
+`…_stepSound`, the known-bits invariant `kb_reaches` and `kb_point`).  Run:
+`lake lean scripts/Audit.lean`. -/
 open Lean
 
 #eval show CoreM Unit from do
+  let machine := ["check_sound", "checkSpills_sound", "machine_sound_proved", "proved_sound",
+    "kb_reaches", "kb_point"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString
     let has (part : String) := (last.splitOn part).length > 1
     if (`FeProofs).isPrefixOf n && (last.endsWith "ContractCorrect"
         || last.startsWith "fe" && (has "Refines" || has "Keeps" || has "Solvent")
-        || has "conserves") then some n
+        || has "conserves")
+      || (`Fe.Sonatina).isPrefixOf n && (machine.contains last || last.endsWith "_stepSound") then
+      some n
     else none
   for n in capstones.toArray.qsort (fun a b => a.toString < b.toString) do
     let axs ← collectAxioms n
