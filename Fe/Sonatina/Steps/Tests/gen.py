@@ -562,3 +562,66 @@ write("ls_bad_phi_value.json", one("lower_switches", "f", ls_in,
 write("ls_bad_max.json", one("lower_switches", "f", ls_in,
     ls_out(up="br_table v0 block1 (2.i256 block3) (3.i256 block1)",
            lo=f"br_table v0 block1 (0.i256 block3) (1.i256 block2) ({MAX}.i256 block2)")))
+
+# adce.  The input: dead `add` and `evm_mload` in block0, a dead region block1..block3 (a
+# branch inside it) between block0 and block4, whose phi is dead; block5 is a live revert.
+P2 = ["v0.i256", "v1.i256"]
+def ad_in(b0=("v2.i256 = add v0 1.i256", "v3.i256 = evm_mload v0", "br v1 block1 block5"),
+          b1=("v4.i256 = mul v0 v0", "br v0 block2 block3"),
+          b2=("v5.i256 = add v4 1.i256", "jump block4"), b3=("jump block4",),
+          b4=("v6.i256 = phi (v5 block2) (v4 block3)", "evm_mstore 0.i256 v0", "return v0")):
+    bs = [(0, list(b0)), (1, list(b1)), (2, list(b2)), (3, list(b3)), (4, list(b4)),
+          (5, ["evm_revert 0.i256 0.i256"])]
+    ids, n = [], 0
+    for _, ls in bs:
+        ids.append(list(range(n, n + len(ls)))); n += len(ls)
+    return snap("f", P2, R, bs, ids)
+AD_IDS = [[0, 1, 2], [3, 4], [5, 6], [7], [8, 9, 10], [11]]
+def ad_out(b0=("br v1 block4 block5",), b4=("evm_mstore 0.i256 v0", "return v0"),
+           i0=None, i4=None, extra=()):
+    bs = [(0, list(b0)), (4, list(b4)), (5, ["evm_revert 0.i256 0.i256"]), *extra]
+    i0 = i0 if i0 is not None else [2]
+    i4 = i4 if i4 is not None else [9, 10]
+    ids = [i0, i4, [11]] + [list(range(100 + 10 * k, 100 + 10 * k + len(ls))) for k, (_, ls) in enumerate(extra)]
+    return snap("f", P2, R, bs, ids)
+write("ad_ok.json", one("adce", "f", ad_in(), ad_out()))
+# Accepted: the retargeted branch collapsed to a `jump`; a finite loop listed (not removed).
+write("ad_jump.json", one("adce", "f", ad_in(b0=("v2.i256 = add v0 1.i256",
+    "v3.i256 = evm_mload v0", "br v1 block1 block1")), ad_out(b0=("jump block4",))))
+FL = dict(NOFACTS, finite_loops=[{"header": 1, "latch": 2, "iv": 2, "step": 4, "exit": 1}])
+write("ad_facts.json", one("adce", "f", ad_in(), ad_out(), FL))
+# Rejected: a removed store; a removed call; a removed value still used; a removed `clz`; a
+# removed `evm_gas`; a retarget to a block that is not where the region ends (block5, past a
+# `return`); a kept phi at the retarget's target (its value differs on the bypassed path); a
+# region with a `revert` (the input exits where the output goes on); a region with a store; a
+# removed loop (a cycle in the region), without and with a finite-loop fact; other facts.
+write("ad_bad_store.json", one("adce", "f", ad_in(), ad_out(b4=("return v0",), i4=[10])))
+g_snap = snap("g", ["v0.i256"], R, [(0, ["return v0"])], [[0]])
+r = one("adce", "f", ad_in(b0=("v2.i256 = call %g v0", "v3.i256 = evm_mload v0",
+    "br v1 block1 block5")), ad_out())
+r["lowered"].append(g_snap)
+write("ad_bad_call.json", r)
+write("ad_bad_used.json", one("adce", "f", ad_in(b4=("v6.i256 = phi (v5 block2) (v4 block3)",
+    "evm_mstore 0.i256 v2", "return v0")), ad_out(b4=("evm_mstore 0.i256 v2", "return v0"))))
+write("ad_bad_clz.json", one("adce", "f", ad_in(b0=("v2.i256 = clz v0", "v3.i256 = evm_mload v0",
+    "br v1 block1 block5")), ad_out()))
+write("ad_bad_gas.json", one("adce", "f", ad_in(b0=("v2.i256 = add v0 1.i256", "v3.i256 = evm_gas",
+    "br v1 block1 block5")), ad_out()))
+write("ad_bad_target.json", one("adce", "f", ad_in(), ad_out(b0=("br v1 block5 block5",))))
+write("ad_bad_phi.json", one("adce", "f", ad_in(b4=("v6.i256 = phi (v5 block2) (v4 block3)",
+    "evm_mstore 0.i256 v6", "return v0")), ad_out(b4=("v6.i256 = phi (v5 block2) (v4 block3)",
+    "evm_mstore 0.i256 v6", "return v0"), i4=[8, 9, 10])))
+write("ad_bad_exit.json", one("adce", "f", ad_in(b3=("evm_revert 0.i256 0.i256",),
+    b4=("v6.i256 = phi (v5 block2)", "evm_mstore 0.i256 v0", "return v0")), ad_out()))
+write("ad_bad_region_store.json", one("adce", "f", ad_in(b2=("v5.i256 = add v4 1.i256",
+    "evm_mstore v0 v5", "jump block4")), ad_out()))
+def loop_in():
+    return ad_in(b1=("v4.i256 = phi (0.i256 block0) (v5 block2)", "v7.i256 = lt v4 10.i256",
+                     "br v7 block2 block3"),
+                 b2=("v5.i256 = add v4 1.i256", "jump block1"), b3=("jump block4",),
+                 b4=("evm_mstore 0.i256 v0", "return v0"))
+write("ad_bad_loop.json", one("adce", "f", loop_in(), ad_out()))
+FL2 = dict(NOFACTS, finite_loops=[{"header": 1, "latch": 2, "iv": 4, "step": 5, "exit": 1}])
+write("ad_bad_loop_cert.json", one("adce", "f", loop_in(), ad_out(), FL2))
+KB = dict(NOFACTS, known_bits=[["3", "0", "0"]])
+write("ad_bad_facts.json", one("adce", "f", ad_in(), ad_out(), KB))

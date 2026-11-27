@@ -374,4 +374,84 @@ example : lsCheck ls_bad_phi_value = false := by decide +kernel
 example : LS ls_bad_max = false := by decide +kernel
 example : lsCheck ls_bad_max = false := by decide +kernel
 
+/-! ## `adce` -/
+
+machine_steps_file ad_ok "Fe/Sonatina/Steps/Tests/ad_ok.json"
+machine_steps_file ad_jump "Fe/Sonatina/Steps/Tests/ad_jump.json"
+machine_steps_file ad_facts "Fe/Sonatina/Steps/Tests/ad_facts.json"
+machine_steps_file ad_real_carry "Fe/Sonatina/Steps/Tests/ad_real_carry.json"
+machine_steps_file ad_real_identity "Fe/Sonatina/Steps/Tests/ad_real_identity.json"
+machine_steps_file ad_real_modexp "Fe/Sonatina/Steps/Tests/ad_real_modexp.json"
+machine_steps_file ad_bad_store "Fe/Sonatina/Steps/Tests/ad_bad_store.json"
+machine_steps_file ad_bad_call "Fe/Sonatina/Steps/Tests/ad_bad_call.json"
+machine_steps_file ad_bad_used "Fe/Sonatina/Steps/Tests/ad_bad_used.json"
+machine_steps_file ad_bad_clz "Fe/Sonatina/Steps/Tests/ad_bad_clz.json"
+machine_steps_file ad_bad_gas "Fe/Sonatina/Steps/Tests/ad_bad_gas.json"
+machine_steps_file ad_bad_target "Fe/Sonatina/Steps/Tests/ad_bad_target.json"
+machine_steps_file ad_bad_phi "Fe/Sonatina/Steps/Tests/ad_bad_phi.json"
+machine_steps_file ad_bad_exit "Fe/Sonatina/Steps/Tests/ad_bad_exit.json"
+machine_steps_file ad_bad_region_store "Fe/Sonatina/Steps/Tests/ad_bad_region_store.json"
+machine_steps_file ad_bad_loop "Fe/Sonatina/Steps/Tests/ad_bad_loop.json"
+machine_steps_file ad_bad_loop_cert "Fe/Sonatina/Steps/Tests/ad_bad_loop_cert.json"
+machine_steps_file ad_bad_facts "Fe/Sonatina/Steps/Tests/ad_bad_facts.json"
+
+abbrev AD (r : MachineSteps) : Bool := validateWith [.adce] [] r (replay r)
+
+/-- The check alone, on the record's first lowered function and its first step's output. -/
+def adCheck (r : MachineSteps) : Bool :=
+  match r.lowered.head?, r.passes.head?.bind (·.steps.head?) with
+  | some f, some st => match st.funcs.head? with
+    | some fs => checkAdce f.func (some f.insts) fs.out fs.facts
+    | none => false
+  | _, _ => false
+
+/-- Accepted: dead statements (`add`, `evm_mload`), a dead phi, and a dead region with a branch
+bypassed to where it ends (`br v1 block4 block5`); the same with the branch collapsed to a `jump`;
+with a finite-loop fact.  Real records: `carry` of Bn254Add (two dead phis of a loop header; four
+finite loops listed), Identity's runtime (a dead `evm_mload`) and Modexp's (three dead blocks
+bypassed by eleven slots; with calls, so the check alone). -/
+example : AD ad_ok = true := by decide +kernel
+example : adCheck ad_ok = true := by decide +kernel
+example : AD ad_jump = true := by decide +kernel
+example : AD ad_facts = true := by decide +kernel
+example : AD ad_real_carry = true := by decide +kernel
+example : AD ad_real_identity = true := by decide +kernel
+example : adCheck ad_real_modexp = true := by decide +kernel
+
+/-- Rejected, by `validate` and by the check alone: a removed store, call (`call %g`), value still
+used, `clz`, `evm_gas`; a slot retargeted past a `return` (block5); a kept phi at a bypass's
+target; a bypassed `revert`; a bypassed store; a bypassed loop, without and with a finite-loop
+fact (loop removal is switched off, `adceLoopRemoval`); known-bits facts. -/
+example : AD ad_bad_store = false := by decide +kernel
+example : adCheck ad_bad_store = false := by decide +kernel
+example : AD ad_bad_call = false := by decide +kernel
+example : adCheck ad_bad_call = false := by decide +kernel
+example : AD ad_bad_used = false := by decide +kernel
+example : adCheck ad_bad_used = false := by decide +kernel
+example : AD ad_bad_clz = false := by decide +kernel
+example : adCheck ad_bad_clz = false := by decide +kernel
+example : AD ad_bad_gas = false := by decide +kernel
+example : adCheck ad_bad_gas = false := by decide +kernel
+example : AD ad_bad_target = false := by decide +kernel
+example : adCheck ad_bad_target = false := by decide +kernel
+example : AD ad_bad_phi = false := by decide +kernel
+example : adCheck ad_bad_phi = false := by decide +kernel
+example : AD ad_bad_exit = false := by decide +kernel
+example : adCheck ad_bad_exit = false := by decide +kernel
+example : AD ad_bad_region_store = false := by decide +kernel
+example : adCheck ad_bad_region_store = false := by decide +kernel
+example : AD ad_bad_loop = false := by decide +kernel
+example : adCheck ad_bad_loop = false := by decide +kernel
+example : AD ad_bad_loop_cert = false := by decide +kernel
+example : adCheck ad_bad_loop_cert = false := by decide +kernel
+example : AD ad_bad_facts = false := by decide +kernel
+example : adCheck ad_bad_facts = false := by decide +kernel
+/-- The loop of `ad_bad_loop` is what the measurement counts as a loop removal. -/
+example : (match ad_bad_loop.lowered.head?, ad_bad_loop.passes.head?.bind (·.steps.head?) with
+    | some f, some st => (st.funcs.head?.map fun fs => (ACtx.of f.func fs.out.func).loopBypass 4 1)
+    | _, _ => none) = some true := by decide +kernel
+/-- The finite-loop facts are read. -/
+example : (ad_facts.passes.head?.bind (·.steps.head?) |>.bind (·.funcs.head?) |>.map
+    (·.facts.finiteLoops)) = some [(1, 2, 2, 4, 1)] := by decide +kernel
+
 end Fe.Sonatina.Steps.Tests
