@@ -492,23 +492,56 @@ line of WETH9's `returnValue_run`.
   its decision is unchanged): `checkSpills` 40 of 40 sections per level and 529 of 530, `check`
   34, 33, 33 and 520, the same verdicts as before.
 
-- With `sccp_fold` and `known_bits_simplify` proved (`StepKind.proved` has seven kinds;
-  `scripts/MachineSteps.lean`, interpreted), sections accepted end to end by `validate`'s kinds:
+- With `sccp_fold` and `known_bits_simplify` proved (`StepKind.proved` has seven kinds), on
+  `chain-o1` before it merged `chain` `58f7d69`, sections accepted end to end by `validate`'s
+  kinds: FeProofs `-O0` 33 (its 7 rejections the base-relative copies), `-O1` 21, 25 with
+  `sccp_fold`, 29 with both; `-Os` 21, 25, 32; the 265 351, 403, 460.  The checker's changes for
+  the proof leave every per-step verdict of `scripts/SchemasSteps.lean` as it was (`corpus-v5b`
+  86 steps, `corpus-v5-full` 313, all accepted) and every mutant rejected (935 fact mutants, 3006
+  output mutants), identical line for line to the earlier outputs.
 
-  | corpus | before | + `sccp_fold` | + `known_bits_simplify` | after merging `chain` `58f7d69` | first rejected kind (merged) |
-  | --- | --- | --- | --- | --- | --- |
-  | FeProofs `-O0` | 33/40 | 33 | 33 | 40 | none |
-  | FeProofs `-O1` | 21/40 | 25 | 29 | 29 | `scalar_canonicalize` 8, `lower_switches` 3 |
-  | FeProofs `-Os` | 21/40 | 25 | 32 | 32 | `scalar_canonicalize` 8 |
-  | the 265 | 351/530 | 403 | 460 | 460 | `lower_switches` 34, `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+- Merged `chain` (seven proved kinds, `coalesce_copies` stage 2), on corpus v5 (FeProofs
+  `m1-lean/corpus-v5b`; the 265 `provable-pipeline/dialect/top265`, the top-level sidecars of
+  `corpus-v5-full`) and corpus v6 (`provable-pipeline/corpus-v6/{feproofs,top265}`, Fe
+  `provable-chain` `a4c2ab6eb`).  End to end: `scripts/MachineSteps.lean` with the seven kinds;
+  per step: its `steps` mode; byte checker: `scripts/DialectSweep.lean`.  All interpreted.
 
-  The first three columns are on `chain-o1` before the merge (`-O0`'s 7 rejections are its
-  base-relative copies, which the merged `coalesce_copies` accepts).  Every `sccp_fold` step
-  (35 at `-O1` and `-Os`, 133 in the 265) and every `known_bits_simplify` step (8, 8, 94) is
-  accepted; none has `demanded_bits`, so the switched-off demand rounds reject none.  The
-  checker's changes for the proof leave every per-step verdict of `scripts/SchemasSteps.lean` as
-  it was (`corpus-v5b` 86 steps, `corpus-v5-full` 313, all accepted) and every mutant rejected
-  (935 fact mutants, 3006 output mutants), identical line for line to the earlier outputs.
+  | corpus | byte checker `checkSpills` | `check` | end to end (`validate`) | first rejected kind |
+  | --- | --- | --- | --- | --- |
+  | v5 FeProofs `-O0` | 40/40 | 34/40 | 40/40 | none |
+  | v5 FeProofs `-O1` | 40/40 | 33/40 | 29/40 | `scalar_canonicalize` 8, `lower_switches` 3 |
+  | v5 FeProofs `-Os` | 40/40 | 33/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v5 the 265 | 529/530 | 520/530 | 460/530 | `lower_switches` 34, `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+  | v6 FeProofs `-O0` | 40/40 | 34/40 | 40/40 | none |
+  | v6 FeProofs `-O1` | 40/40 | 33/40 | 29/40 | `scalar_canonicalize` 8, `lower_switches` 3 |
+  | v6 FeProofs `-Os` | 40/40 | 33/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v6 the 265 | 529/530 | 520/530 | 460/530 | `lower_switches` 34, `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+
+  Every rejection end to end is a kind with no proof (`kind not allowed`).  No section's verdict
+  differs between v5 and v6; v5's outputs are identical line for line to `chain-o1`'s after its
+  merge (end to end and per step) and to `chain`'s stage-2 run (byte checker).  The 265's
+  `checkSpills` rejection is one function outside the class (`default_recursive` in v5,
+  `direct_dynamic` in v6).
+
+  Function steps accepted, v5 / v6 (`-O0`, `-O1`, `-Os`, the 265); none of a proved kind is
+  rejected, no summary table fails:
+
+  | kind | v5 | v6 |
+  | --- | --- | --- |
+  | `edge_split` | 6, 89, 89, 407 | 6, 93, 89, 413 |
+  | `cfg_cleanup` | 0, 92, 91, 417 | 0, 96, 91, 423 |
+  | `branch_canonicalize` | 0, 73, 73, 621 | 0, 73, 73, 617 |
+  | `coalesce_copies` | 149, 26, 26, 28 | 149, 24, 24, 26 |
+  | `sccp_fold` | 0, 35, 35, 133 | 0, 35, 35, 131 |
+  | `known_bits_simplify` | 0, 8, 8, 94 | 0, 8, 8, 95 |
+  | no proof: `scalar_canonicalize` | 0, 25, 19, 48 | 0, 25, 19, 48 |
+  | no proof: `lower_switches` | 0, 3, 0, 45 | 0, 3, 0, 45 |
+  | no proof: `gvn_rewrite` | 0, 16, 10, 23 | 0, 16, 10, 23 |
+  | no proof: `gvn_prune` | 0, 0, 0, 4 | 0, 0, 0, 4 |
+  | no proof: `adce` | 0, 8, 6, 9 | 0, 12, 6, 13 |
+
+  `branch_conditions` has no step in either corpus.  No `known_bits_simplify` step is rejected as
+  a demand round: every sidecar of both corpora has `demanded_bits: null`.
 
 ## Not done
 
