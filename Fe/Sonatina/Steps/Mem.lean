@@ -373,6 +373,8 @@ theorem approx_zeroMem (p n : UInt256) : Approx Eq (zeroMem p n) (zeroMem p n) :
 theorem approx_mcopy (d s n : UInt256) : Approx Eq (mcopy d s n) (mcopy d s n) := by
   unfold mcopy
   exact Approx.modify fun w' w hw => ⟨hw.1, hw.2, MemEq.write hw.3 hw.3 _ _ _, hw.4, hw.5, hw.6⟩
+theorem approx_mcopyIR (d s n : UInt256) : Approx Eq (mcopyIR d s n) (mcopyIR d s n) := by
+  unfold mcopyIR; exact Approx.ite (Approx.diverge _) (approx_mcopy d s n)
 theorem approx_calldatacopy (d o n : UInt256) :
     Approx Eq (Fe.EVM.calldatacopy d o n) (Fe.EVM.calldatacopy d o n) := by
   unfold Fe.EVM.calldatacopy; approx_prim

@@ -426,10 +426,24 @@ two_in = [(0, copy2 + copyb + ["jump block1"], ids_from(9)), (1, copyc + [RET], 
 two_out = [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "evm_mcopy 2048.i256 1024.i256 64.i256", "jump block1"], [3, 7, 8]),
            (1, ["evm_mcopy 8192.i256 4096.i256 64.i256", RET], [12, 13])]
 write("kc_two_runs.json", kc(two_in, two_out))
+# Base-relative, all loads first: one base, and a base for each range.
+base = ["v1.i256 = evm_mload v0", "v2.i256 = add v0 32.i256", "v3.i256 = evm_mload v2",
+        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
+write("kc_base.json", kc([(0, base + [RET], ids_from(6))],
+    [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256",)))
+base2 = ["v2.i256 = evm_mload v0", "v3.i256 = add v0 32.i256", "v4.i256 = evm_mload v3",
+         "evm_mstore v1 v2", "v5.i256 = add v1 32.i256", "evm_mstore v5 v4"]
+write("kc_base2.json", kc([(0, base2 + [RET], ids_from(7))],
+    [(0, ["evm_mcopy v1 v0 64.i256", RET], [5, 6])], params=("v0.i256", "v1.i256")))
+# A constant range past 2^256, all loads first: the copy does not terminate there.
+big = 2**256 - 32
+past = [f"v1.i256 = evm_mload {big}.i256", f"v2.i256 = add {big}.i256 32.i256", "v3.i256 = evm_mload v2",
+        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
+write("kc_past.json", kc(run_in(past), run_out([f"evm_mcopy 512.i256 {big}.i256 64.i256"], [4, 5])))
 # Rejected: interleaved and overlapping; a length other than 32 n; store i not storing load i;
-# a load used twice; a base-relative run (stage 1); a store outside a run deleted; a changed
-# copy operand; addresses not contiguous; another instruction in the window; one word; a range
-# past 2^256; a kept add moved after the copy.
+# a load used twice; a store outside a run deleted; a changed copy operand; addresses not
+# contiguous; another instruction in the window; one word; a kept add moved after the copy;
+# interleaved and base-relative; interleaved with a range past 2^256; loads at two bases.
 over = ["v1.i256 = evm_mload 256.i256", "evm_mstore 288.i256 v1",
         "v2.i256 = evm_mload 288.i256", "evm_mstore 320.i256 v2"]
 write("kc_bad_overlap.json", kc(run_in(over), run_out(["evm_mcopy 288.i256 256.i256 64.i256"], [3, 4])))
@@ -438,10 +452,6 @@ swap = copy2[:2] + ["evm_mstore 512.i256 v2", "evm_mstore 544.i256 v1"]
 write("kc_bad_order.json", kc(run_in(swap), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 4])))
 twouse = copy2[:2] + ["v9.i256 = add v1 0.i256"] + copy2[2:]
 write("kc_bad_twouse.json", kc(run_in(twouse), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [4, 5])))
-base = ["v1.i256 = evm_mload v0", "v2.i256 = add v0 32.i256", "v3.i256 = evm_mload v2",
-        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
-write("kc_bad_base.json", kc([(0, base + [RET], ids_from(6))],
-    [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256",)))
 outside = copy2 + ["evm_mstore 768.i256 7.i256"]
 write("kc_bad_store.json", kc(run_in(outside), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [3, 5])))
 write("kc_bad_operand.json", kc(run_in(copy2), run_out(["evm_mcopy 512.i256 288.i256 64.i256"], [3, 4])))
@@ -451,8 +461,15 @@ write("kc_bad_gap.json", kc(run_in(gap), run_out(["evm_mcopy 512.i256 256.i256 6
 other = copy2[:2] + ["evm_sstore 0.i256 1.i256"] + copy2[2:]
 write("kc_bad_other.json", kc(run_in(other), run_out(["evm_mcopy 512.i256 256.i256 64.i256"], [4, 5])))
 write("kc_bad_one.json", kc(run_in(copy2[:1] + copy2[2:3]), run_out(["evm_mcopy 512.i256 256.i256 32.i256"], [1, 2])))
-big = 2**256 - 32
-past = [f"v1.i256 = evm_mload {big}.i256", f"v2.i256 = add {big}.i256 32.i256", "v3.i256 = evm_mload v2",
-        "evm_mstore 512.i256 v1", "evm_mstore 544.i256 v3"]
-write("kc_bad_past.json", kc(run_in(past), run_out([f"evm_mcopy 512.i256 {big}.i256 64.i256"], [4, 5])))
+base_inter = ["v1.i256 = evm_mload v0", "evm_mstore 512.i256 v1", "v2.i256 = add v0 32.i256",
+              "v3.i256 = evm_mload v2", "evm_mstore 544.i256 v3"]
+write("kc_bad_base_inter.json", kc([(0, base_inter + [RET], ids_from(6))],
+    [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256",)))
+past_inter = [f"v1.i256 = evm_mload {big}.i256", "evm_mstore 512.i256 v1", f"v2.i256 = add {big}.i256 32.i256",
+              "v3.i256 = evm_mload v2", "evm_mstore 544.i256 v3"]
+write("kc_bad_past_inter.json", kc(run_in(past_inter), run_out([f"evm_mcopy 512.i256 {big}.i256 64.i256"], [4, 5])))
+two_base = ["v2.i256 = evm_mload v0", "v3.i256 = add v1 32.i256", "v4.i256 = evm_mload v3",
+            "evm_mstore 512.i256 v2", "evm_mstore 544.i256 v4"]
+write("kc_bad_two_base.json", kc([(0, two_base + [RET], ids_from(6))],
+    [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256", "v1.i256")))
 write("kc_bad_moved.json", kc(keep_in, [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "v6.i256 = add 512.i256 32.i256", "return v6"], [4, 2, 5])]))

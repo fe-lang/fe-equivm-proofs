@@ -231,7 +231,7 @@ theorem noPanic_evmRun (op : EvmOp) (args : List UInt256) : NoPanic (op.run args
     Fe.EVM.coinbase, Fe.EVM.timestamp, Fe.EVM.blockNumber, Fe.EVM.prevrandao,
     Fe.EVM.gaslimit, Fe.EVM.chainid, Fe.EVM.selfbalance, Fe.EVM.basefee, Fe.EVM.blobhash,
     Fe.EVM.blobbasefee, Fe.EVM.gas, Fe.EVM.cload, Fe.EVM.mload, Fe.EVM.mstore,
-    Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.keccak256, Fe.EVM.mcopy,
+    Fe.EVM.sload, Fe.EVM.sstore, Fe.EVM.tload, Fe.EVM.tstore, Fe.EVM.keccak256, mcopyIR, Fe.EVM.mcopy,
     Fe.EVM.mstore8, Fe.EVM.logData, Fe.EVM.create, Fe.EVM.create2, Fe.EVM.call,
     Fe.EVM.staticcall, Fe.EVM.delegatecall, callcode, stuck] <;> no_panic
   all_goals first

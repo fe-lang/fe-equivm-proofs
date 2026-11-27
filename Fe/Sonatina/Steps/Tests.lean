@@ -195,52 +195,63 @@ example : (facts₀ rd_demand_none).demanded = none := by decide
 example : (facts₀ cc_bad_facts).knownBits = [(3, 0, 1)] := by decide
 example : (facts₀ cc_bad_unread).unread = ["ranges"] := by decide
 
-/-! ## `coalesce_copies` (stage 1: constant ranges) -/
+/-! ## `coalesce_copies` -/
 
 machine_steps_file kc_const "Fe/Sonatina/Steps/Tests/kc_const.json"
 machine_steps_file kc_interleaved "Fe/Sonatina/Steps/Tests/kc_interleaved.json"
 machine_steps_file kc_arith "Fe/Sonatina/Steps/Tests/kc_arith.json"
 machine_steps_file kc_keep_add "Fe/Sonatina/Steps/Tests/kc_keep_add.json"
 machine_steps_file kc_two_runs "Fe/Sonatina/Steps/Tests/kc_two_runs.json"
+machine_steps_file kc_base "Fe/Sonatina/Steps/Tests/kc_base.json"
+machine_steps_file kc_base2 "Fe/Sonatina/Steps/Tests/kc_base2.json"
+machine_steps_file kc_past "Fe/Sonatina/Steps/Tests/kc_past.json"
 machine_steps_file kc_bad_overlap "Fe/Sonatina/Steps/Tests/kc_bad_overlap.json"
 machine_steps_file kc_bad_len "Fe/Sonatina/Steps/Tests/kc_bad_len.json"
 machine_steps_file kc_bad_order "Fe/Sonatina/Steps/Tests/kc_bad_order.json"
 machine_steps_file kc_bad_twouse "Fe/Sonatina/Steps/Tests/kc_bad_twouse.json"
-machine_steps_file kc_bad_base "Fe/Sonatina/Steps/Tests/kc_bad_base.json"
 machine_steps_file kc_bad_store "Fe/Sonatina/Steps/Tests/kc_bad_store.json"
 machine_steps_file kc_bad_operand "Fe/Sonatina/Steps/Tests/kc_bad_operand.json"
 machine_steps_file kc_bad_gap "Fe/Sonatina/Steps/Tests/kc_bad_gap.json"
 machine_steps_file kc_bad_other "Fe/Sonatina/Steps/Tests/kc_bad_other.json"
 machine_steps_file kc_bad_one "Fe/Sonatina/Steps/Tests/kc_bad_one.json"
-machine_steps_file kc_bad_past "Fe/Sonatina/Steps/Tests/kc_bad_past.json"
 machine_steps_file kc_bad_moved "Fe/Sonatina/Steps/Tests/kc_bad_moved.json"
+machine_steps_file kc_bad_base_inter "Fe/Sonatina/Steps/Tests/kc_bad_base_inter.json"
+machine_steps_file kc_bad_past_inter "Fe/Sonatina/Steps/Tests/kc_bad_past_inter.json"
+machine_steps_file kc_bad_two_base "Fe/Sonatina/Steps/Tests/kc_bad_two_base.json"
 
 abbrev KC := validateWith [.coalesceCopies] []
 
 /-- Accepted: two words with all loads first; interleaved disjoint constant ranges; addresses
 through `add`/`sub` chains, the arithmetic deleted, three words; an `add` of the window that the
-output still uses, kept before the copy; two runs in one block and one in another. -/
+output still uses, kept before the copy; two runs in one block and one in another; base-relative
+ranges, all loads first, at one base and at a base each; a constant range past `2 ^ 256`, all
+loads first (the copy does not terminate there). -/
 example : KC kc_const (replay kc_const) = true := by decide +kernel
 example : KC kc_interleaved (replay kc_interleaved) = true := by decide +kernel
 example : KC kc_arith (replay kc_arith) = true := by decide +kernel
 example : KC kc_keep_add (replay kc_keep_add) = true := by decide +kernel
 example : KC kc_two_runs (replay kc_two_runs) = true := by decide +kernel
+example : KC kc_base (replay kc_base) = true := by decide +kernel
+example : KC kc_base2 (replay kc_base2) = true := by decide +kernel
+example : KC kc_past (replay kc_past) = true := by decide +kernel
 
 /-- Rejected: interleaved overlapping ranges; a length other than `32 n`; store `i` not storing
-load `i`; a load used twice; a base-relative run (stage 1); a store outside a run deleted; a
-changed copy operand; non-contiguous addresses; another instruction in the window; one word; a
-range past `2 ^ 256`; a kept `add` moved after the copy. -/
+load `i`; a load used twice; a store outside a run deleted; a changed copy operand;
+non-contiguous addresses; another instruction in the window; one word; a kept `add` moved after
+the copy; interleaved base-relative ranges; interleaved with a range past `2 ^ 256`; loads at
+two bases. -/
 example : KC kc_bad_overlap (replay kc_bad_overlap) = false := by decide +kernel
 example : KC kc_bad_len (replay kc_bad_len) = false := by decide +kernel
 example : KC kc_bad_order (replay kc_bad_order) = false := by decide +kernel
 example : KC kc_bad_twouse (replay kc_bad_twouse) = false := by decide +kernel
-example : KC kc_bad_base (replay kc_bad_base) = false := by decide +kernel
 example : KC kc_bad_store (replay kc_bad_store) = false := by decide +kernel
 example : KC kc_bad_operand (replay kc_bad_operand) = false := by decide +kernel
 example : KC kc_bad_gap (replay kc_bad_gap) = false := by decide +kernel
 example : KC kc_bad_other (replay kc_bad_other) = false := by decide +kernel
 example : KC kc_bad_one (replay kc_bad_one) = false := by decide +kernel
-example : KC kc_bad_past (replay kc_bad_past) = false := by decide +kernel
 example : KC kc_bad_moved (replay kc_bad_moved) = false := by decide +kernel
+example : KC kc_bad_base_inter (replay kc_bad_base_inter) = false := by decide +kernel
+example : KC kc_bad_past_inter (replay kc_bad_past_inter) = false := by decide +kernel
+example : KC kc_bad_two_base (replay kc_bad_two_base) = false := by decide +kernel
 
 end Fe.Sonatina.Steps.Tests

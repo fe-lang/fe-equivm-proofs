@@ -2,7 +2,7 @@ import Fe.Sonatina.Steps.BranchCanonSound
 import Fe.Sonatina.CheckArith
 
 /-!
-# `coalesce_copies` is sound (stage 1 of ruling R-11.4)
+# `coalesce_copies` is sound (ruling R-11.4, stage 2)
 
 The output has the input's blocks, phis and terminators; the simulation relates the output and
 the input at the same block entered from the same block, as `branch_canonicalize`'s does (`BR`,
@@ -10,13 +10,20 @@ the input at the same block entered from the same block, as `branch_canonicalize
 the input while the output runs the window's kept `add`/`sub` statements alongside, in order,
 and then its `evm_mcopy` (`win_walk`, `win_fol`).
 
-The window's memory (`CopyMem`): after `q` of its stores the input's memory is the window's
-start memory `m₀` with the first `q` words of `m₀`'s `[S, S + 32 n)` written at `D`, so after
-all `n` it is `mcopy D S (32 n)` of `m₀` (`ByteArray.write`, which reads its source before it
-writes).  A load reads `m₀`: before the first store (`loadsFirst`), or from a range disjoint from
-the destination's.  Each load's word goes to its store unchanged (`toByteArray_uInt256`), and
-the addresses are the constants `addrNorm` computes, by L2 on the input (`addrNorm_sound`).  The
-stage-1 bounds (`S + 32 n ≤ 2 ^ 256`, `D + 32 n ≤ 2 ^ 256`) make every address a word.
+The window's memory (`WInv`): each load is bound to the word of the window's start memory `m₀`
+at its address, and after `q` stores the memory is `m₀` with, in order, the word of `m₀` at
+load `i`'s address written at store `i`'s, `i < q` (`writes`).  A load reads `m₀`: before the
+first store (`loadsFirst`), or, for constant ranges in bounds, from a range disjoint from the
+destination's.  Each load's word goes to its store unchanged (`toByteArray_uInt256`); the
+addresses an earlier statement of the window read keep their values (`keep_operand`).
+
+At the copy (`win_fol`), `addrNorm` relates the addresses by L2 on the input at the window's end
+(`addrNorm_base_sound`): load `i`'s is `S + 32 i` modulo `2 ^ 256` with `S` the copy's source,
+base value or none, and store `i`'s `D + 32 i`.  Where a range of the copy ends past `2 ^ 256`
+the output's `evm_mcopy` does not terminate (`mcopyIR`, `exec_mcopy_big`), which a refinement
+allows; below, no address wraps, the writes are the copy's (`writes_copyMem`, `CopyMem`), and
+since `ByteArray.write` reads its source before it writes, that is the output's `mcopy` on a
+memory related to `m₀` (`copyMem_end`, `MemEq.write`).
 -/
 
 namespace Fe.Sonatina.Steps
@@ -113,6 +120,48 @@ theorem memEq_write_mod (m : ByteArray) {S D L : Nat} (hS : S + L ≤ W256) (hD 
     refine memEq_iff_getD.mpr fun x => ?_
     rw [write_getD, write_getD]
     split_ifs <;> first | rfl | (congr 1; omega)
+
+theorem W256_eq :
+    W256 = 115792089237316195423570985008687907853269984665640564039457584007913129639936 := by
+  norm_num [W256]
+
+/-- The word of `m₀` at `a`. -/
+abbrev rd (m₀ : ByteArray) (a : Nat) : UInt256 := uInt256OfByteArray (m₀.readWithPadding a 32)
+
+/-- `m` with, in order, the word of `m₀` at `p.1` written at `p.2`, for each `p` of `l`. -/
+def writes (m₀ m : ByteArray) (l : List (Nat × Nat)) : ByteArray :=
+  l.foldl (fun m p => (rd m₀ p.1).toByteArray.write 0 m p.2 32) m
+
+theorem writes_snoc (m₀ m : ByteArray) (l : List (Nat × Nat)) (p : Nat × Nat) :
+    writes m₀ m (l ++ [p]) = (rd m₀ p.1).toByteArray.write 0 (writes m₀ m l) p.2 32 := by
+  simp only [writes, List.foldl_append, List.foldl_cons, List.foldl_nil]
+
+/-- Writes the word at `a` does not meet leave it as it was. -/
+theorem writes_read (m₀ : ByteArray) : ∀ (l : List (Nat × Nat)) (m : ByteArray) {a : Nat},
+    (∀ p ∈ l, a + 32 ≤ p.2 ∨ p.2 + 32 ≤ a) →
+      (writes m₀ m l).readWithPadding a 32 = m.readWithPadding a 32
+  | [], _, _, _ => rfl
+  | p :: l, m, a, h => by
+    have h' : writes m₀ m (p :: l) = writes m₀ ((rd m₀ p.1).toByteArray.write 0 m p.2 32) l := rfl
+    have hp := h p (List.mem_cons_self ..)
+    rw [h', writes_read m₀ l _ fun q hq => h q (List.mem_cons_of_mem _ hq)]
+    exact readWithPadding_congr fun i hi => by rw [write_getD, ite_eq_right (by omega)]
+
+/-- Writes of the words from `S` on at `D` on, in order: the first `q` words copied. -/
+theorem writes_copyMem {m₀ : ByteArray} {S D : Nat} {l : List (Nat × Nat)}
+    (h : ∀ i p, l[i]? = some p → p = (S + 32 * i, D + 32 * i)) :
+    CopyMem m₀ S D l.length (writes m₀ m₀ l) := by
+  suffices ∀ q, q ≤ l.length → CopyMem m₀ S D q (writes m₀ m₀ (l.take q)) by
+    simpa using this l.length le_rfl
+  intro q
+  induction q with
+  | zero => intro _; exact copyMem_zero _ _ _
+  | succ q ih =>
+    intro hq
+    have hlt : q < l.length := by omega
+    rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, writes_snoc,
+      h q l[q] (List.getElem?_eq_getElem hlt)]
+    exact copyMem_store (ih (by omega))
 
 /-! ## Address normalization -/
 
@@ -337,6 +386,129 @@ theorem addrNorm_sound (hwf : f.wf sig syms = true) (hv : (domTree f).valid f = 
       exact Nat.mod_mod _ _
     · simp at h
 
+/-- The value of an address's base: `0` for none, else the base value's. -/
+def baseVal (env : Env) : Option Nat → Option Nat
+  | none => some 0
+  | some u => (intVal env (.var u)).map (·.2)
+
+/-- An address is its base's value plus `addrNorm`'s offset, modulo `2 ^ 256`: L2 at the point
+    unfolds each `add` and `sub` it follows. -/
+theorem addrNorm_base_sound (hwf : f.wf sig syms = true) (hv : (domTree f).valid f = true)
+    (hs : ssa f (domTree f) = true) {X : Nat} {blk : Block} (hb : f.block? X = some blk)
+    (hr : ((domTree f).reach.find? X).isSome = true) {kX : Nat} {env : Env}
+    (hpu : PureInv f (domTree f) X kX env) :
+    ∀ n o, UseAt f (domTree f) X kX o → ∀ v, intVal env o = some v →
+      ∃ x, baseVal env (addrNorm (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T n o).1 =
+          some x ∧
+        v.2 % W256 = (x + (addrNorm (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T n o).2) %
+          W256
+  | n, .imm _ c, _, v, hv' => by
+    simp only [intVal, opVal, Option.some.injEq] at hv'
+    subst hv'
+    refine ⟨0, ?_, ?_⟩ <;> cases n <;> simp [addrNorm, baseVal]
+  | 0, .var u, _, v, hv' => ⟨v.2, by simp [addrNorm, baseVal, hv'], by simp [addrNorm]⟩
+  | n + 1, .var u, huse, v, hv' => by
+    have hmem := List.mem_of_find?_eq_some hb
+    have hid : blk.id = X := by simpa using List.find?_some hb
+    obtain ⟨e, he⟩ : ∃ e, f.blocks.head? = some e := by
+      cases h : f.blocks.head? with
+      | none => rw [List.head?_eq_none_iff] at h; rw [h] at hmem; cases hmem
+      | some e => exact ⟨e, rfl⟩
+    have hroot := (DomTree.valid_entry hv he).2
+    have hbroot := hid ▸ DomTree.valid_root hv he hmem (hid ▸ hr)
+    -- the definition of `u` and the value L2 gives it
+    have unfold_def : ∀ i, stmtOf (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T u = some i →
+        i.pure = true → ∃ vals ty dblk d j s, pureVals env i = some vals ∧ [(u, ty)].length = vals.length ∧
+          env[u]? = some ((vals.headD (.int 0 0)).as ty) ∧ ty = .int 256 ∧
+          f.block? d = some dblk ∧ dblk.body[j]? = some s ∧ s.inst = i ∧
+          ((domTree f).reach.find? d).isSome = true ∧ Before (domTree f) d j X kX := by
+      intro i hi hpure
+      obtain ⟨d, j, dblk, s, ty, hdef, hdr, hdb, hsj, hinst, hdsts⟩ := stmtOf_spec hi
+      have hbef : Before (domTree f) d j X kX := huse d j hdef
+      obtain ⟨vals, hpv, hl, hbound⟩ := hpu d j dblk s hdb hsj (by rw [hinst]; exact hpure) hdr hbef
+      have hdmem := List.mem_of_find?_eq_some hdb
+      have hty : ty = .int 256 := ((Func.wf_words hwf).2 dblk hdmem).2 s (List.mem_of_getElem? hsj)
+        (u, ty) (by rw [hdsts]; exact List.mem_singleton_self _)
+      rw [hdsts] at hl hbound
+      rw [hinst] at hpv
+      obtain ⟨v₀, rfl⟩ : ∃ v₀, vals = [v₀] := by
+        match vals, hl with
+        | [v₀], _ => exact ⟨v₀, rfl⟩
+      exact ⟨[v₀], ty, dblk, d, j, s, hpv, hl, hbound ((u, ty), v₀) (List.mem_singleton_self _), hty,
+        hdb, hsj, hinst, hdr, hbef⟩
+    -- an operand of `u`'s definition is used at the point
+    have harg : ∀ d j dblk s, f.block? d = some dblk → dblk.body[j]? = some s →
+        ((domTree f).reach.find? d).isSome = true → Before (domTree f) d j X kX →
+        ∀ o ∈ s.inst.args, UseAt f (domTree f) X kX o := fun d j dblk s hdb hsj hdr hbef o ho =>
+      UseAt.trans hroot hbroot (useAt_stmt hwf hs hdb hdr hsj ho) hbef
+    -- the immediate operand is a word
+    have himm : ∀ (d j : Nat) (dblk : Block) (s : Stmt), f.block? d = some dblk → dblk.body[j]? = some s →
+        ∀ bits c, Operand.imm bits c ∈ s.inst.args → bits = 256 ∧ c < W256 := by
+      intro d j dblk s hdb hsj bits c hc
+      have := (Func.wf_operands hwf (List.mem_of_find?_eq_some hdb)).2.1 s (List.mem_of_getElem? hsj) _ hc
+      simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at this
+      exact this
+    simp only [addrNorm]
+    split
+    · next _ a bits c hst =>
+      obtain ⟨vals, ty, dblk, d, j, s, hpv, _, hu, rfl, hdb, hsj, hinst, hdr, hbef⟩ :=
+        unfold_def _ hst rfl
+      obtain ⟨rfl, hc⟩ := himm d j dblk s hdb hsj bits c (by rw [hinst]; simp [Inst.args])
+      simp only [pureVals, Option.map_eq_some_iff] at hpv
+      obtain ⟨p, hp, rfl⟩ := hpv
+      obtain ⟨xa, hxa, rfl⟩ := pairOpt_imm hp
+      obtain ⟨x, hx, ih⟩ := addrNorm_base_sound hwf hv hs hb hr hpu n a
+        (harg d j dblk s hdb hsj hdr hbef a (by rw [hinst]; simp [Inst.args])) _ hxa
+      rcases hn : addrNorm (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T n a with ⟨b', o'⟩
+      rw [hn] at hx ih
+      dsimp only at hx ih ⊢
+      refine ⟨x, hx, ?_⟩
+      simp only [intVal, opVal, hu, List.headD, BinOp.eval, Val.as, Ty.bits,
+        Option.some.injEq] at hv'
+      subst hv'
+      simp only [Nat.mod_mod]
+      rw [wrap_add_mod, ih, W256_eq]
+      omega
+    · next _ bits c a _ hst =>
+      obtain ⟨vals, ty, dblk, d, j, s, hpv, _, hu, rfl, hdb, hsj, hinst, hdr, hbef⟩ :=
+        unfold_def _ hst rfl
+      obtain ⟨rfl, hc⟩ := himm d j dblk s hdb hsj bits c (by rw [hinst]; simp [Inst.args])
+      simp only [pureVals, Option.map_eq_some_iff] at hpv
+      obtain ⟨p, hp, rfl⟩ := hpv
+      obtain ⟨xa, hxa, rfl⟩ := pairOpt_imm_left hp
+      obtain ⟨x, hx, ih⟩ := addrNorm_base_sound hwf hv hs hb hr hpu n a
+        (harg d j dblk s hdb hsj hdr hbef a (by rw [hinst]; simp [Inst.args])) _ hxa
+      rcases hn : addrNorm (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T n a with ⟨b', o'⟩
+      rw [hn] at hx ih
+      dsimp only at hx ih ⊢
+      refine ⟨x, hx, ?_⟩
+      simp only [intVal, opVal, hu, List.headD, BinOp.eval, Val.as, Ty.bits,
+        Option.some.injEq] at hv'
+      subst hv'
+      simp only [Nat.mod_mod]
+      rw [Int.add_comm, wrap_add_mod, ih, W256_eq]
+      omega
+    · next _ a bits c hst =>
+      obtain ⟨vals, ty, dblk, d, j, s, hpv, _, hu, rfl, hdb, hsj, hinst, hdr, hbef⟩ :=
+        unfold_def _ hst rfl
+      obtain ⟨rfl, hc⟩ := himm d j dblk s hdb hsj bits c (by rw [hinst]; simp [Inst.args])
+      simp only [pureVals, Option.map_eq_some_iff] at hpv
+      obtain ⟨p, hp, rfl⟩ := hpv
+      obtain ⟨xa, hxa, rfl⟩ := pairOpt_imm hp
+      obtain ⟨x, hx, ih⟩ := addrNorm_base_sound hwf hv hs hb hr hpu n a
+        (harg d j dblk s hdb hsj hdr hbef a (by rw [hinst]; simp [Inst.args])) _ hxa
+      rcases hn : addrNorm (KCtx.of f f').B (KCtx.of f f').D (KCtx.of f f').T n a with ⟨b', o'⟩
+      rw [hn] at hx ih
+      dsimp only at hx ih ⊢
+      refine ⟨x, hx, ?_⟩
+      simp only [intVal, opVal, hu, List.headD, BinOp.eval, Val.as, Ty.bits,
+        Option.some.injEq] at hv'
+      subst hv'
+      rw [wrap_sub_mod _ _ hc, Nat.mod_mod, ih]
+      rw [W256_eq] at hc ⊢
+      omega
+    · exact ⟨v.2, by simp [baseVal, hv'], by simp⟩
+
 end norm
 
 /-! ## The window's statements -/
@@ -387,6 +559,15 @@ theorem asStore_none_of_arith {s : Stmt} (h : isArith s = true) : asStore s = no
   obtain ⟨_, _, _, _, _, hi, _⟩ := isArith_spec h
   unfold asStore; rw [hi]
 
+theorem asLoad_arg {s : Stmt} {x : Operand × Nat} (h : asLoad s = some x) : x.1 ∈ s.inst.args := by
+  rcases x with ⟨a, r⟩
+  rw [(asLoad_spec h).1]; simp [Inst.args]
+
+theorem asStore_arg {s : Stmt} {x : Operand × Operand} (h : asStore s = some x) :
+    x.1 ∈ s.inst.args := by
+  rcases x with ⟨a, v⟩
+  rw [(asStore_spec h).1]; simp [Inst.args]
+
 /-- Snapshot: a load has no store before it. -/
 theorem loadsFirst_pre : ∀ {pre : List Stmt} {st : Stmt} {ws : List Stmt},
     loadsFirst (pre ++ st :: ws) = true → (asLoad st).isSome = true → pre.filterMap asStore = []
@@ -411,7 +592,7 @@ theorem run_mstore (p v : UInt256) :
     EvmOp.run .mstore [p, v] = (do Fe.EVM.mstore p v; return []) := rfl
 
 theorem run_mcopy (d s l : UInt256) :
-    EvmOp.run .mcopy [d, s, l] = (do Fe.EVM.mcopy d s l; return []) := rfl
+    EvmOp.run .mcopy [d, s, l] = (do mcopyIR d s l; return []) := rfl
 
 theorem evalWord_of {env : Env} {o : Operand} {bits x : Nat} (h : intVal env o = some (bits, x)) :
     evalWord env o = pure (UInt256.ofNat x) := by
@@ -454,12 +635,25 @@ theorem exec_store (c : Ctx) {env : Env} {a v : Operand} {ba xa bv xv : Nat}
 
 theorem exec_mcopy (c : Ctx) {env : Env} {d s : Operand} {L bd xd bs xs : Nat}
     (hd : intVal env d = some (bd, xd)) (hs : intVal env s = some (bs, xs))
+    (hfit : ¬ (0 < L % W256 ∧ (W256 < xd % W256 + L % W256 ∨ W256 < xs % W256 + L % W256)))
     {β : Type} (g : List Val → FeM β) (I : ExecutionEnv) (w : World) :
     (runInst c env (.evm .mcopy [d, s, .imm 256 L]) >>= g).exec I w =
       (g []).exec I { w with memory := w.memory.write (xs % W256) w.memory (xd % W256) (L % W256) } := by
   simp only [runInst, List.mapM_cons, List.mapM_nil, evalWord_of hd, evalWord_of hs,
     evalWord_of (show intVal env (.imm 256 L) = some (256, L) from rfl), pure_bind,
-    run_mcopy, Fe.EVM.mcopy, bind_assoc, Fe.M.exec_bind, Fe.M.exec_modify, toNat_ofNat_mod]
+    run_mcopy, mcopyIR, bind_assoc, Fe.M.exec_bind, toNat_ofNat_mod, size_eq_W256, ite_eq_right hfit,
+    Fe.EVM.mcopy, Fe.M.exec_modify]
+
+/-- A copy whose range ends past `2 ^ 256` does not terminate. -/
+theorem exec_mcopy_big (c : Ctx) {env : Env} {d s : Operand} {L bd xd bs xs : Nat}
+    (hd : intVal env d = some (bd, xd)) (hs : intVal env s = some (bs, xs))
+    (hbig : 0 < L % W256 ∧ (W256 < xd % W256 + L % W256 ∨ W256 < xs % W256 + L % W256))
+    {β : Type} (g : List Val → FeM β) (I : ExecutionEnv) (w : World) :
+    (runInst c env (.evm .mcopy [d, s, .imm 256 L]) >>= g).exec I w = none := by
+  simp only [runInst, List.mapM_cons, List.mapM_nil, evalWord_of hd, evalWord_of hs,
+    evalWord_of (show intVal env (.imm 256 L) = some (256, L) from rfl), pure_bind,
+    run_mcopy, mcopyIR, bind_assoc, Fe.M.exec_bind, toNat_ofNat_mod, size_eq_W256, ite_eq_left hbig,
+    Fe.M.exec_diverge]
 
 theorem exec_mcopy_stuck (c : Ctx) {env : Env} {d s : Operand} {L : Nat}
     (h : intVal env d = none ∨ intVal env s = none)
@@ -534,22 +728,25 @@ theorem kc_head {f f' : Func} (F : KFacts f f') {e' : Block} (he' : f'.blocks.he
       have := (KCtx.blockOk_spec (F.blocks (x', x) (by rw [hf, hg]; exact List.mem_cons_self ..))).1
       exact ⟨x, rfl, he' ▸ this⟩
 
-/-- What `runOk` gives with base-relative runs off (stage 1): the window holds loads, stores and
-    arithmetic; load `i` reads at `S + 32 i` and store `i` writes load `i`'s result at `D + 32 i`,
-    for `n` of each; both ranges end at or below `2 ^ 256`; all loads come first or the ranges are
-    disjoint; the copy reads the first load's and the first store's address operands. -/
-structure WinFacts (X : KCtx) (win : List Stmt) (mc : Stmt) (S D : Nat) : Prop where
+/-- What `runOk` gives: the window holds loads, stores and arithmetic; load `i` reads at
+    `bs + ks + 32 i` and store `i` writes load `i`'s result at `bd + kd + 32 i` (a base value or
+    none, the offsets modulo `2 ^ 256`), for `n` of each; `32 n` is below `2 ^ 256`; all loads
+    come first, or both ranges are constant, in bounds and disjoint; the copy reads the first
+    load's and the first store's address operands. -/
+structure WinFacts (X : KCtx) (win : List Stmt) (mc : Stmt) (bs bd : Option Nat) (ks kd : Nat) :
+    Prop where
   shape : ∀ st ∈ win, (asLoad st).isSome = true ∨ (asStore st).isSome = true ∨ isArith st = true
   nst : (win.filterMap asStore).length = (win.filterMap asLoad).length
-  loads : ∀ i ld, (win.filterMap asLoad)[i]? = some ld → X.norm ld.1 = (none, S + 32 * i)
+  loads : ∀ i ld, (win.filterMap asLoad)[i]? = some ld → X.norm ld.1 = (bs, (ks + 32 * i) % W256)
   stores : ∀ i st, (win.filterMap asStore)[i]? = some st →
-    X.norm st.1 = (none, D + 32 * i) ∧ ∃ ld, (win.filterMap asLoad)[i]? = some ld ∧ st.2 = .var ld.2
-  boundS : S + 32 * (win.filterMap asLoad).length ≤ W256
-  boundD : D + 32 * (win.filterMap asLoad).length ≤ W256
-  snap : loadsFirst win = true ∨ S + 32 * (win.filterMap asLoad).length ≤ D ∨
-    D + 32 * (win.filterMap asLoad).length ≤ S
-  copy : ∃ sa da, (∃ st ∈ win, (asLoad st).map (·.1) = some sa) ∧
-    (∃ st ∈ win, (asStore st).map (·.1) = some da) ∧ X.norm sa = (none, S) ∧ X.norm da = (none, D) ∧
+    X.norm st.1 = (bd, (kd + 32 * i) % W256) ∧
+      ∃ ld, (win.filterMap asLoad)[i]? = some ld ∧ st.2 = .var ld.2
+  len : 32 * (win.filterMap asLoad).length < W256
+  snap : loadsFirst win = true ∨ (bs = none ∧ bd = none ∧
+    ks + 32 * (win.filterMap asLoad).length ≤ W256 ∧ kd + 32 * (win.filterMap asLoad).length ≤ W256 ∧
+    (ks + 32 * (win.filterMap asLoad).length ≤ kd ∨ kd + 32 * (win.filterMap asLoad).length ≤ ks))
+  copy : ∃ sa ra da va, (win.filterMap asLoad)[0]? = some (sa, ra) ∧
+    (win.filterMap asStore)[0]? = some (da, va) ∧
     mc = ⟨[], .evm .mcopy [da, sa, .imm 256 (32 * (win.filterMap asLoad).length)]⟩
 
 theorem atOff_spec {X : KCtx} {base : Option Nat × Nat} {i : Nat} {o : Operand}
@@ -561,50 +758,73 @@ theorem atOff_spec {X : KCtx} {base : Option Nat × Nat} {i : Nat} {o : Operand}
   simp only [Bool.and_eq_true, beq_iff_eq, hb] at h
   rw [h.1, h.2, Nat.mod_eq_of_lt hlt]
 
+theorem atOff_eq {X : KCtx} {base : Option Nat × Nat} {i : Nat} {o : Operand}
+    (h : X.atOff base i o = true) : X.norm o = (base.1, (base.2 + 32 * i) % W256) := by
+  unfold KCtx.atOff at h
+  rcases hn : X.norm o with ⟨bo, off⟩
+  rw [hn] at h
+  simp only [Bool.and_eq_true, beq_iff_eq] at h
+  rw [h.1, h.2]
+
 theorem runOk_spec {X : KCtx} {win : List Stmt} {mc : Stmt} (h : X.runOk win mc = true) :
-    ∃ S D, WinFacts X win mc S D := by
+    ∃ bs bd ks kd, WinFacts X win mc bs bd ks kd := by
   unfold KCtx.runOk at h
   dsimp only at h
   split at h
   · rename_i s r0 d v0 last hl hs _
-    simp only [allowBase, Bool.false_or, Bool.and_eq_true, Bool.or_eq_true, List.all_eq_true,
+    simp only [Bool.and_eq_true, Bool.or_eq_true, List.all_eq_true,
       decide_eq_true_eq, beq_iff_eq, Option.isNone_iff_eq_none, ge_iff_le] at h
-    obtain ⟨⟨⟨⟨⟨⟨⟨⟨hshape, _⟩, hn2⟩, hnst⟩, hmc⟩, hlds⟩, hsts⟩, ⟨⟨hsb, hdb⟩, hbS⟩, hbD⟩, hsnap⟩ := h
-    have hmemL : (s, r0) ∈ win.filterMap asLoad := List.mem_of_mem_head? hl
-    have hmemS : (d, v0) ∈ win.filterMap asStore := List.mem_of_mem_head? hs
-    obtain ⟨stl, hstl, hl'⟩ := List.mem_filterMap.mp hmemL
-    obtain ⟨sts, hsts', hs'⟩ := List.mem_filterMap.mp hmemS
-    refine ⟨(X.norm s).2, (X.norm d).2, fun st hst => ?_, hnst, fun i ld hi => ?_, fun i st hi => ?_,
-      hbS, hbD, hsnap.imp_right fun h => h.2,
-      ⟨s, d, ⟨stl, hstl, by rw [hl']; rfl⟩, ⟨sts, hsts', by rw [hs']; rfl⟩, Prod.ext hsb rfl,
-        Prod.ext hdb rfl, hmc⟩⟩
+    obtain ⟨⟨⟨⟨⟨⟨⟨⟨hshape, _⟩, _⟩, hnst⟩, hmc⟩, hlds⟩, hsts⟩, hlen⟩, hsnap⟩ := h
+    refine ⟨(X.norm s).1, (X.norm d).1, (X.norm s).2, (X.norm d).2, fun st hst => ?_, hnst,
+      fun i ld hi => ?_, fun i st hi => ?_, hlen,
+      hsnap.imp_right fun ⟨⟨⟨⟨h1, h2⟩, h3⟩, h4⟩, h5⟩ => ⟨h1, h2, h3, h4, h5⟩,
+      ⟨s, r0, d, v0, by rw [← List.head?_eq_getElem?]; exact hl,
+        by rw [← List.head?_eq_getElem?]; exact hs, hmc⟩⟩
     · rcases hshape st hst with (h | h) | h
       · exact Or.inl h
       · exact Or.inr (Or.inl h)
       · exact Or.inr (Or.inr h)
-    · have hlt := (List.getElem?_eq_some_iff.mp hi).1
-      exact atOff_spec (hlds (ld, i) (List.mem_zipIdx_iff_getElem?.mpr hi)).1 hsb (by omega)
+    · exact atOff_eq (hlds (ld, i) (List.mem_zipIdx_iff_getElem?.mpr hi)).1
     · have hlt := (List.getElem?_eq_some_iff.mp hi).1
       have hlt' : i < (win.filterMap asLoad).length := by omega
-      refine ⟨?_, (win.filterMap asLoad)[i], List.getElem?_eq_getElem hlt', ?_⟩
-      · have hz : ((win.filterMap asStore).zip (win.filterMap asLoad))[i]? =
-            some (st, (win.filterMap asLoad)[i]) := by
-          rw [List.getElem?_zip_eq_some]; exact ⟨hi, List.getElem?_eq_getElem hlt'⟩
-        exact atOff_spec (hsts ((st, _), i) (List.mem_zipIdx_iff_getElem?.mpr hz)).1 hdb (by omega)
-      · have hz : ((win.filterMap asStore).zip (win.filterMap asLoad))[i]? =
-            some (st, (win.filterMap asLoad)[i]) := by
-          rw [List.getElem?_zip_eq_some]; exact ⟨hi, List.getElem?_eq_getElem hlt'⟩
-        exact (hsts ((st, _), i) (List.mem_zipIdx_iff_getElem?.mpr hz)).2
+      have hz : ((win.filterMap asStore).zip (win.filterMap asLoad))[i]? =
+          some (st, (win.filterMap asLoad)[i]) := by
+        rw [List.getElem?_zip_eq_some]; exact ⟨hi, List.getElem?_eq_getElem hlt'⟩
+      exact ⟨atOff_eq (hsts ((st, _), i) (List.mem_zipIdx_iff_getElem?.mpr hz)).1,
+        (win.filterMap asLoad)[i], List.getElem?_eq_getElem hlt',
+        (hsts ((st, _), i) (List.mem_zipIdx_iff_getElem?.mpr hz)).2⟩
   · cases h
 
 /-! ## The window -/
 
-/-- The walk's invariant after the window's statements `pre`: the memory holds the stores of
-    `pre` (`CopyMem`), and each load of `pre` is bound to the word of `m₀` at its address. -/
-def WInv (X : KCtx) (m₀ : ByteArray) (S D : Nat) (pre : List Stmt) (e : Env) (m : ByteArray) :
-    Prop :=
-  CopyMem m₀ S D (pre.filterMap asStore).length m ∧ ∀ ld ∈ pre.filterMap asLoad,
-    e[ld.2]? = some (word (uInt256OfByteArray (m₀.readWithPadding (X.norm ld.1).2 32)))
+/-- The walk's invariant after the window's statements `pre`, from the memory `m₀`: each load of
+    `pre` is bound to the word of `m₀` at its address; the memory is `m₀` with, in order, the
+    word of `m₀` at load `i`'s address written at store `i`'s, for each store `i` of `pre`. -/
+def WInv (m₀ : ByteArray) (win pre : List Stmt) (e : Env) (m : ByteArray) : Prop :=
+  (∀ ld ∈ pre.filterMap asLoad, ∃ bits x, intVal e ld.1 = some (bits, x) ∧
+    e[ld.2]? = some (word (rd m₀ (x % W256)))) ∧
+  ∃ l : List (Nat × Nat), l.length = (pre.filterMap asStore).length ∧ m = writes m₀ m₀ l ∧
+    ∀ (i : Nat) (p : Nat × Nat), l[i]? = some p → ∃ (ld : Operand × Nat) (st : Operand × Operand) (b₁ x b₂ y : Nat),
+      (win.filterMap asLoad)[i]? = some ld ∧
+      ld ∈ pre.filterMap asLoad ∧ (pre.filterMap asStore)[i]? = some st ∧
+      intVal e ld.1 = some (b₁, x) ∧ intVal e st.1 = some (b₂, y) ∧ p = (x % W256, y % W256)
+
+/-- The invariant holds of another environment that gives `pre`'s operands and loads the same
+    values. -/
+theorem WInv.env {m₀ : ByteArray} {win pre : List Stmt} {e e' : Env} {m : ByteArray}
+    (hop : ∀ s ∈ pre, ∀ o ∈ s.inst.args, intVal e' o = intVal e o)
+    (hres : ∀ ld ∈ pre.filterMap asLoad, e'[ld.2]? = e[ld.2]?) (h : WInv m₀ win pre e m) :
+    WInv m₀ win pre e' m := by
+  obtain ⟨hl, l, hlen, hm, hspec⟩ := h
+  refine ⟨fun ld hld => ?_, l, hlen, hm, fun i p hp => ?_⟩
+  · obtain ⟨bits, x, hx, hv⟩ := hl ld hld
+    obtain ⟨st, hst, hst'⟩ := List.mem_filterMap.mp hld
+    exact ⟨bits, x, by rw [hop st hst _ (asLoad_arg hst')]; exact hx, by rw [hres ld hld]; exact hv⟩
+  · obtain ⟨ld, st, b₁, x, b₂, y, h1, h2, h3, h4, h5, h6⟩ := hspec i p hp
+    obtain ⟨sl, hsl, hsl'⟩ := List.mem_filterMap.mp h2
+    obtain ⟨ss, hss, hss'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? h3)
+    exact ⟨ld, st, b₁, x, b₂, y, h1, h2, h3, by rw [hop sl hsl _ (asLoad_arg hsl')]; exact h4,
+      by rw [hop ss hss _ (asStore_arg hss')]; exact h5, h6⟩
 
 section window
 
@@ -689,40 +909,72 @@ theorem store_load_before (hwf : f.wf sig syms = true) (F : KFacts f f') {b : Na
     · cases hU.fn h' hdefl
     · exact absurd (Def.stmt.inj (hU.fn h' hdefl)).1 hne'
 
+/-- An operand of the statement at `p` keeps its value through the statement at `q ≥ p` of the
+    same block: what defines it comes before `p`. -/
+theorem keep_operand (hwf : f.wf sig syms = true) (hs : ssa f (domTree f) = true) {b : Nat}
+    {blk : Block} (hb : f.block? b = some blk) (hr : ((domTree f).reach.find? b).isSome = true)
+    {p q : Nat} {s st : Stmt} (hsp : blk.body[p]? = some s) (hsq : blk.body[q]? = some st)
+    (hpq : p ≤ q) {o : Operand} (ho : o ∈ s.inst.args) (vals : List Val) (e : Env) :
+    intVal ((st.dsts.zip vals).foldl bindStep e) o = intVal e o := by
+  cases o with
+  | imm => rfl
+  | var x =>
+    have hu := useAt_stmt hwf hs hb hr hsp ho
+    have hget : ((st.dsts.zip vals).foldl bindStep e)[x]? = e[x]? := by
+      refine fold_get_not _ _ _ fun hm => ?_
+      obtain ⟨y, hy, hy1⟩ := List.mem_map.mp hm
+      have hd := stmt_def' hb hsq (List.of_mem_zip hy).1
+      rw [hy1] at hd
+      rcases hu b q hd with ⟨hne, _⟩ | ⟨_, hlt⟩
+      · exact hne rfl
+      · omega
+    simp only [intVal, opVal, hget]
+
 /-- One statement of the window on the input: its values, the memory it leaves, and the
     invariant after it. -/
 theorem in_step (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c : Ctx) {b : Nat}
     {blk : Block} (hb : f.block? b = some blk) (hr : ((domTree f).reach.find? b).isSome = true)
-    {k : Nat} {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt} {S D : Nat}
-    (W : WinFacts (KCtx.of f f') win mc S D) {m₀ : ByteArray} {pre ws : List Stmt} {st : Stmt}
+    {k : Nat} {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt}
+    {bs bd : Option Nat} {ks kd : Nat} (W : WinFacts (KCtx.of f f') win mc bs bd ks kd)
+    {m₀ : ByteArray} {pre ws : List Stmt} {st : Stmt}
     (hw : win = pre ++ st :: ws) {e : Env} {m : ByteArray}
     (hpi : PointInv f (domTree f) b (k + pre.length) e)
     (hpu : PureInv f (domTree f) b (k + pre.length) e)
-    (hinv : WInv (KCtx.of f f') m₀ S D pre e m) (I : ExecutionEnv) (w₀ : World)
+    (hinv : WInv m₀ win pre e m) (I : ExecutionEnv) (w₀ : World)
     (K : Env → FeM (List Val)) :
     ∃ vals m₂, IntVals vals ∧ (st.inst.pure = true → pureVals e st.inst = some vals) ∧
       st.dsts.length = vals.length ∧
       (runStmtO o c e st >>= fun vals => Fe.Sonatina.bind e st.dsts vals >>= K).exec I
           { w₀ with memory := m } =
         (K ((st.dsts.zip vals).foldl bindStep e)).exec I { w₀ with memory := m₂ } ∧
-      WInv (KCtx.of f f') m₀ S D (pre ++ [st]) ((st.dsts.zip vals).foldl bindStep e) m₂ := by
+      WInv m₀ win (pre ++ [st]) ((st.dsts.zip vals).foldl bindStep e) m₂ := by
   have hU := UniqueDefs.of_ssa F.ssa
   have hmem := List.mem_of_find?_eq_some hb
   have hsk := win_get hd (win_here hw)
   have hk : k + pre.length ≤ blk.body.length := (List.getElem?_eq_some_iff.mp hsk).1.le
   have hdef : ∀ o' ∈ st.inst.args, ∃ n, intVal e o' = some (256, n) := fun o' ho' =>
     uses_defined hwf F.ssa hb hr hk hpi o' (by unfold usesAt; rw [hsk]; exact ho')
-  have hnorm : ∀ o' ∈ st.inst.args, ∀ N, (KCtx.of f f').norm o' = (none, N) → ∀ bits x,
-      intVal e o' = some (bits, x) → x % W256 = N := fun o' ho' N hN bits x hx => by
+  have hw' : win = (pre ++ [st]) ++ ws := by rw [hw]; simp
+  -- the operands of `pre` and of `st` keep their values through `st`
+  have hkeep : ∀ vals, ∀ s ∈ pre ++ [st], ∀ o' ∈ s.inst.args,
+      intVal ((st.dsts.zip vals).foldl bindStep e) o' = intVal e o' := by
+    intro vals s hs o' ho'
+    obtain ⟨p, hp, hwp⟩ := pre_get hw' hs
+    exact keep_operand hwf F.ssa hb hr (win_get hd hwp) hsk (by simp at hp; omega) ho' vals e
+  -- a constant address of `pre` or `st`
+  have hnorm : ∀ s ∈ pre ++ [st], ∀ o' ∈ s.inst.args, ∀ N,
+      (KCtx.of f f').norm o' = (none, N) → ∀ bits x, intVal e o' = some (bits, x) →
+        x % W256 = N := fun s hs o' ho' N hN bits x hx => by
+    obtain ⟨p, hp, hwp⟩ := pre_get hw' hs
+    have huse := UseAt.mono (useAt_stmt hwf F.ssa hb hr (win_get hd hwp) ho')
+      (show k + p ≤ k + pre.length by simp at hp; omega)
     have := addrNorm_sound hwf F.valid F.ssa hb hr hpu (KCtx.of f f').fuel o'
-      (by change ((KCtx.of f f').norm o').1 = none; rw [hN]) (useAt_stmt hwf F.ssa hb hr hsk ho') _ hx
+      (by change ((KCtx.of f f').norm o').1 = none; rw [hN]) huse _ hx
     change _ = ((KCtx.of f f').norm o').2 at this
     rw [hN] at this
     exact this
   have hstin : st ∈ win := by rw [hw]; simp
   have hnst := W.nst
-  have hqn : (pre.filterMap asStore).length ≤ (win.filterMap asStore).length := by
-    rw [hw, List.filterMap_append, List.length_append]; omega
   rcases W.shape st hstin with hl | hs | ha
   · -- a load: it reads the word of `m₀`
     obtain ⟨⟨a, r⟩, hl'⟩ := Option.isSome_iff_exists.mp hl
@@ -734,67 +986,110 @@ theorem in_step (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c :
     obtain ⟨xa, hxa⟩ := hdef a ha
     obtain ⟨i, hi⟩ := List.mem_iff_getElem?.mp (List.mem_filterMap.mpr ⟨st, hstin, hl'⟩)
     have hilt := (List.getElem?_eq_some_iff.mp hi).1
-    have hN := W.loads i (a, r) hi
-    have hxa' : xa % W256 = S + 32 * i := hnorm a ha _ hN _ _ hxa
-    have hread : m.readWithPadding (S + 32 * i) 32 = m₀.readWithPadding (S + 32 * i) 32 := by
-      refine copyMem_read hinv.1 ?_
-      rcases W.snap with h | h | h
-      · left
-        rw [loadsFirst_pre (hw ▸ h) (by rw [hl']; rfl)]; rfl
-      · right; left; omega
-      · right; right; omega
-    let v := uInt256OfByteArray (m₀.readWithPadding (S + 32 * i) 32)
+    obtain ⟨hlo, l, hlen, hm, hspec⟩ := hinv
+    have hread : m.readWithPadding (xa % W256) 32 = m₀.readWithPadding (xa % W256) 32 := by
+      rw [hm]
+      rcases W.snap with h | ⟨hbs, hbd, hbS, hbD, hdis⟩
+      · -- no store comes before a load
+        have hnil : pre.filterMap asStore = [] := loadsFirst_pre (hw ▸ h) (by rw [hl']; rfl)
+        rw [hnil, List.length_nil, List.length_eq_zero_iff] at hlen
+        rw [hlen]; rfl
+      · -- the stores so far wrote words of the destination, disjoint from the source
+        have hN := W.loads i (a, r) hi
+        rw [hbs] at hN
+        have hxa' : xa % W256 = ks + 32 * i := by
+          rw [hnorm st (by simp) a ha _ hN _ _ hxa, Nat.mod_eq_of_lt (by omega)]
+        refine writes_read m₀ l m₀ fun p hp => ?_
+        obtain ⟨q, hq⟩ := List.mem_iff_getElem?.mp hp
+        obtain ⟨ld, st', b₁, x, b₂, y, -, -, h3, -, h5, rfl⟩ := hspec q p hq
+        have h3' : (win.filterMap asStore)[q]? = some st' := by
+          rw [hw, List.filterMap_append, List.getElem?_append_left (List.getElem?_eq_some_iff.mp h3).1]
+          exact h3
+        have hqlt := (List.getElem?_eq_some_iff.mp h3').1
+        have hNs := (W.stores q st' h3').1
+        rw [hbd] at hNs
+        obtain ⟨ss, hss, hss'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? h3)
+        have hy : y % W256 = kd + 32 * q := by
+          rw [hnorm ss (List.mem_append_left _ hss) st'.1 (asStore_arg hss') _ hNs _ _ h5,
+            Nat.mod_eq_of_lt (by omega)]
+        dsimp only
+        rw [hxa', hy]
+        omega
+    let v := rd m₀ (xa % W256)
     refine ⟨[word v], m, by simp [IntVals, word, Val.isInt], fun hp => by
       rw [hinst] at hp; simp [Inst.pure, EvmOp.isMod] at hp, by rw [hdsts]; rfl, ?_, ?_⟩
     · rw [runStmtO_inst (by rw [hinst]; intro g args h; cases h), hinst, exec_load c hxa]
       dsimp only
-      rw [hxa', hread, bind_ok (by rw [hdsts]; rfl), pure_bind]
-    · refine ⟨?_, fun ld hld => ?_⟩
-      · rw [List.filterMap_append, List.filterMap_cons, asStore_none_of_load hl']
-        simpa using hinv.1
-      · rw [List.filterMap_append, List.mem_append] at hld
-        rcases hld with hld | hld
-        · rw [keep_loads hU hb hd hw hld]; exact hinv.2 ld hld
-        · simp only [List.filterMap_cons, hl', List.filterMap_nil, List.mem_singleton] at hld
-          subst hld
-          rw [hdsts, hN]
-          simp only [List.zip_cons_cons, List.zip_nil_right, List.foldl_cons, List.foldl_nil, bindStep,
-            env_insert_get, ite_true, word_as]
-          rfl
-  · -- a store: the word of load `q` at `D + 32 q`
+      rw [hread, bind_ok (by rw [hdsts]; rfl), pure_bind]
+    · have he' : ((st.dsts.zip [word v]).foldl bindStep e)[r]? = some (word v) := by
+        rw [hdsts]
+        simp only [List.zip_cons_cons, List.zip_nil_right, List.foldl_cons, List.foldl_nil,
+          bindStep, env_insert_get, ite_true, word_as]
+      obtain ⟨hlo', l', hlen', hm', hspec'⟩ := WInv.env (fun s hs => hkeep [word v] s (List.mem_append_left _ hs))
+        (fun ld hld => keep_loads hU hb hd hw hld _ e) ⟨hlo, l, hlen, hm, hspec⟩
+      have hLp : (pre ++ [st]).filterMap asLoad = pre.filterMap asLoad ++ [(a, r)] := by
+        rw [List.filterMap_append, List.filterMap_cons, hl', List.filterMap_nil]
+      have hSp : (pre ++ [st]).filterMap asStore = pre.filterMap asStore := by
+        rw [List.filterMap_append, List.filterMap_cons, asStore_none_of_load hl']; simp
+      unfold WInv
+      rw [hLp, hSp]
+      refine ⟨fun ld hld => ?_, l', hlen', hm', fun q p hq => ?_⟩
+      · rw [List.mem_append, List.mem_singleton] at hld
+        rcases hld with hld | rfl
+        · exact hlo' ld hld
+        · exact ⟨256, xa, by rw [hkeep _ st (by simp) a ha]; exact hxa, he'⟩
+      · obtain ⟨ld, st', b₁, x, b₂, y, h1, h2, h3, h4, h5, h6⟩ := hspec' q p hq
+        exact ⟨ld, st', b₁, x, b₂, y, h1, List.mem_append_left _ h2, h3, h4, h5, h6⟩
+  · -- a store: the word of load `q` at the store's address
     obtain ⟨⟨a, v⟩, hs'⟩ := Option.isSome_iff_exists.mp hs
     obtain ⟨hinst, hdsts⟩ := asStore_spec hs'
     have hSq : (win.filterMap asStore)[(pre.filterMap asStore).length]? = some (a, v) := by
       rw [hw, List.filterMap_append, List.filterMap_cons, hs', List.getElem?_append_right (Nat.le_refl _)]
       simp
-    have hqlt := (List.getElem?_eq_some_iff.mp hSq).1
-    obtain ⟨hNa, ld, hld, hv⟩ := W.stores _ (a, v) hSq
+    obtain ⟨-, ld, hld, hv⟩ := W.stores _ (a, v) hSq
     simp only at hv
     subst hv
-    have hNl := W.loads _ ld hld
     have hldpre := store_load_before hwf F hb hr hd hw hs' (List.mem_of_getElem? hld) rfl
-    have hval := hinv.2 ld hldpre
-    rw [hNl] at hval
+    obtain ⟨hlo, l, hlen, hm, hspec⟩ := hinv
+    obtain ⟨bx, x, hx, hval⟩ := hlo ld hldpre
     have ha : a ∈ st.inst.args := by rw [hinst]; simp [Inst.args]
     obtain ⟨xa, hxa⟩ := hdef a ha
-    have hxa' := hnorm a ha _ hNa _ _ hxa
-    let val := uInt256OfByteArray (m₀.readWithPadding (S + 32 * (pre.filterMap asStore).length) 32)
+    let val := rd m₀ (x % W256)
     have hxv : intVal e (.var ld.2) = some (256, val.toNat) := by
       simp only [intVal, opVal, hval, word]
       rfl
-    refine ⟨[], val.toByteArray.write 0 m (D + 32 * (pre.filterMap asStore).length) 32,
+    refine ⟨[], val.toByteArray.write 0 m (xa % W256) 32,
       by simp [IntVals], fun hp => by rw [hinst] at hp; simp [Inst.pure, EvmOp.isMod] at hp,
       by rw [hdsts]; rfl, ?_, ?_⟩
     · rw [runStmtO_inst (by rw [hinst]; intro g args h; cases h), hinst, exec_store c hxa hxv]
       dsimp only
-      rw [hxa', ofNat_toNat', bind_ok (by rw [hdsts]; rfl), pure_bind]
-    · refine ⟨?_, fun ld' hld' => ?_⟩
-      · rw [List.filterMap_append, List.filterMap_cons, hs']
-        simpa using copyMem_store hinv.1
-      · rw [List.filterMap_append, List.filterMap_cons, asLoad_none_of_store hs'] at hld'
-        simp only [List.filterMap_nil, List.append_nil] at hld'
-        rw [hdsts]
-        exact hinv.2 ld' hld'
+      rw [ofNat_toNat', bind_ok (by rw [hdsts]; rfl), pure_bind]
+    · rw [hdsts]
+      simp only [List.zip_nil_left, List.foldl_nil]
+      have hLp : (pre ++ [st]).filterMap asLoad = pre.filterMap asLoad := by
+        rw [List.filterMap_append, List.filterMap_cons, asLoad_none_of_store hs']; simp
+      have hSp : (pre ++ [st]).filterMap asStore = pre.filterMap asStore ++ [(a, .var ld.2)] := by
+        rw [List.filterMap_append, List.filterMap_cons, hs', List.filterMap_nil]
+      unfold WInv
+      rw [hLp, hSp]
+      refine ⟨hlo, l ++ [(x % W256, xa % W256)], by simp [hlen], by rw [hm, writes_snoc],
+        fun q p hq => ?_⟩
+      by_cases hql : q < l.length
+      · rw [List.getElem?_append_left hql] at hq
+        obtain ⟨ld', st', b₁, x', b₂, y, h1, h2, h3, h4, h5, h6⟩ := hspec q p hq
+        exact ⟨ld', st', b₁, x', b₂, y, h1, h2,
+          by rw [List.getElem?_append_left (hlen ▸ hql)]; exact h3, h4, h5, h6⟩
+      · have hqe : q = l.length := by
+          have := (List.getElem?_eq_some_iff.mp hq).1
+          simp only [List.length_append, List.length_singleton] at this
+          omega
+        subst hqe
+        rw [List.getElem?_append_right le_rfl, Nat.sub_self] at hq
+        simp only [List.getElem?_cons_zero, Option.some.injEq] at hq
+        subst hq
+        refine ⟨ld, (a, .var ld.2), bx, x, 256, xa, by rw [hlen]; exact hld, hldpre, ?_, hx, hxa, rfl⟩
+        rw [hlen, List.getElem?_append_right le_rfl, Nat.sub_self]
+        rfl
   · -- arithmetic: pure, on the operands' words
     obtain ⟨op, a, b', x, ty, hinst, hdsts⟩ := isArith_spec ha
     obtain ⟨xa, hxa⟩ := hdef a (by rw [hinst]; simp [Inst.args])
@@ -806,29 +1101,30 @@ theorem in_step (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c :
     · rw [runStmtO_pure (by rw [hinst]; rfl), hpv]
       simp only [lift, pure_bind]
       rw [bind_ok (by rw [hdsts]; rfl), pure_bind]
-    · refine ⟨?_, fun ld hld => ?_⟩
-      · rw [List.filterMap_append, List.filterMap_cons, asStore_none_of_arith ha]
-        simpa using hinv.1
-      · rw [List.filterMap_append, List.filterMap_cons, asLoad_none_of_arith ha] at hld
-        simp only [List.filterMap_nil, List.append_nil] at hld
-        rw [keep_loads hU hb hd hw hld]
-        exact hinv.2 ld hld
+    · have hLp : (pre ++ [st]).filterMap asLoad = pre.filterMap asLoad := by
+        rw [List.filterMap_append, List.filterMap_cons, asLoad_none_of_arith ha]; simp
+      have hSp : (pre ++ [st]).filterMap asStore = pre.filterMap asStore := by
+        rw [List.filterMap_append, List.filterMap_cons, asStore_none_of_arith ha]; simp
+      unfold WInv
+      rw [hLp, hSp]
+      exact WInv.env (fun s hs => hkeep _ s (List.mem_append_left _ hs))
+        (fun ld hld => keep_loads hU hb hd hw hld _ e) hinv
 
 /-- The window on both sides: the input runs the window's statements, the output its kept
     arithmetic alongside, binding what the input binds; the output's memory is untouched. -/
 theorem win_walk (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c : Ctx) {b : Nat}
     {blk : Block} (hb : f.block? b = some blk) {ob : Block} (hob : ob ∈ f'.blocks) {k : Nat}
-    {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt} {S D : Nat}
-    (W : WinFacts (KCtx.of f f') win mc S D) {m₀ : ByteArray} (I : ExecutionEnv) (w₀ w' : World)
+    {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt} {bs bd : Option Nat}
+    {ks kd : Nat} (W : WinFacts (KCtx.of f f') win mc bs bd ks kd) {m₀ : ByteArray} (I : ExecutionEnv) (w₀ w' : World)
     (K : Env → FeM (List Val)) :
     ∀ (ws ks pre : List Stmt) (e' e : Env) (m : ByteArray), win = pre ++ ws →
       (KCtx.of f f').keptOk ks ws = true → (∀ s ∈ ks, s ∈ ob.body) →
-      BMid f f' e' e b (k + pre.length) → WInv (KCtx.of f f') m₀ S D pre e m →
+      BMid f f' e' e b (k + pre.length) → WInv m₀ win pre e m →
       (runBodyO o c e' ks).exec I w' = none ∨
       ∃ e₁' e₂ m₂, (runBodyO o c e' ks).exec I w' = some (.ok (e₁', w')) ∧
         (runBodyO o c e ws >>= K).exec I { w₀ with memory := m } =
           (K e₂).exec I { w₀ with memory := m₂ } ∧
-        BMid f f' e₁' e₂ b (k + win.length) ∧ WInv (KCtx.of f f') m₀ S D win e₂ m₂
+        BMid f f' e₁' e₂ b (k + win.length) ∧ WInv m₀ win win e₂ m₂
   | [], ks, pre, e', e, m, hw, hk, _, hm, hinv => by
     cases ks with
     | cons _ _ => simp [KCtx.keptOk] at hk
@@ -856,7 +1152,7 @@ theorem win_walk (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c 
         ∃ e₁' e₂ m₂, (runBodyO o c e' ks').exec I w' = some (.ok (e₁', w')) ∧
           (runBodyO o c e (st :: ws) >>= K).exec I { w₀ with memory := m } =
             (K e₂).exec I { w₀ with memory := m₂ } ∧
-          BMid f f' e₁' e₂ b (k + win.length) ∧ WInv (KCtx.of f f') m₀ S D win e₂ m₂ := by
+          BMid f f' e₁' e₂ b (k + win.length) ∧ WInv m₀ win win e₂ m₂ := by
       intro hf ks' hk' hin'
       have hes' : EnvSub e' ((st.dsts.zip vals).foldl bindStep e) := fun x v hx => by
         rw [fold_get_not _ _ _ ?_]
@@ -916,71 +1212,106 @@ theorem win_walk (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c 
       · simp only [Bool.and_eq_true] at hk
         exact alone hk.1 (k1 :: ks') hk.2 hin
 
-/-- A window against its kept arithmetic and its copy: the input's memory after the window is
-    the copy's. -/
+/-- A window against its kept arithmetic and its copy: the copy does not terminate where a range
+    of it ends past `2 ^ 256`, and below the input's memory after the window is the copy's. -/
 theorem win_fol (hwf : f.wf sig syms = true) (F : KFacts f f') (o : Oracle) (c : Ctx) {b : Nat}
     {blk : Block} (hb : f.block? b = some blk) {ob : Block} (hob : ob ∈ f'.blocks) {k : Nat}
-    {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt} {S D : Nat}
-    (W : WinFacts (KCtx.of f f') win mc S D) {e' e : Env} (hm : BMid f f' e' e b k)
+    {win rest : List Stmt} (hd : blk.body.drop k = win ++ rest) {mc : Stmt} {bs bd : Option Nat}
+    {ks kd : Nat} (W : WinFacts (KCtx.of f f') win mc bs bd ks kd) {e' e : Env}
+    (hm : BMid f f' e' e b k)
     {kept : List Stmt} (hkept : (KCtx.of f f').keptOk kept win = true)
     (hin : ∀ s ∈ kept, s ∈ ob.body) (K : Env → FeM (List Val)) :
     Fol (fun e₂' y => ∃ e₂, y = (runBodyO o c e₂ rest >>= K) ∧ BMid f f' e₂' e₂ b (k + win.length))
       (runBodyO o c e' kept >>= fun e₁' => runBodyO o c e₁' [mc])
       (runBodyO o c e win >>= fun e₂ => runBodyO o c e₂ rest >>= K) := by
   intro I w' w hw
-  obtain ⟨sa, da, ⟨sts, hsts, hsa⟩, ⟨std, hstd, hda⟩, hNs, hNd, hmc⟩ := W.copy
+  obtain ⟨sa, ra, da, va, hsa0, hda0, hmc⟩ := W.copy
   rcases win_walk hwf F o c hb hob hd W (m₀ := w.memory) I w w' (fun e₂ => runBodyO o c e₂ rest >>= K)
       win kept [] e' e w.memory (by simp) hkept hin (by simpa using hm)
-      ⟨copyMem_zero _ _ _, fun _ h => by simp at h⟩ with
+      ⟨fun _ h => by simp at h, [], rfl, rfl, fun _ _ h => by simp at h⟩ with
     hst | ⟨e₁', e₂, m₂, hout, hinp, hm₂, hinv⟩
   · rw [Fe.M.exec_bind, hst]; trivial
   rw [Fe.M.exec_bind, hout]
   dsimp only
   obtain ⟨hes, hds, hpi₂, hpu₂, hr⟩ := hm₂
-  -- the copy's operands: the window's first load's and first store's addresses
-  have hval : ∀ st ∈ win, ∀ o' ∈ st.inst.args, ∀ N, (KCtx.of f f').norm o' = (none, N) → ∀ bits x,
-      intVal e₁' o' = some (bits, x) → x % W256 = N := fun st hst o' ho' N hN bits x hx => by
+  -- an address of the window is its base's value plus its offset, at the window's end
+  have hbase : ∀ st ∈ win, ∀ o' ∈ st.inst.args, ∀ bits x, intVal e₂ o' = some (bits, x) →
+      ∃ β, baseVal e₂ ((KCtx.of f f').norm o').1 = some β ∧
+        x % W256 = (β + ((KCtx.of f f').norm o').2) % W256 := fun st hst o' ho' bits x hx => by
     obtain ⟨p, hp⟩ := List.mem_iff_getElem?.mp hst
     have hplt := (List.getElem?_eq_some_iff.mp hp).1
-    have huse := UseAt.mono (useAt_stmt hwf F.ssa hb hr (win_get hd hp) ho')
-      (show k + p ≤ k + win.length by omega)
-    have := addrNorm_sound hwf F.valid F.ssa hb hr hpu₂ (KCtx.of f f').fuel o'
-      (by change ((KCtx.of f f').norm o').1 = none; rw [hN]) huse _ (hes.intVal hx)
-    change _ = ((KCtx.of f f').norm o').2 at this
-    rw [hN] at this
-    exact this
-  have hsa' : sa ∈ sts.inst.args := by
-    rcases hl : asLoad sts with _ | ⟨a, r⟩ <;> rw [hl] at hsa
-    · cases hsa
-    · simp only [Option.map_some, Option.some.injEq] at hsa
-      subst hsa
-      rw [(asLoad_spec hl).1]; simp [Inst.args]
-  have hda' : da ∈ std.inst.args := by
-    rcases hl : asStore std with _ | ⟨a, v⟩ <;> rw [hl] at hda
-    · cases hda
-    · simp only [Option.map_some, Option.some.injEq] at hda
-      subst hda
-      rw [(asStore_spec hl).1]; simp [Inst.args]
+    exact addrNorm_base_sound hwf F.valid F.ssa hb hr hpu₂ _ o'
+      (UseAt.mono (useAt_stmt hwf F.ssa hb hr (win_get hd hp) ho') (by omega)) _ hx
+  obtain ⟨sl0, hsl0, hsl0'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? hsa0)
+  obtain ⟨ss0, hss0, hss0'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? hda0)
   have hrun : runBodyO o c e₁' [mc] = (runInst c e₁' (.evm .mcopy [da, sa,
       .imm 256 (32 * (win.filterMap asLoad).length)]) >>= fun vals =>
         Fe.Sonatina.bind e₁' [] vals >>= fun e => runBodyO o c e []) := by
     subst hmc
     simp only [runBodyO]
     rw [runStmtO_inst (by intro g args h; cases h)]
-  rcases hxd : intVal e₁' da with _ | ⟨bd, xd⟩
+  rcases hxd : intVal e₁' da with _ | ⟨bd', xd⟩
   · rw [hrun, exec_mcopy_stuck c (Or.inl hxd)]; trivial
-  rcases hxs : intVal e₁' sa with _ | ⟨bs, xs⟩
+  rcases hxs : intVal e₁' sa with _ | ⟨bs', xs⟩
   · rw [hrun, exec_mcopy_stuck c (Or.inr hxs)]; trivial
-  rw [hrun, exec_mcopy c hxd hxs, bind_ok rfl, pure_bind]
+  -- a range ending past `2 ^ 256`: the copy does not terminate
+  by_cases hbig : 0 < 32 * (win.filterMap asLoad).length % W256 ∧
+      (W256 < xd % W256 + 32 * (win.filterMap asLoad).length % W256 ∨
+        W256 < xs % W256 + 32 * (win.filterMap asLoad).length % W256)
+  · rw [hrun, exec_mcopy_big c hxd hxs hbig]; trivial
+  rw [hrun, exec_mcopy c hxd hxs hbig, bind_ok rfl, pure_bind]
   simp only [runBodyO, List.zip_nil_left, List.foldl_nil, Fe.M.exec_pure]
-  refine ⟨runBodyO o c e₂ rest >>= K, { w with memory := m₂ }, hinp, ⟨e₂, rfl, hes, hds, hpi₂, hpu₂, hr⟩,
+  have hL := Nat.mod_eq_of_lt W.len
+  rw [hL] at hbig ⊢
+  have hn0 : 0 < (win.filterMap asLoad).length := (List.getElem?_eq_some_iff.mp hsa0).1
+  have hS : xs % W256 + 32 * (win.filterMap asLoad).length ≤ W256 := by omega
+  have hD : xd % W256 + 32 * (win.filterMap asLoad).length ≤ W256 := by omega
+  -- load `i` reads at `S + 32 i` and store `i` writes at `D + 32 i`
+  have h0s : (KCtx.of f f').norm sa = (bs, (ks + 32 * 0) % W256) := W.loads 0 (sa, ra) hsa0
+  have h0d : (KCtx.of f f').norm da = (bd, (kd + 32 * 0) % W256) := (W.stores 0 (da, va) hda0).1
+  obtain ⟨βs, hβs, hxs'⟩ := hbase sl0 hsl0 sa (asLoad_arg hsl0') _ _ (hes.intVal hxs)
+  obtain ⟨βd, hβd, hxd'⟩ := hbase ss0 hss0 da (asStore_arg hss0') _ _ (hes.intVal hxd)
+  rw [h0s] at hβs hxs'
+  rw [h0d] at hβd hxd'
+  dsimp only at hβs hxs' hβd hxd'
+  have hlds : ∀ i ld b₁ x, (win.filterMap asLoad)[i]? = some ld → intVal e₂ ld.1 = some (b₁, x) →
+      x % W256 = xs % W256 + 32 * i := by
+    intro i ld b₁ x hi hx
+    obtain ⟨sl, hsl, hsl'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? hi)
+    obtain ⟨β, hβ, hx'⟩ := hbase sl hsl ld.1 (asLoad_arg hsl') _ _ hx
+    rw [W.loads i ld hi] at hβ hx'
+    dsimp only at hβ hx'
+    rw [hβs] at hβ
+    cases hβ
+    have hilt := (List.getElem?_eq_some_iff.mp hi).1
+    rw [hx']
+    rw [W256_eq] at hS hxs' ⊢
+    omega
+  have hsts : ∀ i st b₂ y, (win.filterMap asStore)[i]? = some st → intVal e₂ st.1 = some (b₂, y) →
+      y % W256 = xd % W256 + 32 * i := by
+    intro i st b₂ y hi hy
+    obtain ⟨ss, hss, hss'⟩ := List.mem_filterMap.mp (List.mem_of_getElem? hi)
+    obtain ⟨β, hβ, hy'⟩ := hbase ss hss st.1 (asStore_arg hss') _ _ hy
+    rw [(W.stores i st hi).1] at hβ hy'
+    dsimp only at hβ hy'
+    rw [hβd] at hβ
+    cases hβ
+    have hilt := (List.getElem?_eq_some_iff.mp hi).1
+    rw [W.nst] at hilt
+    rw [hy']
+    rw [W256_eq] at hD hxd' ⊢
+    omega
+  -- the stores' writes are the copy
+  obtain ⟨-, l, hlen, rfl, hspec⟩ := hinv
+  have hcopy := writes_copyMem (m₀ := w.memory) (S := xs % W256) (D := xd % W256) (l := l)
+    fun i p hp => by
+      obtain ⟨ld, st, b₁, x, b₂, y, h1, -, h3, h4, h5, rfl⟩ := hspec i p hp
+      rw [hlds i ld b₁ x h1 h4, hsts i st b₂ y h3 h5]
+  rw [hlen, W.nst] at hcopy
+  refine ⟨runBodyO o c e₂ rest >>= K, { w with memory := writes w.memory w.memory l }, hinp,
+    ⟨e₂, rfl, hes, hds, hpi₂, hpu₂, hr⟩,
     ⟨hw.accounts, hw.logs, ?_, hw.returnData, hw.feed, hw.calls⟩⟩
-  dsimp only
-  rw [hval std hstd da hda' D hNd _ _ hxd, hval sts hsts sa hsa' S hNs _ _ hxs]
-  have hend := copyMem_end hinv.1
-  rw [W.nst] at hend
-  exact (MemEq.write hw.memory hw.memory S D _).trans
-    ((memEq_write_mod w.memory W.boundS W.boundD).trans hend.symm)
+  exact (MemEq.write hw.memory hw.memory _ _ _).trans (copyMem_end hcopy).symm
 
 end window
 
@@ -1065,7 +1396,7 @@ theorem kc_stmts (hwf : f.wf sig syms = true) (F : KFacts f f') {o : Oracle} (ho
             (KCtx.of f f').keptOk (os.take kk) ((i :: is).take (w + 2)) = true ∧
             (KCtx.of f f').cbodyOk n (os.drop (kk + 1)) ((i :: is).drop (w + 2)) = true :=
           ⟨_, hmc, hkept, hrest⟩
-        obtain ⟨S, D, W⟩ := runOk_spec hrun
+        obtain ⟨bs, bd, ks, kd, W⟩ := runOk_spec hrun
         have hd' : blk.body.drop k = (i :: is).take (w + 2) ++ (i :: is).drop (w + 2) := by
           rw [hd, List.take_append_drop]
         have hwl : ((i :: is).take (w + 2)).length = w + 2 := by simp; omega
@@ -1212,7 +1543,7 @@ theorem kc_sim (hwf : f.wf sig syms = true) (F : KFacts f f') {o : Oracle} (ho :
       subst hq
       exact ⟨w₁, by rw [hy, Fe.M.exec_pure], hw₁⟩
 
-/-- A `coalesce_copies` step is sound (stage 1): the output function, its calls run by an oracle
+/-- A `coalesce_copies` step is sound: the output function, its calls run by an oracle
     that approximates itself and returns integers on integers, approximates the well-formed input
     function on integers. -/
 theorem coalesce_sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)

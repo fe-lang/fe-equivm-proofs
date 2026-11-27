@@ -1,0 +1,54 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = evm_mload v0;\n        v3.i256 = add v1 32.i256;\n        v4.i256 = evm_mload v3;\n        evm_mstore 512.i256 v2;\n        evm_mstore 544.i256 v4;\n        return 0.i256;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "coalesce_copies",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "coalesce_copies",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        evm_mcopy 512.i256 v0 64.i256;\n        return 0.i256;\n}\n",
+        "insts": [
+         [
+          4,
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

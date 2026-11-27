@@ -208,6 +208,7 @@ macro_rules
     | with_reducible exact approx_tload _
     | with_reducible exact approx_tstore _ _
     | with_reducible exact approx_keccak256 _ _
+    | with_reducible exact approx_mcopyIR _ _ _
     | with_reducible exact approx_mcopy _ _ _
     | with_reducible exact approx_mstore8 _ _
     | with_reducible exact approx_logData _ _ _
