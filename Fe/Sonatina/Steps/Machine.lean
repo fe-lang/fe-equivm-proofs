@@ -180,13 +180,15 @@ theorem section_refines {allowed : List StepKind} {s : Sidecar} {name : String} 
   exact ⟨Module.wf_machine hfm, href⟩
 
 /-- When both sections' records validate, the machine IR implements the lowered modules in the
-    sense of partial correctness, on every call and every deployment. -/
-theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
+    sense of partial correctness, on every call and every deployment, each run of the lowered
+    modules under the same feed as the machine IR's: the step proofs relate runs by `Approx Eq`,
+    which keeps the world, feed included. -/
+theorem machine_implementsP_same {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
     (hk : ∀ k ∈ allowed, StepSound k)
     (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true) :
-    ImplementsP ((s.lowered rr ri).model .machine) (s.model .machine) CalldataFits ∧
-      ImplementsDeployP ((s.lowered rr ri).model .machine) (s.model .machine) (s.code "init")
+    ImplementsPSame ((s.lowered rr ri).model .machine) (s.model .machine) CalldataFits ∧
+      ImplementsDeployPSame ((s.lowered rr ri).model .machine) (s.model .machine) (s.code "init")
         .empty .empty (fun _ => True) := by
   have hrt : Approx Eq (s.runSection "runtime" .machine)
       ((s.lowered rr ri).runSection "runtime" .machine) := by
@@ -206,10 +208,37 @@ theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : Mac
       using this
   constructor
   · intro I σ A feed _ _
-    exact ⟨feed, endsAsP_of_resRel (hrt I _ _ (WRel.refl _))⟩
+    exact endsAsP_of_resRel (hrt I _ _ (WRel.refl _))
   · intro I σ A feed args _ _ _ _
-    refine ⟨feed, endsAsP_of_resRel ?_⟩
-    exact Approx.bind (R := Eq) hin (fun _ _ e => e ▸ Approx.pure_eq _) I _ _ (WRel.refl _)
+    exact endsAsP_of_resRel
+      (Approx.bind (R := Eq) hin (fun _ _ e => e ▸ Approx.pure_eq _) I _ _ (WRel.refl _))
+
+/-- When both sections' records validate, the machine IR implements the lowered modules in the
+    sense of partial correctness, on every call and every deployment. -/
+theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
+    (hk : ∀ k ∈ allowed, StepSound k)
+    (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true) :
+    ImplementsP ((s.lowered rr ri).model .machine) (s.model .machine) CalldataFits ∧
+      ImplementsDeployP ((s.lowered rr ri).model .machine) (s.model .machine) (s.code "init")
+        .empty .empty (fun _ => True) :=
+  (machine_implementsP_same hk hr hi).imp ImplementsPSame.toP ImplementsDeployPSame.toP
+
+/-- `machine_sound_of_sound` under the real feed: wherever the bytes refine the machine IR under
+    each call's real feed (`SoundFut s`), they refine the modules right after lowering under the
+    same feed. -/
+theorem machine_sound_of_sound_fut {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
+    (hk : ∀ k ∈ allowed, StepSound k)
+    (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hs : SoundFut s) :
+    RefinesOnFut .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) := by
+  obtain ⟨hrun, hdep⟩ := hs
+  obtain ⟨himp, hdimp⟩ := machine_implementsP_same hk hr hi
+  exact ⟨RefinesOnFut.of_implementsPSame hrun himp rfl,
+    RefinesDeployFut.of_implementsPSame hdep hdimp⟩
 
 /-- Wherever the bytes refine the machine IR (`Sound s`), they refine the modules right after
     lowering: the validated records for the machine IR against the lowered modules, composed by
@@ -279,6 +308,31 @@ theorem machine_sound_proved_of_sound {s : Sidecar} {rr ri : MachineSteps}
         (fun _ => True) :=
   machine_sound_of_sound StepKind.proved_sound hr hi hs
 
+/-- `machine_sound_proved_of_sound` under the real feed. -/
+theorem machine_sound_proved_of_sound_fut {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hs : SoundFut s) :
+    RefinesOnFut .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) :=
+  machine_sound_of_sound_fut StepKind.proved_sound hr hi hs
+
+/-- `machine_sound_proved` under the real feed: on every call and deployment, the bytes run out
+    of gas or of stack, or the modules right after lowering end as the bytes do under the feed
+    the bytes' run supplies (`RealFeed`), not merely under some feed.  A source semantics whose
+    runs can be excused (undefined behaviour, heap exhaustion) composes with this, since its
+    excuse is then taken under the call's real feed.  `machine_sound_proved` is it without the
+    real feed. -/
+theorem machine_sound_proved_fut {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : check s = true) :
+    RefinesOnFut .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) :=
+  machine_sound_proved_of_sound_fut hr hi (check_sound_fut hc)
+
 /-- `machine_sound` for records that `validate` accepts, which use only the proved kinds
     (`StepKind.proved`: `edge_split`, `cfg_cleanup`, `branch_canonicalize`, `branch_conditions`,
     `coalesce_copies`, `sccp_fold`, `known_bits_simplify`, `lower_switches`,
@@ -305,7 +359,8 @@ theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) :=
-  machine_sound_proved_of_sound hr hi (check_sound hc)
+  (machine_sound_proved_fut hr hi hc).imp RefinesOnFut.toRefinesOn
+    RefinesDeployFut.toRefinesDeploy
 
 /-- `machine_sound_proved` for a sidecar with memory spills: the spill-aware checker
     (`checkSpills`) in place of `check`, under `FrameSafe s` (the machine IR with its spills, under
@@ -321,6 +376,50 @@ theorem machine_sound_spills_proved {s : Sidecar} {rr ri : MachineSteps}
         (fun _ => True) :=
   machine_sound_proved_of_sound hr hi (checkSpills_sound hc hf)
 
+/-- The spilled machine stage on one call, under its real feed: if the sidecar's spills change
+    nothing on this call under the feed the bytes' run supplies (`FrameSafeAt`, at that feed
+    only), the runtime bytes run out of gas or of stack, or the runtime of the modules right
+    after lowering ends as they do under that feed. -/
+theorem machine_sound_spills_at {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : checkSpills s = true) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code "runtime" ++ tail)
+    (hown : OwnerExists σ I) (hcf : CalldataFits I)
+    (hf : ∀ feed, RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed) :
+    RefinesForFut .P1 ((s.lowered rr ri).model .machine) σ σ₀ g A I :=
+  (checkSpills_sound_at hc hI hf).of_endsAsP fun feed _ =>
+    (machine_implementsP_same StepKind.proved_sound hr hi).1 I σ A feed hown hcf
+
+/-- `machine_sound_spills_at` for one deployment, under `FrameSafeDeployAt` at its real feed. -/
+theorem machine_deploy_spills_at {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : checkSpills s = true) {σ σ₀ : AccountMap} {g : UInt256} {A : Substate}
+    {I : ExecutionEnv} {args : ByteArray} (hI : I.code = s.code "init" ++ args)
+    (hown : OwnerExists σ I) (hperm : I.perm = true)
+    (hf : ∀ feed, RealFeed σ σ₀ g A I feed → FrameSafeDeployAt s args I σ A feed) :
+    RefinesDeployForFut .P1 .empty ((s.lowered rr ri).model .machine) args σ σ₀ g A I :=
+  (checkSpills_deploy_at hc hI hf).of_endsAsP fun feed _ =>
+    (machine_implementsP_same StepKind.proved_sound hr hi).2 I σ A feed args trivial hI hown hperm
+
+/-- `machine_sound_spills_proved` under the real feed, with `FrameSafeAt` in place of
+    `FrameSafe`: asked of each call and deployment the conclusion speaks of only under that
+    call's real feed, and with both models under that feed.  `FrameSafe s` does not give these
+    hypotheses (`FrameSafe.lean`), so `machine_sound_spills_proved` is not derived from this. -/
+theorem machine_sound_spills_proved_fut {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : checkSpills s = true)
+    (hfr : ∀ σ σ₀ g A I tail feed, I.code = s.code "runtime" ++ tail → tail.size = 0 →
+      OwnerExists σ I → CalldataFits I → RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed)
+    (hfi : ∀ σ σ₀ g A I args feed, I.code = s.code "init" ++ args → OwnerExists σ I →
+      I.perm = true → RealFeed σ σ₀ g A I feed → FrameSafeDeployAt s args I σ A feed) :
+    RefinesOnFut .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) :=
+  machine_sound_proved_of_sound_fut hr hi (checkSpills_sound_fut hc hfr hfi)
+
 /-! ## The sidecar's own records -/
 
 /-- Both sections' own records (`Sidecar.stepsOf`) validate against their own machine IR, under
@@ -335,6 +434,15 @@ def _root_.Fe.Sonatina.Sidecar.validate (s : Sidecar) : Bool :=
 def _root_.Fe.Sonatina.Sidecar.asLowered (s : Sidecar) : Sidecar :=
   s.lowered (s.stepsOf "runtime") (s.stepsOf "init")
 
+/-- `machine_sound_proved_fut` at the sidecar's own records: `machine_sound_sidecar` with the
+    agreeing feed each call's real one. -/
+theorem machine_sound_sidecar_fut {s : Sidecar} (hv : s.validate = true) (hc : check s = true) :
+    RefinesOnFut .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty (s.asLowered.model .machine)
+        (fun _ => True) := by
+  simp only [Sidecar.validate, Bool.and_eq_true] at hv
+  exact machine_sound_proved_fut hv.1 hv.2 hc
+
 /-- `machine_sound_proved` at the sidecar's own records: when both validate (`s.validate`) and
     the byte checker accepts the sidecar, which then has no memory spills (`check s`), the
     runtime bytes refine the runtime of the modules right after lowering on every message call
@@ -346,9 +454,8 @@ def _root_.Fe.Sonatina.Sidecar.asLowered (s : Sidecar) : Sidecar :=
     source IR. -/
 theorem machine_sound_sidecar {s : Sidecar} (hv : s.validate = true) (hc : check s = true) :
     RefinesOn .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
-      RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True) := by
-  simp only [Sidecar.validate, Bool.and_eq_true] at hv
-  exact machine_sound_proved hv.1 hv.2 hc
+      RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True) :=
+  (machine_sound_sidecar_fut hv hc).imp RefinesOnFut.toRefinesOn RefinesDeployFut.toRefinesDeploy
 
 /-- `machine_sound_spills_proved` at the sidecar's own records: `machine_sound_sidecar` for a
     sidecar with memory spills, under `FrameSafe s`, which nothing here proves for one. -/
@@ -358,5 +465,19 @@ theorem machine_sound_spills_sidecar {s : Sidecar} (hv : s.validate = true)
       RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True) := by
   simp only [Sidecar.validate, Bool.and_eq_true] at hv
   exact machine_sound_spills_proved hv.1 hv.2 hc hf
+
+/-- `machine_sound_spills_proved_fut` at the sidecar's own records: `FrameSafeAt` at each call
+    and deployment under its real feed, which nothing here proves for a sidecar with spills. -/
+theorem machine_sound_spills_sidecar_fut {s : Sidecar} (hv : s.validate = true)
+    (hc : checkSpills s = true)
+    (hfr : ∀ σ σ₀ g A I tail feed, I.code = s.code "runtime" ++ tail → tail.size = 0 →
+      OwnerExists σ I → CalldataFits I → RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed)
+    (hfi : ∀ σ σ₀ g A I args feed, I.code = s.code "init" ++ args → OwnerExists σ I →
+      I.perm = true → RealFeed σ σ₀ g A I feed → FrameSafeDeployAt s args I σ A feed) :
+    RefinesOnFut .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
+      RefinesDeployFut .P1 (s.code "init") .empty (s.asLowered.model .machine)
+        (fun _ => True) := by
+  simp only [Sidecar.validate, Bool.and_eq_true] at hv
+  exact machine_sound_spills_proved_fut hv.1 hv.2 hc hfr hfi
 
 end Fe.Sonatina.Steps
