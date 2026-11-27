@@ -4,8 +4,8 @@ import Lean.ToExpr
 /-!
 # The facts of a machine step, read
 
-`StepFacts` is what the `known_bits_simplify` and `sccp_fold` checkers read of a function step's
-facts (design §3.1, §3.3); `readFacts` reads them from the record as `Read.parseFacts` keeps
+`StepFacts` is what the `known_bits_simplify`, `sccp_fold` and `adce` checkers read of a function
+step's facts (design §3.1, §3.3); `readFacts` reads them from the record as `Read.parseFacts` keeps
 them (each key with its JSON), at elaboration.  A key no checker reads is kept in `unread`, and
 a checker handed one for its own kind rejects.  This module imports neither the schema library
 nor `Validate`, so that the record's reader can import it.
@@ -24,7 +24,10 @@ structure StepFacts where
   consts : Option (List (Nat × Nat)) := none
   /-- SCCP's dead edges `(block, slot)`. -/
   deadEdges : List (Nat × Nat) := []
-  /-- The keys of the record these checkers do not read (`ranges`, `gvn`, `finite_loops`). -/
+  /-- ADCE's loops proven finite, `(header, latch, iv, step, exit)` (`FiniteLoop` of the
+      record): read for `adce`, which does not use them (`adceLoopRemoval`). -/
+  finiteLoops : List (Nat × Nat × Nat × Nat × Nat) := []
+  /-- The keys of the record these checkers do not read (`ranges`, `gvn`). -/
   unread : List String := []
   deriving Repr, Inhabited, Lean.ToExpr
 
@@ -67,6 +70,11 @@ def readFacts (fs : List (String × String)) : Except String StepFacts := do
         | .ok d => jPairs d
         | .error _ => pure []
       return { F with consts := some cs, deadEdges := de }
+    | "finite_loops" =>
+      let ls ← (← j.getArr?).toList.mapM fun e => do
+        let n (k : String) : Except String Nat := do jNat (← e.getObjVal? k)
+        return (← n "header", ← n "latch", ← n "iv", ← n "step", ← n "exit")
+      return { F with finiteLoops := ls }
     | k => return { F with unread := F.unread ++ [k] }) {}
 
 end Read

@@ -511,7 +511,7 @@ def demandRounds : Bool := false
 
 def kbsRejectWith (demand : Bool) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
     (F : StepFacts) : Option Reject :=
-  if !F.unread.isEmpty then some .unread
+  if !(F.unread.isEmpty && F.finiteLoops.isEmpty) then some .unread
   else if F.consts.isSome || !F.deadEdges.isEmpty then some .wrongFacts
   else match F.demanded with
     | none => aliasReject .exact f ids s F
@@ -525,7 +525,7 @@ def kbsReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : St
 
 def sccpReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Option Reject :=
-  if !F.unread.isEmpty then some .unread
+  if !(F.unread.isEmpty && F.finiteLoops.isEmpty) then some .unread
   else if F.demanded.isSome then some .wrongFacts
   else if !sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F then some .sccpFacts
   else aliasReject .sccp f ids s F

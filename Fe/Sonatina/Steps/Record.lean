@@ -59,10 +59,11 @@ structure FuncStep where
   facts : Schemas.StepFacts
   deriving Repr, Inhabited, Lean.ToExpr
 
-/-- A step has no facts: no known bits, no demand round, no SCCP facts, no other key. -/
+/-- A step has no facts: no known bits, no demand round, no SCCP facts, no finite loops, no
+    other key. -/
 def noFacts (F : Schemas.StepFacts) : Bool :=
   F.knownBits.isEmpty && F.demanded.isNone && F.consts.isNone && F.deadEdges.isEmpty &&
-    F.unread.isEmpty
+    F.finiteLoops.isEmpty && F.unread.isEmpty
 
 structure Step where
   kind : StepKind
