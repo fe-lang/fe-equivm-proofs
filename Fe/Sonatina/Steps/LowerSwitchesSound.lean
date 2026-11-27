@@ -479,31 +479,6 @@ theorem stepBlock_node {o : Oracle} {c : Ctx} {f' : Func} {env : Env} {prev : Op
 
 /-! ## The simulation -/
 
-theorem Sim.of_steps_env {o : Oracle} {c : Ctx} {f' f : Func} {R : BState → BState → Prop}
-    (h : ∀ s' s, R s' s →
-      Approx (NextRel R s'.2.2 s.2.2) (stepBlock o c f' s'.1 s'.2.1 s'.2.2)
-        (stepBlock o c f s.1 s.2.1 s.2.2) ∨
-      ∃ env d, (∀ I w, (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w =
-        some (.ok (.goto env d, w))) ∧ R (env, some s'.2.2, d) s) :
-    Sim o c f' f R := by
-  intro s' s hR I w' w hw
-  rcases h s' s hR with hl | ⟨env, d, hd, hRd⟩
-  · have hx := hl I w' w hw
-    revert hx
-    rcases (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w' with _ | (e' | ⟨n', w₁'⟩)
-    · intro _; trivial
-    · rcases hin : (stepBlock o c f s.1 s.2.1 s.2.2).exec I w with _ | (e | ⟨n, w₁⟩) <;>
-        intro hx <;> simp only [ResRel] at hx
-      exact ⟨e, runFrom_error hin, hx⟩
-    · rcases hin : (stepBlock o c f s.1 s.2.1 s.2.2).exec I w with _ | (e | ⟨n, w₁⟩) <;>
-        intro hx <;> simp only [ResRel] at hx
-      cases n' <;> cases n <;> simp only [NextRel, false_and] at hx
-      all_goals first
-        | exact ⟨_, w₁, runFrom_goto hin, hx.1, hx.2⟩
-        | exact ⟨w₁, hx.1 ▸ runFrom_done hin, hx.2⟩
-  · rw [hd]
-    exact ⟨s, w, rfl, hRd, hw⟩
-
 namespace LSCtx
 
 /-- The simulation relation: the output at an input block, entered from a block standing for

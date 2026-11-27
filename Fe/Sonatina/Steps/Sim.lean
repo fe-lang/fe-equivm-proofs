@@ -12,7 +12,8 @@ output may take steps the input does not (an edge split's new block), and the in
 output does not (a merged chain, a tunnel), with no bound on either.
 
 `Sim.of_steps` builds a simulation from blocks that step together (`lock`) or output blocks that
-only jump (`stutter`).
+only jump (`stutter`); `Sim.of_steps_env` lets a stutter step change the output's environment
+(a tree node of `lower_switches` binds its comparison).
 -/
 
 namespace Fe.Sonatina.Steps
@@ -106,17 +107,18 @@ def NextRel (R : BState → BState → Prop) (id' id : Nat) : Next → Next → 
   | .done v', .done v => v' = v
   | _, _ => False
 
-/-- A simulation from blocks that step together, or output blocks that only jump without
-    changing anything (the input does not move). -/
-theorem Sim.of_steps {o : Oracle} {c : Ctx} {f' f : Func} {R : BState → BState → Prop}
+/-- A simulation from blocks that step together, or output blocks that go on to a block without
+    a call or a change of the world, their environment as they leave it (the input does not
+    move). -/
+theorem Sim.of_steps_env {o : Oracle} {c : Ctx} {f' f : Func} {R : BState → BState → Prop}
     (h : ∀ s' s, R s' s →
       Approx (NextRel R s'.2.2 s.2.2) (stepBlock o c f' s'.1 s'.2.1 s'.2.2)
         (stepBlock o c f s.1 s.2.1 s.2.2) ∨
-      ∃ d, (∀ I w, (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w =
-        some (.ok (.goto s'.1 d, w))) ∧ R (s'.1, some s'.2.2, d) s) :
+      ∃ env d, (∀ I w, (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w =
+        some (.ok (.goto env d, w))) ∧ R (env, some s'.2.2, d) s) :
     Sim o c f' f R := by
   intro s' s hR I w' w hw
-  rcases h s' s hR with hl | ⟨d, hd, hRd⟩
+  rcases h s' s hR with hl | ⟨env, d, hd, hRd⟩
   · have hx := hl I w' w hw
     revert hx
     rcases (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w' with _ | (e' | ⟨n', w₁'⟩)
@@ -132,5 +134,16 @@ theorem Sim.of_steps {o : Oracle} {c : Ctx} {f' f : Func} {R : BState → BState
         | exact ⟨w₁, hx.1 ▸ runFrom_done hin, hx.2⟩
   · rw [hd]
     exact ⟨s, w, rfl, hRd, hw⟩
+
+/-- A simulation from blocks that step together, or output blocks that only jump without
+    changing anything (the input does not move). -/
+theorem Sim.of_steps {o : Oracle} {c : Ctx} {f' f : Func} {R : BState → BState → Prop}
+    (h : ∀ s' s, R s' s →
+      Approx (NextRel R s'.2.2 s.2.2) (stepBlock o c f' s'.1 s'.2.1 s'.2.2)
+        (stepBlock o c f s.1 s.2.1 s.2.2) ∨
+      ∃ d, (∀ I w, (stepBlock o c f' s'.1 s'.2.1 s'.2.2).exec I w =
+        some (.ok (.goto s'.1 d, w))) ∧ R (s'.1, some s'.2.2, d) s) :
+    Sim o c f' f R :=
+  Sim.of_steps_env fun s' s hR => (h s' s hR).imp id fun ⟨d, hd, hRd⟩ => ⟨s'.1, d, hd, hRd⟩
 
 end Fe.Sonatina.Steps
