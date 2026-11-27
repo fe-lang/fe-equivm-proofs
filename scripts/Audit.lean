@@ -5,14 +5,16 @@ import FeModel
 (`fe…ContractCorrect`), the refinement certificates (`fe…Refines…`), the conservation theorems
 (`…conserves…`) and the invariants through every call and from deployment (`fe…Keeps…`,
 `fe…Solvent…`), and the machine pipeline's theorems under `Fe.Sonatina` (`check_sound`,
-`checkSpills_sound`, `machine_sound_proved`, `StepKind.proved_sound`, each step kind's
+`checkSpills_sound`, `machine_sound_proved` and its variants, `machine_sound_sidecar`,
+`machine_sound_spills_sidecar`, `StepKind.proved_sound`, each step kind's
 `…_stepSound`, the known-bits invariant `kb_reaches` and `kb_point`).  Run:
 `lake lean scripts/Audit.lean`. -/
 open Lean
 
 #eval show CoreM Unit from do
   let machine := ["check_sound", "checkSpills_sound", "machine_sound_proved",
-    "machine_sound_proved_of_sound", "machine_sound_spills_proved", "proved_sound",
+    "machine_sound_proved_of_sound", "machine_sound_spills_proved", "machine_sound_sidecar",
+    "machine_sound_spills_sidecar", "proved_sound",
     "kb_reaches", "kb_point"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString
