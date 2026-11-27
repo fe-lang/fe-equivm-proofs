@@ -19,13 +19,16 @@ followed by `evm_mcopy`:
   `l_i`'s result at `d + 32 i`, `n ≥ 2`, the addresses as affine forms over the input's `add`/
   `sub` definitions (`addrNorm`: a base value or none, and an offset modulo `2 ^ 256`);
 - the copy is `evm_mcopy d s L` with `d` and `s` the first store's and first load's address
-  operands and `L` the literal `32 n`;
+  operands and `L` the literal `32 n`, below `2 ^ 256`;
 - each load's result has one use in the input function, its store;
-- all loads come before the first store (snapshot, `loadsFirst`), or both ranges are constant
-  and disjoint in `Nat`;
-- both ranges are constant, `s + L ≤ 2 ^ 256` and `d + L ≤ 2 ^ 256` in `Nat`, unless `allowBase`:
-  the interpreter's `mcopy` reads and writes at `Nat` addresses where the `add`s that build a
-  base-relative run's addresses wrap (review C-1, design §4.10's extra condition).
+- all loads come before the first store (snapshot, `loadsFirst`), or both ranges are constant,
+  end at or below `2 ^ 256` and are disjoint in `Nat`.
+
+The ranges may be base-relative and may end past `2 ^ 256`: the interpreter's `evm_mcopy`
+(`mcopyIR`) does not terminate when a range of the copy ends past `2 ^ 256` (review C-1), and
+below that the run's wrapping `add`s compute the copy's `Nat` addresses.  An interleaved run
+needs its constant ranges in bounds for `Nat` disjointness to mean that no load reads a word an
+earlier store of the run wrote.
 
 What may be deleted: the window's loads and other stores, and `add`/`sub` statements of the
 window; no result of a window statement the output does not keep is defined in the output
@@ -37,10 +40,6 @@ namespace Fe.Sonatina.Steps
 
 /-- `2 ^ 256`. -/
 abbrev W256 : Nat := 2 ^ 256
-
-/-- Base-relative runs: accepted only once the interpreter's `mcopy` diverges past `2 ^ 256`
-    (review C-1). -/
-def allowBase : Bool := false
 
 /-- The instruction defining `u`: a statement of a block the tree reaches, `u` its one result. -/
 def stmtOf (B : NatMap Block) (D : NatMap Def) (T : DomTree) (u : Nat) : Option Inst :=
@@ -147,12 +146,12 @@ def runOk (win : List Stmt) (mc : Stmt) : Bool :=
       -- addresses and values
       (loads.zipIdx.all fun (ld, i) => X.atOff sb i ld.1 && useCount X.f ld.2 == 1) &&
       ((stores.zip loads).zipIdx.all fun ((st, ld), i) => X.atOff db i st.1 && decide (st.2 = .var ld.2)) &&
-      -- in bounds
-      (allowBase || (sb.1.isNone && db.1.isNone && decide (sb.2 + L ≤ W256) &&
-        decide (db.2 + L ≤ W256))) &&
-      -- snapshot, or constant ranges disjoint in `Nat`
+      -- a length the copy's literal holds
+      decide (L < W256) &&
+      -- snapshot, or constant ranges in bounds and disjoint in `Nat`
       (loadsFirst win ||
-         (sb.1.isNone && db.1.isNone && (decide (sb.2 + L ≤ db.2) || decide (db.2 + L ≤ sb.2))))
+         (sb.1.isNone && db.1.isNone && decide (sb.2 + L ≤ W256) && decide (db.2 + L ≤ W256) &&
+           (decide (sb.2 + L ≤ db.2) || decide (db.2 + L ≤ sb.2))))
   | _, _, _ => false
 
 /-- `kept` is a subsequence of `win`'s arithmetic, and the window's other statements have no
