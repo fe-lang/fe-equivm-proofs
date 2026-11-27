@@ -16,18 +16,26 @@ Runs the handover semantics H (`Fe/Sonatina/H/`) on every sidecar under the dire
   - `mach`: blocks where the machine puts them, as far as the lowering record says
     (`arena_base`, each function's stable frame base word, `alloca`s in order within it, heap
     mallocs from the entry free pointer bumped by the heap requests, clamped by `min_base`, or
-    at their exact or fixed base), fresh bytes nonzero;
+    at their exact or fixed base), fresh bytes nonzero; an address word H does not allow
+    (`AddrOk`) is reported as a bad oracle, not replaced;
   - `far`: blocks far apart in reverse order of allocation, other nonzero bytes;
   - `zero`: blocks packed close, overlapping, zero bytes;
 - `CALL <file> <section> <oracle> <verdict> <input>: M … | H …` for each oracle's outcome that
-  is not `.ends` agreeing with the machine IR's (`ub` with its cause, `exhausted`, `stuck`,
-  out of fuel, a bad oracle, a disagreement), `UB <file> <section> <oracle> <cause> <where>`
-  for each `ub`, and `ORACLES <file> <section> <input>: …` when the oracles' outcomes differ;
+  is not `.ends` agreeing with the machine IR's (`ub` of cause `literal` or `OTHER`,
+  `exhausted`, `stuck`, `diverge`, out of fuel, a bad oracle, a disagreement),
+  `UB <file> <section> <oracle> <cause> <where>` for each `ub`, and
+  `ORACLES <file> <section> <input>: …` when the oracles' outcomes differ;
 - `SUM <file> …` per sidecar and `TOTAL …` at the end.
 
+An H run and a machine run agree when they end as `EndsAs` says: the same exit, or the same
+return data, accounts, logs and recorded calls, each call compared field by field (`madeEq`).
+`diverge` counts H runs in which the model library's run does not terminate (too much init
+code, an exhausted feed): divergence the model intends, apart from `stuck`.
+
 A `ub`'s cause: `panic` (an access at a literal address in a block that ends
-`evm_revert 0 36`, Fe's panic payload), `immutables` (any other literal-address access of an init
-section: the hand-off of immutable fields, checked by hand), `literal` (another literal-address access) or `OTHER`.
+`evm_revert 0 36`, Fe's panic payload), `immutables` (in an init section, the hand-off of the
+immutable fields through address 0: a store `mstore 0 v i256` of a value in a block that
+returns, or a load `mload 0 i256`), `literal` (another literal-address access) or `OTHER`.
 
 Run with `HDIFF_DIR=<dir> lake lean scripts/HDiff.lean`; `HDIFF_SEQ` and `HDIFF_CALLS` set the
 sequences per contract and calls per sequence (4 and 16).
@@ -84,15 +92,13 @@ def placementOf (json : Json) (name : String) (h : HSection) : Placement := Id.r
           off := off + (H.sizeOf h.module.structs H.sizeFuel ty).getD 0
   return p
 
-def fix (a n : Nat) : Nat := if H.AddrOk a n then a else 1
-
 def machOracle (p : Placement) : Oracle where
-  addr i := fix (match i.kind with
+  addr i := match i.kind with
     | .alloca => (p.frameBase.getD i.func p.arenaBase) + p.allocaOff.getD (i.func, i.site) 0
     | .malloc => match p.mallocs.get? (i.func, i.site) with
       | some (_, some base) => base
       | some (minBase, none) => max (p.freePtr + i.heapReq) minBase
-      | none => p.freePtr + i.heapReq) i.size
+      | none => p.freePtr + i.heapReq
   fresh i k := UInt8.ofNat (1 + (i.id * 37 + k * 11) % 255)
 
 def farOracle : Oracle where
@@ -108,20 +114,46 @@ def oracles (p : Placement) : List (String × Oracle) :=
 
 /-! ## Comparing -/
 
+def toExecuteEq : ToExecute → ToExecute → Bool
+  | .Code a, .Code b => a == b
+  | .Precompiled a, .Precompiled b => a == b
+  | _, _ => false
+
+def blocksEq (a b : ProcessedBlocks) : Bool :=
+  a.size == b.size && (a.toList.zip b.toList).all fun (x, y) =>
+    x.hash == y.hash && x.blockHeader == y.blockHeader && x.σ == y.σ
+
+/-- Two recorded calls or creations are the same: every input passed to `Θ` or `Lambda`. -/
+def madeEq : Made → Made → Bool
+  | .theta T, .theta T' =>
+    T.σ == T'.σ && T.σ₀ == T'.σ₀ && T.A == T'.A && T.s == T'.s && T.o == T'.o && T.r == T'.r &&
+      toExecuteEq T.c T'.c && T.g == T'.g && T.p == T'.p && T.v == T'.v && T.v' == T'.v' &&
+      T.d == T'.d && T.e == T'.e && T.H == T'.H && T.bvh == T'.bvh &&
+      blocksEq T.blocks T'.blocks && T.w == T'.w
+  | .lambda L, .lambda L' =>
+    L.σ == L'.σ && L.σ₀ == L'.σ₀ && L.A == L'.A && L.s == L'.s && L.o == L'.o && L.g == L'.g &&
+      L.p == L'.p && L.v == L'.v && L.i == L'.i && L.e == L'.e && L.ζ == L'.ζ && L.H == L'.H &&
+      L.bvh == L'.bvh && blocksEq L.blocks L'.blocks && L.w == L'.w
+  | _, _ => false
+
+/-- The recorded calls are the same, in order (`EndsAs`'s `w'.calls = w.calls`). -/
+def callsEq (a b : List Made) : Bool :=
+  a.length == b.length && (a.zip b).all fun (x, y) => madeEq x y
+
 def exitEq : Exit World → Exit World → Bool
   | .revert a, .revert b => a == b
   | .panic a, .panic b => a == b
   | .static, .static | .trap, .trap | .oob, .oob => true
   | .stop a w, .stop b w' => a == b && w.accounts == w'.accounts && w.logs == w'.logs &&
-      w.calls.length == w'.calls.length
+      callsEq w.calls w'.calls
   | _, _ => false
 
-/-- `EndsAs (some a) (some b)`, decided up to the calls made, which are compared by number. -/
+/-- `EndsAs (some a) (some b)`, decided. -/
 def endsAs : Except (Exit World) (ByteArray × World) → Except (Exit World) (ByteArray × World) →
     Bool
   | .error (.stop o w), .ok (o', w') | .ok (o, w), .ok (o', w')
   | .ok (o, w), .error (.stop o' w') =>
-    o == o' && w.accounts == w'.accounts && w.logs == w'.logs && w.calls.length == w'.calls.length
+    o == o' && w.accounts == w'.accounts && w.logs == w'.logs && callsEq w.calls w'.calls
   | .error (.panic c), .error (.revert d) => d == panicData c
   | .error e, .error e' => exitEq e e'
   | _, _ => false
@@ -134,6 +166,7 @@ def describeH : RRes (List H.Val × H.State) → String
   | .halt .ub at_ => s!"ub at {at_}"
   | .halt .exhausted at_ => s!"exhausted at {at_}"
   | .stuck why => s!"stuck: {why}"
+  | .diverge at_ => s!"the model library diverges at {at_}"
   | .fuel => "out of fuel"
   | .badOracle why => s!"bad oracle: {why}"
   | .ok _ => "returns from the section entry"
@@ -144,6 +177,7 @@ def keyH : RRes (List H.Val × H.State) → String
   | .halt .ub _ => "ub"
   | .halt .exhausted _ => "exhausted"
   | .stuck _ => "stuck"
+  | .diverge _ => "diverge"
   | .fuel => "fuel"
   | .badOracle _ => "badOracle"
   | .ok _ => "ok"
@@ -176,8 +210,12 @@ def ubCause (sec : String) (h : HSection) (at_ : String) : String :=
       | none => match b.term with
         | .base (.evmRevert a l) | .base (.evmReturn a l) => literal a && l != .imm 256 0
         | _ => false
+    let handoff := sec == "init" && (match i with
+      | some (.base (.mstore (.imm _ 0) (.var _) (.int 256))) => (b.term matches .base (.ret []))
+      | some (.base (.mload (.imm _ 0) (.int 256))) => true
+      | _ => false)
     if lit && panicBlock then "panic"
-    else if lit && sec == "init" then "immutables"
+    else if handoff then "immutables"
     else if lit then "literal"
     else "OTHER"
   | none => "OTHER"
@@ -196,6 +234,7 @@ structure Tally where
   ub : Std.HashMap String Nat := {}
   exhausted : Nat := 0
   stuck : Nat := 0
+  diverge : Nat := 0
   fuel : Nat := 0
   badOracle : Nat := 0
   oracleDisagree : Nat := 0
@@ -214,6 +253,7 @@ def Tally.add (a b : Tally) : Tally where
   ub := b.ub.fold (fun m k v => m.insert k (m.getD k 0 + v)) a.ub
   exhausted := a.exhausted + b.exhausted
   stuck := a.stuck + b.stuck
+  diverge := a.diverge + b.diverge
   fuel := a.fuel + b.fuel
   badOracle := a.badOracle + b.badOracle
   oracleDisagree := a.oracleDisagree + b.oracleDisagree
@@ -225,7 +265,7 @@ def Tally.fields (t : Tally) : String :=
   let ubs := t.ub.toList.mergeSort (fun a b => a.1 ≤ b.1) |>.map fun (k, v) => s!"ub_{k}={v}"
   s!"frames={t.frames} outOfGas={t.outOfGas} agree={t.agree} runs={t.runs} ends={t.ends} \
     disagree={t.disagree} {" ".intercalate ubs} exhausted={t.exhausted} stuck={t.stuck} \
-    fuel={t.fuel} badOracle={t.badOracle} oracleDisagree={t.oracleDisagree} \
+    diverge={t.diverge} fuel={t.fuel} badOracle={t.badOracle} oracleDisagree={t.oracleDisagree} \
     machineDiverges={t.machineDiverges} machineVsBytes={t.machineVsBytes} success={t.success}"
 
 def hFuel : Nat := 20000000
@@ -272,7 +312,7 @@ def frame (file sec input : String) (h : HSection) (os : List (String × Oracle)
         let cause := ubCause sec h at_
         t := { t with ub := t.ub.insert cause (t.ub.getD cause 0 + 1) }
         IO.println s!"UB {file} {sec} {oname} {cause} {at_}"
-        if cause == "OTHER" then say "UB-OTHER"
+        if cause == "OTHER" || cause == "literal" then say s!"UB-{cause.toUpper}"
       | .halt .exhausted _, _ =>
         allAgree := false
         t := { t with exhausted := t.exhausted + 1 }
@@ -281,6 +321,10 @@ def frame (file sec input : String) (h : HSection) (os : List (String × Oracle)
         allAgree := false
         t := { t with stuck := t.stuck + 1 }
         say "STUCK"
+      | .diverge _, _ =>
+        allAgree := false
+        t := { t with diverge := t.diverge + 1 }
+        say "DIVERGE"
       | .fuel, _ =>
         allAgree := false
         t := { t with fuel := t.fuel + 1 }
