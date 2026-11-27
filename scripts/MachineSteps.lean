@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.Machine
+import Fe.Sonatina.Parse
 
 /-!
 `lake lean scripts/MachineSteps.lean -- --run scripts/MachineSteps.lean <kinds> <sidecar>...`
