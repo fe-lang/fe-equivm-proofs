@@ -1,12 +1,11 @@
 import Fe.Sonatina.Steps.Machine
-import Fe.Sonatina.Steps.Read
 
 /-!
 `lake lean scripts/MachineSteps.lean -- --run scripts/MachineSteps.lean <kinds> <sidecar>...`
 (`lake lean` locates each module, as this package and fe-spec share the root `Fe`; `--run`
 takes the file after it): for each section of each version-5 sidecar, whether `validateWith`
-with the comma-separated step kinds accepts its record against its machine IR, and if not, the
-first step that fails and why.  Interpreted, not kernel-evaluated: the verdicts are
+with the comma-separated step kinds accepts its record (`Lowering.machineSteps`) against its
+machine IR, and if not, the first step that fails and why.  Interpreted, not kernel-evaluated: the verdicts are
 `validateWith`'s, the reasons a diagnostic replay of it.  `validate` takes the proved kinds
 only (`StepKind.proved`); naming others here measures their unproved checkers.
 
@@ -14,6 +13,12 @@ With `steps` for the kinds: every function step of every section, its kind and i
 verdict (`ACCEPT`, `REJECT` with the reason, or `UNPROVED` for a kind with no checker), and every
 pass whose summary table fails (`SUMMARIES`); the replay goes on past rejected steps, trusting
 the record.
+
+With `sidecar` for the kinds: per sidecar, which theorem applies (`THEOREM`): (a) `s.validate`
+and `check s`, so `machine_sound_sidecar`, no hypothesis; (b) `s.validate` and `checkSpills s`
+but not `check s`, so only `machine_sound_spills_sidecar`, under `FrameSafe s`, with why `check`
+rejects; (c) neither, with the first reason: the first section whose record `validate` rejects
+and why, else why `checkSpills` rejects.  A last line counts each.
 -/
 
 open Fe.Sonatina Fe.Sonatina.Steps
@@ -168,28 +173,56 @@ def diagnose (allowed : List StepKind) (syms : List String) (r : MachineSteps) (
   if !sameFuncs M final then return some "final: composed module differs from machine_ir"
   return none
 
+/-- Why the byte checker rejects the sidecar under the spill plans `plan`. -/
+def bytesWhy (s : Sidecar) (plan : String → SpillPlan) : String :=
+  match Check.checkAll plan s with
+  | .error e => e
+  | .ok () => "fixed-slot spill over IR data (fixedSlotsSafe)"
+
+/-- Which theorem applies to the sidecar, (a), (b) or (c), and why not a better one. -/
+def theoremOf (s : Sidecar) : String × String := Id.run do
+  if !s.validate then
+    for n in ["runtime", "init"] do
+      if let some why := diagnose StepKind.proved (s.symbolsOf n) (s.stepsOf n) (s.machineOf n)
+      then return ("c", s!"validate: {n}: {why}")
+    return ("c", "validate rejects")
+  if Check.check s then return ("a", "machine_sound_sidecar")
+  if !Check.checkSpills s then return ("c", s!"checkSpills: {bytesWhy s s.spillPlan}")
+  let why := if s.noSpills then bytesWhy s fun _ => [] else "memory spills"
+  return ("b", s!"machine_sound_spills_sidecar (FrameSafe); check: {why}")
+
 def main (args : List String) : IO Unit := do
   let kinds :: files := args | throw (IO.userError "usage: <kinds> <sidecar>...")
   let allowed := (kinds.splitOn ",").filterMap fun k => StepKind.all.find? (·.name == k)
+  let mut tally : List (String × Nat) := [("a", 0), ("b", 0), ("c", 0), ("NOT READ", 0)]
   for path in files do
     let text ← IO.FS.readFile path
     match Parse.parseSidecar text with
-    | .error e => IO.println s!"{path}\tNOT READ\tsidecar: {e}"
+    | .error e =>
+      IO.println s!"{path}\tNOT READ\tsidecar: {e}"
+      tally := tally.map fun (k, n) => (k, if k == "NOT READ" then n + 1 else n)
     | .ok s =>
+      if kinds == "sidecar" then
+        let (v, why) := theoremOf s
+        IO.println s!"{path}\tTHEOREM\t{v}\t{why}"
+        tally := tally.map fun (k, n) => (k, if k == v then n + 1 else n)
+        continue
       for sec in s.sections do
         let some low := sec.lowering | IO.println s!"{path}\t{sec.name}\tNO LOWERING"
-        match Read.sectionSteps text sec.name with
-        | .error e => IO.println s!"{path}\t{sec.name}\tNOT READ\tmachine_steps: {e}"
-        | .ok none => IO.println s!"{path}\t{sec.name}\tNO RECORD"
-        | .ok (some r) =>
-          if kinds == "steps" then
-            for l in stepReport (sec.symbols.map (·.1)) r low.machine do
-              IO.println s!"{path}\t{sec.name}\t{l}"
-            continue
-          let kindsPresent := (r.kinds.eraseDups.map (·.name))
-          let syms := sec.symbols.map (·.1)
-          let verdict := validateWith allowed syms r low.machine
-          let reason := (diagnose allowed syms r low.machine).getD "-"
-          let size := low.machine.funcs.foldl (fun n f => n + f.blocks.foldl
-            (fun n b => n + b.phis.length + b.body.length + 1) 0) 0
-          IO.println s!"{path}\t{sec.name}\t{if verdict then "ACCEPT" else "REJECT"}\t{reason}\tinsts={size}\tkinds={kindsPresent}"
+        let r := low.machineSteps
+        if r.lowered.isEmpty && r.passes.isEmpty then
+          IO.println s!"{path}\t{sec.name}\tEMPTY RECORD"
+          continue
+        if kinds == "steps" then
+          for l in stepReport (sec.symbols.map (·.1)) r low.machine do
+            IO.println s!"{path}\t{sec.name}\t{l}"
+          continue
+        let kindsPresent := (r.kinds.eraseDups.map (·.name))
+        let syms := sec.symbols.map (·.1)
+        let verdict := validateWith allowed syms r low.machine
+        let reason := (diagnose allowed syms r low.machine).getD "-"
+        let size := low.machine.funcs.foldl (fun n f => n + f.blocks.foldl
+          (fun n b => n + b.phis.length + b.body.length + 1) 0) 0
+        IO.println s!"{path}\t{sec.name}\t{if verdict then "ACCEPT" else "REJECT"}\t{reason}\tinsts={size}\tkinds={kindsPresent}"
+  if kinds == "sidecar" then
+    IO.println s!"TOTAL\t{" ".intercalate (tally.map fun (k, n) => s!"{k}={n}")}"

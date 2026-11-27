@@ -1,6 +1,6 @@
 import Fe.Sonatina.Steps.SchemasStep
 import Fe.Sonatina.Steps.Validate
-import Fe.Sonatina.Steps.Read
+import Fe.Sonatina.Parse
 
 /-!
 `lake lean scripts/SchemasSteps.lean -- --run scripts/SchemasSteps.lean [--mutate-facts |
@@ -286,32 +286,29 @@ def main (args : List String) : IO Unit := do
     | .ok s =>
       for sec in s.sections do
         let some low := sec.lowering | pure ()
-        match Read.sectionSteps text sec.name with
-        | .error e => IO.println s!"{path}\t{sec.name}\t-\t-\tNOT READ\tmachine_steps: {e}"
-        | .ok none => pure ()
-        | .ok (some r) =>
-          let mut M := r.module low.machine.structs
-          let mut I := r.ids
-          for p in r.passes do
-            for st in p.steps do
-              if st.kind == StepKind.sccpFold || st.kind == StepKind.knownBitsSimplify ||
-                  st.kind == StepKind.scalarCanonicalize then
-                for fs in st.funcs do
-                  let pre := s!"{path}\t{sec.name}\t{st.kind.name}\t{fs.func}"
-                  let F := fs.facts
-                  match M.func? fs.func with
-                  | none => IO.println s!"{pre}\tREJECT\tno such function"
-                  | some f =>
-                    let ids := I.lookup fs.func
-                    if mode == "facts" then
-                      for (nm, F') in factMutants f F do
-                        IO.println s!"{pre}\tMUT:{nm}\t{if check st.kind f ids fs.out F' then "ACCEPT" else "REJECT"}"
-                    else if mode == "out" then
-                      for (nm, s') in outMutants f (ids.getD []) fs.out do
-                        IO.println s!"{pre}\tMUT:{nm}\t{if check st.kind f ids s' F then "ACCEPT" else "REJECT"}"
-                    else
-                      let ok := check st.kind f ids fs.out F
-                      let why := (diagnose st.kind f ids fs.out F).getD "-"
-                      IO.println s!"{pre}\t{if ok then "ACCEPT" else "REJECT"}\t{why}"
-              M := stepOut M st.funcs
-              I := stepIds I st.funcs
+        let r := low.machineSteps
+        let mut M := r.module low.machine.structs
+        let mut I := r.ids
+        for p in r.passes do
+          for st in p.steps do
+            if st.kind == StepKind.sccpFold || st.kind == StepKind.knownBitsSimplify ||
+                st.kind == StepKind.scalarCanonicalize then
+              for fs in st.funcs do
+                let pre := s!"{path}\t{sec.name}\t{st.kind.name}\t{fs.func}"
+                let F := fs.facts
+                match M.func? fs.func with
+                | none => IO.println s!"{pre}\tREJECT\tno such function"
+                | some f =>
+                  let ids := I.lookup fs.func
+                  if mode == "facts" then
+                    for (nm, F') in factMutants f F do
+                      IO.println s!"{pre}\tMUT:{nm}\t{if check st.kind f ids fs.out F' then "ACCEPT" else "REJECT"}"
+                  else if mode == "out" then
+                    for (nm, s') in outMutants f (ids.getD []) fs.out do
+                      IO.println s!"{pre}\tMUT:{nm}\t{if check st.kind f ids s' F then "ACCEPT" else "REJECT"}"
+                  else
+                    let ok := check st.kind f ids fs.out F
+                    let why := (diagnose st.kind f ids fs.out F).getD "-"
+                    IO.println s!"{pre}\t{if ok then "ACCEPT" else "REJECT"}\t{why}"
+            M := stepOut M st.funcs
+            I := stepIds I st.funcs

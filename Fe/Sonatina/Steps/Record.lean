@@ -5,9 +5,9 @@ import Fe.Sonatina.Steps.SchemasFacts
 # The record of the machine pipeline's steps
 
 `MachineSteps` is the record a section's lowering carries in sidecar version 5
-(`machine_steps`, design §3.1): the machine IR of every function of the section right after
-lowering, and per pass the steps that changed it, each with the whole of every function it
-changed.  `Steps/Read.lean` reads it from the sidecar's JSON.
+(`machine_steps`, design §3.1; `Lowering.machineSteps`): the machine IR of every function of the
+section right after lowering, and per pass the steps that changed it, each with the whole of
+every function it changed.  `Parse.parseMachineSteps` reads it from the sidecar's JSON.
 
 Instruction ids are a side array (design §2.2): per function, per block in layout order, the id
 of each line of its text, its phis first and its terminator last.
@@ -87,7 +87,6 @@ structure Pass where
   deriving Repr, Inhabited, Lean.ToExpr
 
 structure MachineSteps where
-  version : Nat
   profile : String
   lowered : List FuncSnap
   passes : List Pass

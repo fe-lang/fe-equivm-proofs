@@ -1,0 +1,25 @@
+v4_ok	
+v5_no_steps	property not found: machine_steps
+v5_null_steps	machine_steps: not an object
+v4_steps	machine_steps in a version 4 sidecar
+passes_object	array
+unknown_kind	unknown step kind sccp_prune_all
+key_record	machine_steps: unknown key version
+key_pass	pass: unknown key foo
+key_step	step: unknown key foo
+key_func_step	function step: unknown key func
+key_snapshot	snapshot: unknown key foo
+key_lowered	snapshot: unknown key foo
+key_summary	func_behavior: unknown key foo
+key_facts_null	facts: unknown key foo
+missing_facts	function step: no key facts
+null_facts	facts: not an object
+missing_fact_key	facts: no key ranges
+key_sccp	sccp: unknown key foo
+missing_dead_edges	sccp: no key dead_edges
+key_gvn	gvn: unknown key foo
+gvn_operand	gvn: not an operand
+key_gvn_phi	gvn phi: no key term
+key_loop	finite loop: unknown key foo
+dup_lowered	lowered: a function twice
+dup_step	sccp_prune step of pass sccp: a function twice

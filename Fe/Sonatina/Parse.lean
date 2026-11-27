@@ -1,4 +1,4 @@
-import Fe.Sonatina.Syntax
+import Fe.Sonatina.Sidecar
 import Lean.Data.Json
 import Lean.Elab.Command
 
@@ -9,14 +9,22 @@ import Lean.Elab.Command
 line, and `parseSidecar` the JSON `fe build --emit sidecar` writes: that text, and the bytes and
 symbols of each section compiled from it.  An instruction outside the subset of `Syntax.lean` is
 an error, not skipped.  In a sidecar, what the checker reads (the object declarations, and per
-section the bytes, symbols, machine IR and hints) must be read; the module after optimization
-and a section's IR before machine lowering are `none` where they are outside the subset, and a
-model of either level is then stuck.
+section the bytes, symbols, machine IR, hints and record of machine steps) must be read; the
+module after optimization and a section's IR before machine lowering are `none` where they are
+outside the subset, and a model of either level is then stuck.
+
+`parseMachineSteps` reads a section lowering's record of machine steps (`machine_steps`, design
+§3.1), which version 5 has in every section's lowering and version 4 in none.  It reads the
+record strictly: every key the writer (`SidecarMachineSteps` of Fe's `sidecar.rs`) writes must
+be there, a key it does not write is an error, and so are a step kind outside `StepKind.all` and
+a function twice in the lowered functions or in one step.  Each snapshot's text is one function
+as `FuncWriter` prints it, read by `parseModule`.
 
 `sonatina_sidecar name "path"` reads a sidecar when it elaborates and defines `name` as the
 `Sidecar` it holds, so that the IR is a term of its own.  The parser runs only then; nothing
 about it needs to be proved, since a misread module is a different module, which the bytecode
-then fails to implement.
+then fails to implement, and a misread record a different record, which then fails to validate
+against the machine IR or is about other IR than the bytes.
 -/
 
 namespace Fe.Sonatina.Parse
@@ -449,7 +457,92 @@ def parseLabel (json : Json) : P CodeLabel := do
   | ("inst", _) => return .inst
   | (name, _) => throw s!"unknown code label {name}"
 
-def parseLowering (json : Json) : P Lowering := do
+/-! ## The record of machine steps -/
+
+section Record
+
+open Steps
+
+/-- No function is named twice. -/
+def distinctNames (what : String) (names : List String) : P Unit := do
+  unless names.eraseDups.length == names.length do throw s!"{what}: a function twice"
+
+/-- A function snapshot: its text, of exactly one function of the name given, and the
+    instruction ids of each block's lines, as many as the block has lines. -/
+def parseFuncSnap (j : Json) : P FuncSnap := do
+  Schemas.exactKeys "snapshot" ["func", "func_ref", "text", "insts"] j
+  let name ← j.getObjValAs? String "func"
+  let m ← parseModule (← j.getObjValAs? String "text")
+  let [f] := m.funcs | throw s!"snapshot of {name}: not one function"
+  unless f.name == name do throw s!"snapshot of {name} holds {f.name}"
+  let insts ← j.getObjValAs? (List (List Nat)) "insts"
+  unless insts.length == f.blocks.length &&
+      (insts.zip f.blocks).all (fun (ids, b) => ids.length == b.phis.length + b.body.length + 1) do
+    throw s!"snapshot of {name}: instruction ids do not match its lines"
+  return ⟨f, ← j.getObjValAs? Nat "func_ref", insts⟩
+
+def parseStepKind (s : String) : P StepKind :=
+  match StepKind.all.find? (·.name == s) with
+  | some k => pure k
+  | none => throw s!"unknown step kind {s}"
+
+/-- The keys of a function step's facts (`SidecarStepFacts`). -/
+def factKeys : List String :=
+  ["known_bits", "demanded_bits", "sccp", "finite_loops", "gvn", "ranges"]
+
+/-- A step's facts, each kept as its key and its JSON, for `Schemas.readFacts`; keys whose value
+    is empty (`[]` or `null`, as every key of a step without facts is) are dropped, but for
+    `demanded_bits`, where `[]` is a demand round in which no value has a demanded bit. -/
+def parseFacts (j : Json) : P (List (String × String)) := do
+  Schemas.exactKeys "facts" factKeys j
+  return (← j.getObj?).toList.filterMap fun (k, v) => match v with
+    | .null => none
+    | .arr a => if a.isEmpty && k != "demanded_bits" then none else some (k, v.compress)
+    | v => some (k, v.compress)
+
+def parseSummary (j : Json) : P Summary := do
+  Schemas.exactKeys "func_behavior"
+    ["func", "noreturn", "will_return", "reads", "writes", "mutates"] j
+  return { func := ← j.getObjValAs? String "func"
+           noreturn := ← j.getObjValAs? Bool "noreturn"
+           willReturn := ← j.getObjValAs? Bool "will_return"
+           reads := ← j.getObjValAs? Bool "reads"
+           writes := ← j.getObjValAs? Bool "writes"
+           mutates := ← j.getObjValAs? Bool "mutates" }
+
+/-- The record, as sidecar version 5 writes it (`SidecarMachineSteps`): a pass's `kind`, a
+    function step named by its `out`. -/
+def parseMachineSteps (j : Json) : P MachineSteps := do
+  Schemas.exactKeys "machine_steps" ["profile", "lowered", "passes"] j
+  let lowered ← (← j.getObjValAs? (Array Json) "lowered").toList.mapM parseFuncSnap
+  distinctNames "lowered" (lowered.map (·.func.name))
+  let passes ← (← j.getObjValAs? (Array Json) "passes").toList.mapM fun p => do
+    Schemas.exactKeys "pass" ["kind", "func_behavior", "steps"] p
+    let name ← p.getObjValAs? String "kind"
+    let funcBehavior ← match ← p.getObjVal? "func_behavior" with
+      | .null => pure none
+      | b => some <$> ((← b.getArr?).toList.mapM parseSummary)
+    let steps ← (← p.getObjValAs? (Array Json) "steps").toList.mapM fun st => do
+      Schemas.exactKeys "step" ["kind", "funcs"] st
+      let kind ← parseStepKind (← st.getObjValAs? String "kind")
+      let funcs ← (← st.getObjValAs? (Array Json) "funcs").toList.mapM fun fs => do
+        Schemas.exactKeys "function step" ["out", "facts"] fs
+        let out ← parseFuncSnap (← fs.getObjVal? "out")
+        return ({ func := out.func.name
+                  out
+                  facts := ← Schemas.readFacts (← parseFacts (← fs.getObjVal? "facts")) } :
+                FuncStep)
+      distinctNames s!"{kind.name} step of pass {name}" (funcs.map (·.func))
+      return ({ kind, funcs } : Step)
+    return ({ name, funcBehavior, steps } : Pass)
+  return { profile := ← j.getObjValAs? String "profile", lowered, passes }
+
+end Record
+
+/-- A section's lowering, in a sidecar of version `version`: version 5 has a record of machine
+    steps (`machine_steps`), which must be there and be read, version 4 none, whose lowering
+    then has the empty record. -/
+def parseLowering (version : Nat) (json : Json) : P Lowering := do
   let funcs ← (← json.getObjValAs? (Array Json) "funcs").toList.mapM fun f => do
     let blocks ← (← f.getObjValAs? (Array Json) "blocks").toList.mapM fun b => do
       return ({ block := ← b.getObjValAs? Nat "block"
@@ -487,10 +580,14 @@ def parseLowering (json : Json) : P Lowering := do
            arenaBase := ← json.getObjValAs? Nat "arena_base"
            dynBase := ← json.getObjValAs? Nat "dyn_base"
            entryFreePtr := ← json.getObjValAs? (Option Nat) "entry_free_ptr"
-           funcs, units, redirects }
+           funcs, units, redirects
+           machineSteps := ← match version, json.getObjVal? "machine_steps" with
+             | 4, .error _ => pure default
+             | 4, .ok _ => throw "machine_steps in a version 4 sidecar"
+             | _, r => do parseMachineSteps (← r) }
 
-/-- The sidecar versions this reader reads: 5 adds `machine_steps` to a section's lowering,
-    which `Steps/Read.lean` reads. -/
+/-- The sidecar versions this reader reads: 5 adds `machine_steps` to a section's lowering
+    (`parseMachineSteps`). -/
 def sidecarVersions : List Nat := [4, 5]
 
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
@@ -511,7 +608,7 @@ def parseSidecar (text : String) : P Sidecar := do
     let bytecode ← hexBytes (← s.getObjValAs? String "bytecode")
     let lowering ← match ← s.getObjVal? "lowering" with
       | .null => pure none
-      | l => some <$> parseLowering l
+      | l => some <$> parseLowering version l
     return (⟨← s.getObjValAs? String "name", bytecode, symbols, lowering⟩ : CodeSection)
   return ⟨← json.getObjValAs? String "object", objects, module, sections⟩
 

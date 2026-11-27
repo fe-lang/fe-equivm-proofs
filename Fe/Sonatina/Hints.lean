@@ -1,4 +1,4 @@
-import Fe.Sonatina.Syntax
+import Fe.Sonatina.Sidecar
 import Ethereum.Semantics
 
 /-!
