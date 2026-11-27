@@ -131,9 +131,11 @@ write("kb_and_arg_nofact.json", one(KBS, arg_in, arg_out, facts()))
 bf_in = snap("f", ["v0.i256", "v9.i256"], R, [(0, ["v2.i256 = add v0 v9", "v1.i256 = and v2 255.i256", "return v1"])], [[0, 1, 2]])
 bf_out = snap("f", ["v0.i256", "v9.i256"], R, [(0, ["v2.i256 = add v0 v9", "return v2"])], [[0, 2]])
 write("kb_and_badfact.json", one(KBS, bf_in, bf_out, facts(kb=[(2, M ^ 255, 0)])))
-# Rejected: an unknown fact key for the step's kind is not ignored.
-write("kb_add0_unread.json", one(KBS, add_in, add_out, facts(gvn={"class": [[1, {"value": 2}]]})))
-write("sc_const_unread.json", one(SCCP, sc_in, sc_out, facts(consts=[(1, 128)], gvn={"class": [[1, {"value": 2}]]})))
+# Rejected: an unknown fact key for the step's kind is not ignored (`ranges`, which no checker
+# reads).
+write("kb_add0_unread.json", one(KBS, add_in, add_out, dict(facts(), ranges={"unreachable": [0]})))
+write("sc_const_unread.json", one(SCCP, sc_in, sc_out,
+    dict(facts(consts=[(1, 128)]), ranges={"unreachable": [0]})))
 
 # Review 13, finding 1: 52 table slots to block1 exhaust execSet's fuel before block2.
 cases = " ".join(f"({k}.i256 block1)" for k in range(51)) + " (51.i256 block2)"

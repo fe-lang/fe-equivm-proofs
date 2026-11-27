@@ -2,12 +2,13 @@ import Fe.Sonatina.Steps.KnownBitsInv
 import Fe.Sonatina.Steps.CoalesceSound
 
 /-!
-# What the alias check of `known_bits_simplify` and `sccp_fold` gives
+# What the alias check of `known_bits_simplify`, `sccp_fold` and `scalar_canonicalize` gives
 
 The shared check (`aliasReject`) accepting `f` to `s.func` gives, block for block (`AF`,
 `aliasReject_spec`, `AF.block`): the output block of each id has the input block's phis, in
 order, less some, each with `σ` applied to its operands; the input block's statements likewise,
-or, in `sccp_fold`, replaced in place (`replaceOk`); the input block's terminator with `σ`
+or, in `sccp_fold` and `scalar_canonicalize`, replaced in place (`replaceOk`); the input block's
+terminator with `σ`
 applied.  The lines left over are deleted (`deletable`) and define no value of the output; the
 values `σ` maps that a kept line reads have justified entries (`entryOk`).  `pairUp` is a merge
 of the output's lines into the input's (`Merge`), split by kind (`Merge.split`) into phis,
@@ -352,7 +353,8 @@ structure AF (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (pairs : List 
   ssaOut : ssaOk s.func = true
   deletable : ∀ L ∈ deleted, deletable L = true
   changed : ∀ p ∈ pairs, lineEq (mapLine σ p.1) p.2 = true ∨
-    (m = .sccp ∧ ∃ a b, p = (Line.stmt a, Line.stmt b) ∧ replaceOk (ctxOf m f s F) a b = true)
+    ((m = .sccp ∨ m = .scalar) ∧ ∃ a b, p = (Line.stmt a, Line.stmt b) ∧
+      replaceOk m (ctxOf m f s F) a b = true)
   kb : kbFactsOk (ctxOf m f s F).inB (ctxOf m f s F).inD F = true
   keys : ∀ p ∈ pairs, ∀ v, Operand.var v ∈ lineOps p.1 → ∀ x, σ.find? v = some x →
     entryOk (ctxOf m f s F) m (deleted.flatMap lineDefs) 3 v x = true
@@ -427,7 +429,8 @@ theorem aliasReject_spec {m : Mode} {f : Func} {ids : Option (List (List Nat))} 
     · right
       obtain ⟨L, L'⟩ := p
       cases m <;> cases L <;> cases L' <;> simp only [Bool.false_eq_true] at h1
-      exact ⟨rfl, _, _, rfl, h1⟩
+      · exact ⟨Or.inl rfl, _, _, rfl, h1⟩
+      · exact ⟨Or.inr rfl, _, _, rfl, h1⟩
   · simp only [Bool.or_eq_true] at hkb
     rcases hkb with hkb | hkb
     · exact kbFactsOk_nil hkb
@@ -519,7 +522,7 @@ theorem AF.phi (A : AF m f s F pairs deleted σ) {φ φ' : Phi}
 
 theorem AF.stmt (A : AF m f s F pairs deleted σ) {a b : Stmt}
     (h : (Line.stmt a, Line.stmt b) ∈ pairs) :
-    b = a.mapOps (subst σ) ∨ (m = .sccp ∧ replaceOk (ctxOf m f s F) a b = true) := by
+    b = a.mapOps (subst σ) ∨ ((m = .sccp ∨ m = .scalar) ∧ replaceOk m (ctxOf m f s F) a b = true) := by
   rcases A.changed _ h with h | ⟨hm, a', b', he, hr⟩
   · exact Or.inl (lineEq_stmt h).symm
   · simp only [Prod.mk.injEq, Line.stmt.injEq] at he
@@ -532,18 +535,58 @@ theorem AF.term (A : AF m f s F pairs deleted σ) {a b : Fe.Sonatina.Term}
   · exact (lineEq_term h).symm
   · cases he
 
-theorem replaceOk_spec {X : StepCtx} {a b : Stmt} (h : replaceOk X a b = true) :
-    a.dsts = b.dsts ∧ (∃ x, b.inst = .isZero x) ∧ ∃ dd ∈ depths, ∃ t t',
-      instTerm X.inB X.inD X.cs dd.1 a.inst = some t ∧
-      instTerm X.outB X.outD X.cs dd.2 b.inst = some t' ∧ checkExact (kbOf X.K) t t' = true := by
+/-- The input's unfolding a replacement's term was built with. -/
+def InUnfold (X : StepCtx) (b : Stmt) (G : Operand → Term) : Prop :=
+  (∃ d, G = unfold X.inB X.inD X.cs d) ∨ G = unfoldStop X.inB X.inD X.cs (opVars b.inst.args) 3
+
+theorem replaceOk_spec {m : Mode} {X : StepCtx} {a b : Stmt} (h : replaceOk m X a b = true) :
+    a.dsts = b.dsts ∧ ∃ p p' G d', pureInst? a.inst = some p ∧ noClz p = true ∧
+      pureInst? b.inst = some p' ∧ noClz p' = true ∧ InUnfold X b G ∧
+      checkExact (kbOf X.K) (termOf G p) (termOf (unfold X.outB X.outD X.cs d') p') = true := by
   unfold replaceOk at h
-  simp only [Bool.and_eq_true, beq_iff_eq, List.any_eq_true] at h
-  obtain ⟨⟨hd, hz⟩, dd, hdd, hc⟩ := h
-  refine ⟨hd, ?_, dd, hdd, ?_⟩
-  · revert hz; cases b.inst <;> simp
-  · split at hc
-    · next t t' h1 h2 => exact ⟨t, t', h1, h2, hc⟩
+  simp only [Bool.and_eq_true, beq_iff_eq, Bool.or_eq_true, List.any_eq_true] at h
+  obtain ⟨⟨hd, _⟩, hc⟩ := h
+  refine ⟨hd, ?_⟩
+  have out : ∀ {G : Operand → Term} {t : Option Term} {d' : Nat}, InUnfold X b G →
+      (∀ t₀, t = some t₀ → ∃ p, pureInst? a.inst = some p ∧ noClz p = true ∧ t₀ = termOf G p) →
+      (match t, instTerm X.outB X.outD X.cs d' b.inst with
+        | some t, some t' => checkExact (kbOf X.K) t t'
+        | _, _ => false) = true →
+      ∃ p p' G d', pureInst? a.inst = some p ∧ noClz p = true ∧
+        pureInst? b.inst = some p' ∧ noClz p' = true ∧ InUnfold X b G ∧
+        checkExact (kbOf X.K) (termOf G p) (termOf (unfold X.outB X.outD X.cs d') p') = true := by
+    intro G t d' hG ht hc
+    rcases t with _ | t₀
     · cases hc
+    rcases hi : instTerm X.outB X.outD X.cs d' b.inst with _ | t'
+    · rw [hi] at hc; cases hc
+    rw [hi] at hc
+    obtain ⟨p, hp, hpc, rfl⟩ := ht t₀ rfl
+    unfold instTerm at hi
+    split at hi
+    · next p' hp' =>
+      split at hi
+      · next hc' =>
+        simp only [Option.some.injEq] at hi
+        subst hi
+        exact ⟨p, p', G, d', hp, hpc, hp', hc', hG, hc⟩
+      · cases hi
+    · cases hi
+  have inT : ∀ {G : Operand → Term} {t₀ : Term},
+      (match pureInst? a.inst with
+        | some p => if noClz p = true then some (termOf G p) else none
+        | none => none) = some t₀ →
+      ∃ p, pureInst? a.inst = some p ∧ noClz p = true ∧ t₀ = termOf G p := by
+    intro G t₀ h
+    split at h
+    · next p hp =>
+      split at h
+      · next hpc => simp only [Option.some.injEq] at h; exact ⟨p, hp, hpc, h.symm⟩
+      · cases h
+    · cases h
+  rcases hc with ⟨dd, _, hc⟩ | hc
+  · exact out (Or.inl ⟨dd.1, rfl⟩) (fun t₀ ht => inT (by unfold instTerm at ht; exact ht)) hc
+  · exact out (Or.inr rfl) (fun t₀ ht => inT (by unfold instTermStop at ht; exact ht)) hc
 
 /-! ## The output is well formed -/
 
@@ -594,10 +637,10 @@ theorem AF.wf' {sig : Sigs} {syms : List String} (A : AF m f s F pairs deleted �
       simp only [Bool.and_eq_true, List.all_eq_true] at hwf
       exact (hwf.2 ib (List.mem_of_find?_eq_some hib)).1.2 st hst
     exact inst_wf_mapOps hiw hm' ho'
-  · obtain ⟨_, ⟨x, hx⟩, _⟩ := replaceOk_spec hr
+  · obtain ⟨_, _, p', _, _, _, _, hp', _⟩ := replaceOk_spec hr
     unfold Inst.wf
-    rw [hm', ho', hx]
-    rfl
+    rw [hm', ho', ← pureInst?_toInst hp']
+    rcases p' with ⟨o, _⟩ | ⟨o, _, _⟩ | ⟨o, _, _, _⟩ <;> cases o <;> rfl
 
 end blocks
 

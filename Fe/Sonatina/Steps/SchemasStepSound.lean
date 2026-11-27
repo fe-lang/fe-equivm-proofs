@@ -1,7 +1,7 @@
 import Fe.Sonatina.Steps.GvnInv
 
 /-!
-# `sccp_fold` and `known_bits_simplify` (without demand rounds) are sound
+# `sccp_fold`, `known_bits_simplify` (without demand rounds) and `scalar_canonicalize` are sound
 
 The output has the input's blocks; the simulation (`RS`) relates the output and the input at
 the same block entered from the same block, the output's environment binding less (`EnvSub`)
@@ -12,8 +12,8 @@ SCCP's constants (`CHolds`) and, for `sccp_fold`, executability and the folded p
 In a block the output's lines are the input's less the deleted ones (`BF`): a kept statement,
 phi operand or terminator reads `σ v` where the input reads `v`, and the two have one value at
 that point (`alias_use`), so they step together; a deleted statement steps on the input alone
-(pure, total, its result no output value); a statement `sccp_fold` replaces by `is_zero`
-computes the input's word by its schema.
+(pure, total, its result no output value); a statement replaced in place (`sccp_fold`'s
+`is_zero`, every `scalar_canonicalize` rewrite) computes the input's word by its schema.
 -/
 
 namespace Fe.Sonatina.Steps.Schemas
@@ -226,9 +226,10 @@ theorem SF.hs' : ssa s.func (domTree s.func) = true := by
 theorem SF.wf' : s.func.wf sig syms = true := Sf.A.wf' Sf.wf
 
 theorem SF.cs_empty (h : m ≠ .sccp) : (ctxOf m f s F).cs = .empty := by
-  rcases Sf.mode with rfl | rfl | ⟨_, _, rfl⟩
+  rcases Sf.mode with rfl | rfl | rfl | ⟨_, _, rfl⟩
   · rfl
   · exact absurd rfl h
+  · rfl
   · rfl
 
 /-- GVN's certificate, which the check checks. -/
@@ -425,64 +426,51 @@ theorem envSub_bind1 {e' e : Env} (h : EnvSub e' e) (d : Nat × Ty) {v' v : Val}
   · rw [if_pos ‹_›, ← hv]; exact hk
   · rw [if_neg ‹_›]; exact h k w hk
 
-/-- A statement `sccp_fold` replaces in place by `is_zero`: its schema gives the input's word. -/
+/-- A statement replaced in place (`sccp_fold`'s `is_zero`, a `scalar_canonicalize` rewrite):
+    its schema gives the input's word. -/
 theorem SF.repl_fol {o : Oracle} (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.block? b = some ib)
     (hob : s.func.block? b = some ob) {Q : Env → FeM (List Val) → Prop} {K : Env → FeM (List Val)}
     {is os : List Stmt} {st st' : Stmt} {k k' : Nat} {e' e : Env} (hsk : ib.body[k]? = some st)
-    (hsk' : ob.body[k']? = some st') (hr : replaceOk (ctxOf m f s F) st st' = true)
+    (hsk' : ob.body[k']? = some st') (hr : replaceOk m (ctxOf m f s F) st st' = true)
     (hm : Mid sig syms m f s F e' e b k k')
     (ih : ∀ e₁' e₁, Mid sig syms m f s F e₁' e₁ b (k + 1) (k' + 1) →
       Fol Q (runBodyO o c e₁' os) (runBodyO o c e₁ is >>= K)) :
     Fol Q (runBodyO o c e' (st' :: os)) (runBodyO o c e (st :: is) >>= K) := by
   obtain ⟨hes, hds, H, H'⟩ := hm
-  obtain ⟨hdsts, ⟨x, hx⟩, dd, _, t, t', ht, ht', hce⟩ := replaceOk_spec hr
+  obtain ⟨hdsts, p, p', G, d', hp, hc, hp', hc', hG, hce⟩ := replaceOk_spec hr
   have hmem := List.mem_of_find?_eq_some hib
   have hsm := List.mem_of_getElem? hsk
   have hobm := List.mem_of_find?_eq_some hob
   have hsm' := List.mem_of_getElem? hsk'
   -- the input's statement and its term
-  unfold instTerm at ht
-  rcases hp : pureInst? st.inst with _ | p
-  · rw [hp] at ht; cases ht
-  rw [hp] at ht
-  by_cases hc : noClz p = true
-  swap
-  · simp only [hc, Bool.false_eq_true, ↓reduceIte, reduceCtorEq] at ht
-  simp only [hc, ↓reduceIte, Option.some.injEq] at ht
-  subst ht
-  obtain ⟨xs, hargs, hok⟩ := termOf_ok (ε := e) (e := e)
-    (G := unfold (.ofListBy (·.id) f.blocks) (defsOf f) (ctxOf m f s F).cs dd.1) (p := p) fun a ha => by
-      have ha' : a ∈ st.inst.args := by rw [pureInst?_args hp]; exact ha
-      exact H.side.unfold_sound (EnvSub.refl e) c H.cs dd.1 a ((Func.wf_operands Sf.wf hmem).2.1 st hsm a ha')
-        fun w hw => by subst hw; exact stmt_operand Sf.wf Sf.hs hib H.side.reach hsk ha'
-  -- the output's `is_zero` and its term
-  have hp' : pureInst? st'.inst = some (.op1 .isZero x) := by rw [hx]; rfl
-  have hxa : x ∈ st'.inst.args := by rw [hx]; exact List.mem_singleton_self _
-  rw [hx] at ht'
-  simp only [instTerm, pureInst?, noClz, ↓reduceIte, Option.some.injEq] at ht'
-  subst ht'
+  obtain ⟨xs, hargs, hok⟩ := termOf_ok (ε := e) (e := e) (G := G) (p := p) fun a ha => by
+    have ha' : a ∈ st.inst.args := by rw [pureInst?_args hp]; exact ha
+    have hw := (Func.wf_operands Sf.wf hmem).2.1 st hsm a ha'
+    have hd : ∀ w, a = .var w → DomAt f (domTree f) b k w := fun w hw => by
+      subst hw; exact stmt_operand Sf.wf Sf.hs hib H.side.reach hsk ha'
+    rcases hG with ⟨d, rfl⟩ | rfl
+    · exact H.side.unfold_sound (EnvSub.refl e) c H.cs d a hw hd
+    · exact H.side.unfoldStop_sound (EnvSub.refl e) c H.cs _ 3 a hw hd
+  -- the output's statement and its term
   obtain ⟨xs', hargs', hok'⟩ := termOf_ok (ε := e') (e := e)
-    (G := unfold (.ofListBy (·.id) s.func.blocks) (defsOf s.func) (ctxOf m f s F).cs dd.2)
-    (p := .op1 .isZero x) fun a ha => by
-      simp only [PureInst.args, List.mem_singleton] at ha
-      subst ha
-      exact H'.unfold_sound hes c H.cs dd.2 _ ((opsWf_block Sf.A.opsWf' hobm).2.1 st' hsm' _ hxa)
-        fun w hw => by subst hw; exact stmt_operand Sf.wf' Sf.hs' hob H'.reach hsk' hxa
+    (G := unfold (.ofListBy (·.id) s.func.blocks) (defsOf s.func) (ctxOf m f s F).cs d')
+    (p := p') fun a ha => by
+      have ha' : a ∈ st'.inst.args := by rw [pureInst?_args hp']; exact ha
+      exact H'.unfold_sound hes c H.cs d' _ ((opsWf_block Sf.A.opsWf' hobm).2.1 st' hsm' _ ha')
+        fun w hw => by subst hw; exact stmt_operand Sf.wf' Sf.hs' hob H'.reach hsk' ha'
   have hf : FactsOn (kbOf (ctxOf m f s F).K) (envWord e)
-      [termOf (unfold (.ofListBy (·.id) f.blocks) (defsOf f) (ctxOf m f s F).cs dd.1) p,
-        termOf (unfold (.ofListBy (·.id) s.func.blocks) (defsOf s.func) (ctxOf m f s F).cs dd.2)
-          (.op1 .isZero x)] := factsOn_env H.kb fun a ha => by
+      [termOf G p, termOf (unfold (.ofListBy (·.id) s.func.blocks) (defsOf s.func)
+        (ctxOf m f s F).cs d') p'] := factsOn_env H.kb fun a ha => by
     simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true] at ha
     rcases ha with ha | ha
     · exact hok.2 a ha
     · exact hok'.2 a ha
-  have heq : (termOf (unfold (.ofListBy (·.id) f.blocks) (defsOf f) (ctxOf m f s F).cs dd.1) p).eval
-      (envWord e) = (termOf (unfold (.ofListBy (·.id) s.func.blocks) (defsOf s.func)
-        (ctxOf m f s F).cs dd.2) (.op1 .isZero x)).eval (envWord e) := checkExact_sound hce hf
+  have heq : (termOf G p).eval (envWord e) = (termOf (unfold (.ofListBy (·.id) s.func.blocks)
+      (defsOf s.func) (ctxOf m f s F).cs d') p').eval (envWord e) := checkExact_sound hce hf
   rw [hok.1, hok'.1] at heq
   -- both run, to the same word
   have hrun := runStmtO_pure_of (o := o) (c := c) hp hc hargs
-  have hrun' := runStmtO_pure_of (o := o) (c := c) hp' rfl hargs'
+  have hrun' := runStmtO_pure_of (o := o) (c := c) hp' hc' hargs'
   simp only [runBodyO, hrun, hrun', pure_bind, bind_assoc]
   rw [← hdsts]
   by_cases hl : st.dsts.length = 1
@@ -500,8 +488,7 @@ theorem SF.repl_fol {o : Oracle} (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
       have hlt' := evalOn_lt' hargs'
       refine ih _ _ ⟨envSub_bind1 hes d1 (by rw [hty, Val.as_word hlt, Val.as_word hlt', heq]), ?_,
         ?_, ?_⟩
-      · have := domSub_step hds hobm hsm' [Val.int (PureInst.op1 .isZero x).bits
-          ((PureInst.op1 .isZero x).evalOn xs')]
+      · have := domSub_step hds hobm hsm' [Val.int p'.bits (p'.evalOn xs')]
         rwa [← hdsts, hd] at this
       · have := Sf.in_step H c hib hsk (vals := [.int p.bits (p.evalOn xs)])
           (by simp [IntVals, Val.isInt]) (fun _ => pureVals_of (c := c) hp hc hargs) (by rw [hd]; rfl)
@@ -510,9 +497,8 @@ theorem SF.repl_fol {o : Oracle} (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
               (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb (o := o) (c := c))
             exact this (by rw [hd]; rfl))
         rwa [hd] at this
-      · have := H'.step hob hsk' (vals := [.int (PureInst.op1 .isZero x).bits
-          ((PureInst.op1 .isZero x).evalOn xs')]) (by simp [IntVals, Val.isInt])
-          (fun _ => pureVals_of (c := c) hp' rfl hargs') (by rw [← hdsts, hd]; rfl)
+      · have := H'.step hob hsk' (vals := [.int p'.bits (p'.evalOn xs')]) (by simp [IntVals, Val.isInt])
+          (fun _ => pureVals_of (c := c) hp' hc' hargs') (by rw [← hdsts, hd]; rfl)
         rwa [← hdsts, hd] at this
   · have hb0 : ∀ (env : Env) (v : Val), Fe.Sonatina.bind env st.dsts [v] = stuck := fun env v => by
       unfold Fe.Sonatina.bind
@@ -953,6 +939,19 @@ theorem sccpFold_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap
   exact aliasReject_sound (Or.inr (Or.inl rfl)) hwf (Option.isNone_iff_eq_none.mp h)
     (fun _ => sccpSpec_of hs) ho hoi c
 
+/-- A `scalar_canonicalize` round the checker accepts is sound. -/
+theorem scalarCanonicalize_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap}
+    {F : StepFacts} (hwf : f.wf sig syms = true) (h : checkScalarCanonicalize f ids s F = true)
+    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
+    FuncRef o c (some s.func) (some f) := by
+  unfold checkScalarCanonicalize scalarReject at h
+  split at h
+  · cases h
+  split at h
+  · cases h
+  exact aliasReject_sound (Or.inr (Or.inr (Or.inl rfl))) hwf (Option.isNone_iff_eq_none.mp h)
+    (fun h => by cases h) ho hoi c
+
 theorem knownBitsSimplify_stepSound : StepSound .knownBitsSimplify :=
   StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
     knownBitsSimplify_sound hw (by simpa only [checkFunc] using h) ho hoi c
@@ -960,5 +959,9 @@ theorem knownBitsSimplify_stepSound : StepSound .knownBitsSimplify :=
 theorem sccpFold_stepSound : StepSound .sccpFold :=
   StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
     sccpFold_sound hw (by simpa only [checkFunc] using h) ho hoi c
+
+theorem scalarCanonicalize_stepSound : StepSound .scalarCanonicalize :=
+  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
+    scalarCanonicalize_sound hw (by simpa only [checkFunc] using h) ho hoi c
 
 end Fe.Sonatina.Steps.Schemas

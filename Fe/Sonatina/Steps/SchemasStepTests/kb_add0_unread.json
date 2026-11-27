@@ -35,21 +35,16 @@
         ]
        },
        "facts": {
-        "gvn": {
-         "class": [
-          [
-           1,
-           {
-            "value": 2
-           }
-          ]
-         ]
-        },
+        "gvn": null,
         "known_bits": [],
         "demanded_bits": null,
         "sccp": null,
         "finite_loops": [],
-        "ranges": null
+        "ranges": {
+         "unreachable": [
+          0
+         ]
+        }
        }
       }
      ]

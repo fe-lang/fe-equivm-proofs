@@ -88,9 +88,12 @@ def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M :
   else if k == .gvnRewrite then match M.func? fs.func with
     | some f => (Schemas.diagnoseGvnRewrite f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
     | none => "no such function"
-  else if k == .sccpFold || k == .knownBitsSimplify then match M.func? fs.func with
-    | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold else
-        Schemas.diagnoseKnownBitsSimplify) f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
+  else if k == .sccpFold || k == .knownBitsSimplify || k == .scalarCanonicalize then
+    match M.func? fs.func with
+    | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold
+        else if k == .scalarCanonicalize then Schemas.diagnoseScalarCanonicalize
+        else Schemas.diagnoseKnownBitsSimplify) f (I.lookup fs.func) fs.out fs.facts).getD
+          "check rejects"
     | none => "no such function"
   else if !noFacts fs.facts then "facts present"
   else if !fs.out.func.machine then "output not machine IR"

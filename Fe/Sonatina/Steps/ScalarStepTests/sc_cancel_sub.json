@@ -1,0 +1,52 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256, v2.i256) -> i256 {\n    block0:\n        v3.i256 = sub v0 v2;\n        v4.i256 = sub v1 v2;\n        v5.i256 = eq v3 v4;\n        return v5;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "scalar_canonicalize",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "scalar_canonicalize",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256, v2.i256) -> i256 {\n    block0:\n        v5.i256 = eq v0 v1;\n        return v5;\n}\n",
+        "insts": [
+         [
+          2,
+          3
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

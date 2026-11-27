@@ -1,0 +1,192 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "contract_init_root_PairStore",
+   "func_ref": 15,
+   "text": "func private %contract_init_root_PairStore() {\n    block0:\n        v0.i256 = evm_call_value;\n        br v0 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v3.i256 = sym_size .;\n        v4.i256 = evm_code_size;\n        v5.i256 = lt v4 v3;\n        br v5 block3 block4;\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block4:\n        v6.i256 = sub v4 v3;\n        evm_code_copy 96.i256 v3 v6;\n        v9.i256 = gt 32.i256 v6;\n        br v9 block5 block6;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v10.i256 = evm_mload 96.i256;\n        v12.i256 = gt 64.i256 v6;\n        br v12 block7 block8;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        v13.i256 = add 96.i256 32.i256;\n        v14.i256 = evm_mload v13;\n        v15.i256 = add 96.i256 32.i256;\n        evm_mstore 64.i256 v15;\n        v16.i256 = evm_calldata_size;\n        evm_calldata_copy 96.i256 v16 32.i256;\n        v17.i256 = mul v10 v14;\n        v18.i256 = eq v14 0.i256;\n        v19.i256 = is_zero v18;\n        v20.i256 = evm_udiv v17 v14;\n        v21.i256 = eq v20 v10;\n        v22.i256 = is_zero v21;\n        v23.i256 = and v19 v22;\n        br v23 block9 block10;\n\n    block9:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 17.i256;\n        evm_revert 0.i256 36.i256;\n\n    block10:\n        evm_mstore 96.i256 v17;\n        evm_mstore 0.i256 96.i256;\n        v28.i256 = sym_addr &PairStore_runtime;\n        v29.i256 = sym_size &PairStore_runtime;\n        v30.i256 = add v29 32.i256;\n        v31.i256 = lt v30 v29;\n        br v31 block11 block12;\n\n    block11:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 17.i256;\n        evm_revert 0.i256 36.i256;\n\n    block12:\n        v32.i256 = evm_mload 64.i256;\n        evm_code_copy v32 v28 v29;\n        v33.i256 = add v32 v29;\n        evm_mcopy v33 96.i256 32.i256;\n        evm_return v32 v30;\n}\n",
+   "insts": [
+    [
+     0,
+     2
+    ],
+    [
+     3
+    ],
+    [
+     4,
+     5,
+     6,
+     7
+    ],
+    [
+     8
+    ],
+    [
+     9,
+     10,
+     11,
+     12
+    ],
+    [
+     13
+    ],
+    [
+     14,
+     15,
+     16
+    ],
+    [
+     17
+    ],
+    [
+     18,
+     19,
+     20,
+     21,
+     22,
+     23,
+     24,
+     25,
+     26,
+     27,
+     28,
+     29,
+     30,
+     31
+    ],
+    [
+     32,
+     33,
+     34
+    ],
+    [
+     35,
+     36,
+     37,
+     38,
+     39,
+     40,
+     41
+    ],
+    [
+     42,
+     43,
+     44
+    ],
+    [
+     45,
+     46,
+     47,
+     48,
+     49
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "scalar_canonicalize",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "scalar_canonicalize",
+     "funcs": [
+      {
+       "out": {
+        "func": "contract_init_root_PairStore",
+        "func_ref": 15,
+        "text": "func private %contract_init_root_PairStore() {\n    block0:\n        v0.i256 = evm_call_value;\n        br v0 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v3.i256 = sym_size .;\n        v4.i256 = evm_code_size;\n        v5.i256 = lt v4 v3;\n        br v5 block3 block4;\n\n    block3:\n        evm_revert 0.i256 0.i256;\n\n    block4:\n        v6.i256 = sub v4 v3;\n        evm_code_copy 96.i256 v3 v6;\n        v9.i256 = gt 32.i256 v6;\n        br v9 block5 block6;\n\n    block5:\n        evm_revert 0.i256 0.i256;\n\n    block6:\n        v10.i256 = evm_mload 96.i256;\n        v12.i256 = gt 64.i256 v6;\n        br v12 block7 block8;\n\n    block7:\n        evm_revert 0.i256 0.i256;\n\n    block8:\n        v13.i256 = add 96.i256 32.i256;\n        v14.i256 = evm_mload v13;\n        v15.i256 = add 96.i256 32.i256;\n        evm_mstore 64.i256 v15;\n        v16.i256 = evm_calldata_size;\n        evm_calldata_copy 96.i256 v16 32.i256;\n        v17.i256 = mul v10 v14;\n        v18.i256 = is_zero v10;\n        v19.i256 = is_zero v18;\n        v20.i256 = evm_udiv v17 v14;\n        v21.i256 = eq v20 v10;\n        v22.i256 = is_zero v21;\n        v23.i256 = and v19 v22;\n        br v23 block9 block10;\n\n    block9:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 17.i256;\n        evm_revert 0.i256 36.i256;\n\n    block10:\n        evm_mstore 96.i256 v17;\n        evm_mstore 0.i256 96.i256;\n        v28.i256 = sym_addr &PairStore_runtime;\n        v29.i256 = sym_size &PairStore_runtime;\n        v30.i256 = add v29 32.i256;\n        v31.i256 = lt v30 v29;\n        br v31 block11 block12;\n\n    block11:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 17.i256;\n        evm_revert 0.i256 36.i256;\n\n    block12:\n        v32.i256 = evm_mload 64.i256;\n        evm_code_copy v32 v28 v29;\n        v33.i256 = add v32 v29;\n        evm_mcopy v33 96.i256 32.i256;\n        evm_return v32 v30;\n}\n",
+        "insts": [
+         [
+          0,
+          2
+         ],
+         [
+          3
+         ],
+         [
+          4,
+          5,
+          6,
+          7
+         ],
+         [
+          8
+         ],
+         [
+          9,
+          10,
+          11,
+          12
+         ],
+         [
+          13
+         ],
+         [
+          14,
+          15,
+          16
+         ],
+         [
+          17
+         ],
+         [
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31
+         ],
+         [
+          32,
+          33,
+          34
+         ],
+         [
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41
+         ],
+         [
+          42,
+          43,
+          44
+         ],
+         [
+          45,
+          46,
+          47,
+          48,
+          49
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

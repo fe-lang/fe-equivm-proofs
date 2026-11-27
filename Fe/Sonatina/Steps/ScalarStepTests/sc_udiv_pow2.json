@@ -1,0 +1,50 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = evm_udiv v0 32.i256;\n        return v2;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "scalar_canonicalize",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "scalar_canonicalize",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = shr 5.i256 v0;\n        return v2;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": null,
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -6,8 +6,9 @@ import Fe.Sonatina.Steps.Read
 `lake lean scripts/SchemasSteps.lean -- --run scripts/SchemasSteps.lean [--mutate-facts |
 --mutate-out] <sidecar>...` (`lake lean` locates each module, as this package and fe-spec share
 the root `Fe`; `--run` takes the file after it):
-replay each version-5 record of each sidecar without checking, and run `checkSccpFold` and
-`checkKnownBitsSimplify` on every function of every step of those kinds.  One line per function
+replay each version-5 record of each sidecar without checking, and run `checkSccpFold`,
+`checkKnownBitsSimplify` and `checkScalarCanonicalize` on every function of every step of those
+kinds.  One line per function
 step: `path  section  kind  func  ACCEPT|REJECT  reason`.  Interpreted, not kernel-evaluated.
 
 With a mutation flag, each step is mutated instead, every mutant of a kind at its first place
@@ -33,7 +34,9 @@ Every mutant should be rejected; `scripts/SchemasStepsTab.py` counts them.
 - `ssa`: one use replaced by a value the block defines after it;
 - `params`: the output's first two parameters swapped;
 - `ids-short`: the last id of the output's first block dropped;
-- `imm-range`: one output literal made `2 ^ 256`, unreduced.
+- `imm-range`: one output literal made `2 ^ 256`, unreduced;
+- `repl-lit`, `repl-var`, `repl-op`: in a statement replaced in place, one literal made `c + 1`,
+  one value replaced by another parameter or `0`, or the opcode changed.
 -/
 
 open Fe.Sonatina Fe.Sonatina.Steps Fe.Sonatina.Steps.Schemas
@@ -121,7 +124,7 @@ def outMutants (f : Func) (ids : List (List Nat)) (s : FuncSnap) : List (String 
   let pairsOf : List (Option (List (Line × Line))) :=
     ((f.blocks.zip ids).zip (fo.blocks.zip s.insts)).map fun bb =>
       (pairUp (idLines bb.1.1 bb.1.2) (idLines bb.2.1 bb.2.2)).map (·.1)
-  let σ := (sigmaOf ((pairsOf.filterMap id).flatten)).getD .empty
+  let σ := (sigmaOf true ((pairsOf.filterMap id).flatten)).getD .empty
   let inDefs := defsOf f
   let outDefs := defsOf fo
   -- The output statement paired with input statement `si` substituted operand `k`.
@@ -167,6 +170,33 @@ def outMutants (f : Func) (ids : List (List Nat)) (s : FuncSnap) : List (String 
             out := out ++ [("imm-range", setStmt s bi j { st with inst := setArgAt st.inst k (.imm 256 (2 ^ 256)) })]
             seen := "imm-range" :: seen
           | _ => pure ()
+      -- a statement replaced in place (`scalar_canonicalize`, `sccp_fold`): one literal, one
+      -- value operand, or the opcode changed
+      let replaced := ((pairsOf[bi]?).bind id).any fun ps => ps.any fun LL => match LL with
+        | (.stmt si, .stmt so) => so == st && si != st
+        | _ => false
+      if replaced then
+        if !seen.contains "repl-lit" then
+          match st.inst.args.zipIdx.find? (fun ok => match ok.1 with | .imm _ _ => true | _ => false) with
+          | some (.imm b c, k) =>
+            out := out ++ [("repl-lit", setStmt s bi j { st with inst := setArgAt st.inst k (.imm b ((c + 1) % W)) })]
+            seen := "repl-lit" :: seen
+          | _ => pure ()
+        if !seen.contains "repl-var" then
+          match st.inst.args.zipIdx.find? (fun ok => match ok.1 with | .var _ => true | _ => false) with
+          | some (o, k) =>
+            out := out ++ [("repl-var", setStmt s bi j { st with inst := setArgAt st.inst k (other fo o) })]
+            seen := "repl-var" :: seen
+          | none => pure ()
+        if !seen.contains "repl-op" then
+          let i' : Option Inst := match pureInst? st.inst with
+            | some (.op2 o a b) => some (PureInst.op2 (otherOp o) a b).toInst
+            | some (.op1 .not a) => some (.isZero a)
+            | some (.op1 .isZero a) => some (.not a)
+            | _ => none
+          if let some i' := i' then
+            out := out ++ [("repl-op", setStmt s bi j { st with inst := i' })]
+            seen := "repl-op" :: seen
       -- opcode of an unchanged paired pure statement
       if !seen.contains "opcode" then
         let unchanged := ((pairsOf[bi]?).bind id).any fun ps => ps.any fun LL => match LL with
@@ -234,7 +264,15 @@ def outMutants (f : Func) (ids : List (List Nat)) (s : FuncSnap) : List (String 
 
 def check (k : StepKind) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
     (F : StepFacts) : Bool :=
-  if k == StepKind.sccpFold then checkSccpFold f ids s F else checkKnownBitsSimplify f ids s F
+  if k == StepKind.sccpFold then checkSccpFold f ids s F
+  else if k == StepKind.scalarCanonicalize then checkScalarCanonicalize f ids s F
+  else checkKnownBitsSimplify f ids s F
+
+def diagnose (k : StepKind) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Option String :=
+  if k == StepKind.sccpFold then diagnoseSccpFold f ids s F
+  else if k == StepKind.scalarCanonicalize then diagnoseScalarCanonicalize f ids s F
+  else diagnoseKnownBitsSimplify f ids s F
 
 def main (args : List String) : IO Unit := do
   let (mode, args) := match args with
@@ -256,7 +294,8 @@ def main (args : List String) : IO Unit := do
           let mut I := r.ids
           for p in r.passes do
             for st in p.steps do
-              if st.kind == StepKind.sccpFold || st.kind == StepKind.knownBitsSimplify then
+              if st.kind == StepKind.sccpFold || st.kind == StepKind.knownBitsSimplify ||
+                  st.kind == StepKind.scalarCanonicalize then
                 for fs in st.funcs do
                   let pre := s!"{path}\t{sec.name}\t{st.kind.name}\t{fs.func}"
                   let F := fs.facts
@@ -272,8 +311,7 @@ def main (args : List String) : IO Unit := do
                         IO.println s!"{pre}\tMUT:{nm}\t{if check st.kind f ids s' F then "ACCEPT" else "REJECT"}"
                     else
                       let ok := check st.kind f ids fs.out F
-                      let why := (if st.kind == StepKind.sccpFold then diagnoseSccpFold f ids fs.out F
-                        else diagnoseKnownBitsSimplify f ids fs.out F).getD "-"
+                      let why := (diagnose st.kind f ids fs.out F).getD "-"
                       IO.println s!"{pre}\t{if ok then "ACCEPT" else "REJECT"}\t{why}"
               M := stepOut M st.funcs
               I := stepIds I st.funcs

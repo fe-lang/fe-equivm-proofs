@@ -45,7 +45,7 @@ theorem gvnRewrite_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSn
   simp only [gvnPrep, Prod.mk.injEq] at hp
   obtain ⟨rfl, rfl, _, rfl⟩ := hp
   have hwf₁ := insPhis_wf hwf hins
-  exact (aliasReject_sound (Or.inr (Or.inr ⟨_, _, rfl⟩)) hwf₁ hal (fun h' => by cases h') ho hoi c).trans
+  exact (aliasReject_sound (Or.inr (Or.inr (Or.inr ⟨_, _, rfl⟩))) hwf₁ hal (fun h' => by cases h') ho hoi c).trans
     (insPhis_sound hwf hins ho hoi c)
 
 theorem gvnRewrite_stepSound : StepSound .gvnRewrite :=
