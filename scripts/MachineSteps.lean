@@ -49,8 +49,7 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
   return "instruction ids"
 
 /-- The kinds with a checker. -/
-def checked : List StepKind :=
-  [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies]
+def checked : List StepKind := StepKind.proved
 
 /-- Why `checkCoalesce` rejects: the first block that fails. -/
 def kcReason (f f' : Func) : String := Id.run do
@@ -65,6 +64,10 @@ def kcReason (f f' : Func) : String := Id.run do
 def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : FuncStep) : String :=
   if !checked.contains k then "no checker"
+  else if k == .sccpFold || k == .knownBitsSimplify then match M.func? fs.func with
+    | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold else
+        Schemas.diagnoseKnownBitsSimplify) f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
+    | none => "no such function"
   else if !noFacts fs.facts then "facts present"
   else if !fs.out.func.machine then "output not machine IR"
   else if !fs.out.wf M.sig syms then "output not well formed"

@@ -25,6 +25,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `writes`, `writes_read`, `writes_copyMem`, `addrNorm_sound`, `baseVal`, `addrNorm_base_sound`, `exec_mcopy`, `exec_mcopy_big`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `WInv.env`, `keep_operand`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
+| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
 | `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved` (on `validate`) |
@@ -120,9 +121,8 @@ of `PointInv`.
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
    `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
-   the last two have a checker and no proof yet, so `StepKind.proved`, the kinds `validate`
-   accepts and `machine_sound_proved` covers, does not include them: only `validateWith` given
-   them by name accepts their steps, as the measurement scripts do; they are `m1-schemas`'s,
+   all seven are proved and in `StepKind.proved`, the kinds `validate` accepts and
+   `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
    `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
    `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
    requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
@@ -492,7 +492,27 @@ line of WETH9's `returnValue_run`.
   its decision is unchanged): `checkSpills` 40 of 40 sections per level and 529 of 530, `check`
   34, 33, 33 and 520, the same verdicts as before.
 
+- With `sccp_fold` and `known_bits_simplify` proved (`StepKind.proved` has seven kinds;
+  `scripts/MachineSteps.lean`, interpreted), sections accepted end to end by `validate`'s kinds:
+
+  | corpus | before | + `sccp_fold` | + `known_bits_simplify` | after merging `chain` `58f7d69` | first rejected kind (merged) |
+  | --- | --- | --- | --- | --- | --- |
+  | FeProofs `-O0` | 33/40 | 33 | 33 | 40 | none |
+  | FeProofs `-O1` | 21/40 | 25 | 29 | 29 | `scalar_canonicalize` 8, `lower_switches` 3 |
+  | FeProofs `-Os` | 21/40 | 25 | 32 | 32 | `scalar_canonicalize` 8 |
+  | the 265 | 351/530 | 403 | 460 | 460 | `lower_switches` 34, `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+
+  The first three columns are on `chain-o1` before the merge (`-O0`'s 7 rejections are its
+  base-relative copies, which the merged `coalesce_copies` accepts).  Every `sccp_fold` step
+  (35 at `-O1` and `-Os`, 133 in the 265) and every `known_bits_simplify` step (8, 8, 94) is
+  accepted; none has `demanded_bits`, so the switched-off demand rounds reject none.  The
+  checker's changes for the proof leave every per-step verdict of `scripts/SchemasSteps.lean` as
+  it was (`corpus-v5b` 86 steps, `corpus-v5-full` 313, all accepted) and every mutant rejected
+  (935 fact mutants, 3006 output mutants), identical line for line to the earlier outputs.
+
 ## Not done
 
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 - The summary table's effect and `will_return` claims are not checked (no consumer).
+- `known_bits_simplify`'s demand rounds, switched off (`demandRounds`; plan in `SCHEMAS-NOTES.md`).
+- `known_bits_simplify`'s new Sonatina rules (`sdiv` by a power of two, tighter `clz`/`ctz` known bits) wait for a regenerated corpus.

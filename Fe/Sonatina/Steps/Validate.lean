@@ -13,8 +13,7 @@ and the composed module compared with `final`, the sidecar's machine IR.  It rej
 with a step kind outside `allowed`.  The lowered module is checked well formed (`Module.wf`)
 against the section's symbol names `syms`, and so is every step's output function, which keeps
 its input's signature: so every module of the replay is well formed (`stepOut_wf`).
-`validate` is `validateWith StepKind.proved`, the kinds with a `StepSound` proof; a kind whose
-checker has no proof yet is accepted only when named to `validateWith`.
+`validate` is `validateWith StepKind.proved`, the kinds with a `StepSound` proof.
 
 The replay also carries each function's instruction ids (`IdTab`), which the module does not
 hold: a step's check reads its input's ids.  Each pass first checks its summary table against
@@ -269,10 +268,11 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     | none => false
 
 /-- The step kinds with a `StepSound` proof (`StepKind.proved_sound`), the only kinds `validate`
-    accepts.  `known_bits_simplify` and `sccp_fold` have checkers and no proof: only
-    `validateWith` given them accepts their steps. -/
+    accepts: every kind `checkFunc` has a checker for (`known_bits_simplify` with its demand
+    rounds switched off, `demandRounds`). -/
 def StepKind.proved : List StepKind :=
-  [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies]
+  [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
+    .knownBitsSimplify]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=
