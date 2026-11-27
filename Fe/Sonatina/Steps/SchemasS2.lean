@@ -226,6 +226,42 @@ theorem signed_neg {x : Nat} (hx : x < W) : signed 256 x < 0 ↔ ¬ x < 2 ^ 255 
 theorem signed_M : signed 256 M = -1 := by
   rw [signed_of_ge (by decide)]; decide
 
+theorem signextend_shr {nb x : Nat} (hb : nb < 31) (hx : x < W) :
+    signextendW nb (shrW (248 - 8 * nb) x) = sarW (248 - 8 * nb) x := by
+  have hs : 248 - 8 * nb < 256 := by omega
+  have hl : shrW (248 - 8 * nb) x < W := shrW_lt hx
+  apply Nat.eq_of_testBit_eq; intro i
+  by_cases hi : i < 256
+  · rw [testBit_signextendW hl (by omega) hi, testBit_sarW hx hs hi]
+    split
+    · next hle => rw [testBit_shrW hs, if_pos (by omega)]
+    · next hle => rw [testBit_shrW hs, if_neg (by omega)]; congr 1; omega
+  · have h1 := Op2.eval_lt .signextend (x := nb) (by simp only [W]; omega) hl
+    simp only [Op2.eval] at h1
+    rw [testBit_hi h1 (by omega), testBit_hi (sarW_lt hx) (by omega)]
+
+theorem testBit_byteW {i y t : Nat} (hi : i < 32) :
+    (byteW i y).testBit t = (decide (t < 8) && y.testBit ((31 - i) * 8 + t)) := by
+  unfold byteW
+  rw [if_neg (by omega), show (255 : Nat) = 2 ^ 8 - 1 from rfl, Nat.testBit_and,
+    Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm]
+
+theorem byte_shl {ni k x : Nat} (h : ni + k < 32) :
+    byteW ni (shlW (8 * k) x) = byteW (ni + k) x := by
+  apply Nat.eq_of_testBit_eq; intro t
+  rw [testBit_byteW (by omega), testBit_byteW h]
+  by_cases ht : t < 8
+  · rw [testBit_shlW (by omega) (by omega)]
+    simp only [ht, decide_true, Bool.true_and, show 8 * k ≤ (31 - ni) * 8 + t by omega]
+    congr 1; omega
+  · simp [ht]
+
+theorem byte_shr {ni k x : Nat} (hk : k ≤ ni) (hn : ni < 32) :
+    byteW ni (shrW (8 * k) x) = byteW (ni - k) x := by
+  apply Nat.eq_of_testBit_eq; intro t
+  rw [testBit_byteW hn, testBit_byteW (by omega), testBit_shrW (by omega)]
+  congr 2; omega
+
 /-! ## Soundness -/
 
 section Sound
@@ -434,21 +470,6 @@ theorem subNots_sound {l r : Term} (h : subNots l r = true) : l.eval ρ = r.eval
     simp only [M, W] at *; omega
   · cases h
 
-omit hf in
-theorem signextend_shr {nb x : Nat} (hb : nb < 31) (hx : x < W) :
-    signextendW nb (shrW (248 - 8 * nb) x) = sarW (248 - 8 * nb) x := by
-  have hs : 248 - 8 * nb < 256 := by omega
-  have hl : shrW (248 - 8 * nb) x < W := shrW_lt hx
-  apply Nat.eq_of_testBit_eq; intro i
-  by_cases hi : i < 256
-  · rw [testBit_signextendW hl (by omega) hi, testBit_sarW hx hs hi]
-    split
-    · next hle => rw [testBit_shrW hs, if_pos (by omega)]
-    · next hle => rw [testBit_shrW hs, if_neg (by omega)]; congr 1; omega
-  · have h1 := Op2.eval_lt .signextend (x := nb) (by simp only [W]; omega) hl
-    simp only [Op2.eval] at h1
-    rw [testBit_hi h1 (by omega), testBit_hi (sarW_lt hx) (by omega)]
-
 theorem signedTop_sound {l r : Term} (h : signedTop kb l r = true) : l.eval ρ = r.eval ρ := by
   unfold signedTop at h
   split at h
@@ -472,31 +493,6 @@ theorem signedTop_sound {l r : Term} (h : signedTop kb l r = true) : l.eval ρ =
       · cases h
     · cases h
   · cases h
-
-omit hf in
-theorem testBit_byteW {i y t : Nat} (hi : i < 32) :
-    (byteW i y).testBit t = (decide (t < 8) && y.testBit ((31 - i) * 8 + t)) := by
-  unfold byteW
-  rw [if_neg (by omega), show (255 : Nat) = 2 ^ 8 - 1 from rfl, Nat.testBit_and,
-    Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm]
-
-omit hf in
-theorem byte_shl {ni k x : Nat} (h : ni + k < 32) :
-    byteW ni (shlW (8 * k) x) = byteW (ni + k) x := by
-  apply Nat.eq_of_testBit_eq; intro t
-  rw [testBit_byteW (by omega), testBit_byteW h]
-  by_cases ht : t < 8
-  · rw [testBit_shlW (by omega) (by omega)]
-    simp only [ht, decide_true, Bool.true_and, show 8 * k ≤ (31 - ni) * 8 + t by omega]
-    congr 1; omega
-  · simp [ht]
-
-omit hf in
-theorem byte_shr {ni k x : Nat} (hk : k ≤ ni) (hn : ni < 32) :
-    byteW ni (shrW (8 * k) x) = byteW (ni - k) x := by
-  apply Nat.eq_of_testBit_eq; intro t
-  rw [testBit_byteW hn, testBit_byteW (by omega), testBit_shrW (by omega)]
-  congr 2; omega
 
 theorem shiftedByte_sound {l r : Term} (h : shiftedByte kb l r = true) : l.eval ρ = r.eval ρ := by
   unfold shiftedByte at h

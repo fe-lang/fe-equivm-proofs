@@ -25,7 +25,9 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `writes`, `writes_read`, `writes_copyMem`, `addrNorm_sound`, `baseVal`, `addrNorm_base_sound`, `exec_mcopy`, `exec_mcopy_big`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `WInv.env`, `keep_operand`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
-| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
+| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound`, `scalarCanonicalize_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
+| `SchemasS2.lean` | the `scalar_canonicalize` rewrites Sonatina added after the design, S16–S24, proved (`SCHEMAS-NOTES.md`) |
+| `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
 | `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved` (on `validate`) |
@@ -120,13 +122,13 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
-   all seven are proved and in `StepKind.proved`, the kinds `validate` accepts and
-   `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold` and
+   `scalar_canonicalize`** (phase 2; all eight are proved and in `StepKind.proved`, the kinds
+   `validate` accepts and `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
    `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
    `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
-   requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
-   schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
+   requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), and so does
+   `scalar_canonicalize` (`scalarReject`), the two other schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
@@ -542,6 +544,20 @@ line of WETH9's `returnValue_run`.
 
   `branch_conditions` has no step in either corpus.  No `known_bits_simplify` step is rejected as
   a demand round: every sidecar of both corpora has `demanded_bits: null`.
+
+- With `scalar_canonicalize` proved (`StepKind.proved` has eight kinds; branch `chain-sc`),
+  sections accepted end to end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted),
+  v5 and v6 alike, before and after the S16–S24 schemas:
+
+  | corpus | end to end (`validate`) | before | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 31/40 | 29/40 | `gvn_rewrite` 4, `lower_switches` 3, `adce` 2 |
+  | FeProofs `-Os` | 34/40 | 32/40 | `gvn_rewrite` 4, `adce` 2 |
+  | the 265 | 475/530 | 460/530 | `lower_switches` 42, `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
+
+  Every `scalar_canonicalize` function step is accepted (v5 and v6: 0, 25, 19, 48), and no step of
+  a proved kind is rejected.  Every rejection end to end is a kind with no proof.
 
 ## Not done
 

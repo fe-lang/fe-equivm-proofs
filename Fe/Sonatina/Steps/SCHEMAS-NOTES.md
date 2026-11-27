@@ -22,6 +22,7 @@ are what the entry points are proved from.
 | `SchemasTerm.lean` | `Term` (`atom`/`lit`/`op1`/`op2`/`op3`), `Term.eval`, `Term.fact`, `Term.fact_sat`, `FactsHold`, `Term.const?`, `isC`, `Term.constEval`, `Term.fold`, `pow2Shift?` |
 | `SchemasI.lean` | identities I1–I21 (no I6): `schemaAdd` … `schemaNotNot`, `checkI`, `checkI_sound` |
 | `SchemasS.lean` | `scalar_canonicalize` S1–S15: `foldBitwisePair`, `canonByte`, `canonSignextend`, `foldConstCmp`, `eqZero`, `mulPow2`, `mergeShifts`, `mergeDivs`, `divPow2`, `checkS`, `checkS_sound` |
+| `SchemasS2.lean` | the `scalar_canonicalize` rewrites added since the design, S16–S24: `cancelCommon`, `quotientZero`, `complShl`, `complSub1`, `complAdd`, `complSub`, `subNots`, `signedTop`, `shiftedByte`, `dynPow2Div`, `signTest`, `expTwo`, `modopUmod`, `checkS2`, `checkS2_sound` |
 | `SchemasG.lean` | GVN G2–G6 (`subAdd`, `addSub`, `checkG`, `checkG_sound`); branches B1–B3 (`truthy`, `peelIsZero`, `checkBranch`, `checkBranch_sound`, `checkBranch_target`) |
 | `KnownBitsDemand.lean` | `Agree`, `Agree.mono`; `demand1/2/3` and `demand1/2/3_sound` |
 | `SchemasD.lean` | D1–D3: `checkD`, `checkD_sound` |
@@ -30,6 +31,7 @@ are what the entry points are proved from.
 | `SchemasStep.lean` | `checkKnownBitsSimplify`, `checkSccpFold`, their fact checks (`kbFactsOk`, `sccpFactsOk`, `dbFactsOk`), the demand switch `demandRounds`, and `diagnose…` |
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | the soundness proof of both step kinds (below) |
 | `SchemasStepTests.lean`, `SchemasStepTests/` | records and mutants of the two step kinds |
+| `ScalarStepTests.lean`, `ScalarStepTests/` | records and mutants of `scalar_canonicalize` (real steps of corpus v6, one record per rewrite) |
 | `SchemasTests.lean` | `decide +kernel` tests, the H-7 counterexamples as rejected cases, `#print axioms` |
 
 ## Axioms
@@ -174,6 +176,15 @@ Final side conditions (`c`, `k`, `n` are constants per `isC`/`const?`):
 | S12 | `mergeShifts` | `merge_shifts` | `o a (o b x) → o t x`, `o ∈ {shl, shr, sar}`, `t = min (min a 256 + min b 256) L`, `L = 256` (255 for `sar`) |
 | S13 | `mergeDivs` | `merge_unsigned_divisions` | `evm_udiv (evm_udiv x a) b → evm_udiv x (a·b)`, `a, b ≠ 0`, neither a nontrivial power of two, `a·b < W` |
 | S14, S15 | `divPow2` | `canonicalize_binary_inst` | `evm_udiv x (2^k) → shr k x`; `evm_umod x (2^k) → and x (2^k-1)` (mask either side); `1 ≤ k < 256` |
+| S16 | `cancelCommon` | `cancel_common_operand` | `eq (o k x) (o k y)`, `eq (o x k) (o y k) → eq x y` (output either order), `o ∈ {add, sub, xor, mul}`; `o ≠ sub` also with `k` crossed (`eq (o k x) (o y k)`, `eq (o x k) (o k y)`); for `mul`, `k` a constant, odd |
+| S17 | `quotientZero` | `fold_constant_comparison` (zero bound, `evm_udiv` producer) | `eq (evm_udiv x c) 0`, `eq 0 (evm_udiv x c)`, `is_zero (evm_udiv x c) → lt x c`, `c ≠ 0` constant |
+| S18 | `complShl`, `complSub1`, `complAdd`, `complSub`, `subNots` | `fold_complemented_arithmetic`, `canonicalize_binary_inst` Sub | `not (sub (shl n 1) 1) → shl n M`; `not (sub x 1) → sub 0 x`; `not (add (not x) y)`, `not (add y (not x)) → sub x y`; `not (sub (not x) y) → add x y` (either order); `sub (not x) (not y) → sub y x` |
+| S19 | `signedTop` | `canonicalize_signed_top_field` | `evm_signextend b (shr (248 - 8b) x) → sar (248 - 8b) x`, `b < 31`; `evm_signextend 0 (evm_byte 0 x) → sar 248 x` |
+| S20 | `shiftedByte` | `fold_shifted_byte` | `evm_byte i (shl c x) → evm_byte (i + c/8) x` if `i + c/8 < 32`; `evm_byte i (shr c x) → evm_byte (i - c/8) x` if `c/8 ≤ i`; `i < 32`, `c < 256`, `c % 8 = 0` |
+| S21 | `dynPow2Div` | `fold_dynamic_pow2_division` | `evm_udiv x (shl n 1) → shr n x`, any `n` |
+| S22 | `signTest` | `fold_shifted_sign_test` | `slt (sar c x) 0 → slt x 0`; `sgt (sar c x) M → sgt x M`; `sgt 0 (sar c x) → slt x 0`; `slt M (sar c x) → sgt x M`; any `c` |
+| S23 | `expTwo` | `canonicalize_binary_inst` EvmExp | `evm_exp 2 e → shl e 1`; `evm_exp b 2 → mul b b` |
+| S24 | `modopUmod` | `plan_inst` Opaque | `evm_add_mod x 0 m`, `evm_add_mod 0 x m`, `evm_mul_mod x 1 m`, `evm_mul_mod 1 x m → evm_umod x m` |
 | G2 | `subAdd` | `simplify_sub_add_cancellation` | `sub (add a b) b → a`, `sub (add a b) a → b` |
 | G3 | `addSub` | `simplify_add_sub_cancellation` | `add (sub a b) b`, `add b (sub a b) → a` |
 | B1–B3 | `checkBranch kb c c' swap` | `branch_canonicalize`, `branch_conditions` | `c = is_zero^k c₀`; `c' = c₀` with `swap = odd k`, or `c' = is_zero x` with `c₀ ∈ {eq x 0, eq 0 x}` and `swap = odd k`, or `c₀ ∈ {gt x 0, lt 0 x}` and `swap = even k` |
@@ -193,6 +204,10 @@ branch on `c` to `nz`, `z` goes where the branch on `c'` goes to `z`, `nz` if `s
   sides, and `is_zero` (H-7); S12 exactly the Rust's clamp.
 - The structural heuristics of `scalar_canonicalize` (single use, same block, materialization
   cost) are not checked: they do not affect soundness. Deletions are the checker's.
+- S16–S24 (`SchemasS2.lean`) are the rewrites Sonatina `main` added after the design (at
+  `e39b70c4d`), each as it fires on machine IR. S22 takes any shift count (the Rust asks a
+  constant); S16 for `ne`, S17's `ne` form (`gt x (c - 1)`) and S22 for `sle`/`sge` are not machine
+  IR. `checkExact` runs S16–S24 beside S1–S15 (`checkS2`).
 - G4 and G6 are the same checks as S9 and S11. G5 (`neg`) is not machine IR. G7 (phi with equal
   incoming values) is not a word schema and is not here.
 - B: per review M-3 (design §4.4 had the `is_zero` direction backwards).
@@ -324,6 +339,55 @@ value) 295, `params` 63, `ids-short` 313, `imm-range` (`2^256` unreduced) 313. C
 FeProofs copies; each mutant kind applies where its place exists. No step in either corpus has `demanded_bits` or `ranges` facts: the demand mode is
 exercised by the hand-written records only, and I6 does not occur.
 
+## The `scalar_canonicalize` checker (`SchemasStep.lean`, mode `.scalar`)
+
+What Sonatina does (`optim/scalar_canonicalize.rs` at `e39b70c4d`, `run_with_steps`): rounds until
+no plan; each round plans every instruction on the round's input (`plan_inst` takes `&Function`,
+one plan per instruction), applies the plans, prunes dead pure instructions
+(`prune_dead_pure_insts`: `can_drop_if_unused`, no effect at all, so no read either) and records
+one step with no facts.  On machine IR every plan is a `ReplaceInst` (`func.dfg.replace_inst`:
+same instruction id, same result); the `Copy` plans come from `zext`/casts, which machine IR does
+not have.  The rewrites, the ones that never fire on machine IR, and their counts in the corpora:
+`fe-correctness-scratch/provable-pipeline/scalar-canon/NOTES.md`.
+
+The checker is a third mode of the alias check (`aliasReject .scalar`), so one simulation proves
+the three kinds:
+- no facts at all (`scalarReject`: an unread key rejects, any other fact is `.wrongFacts`);
+- pairing, frame, deletions (pure, single result, not `clz`, no output value), strict SSA of both
+  snapshots: as in the other two modes;
+- a paired statement is its input statement (σ applied) or replaced in place (`replaceOk .scalar`):
+  the same results, the output instruction pure and not `clz` (`Mode.builds`: any such for
+  `.scalar`, `is_zero` only for `.sccp`), and a schema (`checkExact`, with no facts) maps the
+  input's term to the output's.  The terms: equal depths 1–3, or the output's operands as leaves
+  and the input's at depth 0–3 (`depths`), or the input's unfolded three levels but stopping at the
+  output's operands (`unfoldStop`, `instTermStop`) with the output's as leaves.  The last is for
+  rewrites whose leaves sit at different depths (`not (add (not x) y) → sub x y` with `y` itself
+  pure); R-11.1 makes every paired value a leaf on both sides, so a rewrite whose operand is
+  rewritten in the same round is checked as it is;
+- σ: the operands of two paired statements are not zipped (`sigmaOf (zipStmts := false)`), as a
+  replacement may keep the operand count (`shr 32 v38 → shr 224 v36`); a σ entry can only come
+  from a phi or terminator, and is justified as in exact mode (none occurs).
+
+Proof: `scalarCanonicalize_sound`, `scalarCanonicalize_stepSound : StepSound .scalarCanonicalize`
+(`SchemasStepSound.lean`), by `StepSound.of_func` with no further hypothesis.  The changes to the
+shared proof: `SF.mode` admits `.scalar`; `replaceOk_spec` gives both instructions pure and not
+`clz`, the input's term built by `unfold` at some depth or by `unfoldStop` (`InUnfold`);
+`SF.repl_fol` runs any such pair (it ran `is_zero` only); `SidePt.unfoldStop_sound` is
+`unfold_sound` for `unfoldStop` (an early stop is an atom, bound to its word); `SidePt.stmt_ok`
+takes any operand-term function; `AF.wf'` gets the output's `Inst.wf` from `pureInst?`.  The
+verdicts of the other two kinds on the corpora are unchanged (below).
+
+Measured (interpreted, `scripts/MachineSteps.lean` `steps` and `scripts/SchemasSteps.lean`): every
+`scalar_canonicalize` function step of both corpora is accepted, v5 and v6 alike: FeProofs `-O1`
+25, `-Os` 19, the 265 48 (`-O0` has none).  They use four rewrites (S2, S9, S11, S12) and one
+deletion; the inventory (`fe-correctness-scratch/provable-pipeline/scalar-canon/NOTES.md`) has
+the counts.  Output mutants of those steps (`--mutate-out`, with the new `repl-lit`, `repl-var`,
+`repl-op` of a replaced statement): 318, 241, 573 per level and corpus, all rejected; with the
+other kinds' mutants, 970, 893, 3716 (v5) and 970, 893, 3713 (v6), none accepted.  The
+`sccp_fold` and `known_bits_simplify` verdicts are as before (35, 8 at `-O1`/`-Os`; the 265: v5
+133, 94, v6 131, 95).  Tests: `ScalarStepTests.lean`, 71 records, 40 accepted and 31 rejected, by
+`decide +kernel` (12 s).
+
 ## Review 13 (`reviews/review-13-lean-step-checkers.md`)
 
 The reviewer's inputs for findings 1–3 were added as records first (`r13_*`), and the checker at
@@ -382,9 +446,10 @@ on Osaka only), and a parameter or a result of a statement that is not pure has 
 
 ## The proof (`SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean`)
 
-`sccpFold_stepSound : StepSound .sccpFold` and `knownBitsSimplify_stepSound : StepSound
-.knownBitsSimplify`, by `StepSound.of_func` with no further hypothesis (axioms `propext`,
-`Classical.choice`, `Quot.sound`).  Both kinds are in `StepKind.proved`.  Demand rounds are
+`sccpFold_stepSound : StepSound .sccpFold`, `knownBitsSimplify_stepSound : StepSound
+.knownBitsSimplify` and `scalarCanonicalize_stepSound : StepSound .scalarCanonicalize`, by
+`StepSound.of_func` with no further hypothesis (axioms `propext`, `Classical.choice`,
+`Quot.sound`).  The three kinds are in `StepKind.proved`.  Demand rounds are
 switched off (below); everything else the checker accepts is covered.
 
 | Module | Contents |
