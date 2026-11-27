@@ -28,7 +28,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved` (on `validate`) |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound_of_sound` (from `Sound s`), `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved_of_sound`, `machine_sound_proved` (on `validate` and `check`), `machine_sound_spills_proved` (on `validate`, `checkSpills` and `FrameSafe`) |
 | `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
@@ -542,6 +542,37 @@ line of WETH9's `returnValue_run`.
 
   `branch_conditions` has no step in either corpus.  No `known_bits_simplify` step is rejected as
   a demand round: every sidecar of both corpora has `demanded_bits: null`.
+
+## The top theorem: what it covers (review 20, M-3)
+
+`machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
+refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
+are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_sound_proved_of_sound`
+(`validate`, `Sound s`), and two corollaries for the two ways the repository has of proving
+`Sound s`:
+
+- `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
+  `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
+  Its statement is unchanged.
+- `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
+  `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
+
+`check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
+entry for), `validate` on one section's record; the theorems need both sections' records.
+
+**`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
+sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
+machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
+(s.spilledModel s.spillPlan) CalldataFits` on every message call whose calldata fits, and
+`ImplementsDeploy` likewise on every deployment.  The instrumented model panics with
+`spillClobbered` where a statement changes a word whose value the bytes reload later, so
+`FrameSafe` says no statement clobbers a live spill word, and that no spill store overwrites IR
+data the IR reads later.  It is proved only for sidecars without spills
+(`frameSafe_of_noSpills`, through which `check_sound` goes).  For no sidecar with spills does the
+repository prove it: `fixedSlotsSafe` (inside `checkSpills`) rejects one way of breaking it (a
+spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
+`scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
+(precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
 
 ## Not done
 

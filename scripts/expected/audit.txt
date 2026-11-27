@@ -11,6 +11,8 @@ Fe.Sonatina.Steps.cfgCleanup_stepSound: [Classical.choice, Quot.sound, propext] 
 Fe.Sonatina.Steps.coalesceCopies_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.edgeSplit_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.machine_sound_proved: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Steps.machine_sound_proved_of_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Steps.machine_sound_spills_proved: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Blake2F.feBlake2FContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Bn254Add.feBn254AddContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide
 FeProofs.Bn254Mul.feBn254MulContractCorrect: [Classical.choice, Quot.sound, propext] + 0 native_decide

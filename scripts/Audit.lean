@@ -11,7 +11,8 @@ import FeModel
 open Lean
 
 #eval show CoreM Unit from do
-  let machine := ["check_sound", "checkSpills_sound", "machine_sound_proved", "proved_sound",
+  let machine := ["check_sound", "checkSpills_sound", "machine_sound_proved",
+    "machine_sound_proved_of_sound", "machine_sound_spills_proved", "proved_sound",
     "kb_reaches", "kb_point"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString

@@ -11,8 +11,10 @@ import Fe.Sonatina.CheckCert
 right after lowering that its record `rr` (runtime) or `ri` (init) starts from.  When both
 records validate against the sidecar's machine IR, with the names of each section's symbols
 (`Sidecar.symbolsOf`), the machine IR implements the lowered module in the sense of partial
-correctness (`machine_implementsP`), and with `check_sound` the bytes refine the lowered module
-(`machine_sound`).
+correctness (`machine_implementsP`), and wherever the bytes refine the machine IR (`Sound s`) they
+refine the lowered module (`machine_sound_of_sound`).  `Sound s` comes from `check_sound` for a
+sidecar without memory spills (`machine_sound`, `machine_sound_proved`), or from
+`checkSpills_sound` and `FrameSafe s` for one with spills (`machine_sound_spills_proved`).
 -/
 
 namespace Fe.Sonatina.Steps
@@ -193,9 +195,23 @@ theorem machine_implementsP {allowed : List StepKind} {s : Sidecar} {rr ri : Mac
     refine ⟨feed, endsAsP_of_resRel ?_⟩
     exact Approx.bind (R := Eq) hin (fun _ _ e => e ▸ Approx.pure_eq _) I _ _ (WRel.refl _)
 
+/-- Wherever the bytes refine the machine IR (`Sound s`), they refine the modules right after
+    lowering: the validated records for the machine IR against the lowered modules, composed by
+    `RefinesOn.of_implementsP`.  This is all `machine_sound` reads of `check s = true`. -/
+theorem machine_sound_of_sound {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
+    (hk : ∀ k ∈ allowed, StepSound k)
+    (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validateWith allowed (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hs : Sound s) :
+    RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) := by
+  obtain ⟨hrun, hdep⟩ := hs
+  obtain ⟨himp, hdimp⟩ := machine_implementsP hk hr hi
+  exact ⟨RefinesOn.of_implementsP hrun himp rfl, RefinesDeploy.of_implementsP hdep hdimp⟩
+
 /-- The bytes of both sections refine the modules right after lowering: `check_sound` for the
-    bytes against the machine IR, and the validated records for the machine IR against the
-    lowered modules, composed by `RefinesOn.of_implementsP`. -/
+    bytes against the machine IR, and `machine_sound_of_sound`. -/
 theorem machine_sound {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSteps}
     (hk : ∀ k ∈ allowed, StepSound k)
     (hr : validateWith allowed (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
@@ -203,10 +219,8 @@ theorem machine_sound {allowed : List StepKind} {s : Sidecar} {rr ri : MachineSt
     (hc : check s = true) :
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
-        (fun _ => True) := by
-  obtain ⟨hrun, hdep⟩ := check_sound hc
-  obtain ⟨himp, hdimp⟩ := machine_implementsP hk hr hi
-  exact ⟨RefinesOn.of_implementsP hrun himp rfl, RefinesDeploy.of_implementsP hdep hdimp⟩
+        (fun _ => True) :=
+  machine_sound_of_sound hk hr hi (check_sound hc)
 
 /-- `machine_sound` for records that use only `edge_split`: no hypothesis. -/
 theorem machine_sound_edgeSplit {s : Sidecar} {rr ri : MachineSteps}
@@ -231,9 +245,24 @@ theorem StepKind.proved_sound : ∀ k ∈ StepKind.proved, StepSound k := by
   · exact Schemas.sccpFold_stepSound
   · exact Schemas.knownBitsSimplify_stepSound
 
+/-- `machine_sound_of_sound` for records that `validate` accepts, which use only the proved
+    kinds: wherever the bytes refine the machine IR, they refine the modules right after
+    lowering. -/
+theorem machine_sound_proved_of_sound {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hs : Sound s) :
+    RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) :=
+  machine_sound_of_sound StepKind.proved_sound hr hi hs
+
 /-- `machine_sound` for records that `validate` accepts, which use only the proved kinds
     (`StepKind.proved`: `edge_split`, `cfg_cleanup`, `branch_canonicalize`, `branch_conditions`,
-    `coalesce_copies`, `sccp_fold` and `known_bits_simplify`): no hypothesis. -/
+    `coalesce_copies`, `sccp_fold` and `known_bits_simplify`): no hypothesis.
+
+    It applies to sidecars without memory spills only (`check s = true` holds `s.noSpills`); a
+    sidecar with spills has `machine_sound_spills_proved`. -/
 theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
@@ -241,6 +270,19 @@ theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) :=
-  machine_sound StepKind.proved_sound hr hi hc
+  machine_sound_proved_of_sound hr hi (check_sound hc)
+
+/-- `machine_sound_proved` for a sidecar with memory spills: the spill-aware checker
+    (`checkSpills`) in place of `check`, under `FrameSafe s` (the machine IR with its spills, under
+    the sidecar's spill plan, ends as the machine IR does on every call and deployment), which
+    `checkSpills_sound` needs and nothing here proves for a sidecar with spills. -/
+theorem machine_sound_spills_proved {s : Sidecar} {rr ri : MachineSteps}
+    (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
+    (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
+    (hc : checkSpills s = true) (hf : FrameSafe s) :
+    RefinesOn .P1 (s.code "runtime") ((s.lowered rr ri).model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
+        (fun _ => True) :=
+  machine_sound_proved_of_sound hr hi (checkSpills_sound hc hf)
 
 end Fe.Sonatina.Steps
