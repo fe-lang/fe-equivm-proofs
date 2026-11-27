@@ -293,6 +293,12 @@ called last in `machine/pipeline.rs:76-79`; design §4.10 and review H-6 describ
   immediate; the window's other instructions are erased if they have no result or an unused one
   (`:27-38`): the loads, the other stores, unused `add`/`sub`; used ones stay in place.
 
+`coalesce_machine_copies` walks every block of the layout (`copy.rs:16-18` at `e39b70c4d`),
+reachable or not, and
+`address` follows `add`/`sub` definitions wherever they are; at `-O0` no `cfg_cleanup` runs before
+it, so unreachable blocks of the lowered code reach it.  (At `-O1`/`-Os` the machine pipeline's
+last `cfg_cleanup` comes before it, with only `lower_switches` and `branch_conditions` between.)
+
 In the four corpora (FeProofs `-O0`/`-O1`/`-Os` and the 265 sidecars of `corpus-v5-full`): 229
 steps, 819 copies; every change is a store replaced by `evm_mcopy` or a deleted `evm_mload`,
 `evm_mstore` or `add`; source and destination normalize to constants in 676 copies (278 snapshot,
@@ -323,6 +329,29 @@ mutants: overlapping interleaved ranges, a length other than `32 n`, store `i` o
 a load used twice, a base-relative run, a deleted store outside a window, a changed copy operand,
 non-contiguous addresses, another instruction in the window, one word, a range past `2 ^ 256`, a
 kept `add` moved after the copy.
+
+**Unreachable blocks (review 20, M-1).**  `addrNorm` follows only definitions in blocks the input's
+tree reaches (`stmtOf`, which its proof needs), so a run in an unreachable block whose addresses go
+through that block's own `add`s was rejected, though the compiler coalesces it.  `blockOk` now
+checks an unreachable block's id, phis and terminator only, not its statements: no run of the
+input or the output enters it (the terminators are the input's), and the simulation steps only
+reachable blocks (`kc_block` takes the reachability `BR` carries).  `unusedOk'` still covers the
+whole output.  Tests: `kc_unreach` (Gemini's example; `cbodyOk` alone rejects its block, as the
+check did before), `kc_unreach_any` (any body in an unreachable block); mutants
+`kc_bad_unreach_term`, `kc_bad_unreach_used` (a deleted value used there), `kc_bad_reach_any`
+(the same body with the block reachable).  No step of the corpora has such a run: every
+`coalesce_copies` step was accepted before the change.
+
+The other proved checkers: `cfg_cleanup` deletes unreachable blocks, and its check is driven by
+the output's blocks, chains from the input's; `edge_split` reads no definitions; the schema
+checkers' unfolding and pairing read definitions in any block (only SCCP's facts are restricted,
+to the executable set, which the checker validates).  `branch_canonicalize`'s `isZeroArg` has the
+same restriction as `stmtOf`, so a peel of a branch in an unreachable block whose `is_zero`s are
+defined there is rejected; but Sonatina runs `BranchCanonicalize` right after `cfg_cleanup` in the
+one round of `MACHINE_PASSES`, and `branch_conditions` after the round's last `cfg_cleanup`, so
+neither sees an unreachable block; every `branch_canonicalize` step of the corpora is accepted
+(`branch_conditions` has none).  Accepting it
+would mean accepting a changed terminator in an unreachable block, not the same change; not done.
 
 **Stage 2 (ruling R-11.4, review C-1), done:** the interpreter's `evm_mcopy` does not terminate
 where a range ends past `2 ^ 256` (`mcopyIR`, below), the byte side is re-proved (`mcopy_oog`),

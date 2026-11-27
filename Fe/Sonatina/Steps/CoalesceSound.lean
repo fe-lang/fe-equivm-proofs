@@ -702,18 +702,26 @@ theorem checkCoalesce_facts {f : Func} {ids : Option (List (List Nat))} {s : Fun
 
 theorem KCtx.blockOk_spec {X : KCtx} {b' b : Block} (h : X.blockOk b' b = true) :
     b'.id = b.id ∧ b'.phis = b.phis ∧ b'.term = b.term ∧
-      X.cbodyOk (b.body.length + 1) b'.body b.body = true := by
+      ((X.T.reach.find? b.id).isSome = true →
+        X.cbodyOk (b.body.length + 1) b'.body b.body = true) := by
   unfold KCtx.blockOk at h
-  simp only [Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
-  exact ⟨h.1.1.1, h.1.1.2, h.1.2, h.2⟩
+  simp only [Bool.and_eq_true, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  refine ⟨h.1.1.1, h.1.1.2, h.1.2, fun hr => h.2.resolve_left ?_⟩
+  rw [Option.isNone_iff_eq_none]
+  exact fun he => by rw [he] at hr; cases hr
 
+/-- The output block of a reachable id against the input's. -/
 theorem kc_block {f f' : Func} (F : KFacts f f') {id : Nat} {b' : Block}
-    (h : f'.block? id = some b') : ∃ b, f.block? id = some b ∧
+    (h : f'.block? id = some b') (hr : ((domTree f).reach.find? id).isSome = true) :
+    ∃ b, f.block? id = some b ∧
       b'.id = b.id ∧ b'.phis = b.phis ∧ b'.term = b.term ∧
-        (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body = true :=
-  find_zip (P := fun b' b => b'.id = b.id ∧ b'.phis = b.phis ∧ b'.term = b.term ∧
-      (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body = true)
+        (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body = true := by
+  obtain ⟨b, hb, hid, hph, htm, hbody⟩ := find_zip (P := fun b' b => b'.id = b.id ∧
+      b'.phis = b.phis ∧ b'.term = b.term ∧ (((domTree f).reach.find? b.id).isSome = true →
+        (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body = true))
     F.len (fun p hp => let h := KCtx.blockOk_spec (F.blocks p hp); ⟨h.1, h⟩) h
+  have hbid : b.id = id := by simpa using List.find?_some hb
+  exact ⟨b, hb, hid, hph, htm, hbody (hbid ▸ hr)⟩
 
 theorem kc_head {f f' : Func} (F : KFacts f f') {e' : Block} (he' : f'.blocks.head? = some e') :
     ∃ e, f.blocks.head? = some e ∧ e'.id = e.id := by
@@ -1494,7 +1502,7 @@ theorem kc_block_fol (hwf : f.wf sig syms = true) (F : KFacts f f') {o : Oracle}
   | some ob =>
   dsimp only
   have hobm := List.mem_of_find?_eq_some hob
-  obtain ⟨ib, hib, _, hph, hterm, hbody⟩ := kc_block F hob
+  obtain ⟨ib, hib, _, hph, hterm, hbody⟩ := kc_block F hob hbi.2.2.1
   rw [runFrom_enter o c hib]
   refine Fol.bind (Fol.approx (S := fun e₁' e₁ => BMid f f' e₁' e₁ b 0)
     (Q := fun e₁' y => ∃ e₁, y = inRun o c f b ib e₁ ∧ BMid f f' e₁' e₁ b 0) ?_

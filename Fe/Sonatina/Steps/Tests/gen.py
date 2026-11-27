@@ -473,3 +473,16 @@ two_base = ["v2.i256 = evm_mload v0", "v3.i256 = add v1 32.i256", "v4.i256 = evm
 write("kc_bad_two_base.json", kc([(0, two_base + [RET], ids_from(6))],
     [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256", "v1.i256")))
 write("kc_bad_moved.json", kc(keep_in, [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "v6.i256 = add 512.i256 32.i256", "return v6"], [4, 2, 5])]))
+# Review 20 M-1: a run in an unreachable block (block1), its addresses through that block's own
+# adds, which `addrNorm` does not follow; the compiler coalesces it (`copy.rs` visits every
+# block).  Accepted, as is any body of an unreachable block (its statements are not checked).
+# Rejected: the unreachable block's terminator changed; its new body uses a deleted value; the
+# same arbitrary body in block1 reachable (block0 jumps to it).
+unr_in = [(0, [RET], [0]), (1, base2 + [RET], ids_from(7, 1))]
+unr = lambda b1, ids, b0="return 0.i256": kc([(0, [b0], [0])] + unr_in[1:], [(0, [b0], [0]), (1, b1, ids)],
+    params=("v0.i256", "v1.i256"))
+write("kc_unreach.json", unr(["evm_mcopy v1 v0 64.i256", RET], [6, 7]))
+write("kc_unreach_any.json", unr(["evm_sstore 0.i256 1.i256", RET], [6, 7]))
+write("kc_bad_unreach_term.json", unr(["evm_mcopy v1 v0 64.i256", "return 1.i256"], [6, 7]))
+write("kc_bad_unreach_used.json", unr(["evm_mstore 0.i256 v3", RET], [6, 7]))
+write("kc_bad_reach_any.json", unr(["evm_sstore 0.i256 1.i256", RET], [6, 7], b0="jump block1"))
