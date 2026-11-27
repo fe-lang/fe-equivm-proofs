@@ -1,6 +1,7 @@
 import Fe.Sonatina.Steps.CfgCleanupSound
 import Fe.Sonatina.Steps.BranchCanonSound
 import Fe.Sonatina.Steps.CoalesceSound
+import Fe.Sonatina.Steps.SchemasStepSound
 import Fe.Sonatina.CheckCert
 
 /-!
@@ -221,16 +222,17 @@ theorem machine_sound_edgeSplit {s : Sidecar} {rr ri : MachineSteps}
 theorem StepKind.proved_sound : ∀ k ∈ StepKind.proved, StepSound k := by
   intro k hk
   simp only [StepKind.proved, List.mem_cons, List.not_mem_nil, or_false] at hk
-  rcases hk with rfl | rfl | rfl | rfl | rfl
+  rcases hk with rfl | rfl | rfl | rfl | rfl | rfl
   · exact edgeSplit_stepSound
   · exact cfgCleanup_stepSound
   · exact branchCanon_stepSound
   · exact branchConditions_stepSound
   · exact coalesceCopies_stepSound
+  · exact Schemas.sccpFold_stepSound
 
 /-- `machine_sound` for records that `validate` accepts, which use only the proved kinds
-    (`StepKind.proved`: `edge_split`, `cfg_cleanup`, `branch_canonicalize`, `branch_conditions`
-    and `coalesce_copies`): no hypothesis. -/
+    (`StepKind.proved`: `edge_split`, `cfg_cleanup`, `branch_canonicalize`, `branch_conditions`,
+    `coalesce_copies` and `sccp_fold`): no hypothesis. -/
 theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
