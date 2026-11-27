@@ -421,7 +421,7 @@ example : adCheck ad_real_modexp = true := by decide +kernel
 /-- Rejected, by `validate` and by the check alone: a removed store, call (`call %g`), value still
 used, `clz`, `evm_gas`; a slot retargeted past a `return` (block5); a kept phi at a bypass's
 target; a bypassed `revert`; a bypassed store; a bypassed loop, without and with a finite-loop
-fact (loop removal is switched off, `adceLoopRemoval`); known-bits facts. -/
+fact (loop removal is rejected); known-bits facts. -/
 example : AD ad_bad_store = false := by decide +kernel
 example : adCheck ad_bad_store = false := by decide +kernel
 example : AD ad_bad_call = false := by decide +kernel

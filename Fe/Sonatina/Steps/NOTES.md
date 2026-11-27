@@ -26,6 +26,8 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `LowerSwitches.lean` | `funcVars`, `look`, `subtree`, `leafOk`, `LSCtx` (`lab`, `pivot?`, `nodeOk`, `rootOk`, `expected`, `phiOk`, `blockOk`, `shapeOk`, `idsOk`), `checkLowerSwitches` |
 | `LowerSwitchesSound.lean` | `LSCtx.Agree`, `runInst_congr`, `runStmtO_congr`, `runTerm_congr`, `approx_runTerm_agree`, `LSCtx.approx_runBodyO`, `LSCtx.approx_enter`, `leafOk_sel`, `runTerm_table`, `lt_br_run`, `stepBlock_leaf`, `stepBlock_node`, `LSCtx.R`, `lowerSwitches_sound`, `lowerSwitches_stepSound` |
+| `Adce.lean` | `EvmOp.readArity`, `Inst.deadRes`, `freshV`, `removable`, `adBodyOk`, `Term.isGoto`, `ACtx` (`crossOk`, `chainOk`, `region`, `peel`, `order`, `bypassOrder`, `bypassOk`, `loopBypass`, `slotOk`, `blockOk`), `closedOk`, `adIdsOk`, `adceFactsOk`, `checkAdce`, `adceWhy` |
+| `AdceSound.lean` | `total_read`, `total_dead`, `AFacts`, `OutAgree`, `total_stmt`, `total_body`, `total_term`, `total_cross`, `ad_walk`, `AR`, `AMid`, `AQ`, `ad_enter`, `ad_stmts`, `Fol.approx_walk`, `ad_term`, `ad_block_fol`, `ad_sim`, `adce_sound`, `adce_stepSound` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
@@ -122,13 +124,14 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold` and
-   `lower_switches`** (phase 2; all eight are proved and in `StepKind.proved`, the kinds `validate` accepts and
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`,
+   `lower_switches` and `adce`** (phase 2; all nine are proved and in `StepKind.proved`, the kinds `validate` accepts and
    `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
    `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
-   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each kind but the two schema ones
-   requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
-   schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
+   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each kind but the two schema ones and `adce`
+   requires `noFacts` (no known bits, no demand round, no SCCP facts, no finite loops, no unread
+   key), the two schema kinds check the facts they read, `adce` allows only `finite_loops`
+   (`Schemas.StepFacts.finiteLoops`, read and not used); `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
@@ -485,6 +488,118 @@ another scrutinee, a leaf with the switch's instruction id, a new block outside 
 changed statement of the switch's block, a node that is an input block, a phi operand left on
 the switch's block, one missing for a leaf, a wrong one for a leaf, the key `2 ^ 256 - 1` in the
 lower leaf.
+
+## `adce` (design §4.6, review C-5)
+
+What Sonatina does (`crates/codegen/src/optim/adce.rs` at `machine-steps-main` `e39b70c4d`; the
+machine round runs it with `AdceCallPolicy::UseCurrentFuncEffects` in two places, after SCCP's
+fold (`optim/sccp.rs:167`, the steps of the `sccp` pass) and as `Pass::Adce`
+(`optim/pipeline.rs:1285`), each as rounds until a round changes nothing, one step per round,
+then a `cfg_cleanup` step):
+- roots (`is_live_root_inst`, `:612-630`): a call unless its callee's summary says it always
+  returns and mutates nothing (`is_nonmutating_returning_call`, `can_elide_if_unused_call`:
+  `will_return` and no memory write, mutation or allocation); otherwise any instruction that may
+  write memory, mutate or allocate (`may_mutate_state`) or transfer control (terminators that
+  exit, `evm_invalid`, …); `alloca` never.  Reads (`evm_mload`, `evm_sload`, …), `evm_gas`, `clz`
+  and the arithmetic are not roots.  The entry and its terminator are live, and so are the blocks
+  with no path to an exit (`divergent_blocks`) and the blocks of cycles not proven finite
+  (`preserved_cycle_blocks`: irreducible cycles, and the header and latches of every loop not
+  proven finite or with a child not proven finite), with their terminators;
+- liveness (`mark_by_inst`, `:184-208`): an operand's definition, the terminators of a live
+  phi's predecessors, and the terminators of the post-dominance frontier of a live instruction's
+  block; marking an instruction marks its block and the block's terminator;
+- removal (`eliminate_dead_code`): every non-live instruction (checked closed under uses, `:592`);
+  then each slot of a live block's terminator to a dead block goes to the nearest live
+  post-dominator of that block (`living_post_dom`), if it has no phis or the terminator already
+  goes there (`replace_succ_allow_existing_pred`), else the slot is removed (`remove_succ`, a
+  `br` to a `jump`, a `jump` to `unreachable`); dead blocks are deleted
+  (`delete_blocks_unreachable`, which drops their phi operands from live successors);
+- finite loops (`proven_finite_loop`, `:431-482`, `branch_bounds_loop`): a natural loop whose
+  children are all finite and which has no irreducible block, with a single latch; a phi `iv`
+  of its header taking `step` from the latch and only values from outside otherwise, `step` an
+  `add` of `iv` and a nonzero constant or a `sub` of one from `iv` (not the signed minimum), its
+  block in the loop itself (not a child) and dominating the latch; and a block `exit` of the loop
+  itself dominating the latch whose `br` has one target in the loop and one out, the condition
+  normalized (`normalize_condition`) to a test that leaves the loop once `iv` (or `step`) passes
+  a loop-invariant bound (`is_loop_invariant_value`): non-zero or zero tests and `==`/`!=` only
+  for a unit step; `<`, `<=` and their signed forms pointing the way the step goes, strict with a
+  unit step for any invariant bound, otherwise a constant bound the last staying value cannot
+  step past without wrapping.  When recording, the round exports every loop proven finite,
+  removed or not, as `FiniteLoop { header, latch, iv, step, exit }`
+  (`object/lowering.rs:177-189`, test `steps_list_the_finite_loops_a_round_may_remove`).
+
+What the corpora's `adce` steps remove (`adce/py/adce_stats.py` over every function step; v6:
+FeProofs `-O1` 12 steps, `-Os` 6, the 265 13; v5: 8, 6, 9): dead phis of loop headers whose loops
+stay (v6 20 / 0 / 20, v5 12 / 0 / 12), `evm_mload`s (v6 4 / 4 / 5, v5 4 / 4 / 5; 3 of each in
+removed blocks), `shl`s (v6 0 / 4 / 1, v5 0 / 4 / 1), 3 blocks (each `evm_mload; jump`, in
+Modexp's runtime) with 11 slots retargeted past them, each region one block, the target without
+phis.  No call, store, `clz` or `evm_gas` is removed, no slot is removed (`remove_succ`), no
+branch collapses to a `jump`, and no loop is removed: every region bypassed is acyclic.  Every
+step but one of the 265's lists finite loops (v6 36 / 12 / 36, v5 32 / 12 / 32): the loops of the function
+proven finite, which all stay (they hold stores).
+
+The checker (`checkAdce`, `Adce.lean`): driven by the output's blocks, each an input block of
+its id: its phis are input phis, and each input phi it drops defines no output value
+(`freshV`); its statements are the input's in order less removable ones (`removable`: an
+instruction the model runs, on words, to exactly as many values as its statement binds, total
+and without a change of the world, `Inst.deadRes`: `bin`, `cmp`, `is_zero`, `not`, `neg`,
+`ctz`, `sat`, `cast`, `select`, `keccak_words`, `ovf` (two results), and the EVM reads with
+their operand count, `EvmOp.readArity`: environment and block reads, `balance`,
+`extcodesize`/`extcodehash`, `calldataload`, `codeload`, `mload`, `sload`, `tload`, `keccak256`,
+`addmod`/`mulmod`; not `clz`, which traps before Osaka, not `evm_gas`, which takes from the gas
+feed, not a call, store, copy, log, creation, `sym_addr`/`sym_size`/`get_function_ptr` (stuck in
+a context without the symbol, which `StepSound.of_func` does not exclude) or `black_box`), each
+result no output value; its terminator the input's slot by slot (`termRel`, a `br` or `br_table`
+possibly collapsed to a `jump`), each output target the input's or a bypass of it
+(`bypassOk t d`): the input blocks reachable from the input's target `d` before the output's
+`t` (`region`, fuel-bounded) are ordered by peeling (`order`), and the order checked
+(`chainOk`): it contains `d`, and each block's successors are `t` or later blocks, each block no
+output block, with no output values, removable statements and a `jump`, `br` or `br_table` with a
+default (`crossOk`); `t` has no phis in the output.  Also: the entry keeps its id, the
+parameters are the input's, the output is machine IR, the input's dominator tree is valid and
+the input in strict SSA, the output uses only values it defines (`closedOk`), instruction ids
+are kept (`adIdsOk`: phis and statements a subsequence, the terminator's id the same; the proof
+needs none of these three), and the facts are only `finite_loops`.
+
+A region with a cycle cannot be ordered, so a removed loop is rejected, whatever the step's
+facts (`ACtx.loopBypass`, `adceWhy` names it "loop removal (rejected)"): the one exclusion of
+this first stage, counted 0 in both corpora.  A `remove_succ` slot is accepted only where it
+amounts to a collapse to a target every slot relates to (`termRel`); `br c d o → jump o` with
+`d`'s region ending at `o` is a bypass; a `jump` to `unreachable` is rejected (the input goes on).
+
+Proof (`AdceSound.lean`, `adce_sound`, `adce_stepSound`; no hypothesis beyond
+`StepSound.of_func`'s): the simulation `AR` relates the output and the input at the same block,
+entered from the same block or, where the output's block has no phis, from another (a bypass's
+last block); the output's environment binds less (`EnvSub`) and only output values (`DomSub`);
+the input carries the definedness invariant (`BlockInv`; entered from nowhere, its block has no
+phis).  Entering (`ad_enter`): kept phis are input phis, so they bind what the input binds, and
+dropped ones bind no output value.  Statements (`ad_stmts`, `bc_stmts`'s shape): a kept one steps
+with the input's; a removed one is an input-only step (`total_stmt`: `total_dead` on the words the
+invariant gives, then `bind`, the results fresh, `OutAgree`).  The terminator (`ad_term`,
+`Fol.approx_walk`): where the targets agree, the next states are related; at a bypass the input
+runs on alone from `d` (`ad_walk`, by induction on the order: each block a total step,
+`total_cross`, to `t` or a later block), so for every input and world it reaches `t` with the
+world unchanged and only fresh values bound anew, related to the output entering `t`, which has
+no phis.  `Sim` lets the input take any number of blocks per output block, so `Sim.of_steps`
+needed no extension: the bypass is a `Fol` step, as `cfg_cleanup`'s tunnels are.
+
+The `finite_loops` fact as a certificate: it names the loop's header, latch, induction phi,
+step value and exit block, from which a checker can recompute and verify everything
+`proven_finite_loop` proves (the natural loop of the latch's back edge, the single latch, the
+phi's operands, the step's constant and block, the exit's dominance of the latch and its test
+against an invariant bound, the children by their own facts, no irreducible cycle); nothing the
+argument needs is missing from the record.  What is missing is the termination proof in the
+model: a ranking argument over runs that pass the exit once per iteration with the induction
+variable moving towards the bound without wrapping, nested loops by induction.  Not built.
+
+Tests (`Tests.lean`, `ad_*`): accepted, hand-written (dead `add`, `evm_mload` and phi, a region
+of three blocks with a branch bypassed to its end; the same collapsed to a `jump`; with a
+finite-loop fact) and real (Bn254Add's `carry`, two dead loop-header phis with four finite
+loops listed; Identity's runtime, a dead `evm_mload`; Modexp's runtime, three dead blocks
+bypassed by eleven slots, by the check alone as it has calls); rejected by `validateWith` and by
+the check alone (`adCheck`): a removed store, call, used value, `clz` and `evm_gas`; a slot
+retargeted past a `return`; a kept phi at a bypass's target; a bypassed `revert` and store; a
+bypassed loop without and with a finite-loop fact; known-bits facts.
 
 ## Review 6 (phase 1) findings taken up in phase 2
 

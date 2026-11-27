@@ -30,10 +30,11 @@ The check (`checkAdce`), driven by the output's blocks, each an input block of i
   and the input in strict SSA (the definedness invariant makes the removed work total); every
   value the output uses it defines (`closedOk`); instruction ids are kept (`adIdsOk`).
 
-A bypassed region with a cycle (ADCE removing a loop it proved finite) is rejected: the order
-does not reach `d` (`ACtx.loopBypass` names it for the measurement).  The record's
-`finite_loops` facts are read (`Schemas.StepFacts.finiteLoops`) and not used: they are what a
-loop certificate would be checked from (`adceLoopRemoval`, switched off).
+A bypassed region with a cycle (ADCE removing a loop it proved finite) is rejected, whatever the
+step's facts: the order does not reach `d` (`ACtx.loopBypass` names it for the measurement).
+This is the first stage's one exclusion; no step of the corpora removes a loop.  The record's
+`finite_loops` facts are read (`Schemas.StepFacts.finiteLoops`) and not used: a loop certificate
+would be checked from them, with a termination proof the check does not have.
 -/
 
 namespace Fe.Sonatina.Steps
@@ -147,10 +148,6 @@ def ACtx.bypassOk (X : ACtx) (t d : Nat) : Bool :=
 def ACtx.loopBypass (X : ACtx) (t d : Nat) : Bool :=
   t != d && !(X.bypassOrder t d).contains d
 
-/-- The removal of loops ADCE proved finite: not accepted (no certificate check is proved).  A
-    bypass whose region has a cycle is rejected whatever its `finite_loops` facts. -/
-def adceLoopRemoval : Bool := false
-
 /-- `φ` is one of the phis. -/
 def hasPhi (ps : List Phi) (φ : Phi) : Bool := ps.any fun ψ => decide (ψ = φ)
 
@@ -238,7 +235,7 @@ def adceWhy (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : Sche
         return s!"block {b'.id}: statements (not removable: {bad.map (fun st => repr st.inst)})"
       let tgts := b.term.succs.zip b'.term.succs
       if tgts.any (fun (d, t) => X.loopBypass t d) then
-        return s!"block {b'.id}: loop removal (switched off)"
+        return s!"block {b'.id}: loop removal (rejected)"
       return s!"block {b'.id}: terminator"
   if !closedOk f' then return "output uses a value it does not define"
   return "instruction ids"

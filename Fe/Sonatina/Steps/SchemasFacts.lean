@@ -25,7 +25,7 @@ structure StepFacts where
   /-- SCCP's dead edges `(block, slot)`. -/
   deadEdges : List (Nat × Nat) := []
   /-- ADCE's loops proven finite, `(header, latch, iv, step, exit)` (`FiniteLoop` of the
-      record): read for `adce`, which does not use them (`adceLoopRemoval`). -/
+      record): read for `adce`, which does not use them: it removes no loop. -/
   finiteLoops : List (Nat × Nat × Nat × Nat × Nat) := []
   /-- The keys of the record these checkers do not read (`ranges`, `gvn`). -/
   unread : List String := []
