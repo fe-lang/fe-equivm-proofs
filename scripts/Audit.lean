@@ -9,7 +9,8 @@ import FeModel
 `machine_sound_spills_sidecar`, their forms under the real feed (`…_fut`, `…_at`),
 `StepKind.proved_sound`, each step kind's `…_stepSound`, the known-bits invariant `kb_reaches`
 and `kb_point`, and the handover semantics' `runH_sound`, `runRuntime_sound`,
-`runDeploy_sound`, `message_eq_core`, `createWith_eq_core`).  Run:
+`runDeploy_sound`, `message_eq_core`, `createWith_eq_core`, and its composition with the real feed's
+refinement, `Fe.EVM.RefinesOnFut.toH`, `Fe.EVM.RefinesDeployFut.toH`).  Run:
 `lake lean scripts/Audit.lean`. -/
 open Lean
 
@@ -29,7 +30,8 @@ open Lean
     if (`FeProofs).isPrefixOf n && (last.endsWith "ContractCorrect"
         || last.startsWith "fe" && (has "Refines" || has "Keeps" || has "Solvent")
         || has "conserves")
-      || (`Fe.Sonatina).isPrefixOf n && (machine.contains last || last.endsWith "_stepSound") then
+      || (`Fe.Sonatina).isPrefixOf n && (machine.contains last || last.endsWith "_stepSound")
+      || [``Fe.EVM.RefinesOnFut.toH, ``Fe.EVM.RefinesDeployFut.toH].contains n then
       some n
     else none
   for n in capstones.toArray.qsort (fun a b => a.toString < b.toString) do

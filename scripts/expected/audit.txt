@@ -1,3 +1,5 @@
+Fe.EVM.RefinesDeployFut.toH: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.EVM.RefinesOnFut.toH: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.checkSpills_deploy_at: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.checkSpills_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.checkSpills_sound_at: [Classical.choice, Quot.sound, propext] + 0 native_decide

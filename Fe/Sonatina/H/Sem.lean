@@ -24,8 +24,11 @@ none either (§3.1: partial correctness needs only terminating runs), nor one in
 library's run does not terminate (`IRes.diverge`, `TRes.diverge`).
 
 `Object.Runtime` and `Object.Deploy` are §7.2's: some run of the section's entry, from the
-world `w` (whose feed it consumes) and empty memory, ends in `out`.  `Matches`, `ImplementsH`
-and `ImplementsDeployH` are §7.2's statements, as written there.
+world `w` (whose feed it consumes) and empty memory, ends in `out`.  `Matches` and
+`ImplementsH` are §7.2's statements, as written there; `ImplementsDeployH` takes the runtime
+bytes the model's result is put after and the arguments it is stated for, as
+`ImplementsDeployPSame` and `RefinesDeployFut` do (`Fe/Sonatina/RealFeed.lean`; review 24, M4),
+so that it composes with `RefinesDeployFut` for any of them (`H/Compose.lean`).
 
 ## Interpretations of §3 (each a question for the design; the reading taken is named here)
 
@@ -229,10 +232,16 @@ def ImplementsH (h : Object) (ir : ContractModel) (admits : ExecutionEnv → Pro
     ir.runtime.exec I (World.init σ A feed) = some r →
     ∃ out, h.Runtime I (World.init σ A feed) out ∧ Matches out r
 
-/-- `ImplementsH` for deployment (§7.2). -/
-def ImplementsDeployH (h : Object) (ir : ContractModel) (creation : ByteArray) : Prop :=
-  ∀ I σ A feed args r, I.code = creation ++ args → OwnerExists σ I → I.perm = true →
-    (ir.init args >>= fun tail => pure (ByteArray.empty ++ tail)).exec I (World.init σ A feed)
+/-- `ImplementsH` for deployment (§7.2), in the shape of `ImplementsDeployPSame`: every run of
+    `ir`'s constructor on arguments `validArgs` admits, its result put after `irRuntime`, that
+    ends under a feed is matched by some run of `h`'s init section under the same feed.  The
+    machine IR's model of a sidecar takes `irRuntime := .empty` (its init section never
+    returns, `Sidecar.runSection`). -/
+def ImplementsDeployH (h : Object) (ir : ContractModel) (creation irRuntime : ByteArray)
+    (validArgs : ByteArray → Prop) : Prop :=
+  ∀ I σ A feed args r, validArgs args → I.code = creation ++ args → OwnerExists σ I →
+    I.perm = true →
+    (ir.init args >>= fun tail => pure (irRuntime ++ tail)).exec I (World.init σ A feed)
       = some r →
     ∃ out, h.Deploy args I (World.init σ A feed) out ∧ Matches out r
 
