@@ -20,7 +20,8 @@ rules that choose:
 A run that reaches what H does not define (`IRes.stuck`, `TRes.stuck`, an operand of the wrong
 type at a binding, a missing block or function, a section entry that returns) has no
 derivation, so a gap in H makes a check fail, never pass (§3.7).  A run that does not end has
-none either (§3.1: partial correctness needs only terminating runs).
+none either (§3.1: partial correctness needs only terminating runs), nor one in which the model
+library's run does not terminate (`IRes.diverge`, `TRes.diverge`).
 
 `Object.Runtime` and `Object.Deploy` are §7.2's: some run of the section's entry, from the
 world `w` (whose feed it consumes) and empty memory, ends in `out`.  `Matches`, `ImplementsH`
@@ -31,22 +32,45 @@ and `ImplementsDeployH` are §7.2's statements, as written there.
 - **I1** Fresh block ids: a new block's id is `blocks.size`, not an arbitrary unused id.  Ids
   are not observable (an `Outcome` holds none), so this is the same set of outcomes.
 - **I2** Fresh bytes are plain bytes, never pointer fragments (R2: arbitrary concrete bytes).
-- **I3** An instruction resolves its memory ranges (`State.range`) before its other effects: an
-  out-of-block range is `ub` even where the instruction would fail otherwise first (a static
-  violation, `evm_return_data_copy`'s read past the return data, the call's feed).  §3.4 does
-  not order them.
+- **I3** An instruction decides its failures other than memory first, in the order the model
+  library and the EVM decide them, and resolves its memory ranges (`State.range`, `ub` out of a
+  block) after (review 24, M2; checked against `Fe/Sonatina/Interp.lean`, `Fe/EVM/World.lean`
+  and `Fe/EVM/Calls.lean`, where memory never fails).  Per instruction:
+  - `evm_log`: a static call exits `static` (the one failure of `logData`, whose read of
+    memory cannot fail), then the data range.
+  - `evm_return_data_copy dst off len`: `off + len` past the return data exits `oob`
+    (`returndatacopy` decides it before it writes), then the destination range.
+  - `evm_create`, `evm_create2`: a static call exits `static`, then more than 49152 bytes of
+    init code diverges (`createWith` decides both before it reads memory), then the init code
+    range, then the feed (`createCore`).
+  - `evm_call`: a static call moving value exits `static` (`call` decides it before
+    `message`), then the input range, then the output range, then the feed (`messageCore`).
+  - `evm_static_call`, `evm_delegate_call`, `evm_call_code`: the input range, then the output
+    range, then the feed.  The model's `message` takes the feed first, but an exhausted feed is
+    the model's divergence, which no real feed reaches, so the order is not observable.
+  - `evm_mcopy`: the destination range, then the source range.  The machine IR's `mcopyIR`
+    diverges where a range ends past `2 ^ 256`, which a range in a block never does.
+  - `evm_mload_bytes a len`: `len > 32` is `ub` (U5a), then `len = 0` gives 0, then the range.
+  - Every other instruction or terminal that touches memory (`mload`, `mstore`, `evm_mload`,
+    `evm_mstore`, `evm_mstore8`, `memzero`, `evm_keccak256`, the copies from calldata, code and
+    external code, `evm_return`, `evm_revert`) fails in no other way: its ranges only.
 - **I4** `evm_mstore p v` writes `v`'s cells, fragments for a pointer, as `mstore p v i256`
   does; `evm_mload` is a typed load at `i256` (§3.4 names `evm_mload`, not `evm_mstore`).
-- **I5** `bitcast` to an integer type of a pointer gives the integer of its word (§3.2's table
-  keeps the origin for a `bitcast` *to a pointer type* only); `bitcast` between integer types
-  truncates or zero-extends the unsigned value, as Sonatina's interpreter and machine lowering
-  do (§3.2 is silent).  The corpus has `bitcast i1 → i256`, `i256 → i1` and `*T → *U` only.
+- **I5** `bitcast` of a pointer to a pointer type or to `i256` keeps its origin, as `ptr_to_int`
+  to `i256` does: Sonatina's verifier admits `bitcast *T i256` (both one word) and
+  `lower_bitcast` lowers it to the value itself, and S5 treats it as non-observing (review 24,
+  H1; design §3.2 corrected to say so).  `bitcast` of a pointer to a narrow integer gives the
+  integer of its word; `bitcast` between integer types truncates or zero-extends the unsigned
+  value, as Sonatina's interpreter and machine lowering do (§3.2 is silent).  The corpus has
+  `bitcast i1 → i256`, `i256 → i1` and `*T → *U` only.
 - **I6** `gep` indices are read as unsigned words, as machine lowering reads a dynamic index;
   Sonatina's interpreter sign-extends a narrow one.  A struct index past the fields is stuck.
 - **I7** `black_box v` is `v`, origin included (§3.2's table does not list it).
 - **I8** Generic `udiv`/`sdiv`/`umod`/`smod` are stuck, not `ub` and not zero: §3.6 puts them
   outside the subset on EVM, and `wfH` rejects them.
-- **I9** `select` is defined as §3.6 says (an operand, unchanged); `wfH` rejects it until #625.
+- **I9** `select` is defined as §3.6 says (an operand, unchanged), with both arms evaluated, so
+  an arm with no value is stuck whichever is taken (review 24, L1); `wfH` rejects it until
+  #625.
 - **I10** A value bound to a declaration of another type (`Val.fits`) is stuck: H is typed;
   the machine IR's interpreter coerces (`Val.as`).
 - **I11** The deploy outcome ignores the argument bytes, as the machine IR's model does

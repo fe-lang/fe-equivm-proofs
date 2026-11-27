@@ -43,6 +43,17 @@ def Val.bits : Val → Nat
   | .int bits _ => bits
   | .ptr _ _ => 256
 
+/-- The integer widths of Sonatina's types. -/
+def widths : List Nat := [1, 8, 16, 32, 64, 128, 256]
+
+/-- An integer of a Sonatina width, or a pointer: the value types of this dialect.  Whether a
+    value is of such a type depends on its width only (`Ty.bits`): an `iN` has width `N`, a
+    pointer 256 (`Val.fits`). -/
+def Ty.value : Ty → Bool
+  | .int n => widths.contains n
+  | .ptr _ => true
+  | _ => false
+
 /-- The value is one of type `ty`: an `iN` of width `N`, in range; at a pointer type a pointer
     or a 256-bit integer; at `i256` a pointer too (§3.2: a pointer stands at pointer and `i256`
     types).  No value of this dialect has another type. -/

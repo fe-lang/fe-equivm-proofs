@@ -7,24 +7,30 @@ import Fe.Sonatina.H.World
 allocations `alloca` and `evm_malloc`, whose address word and bytes are a choice (§3.3), and
 `call`.  `stepTerm` runs a terminator.  Both are functions: everything but allocation is
 deterministic in H.  `IRes.stuck` is a construct H does not define (an ill-typed operand, a
-missing symbol, a run of the model library that does not terminate): the relation has no rule
+missing symbol, an EVM operation with the wrong number of operands): the relation has no rule
 for it, so a run that reaches one has no derivation, and the well-formedness predicate
-(`H/Wf.lean`) rejects what it can see statically (§3.7, "static rejections").
+(`H/Wf.lean`) rejects every such construct statically (§3.7, "static rejections").
+`IRes.diverge` is a run of the model library that does not terminate, as the model means it
+(a creation with more than 49152 bytes of init code, which runs out of gas on the EVM, or a
+feed with no entry left): it has no rule either, and is told apart from `stuck` only so that
+the differential tests count it apart (review 24, L4).
 
 **Pointers** (§3.2, decision 2): `gep`; `add` of a pointer and an integer in either order;
 `sub (ptr b o) (int k)`; `or p 0`, `xor p 0`, `and p (2 ^ 256 - 1)` in either order;
-`ptr_to_int` to `i256`; `int_to_ptr` from `i256`; `bitcast` to a pointer type; `select` and
-`phi` keep the origin.  Every other operation with a pointer operand computes on the operand's
-word (`State.word`) and gives an integer (`binVal`, `wordOp`).  Comparisons of pointers are on
-their words, so those of different blocks depend on the address words chosen.
+`ptr_to_int` to `i256`; `int_to_ptr` from `i256`; `bitcast` to a pointer type or to `i256`
+(review 24, H1); `select` and `phi` keep the origin.  Every other operation with a pointer
+operand computes on the operand's word (`State.word`) and gives an integer (`binVal`,
+`castVal`).  Comparisons of pointers are on their words, so those of different blocks depend
+on the address words chosen.
 
-**Memory** (§3.4): every access of `len > 0` bytes resolves through `State.range` first, and an
-access outside a block, or through an integer, is `ub` before anything else the instruction
-does.  §3.4 does not order an access's `ub` against the instruction's other failures (a static
-violation, a read past the return data); H resolves the memory ranges first (`Interpretation
-I3` in `H/Sem.lean`).  `evm_mcopy` copies cells, fragments included, reading
-the whole source first (§3.4, review 22 H2); copies from calldata, code, return data and
-external code and a call's output write plain bytes; world operations read byte values (E3).
+**Memory** (§3.4): an access of `len > 0` bytes resolves through `State.range`; an access
+outside a block, or through an integer, is `ub`.  An instruction decides the failures it has
+besides memory first, in the order the model library (`Fe/EVM/World.lean`,
+`Fe/EVM/Calls.lean`) and the EVM decide them, and resolves its ranges after (review 24, M2;
+`I3` in `H/Sem.lean` lists the order of each instruction).  `evm_mcopy` copies cells,
+fragments included, reading the whole source first (§3.4, review 22 H2); copies from calldata,
+code, return data and external code and a call's output write plain bytes; world operations
+read byte values (E3).
 
 **`ub`** (§3.7) in this dialect: U1a/U1b (`State.range`), U2b (`State.load`), U2c
 (`trunc_nuw`), U5a (`evm_mload_bytes` with `len > 32`).  U2a, U4a–U4c are about objects, enums
@@ -68,6 +74,8 @@ inductive IRes where
   | ub
   /-- H does not define it: no derivation. -/
   | stuck (why : String)
+  /-- The model library's run does not terminate: no derivation. -/
+  | diverge
 
 def evalOp (env : HEnv) : Operand → Option Val
   | .var id => env[id]?
@@ -100,19 +108,21 @@ def binVal (st : State) (op : BinOp) (x y : Val) : Option Val :=
     | .int _ k, .ptr b o => (ptrBin op b o k false).getD (.int 256 (op.eval 256 k (st.word y)))
     | .ptr .., .ptr .. => some (.int 256 (op.eval 256 (st.word x) (st.word y)))
 
-/-- A cast (§3.2): `ptr_to_int` to `i256`, `int_to_ptr` and `bitcast` to a pointer type keep a
-    pointer; an integer `int_to_ptr` or `bitcast` to a pointer type is the 256-bit integer of
-    its value; every other cast is on the word, as `CastOp.eval` computes it, to an integer of
-    the target's width.  A `bitcast` between integer types truncates or zero-extends, as
-    Sonatina's interpreter (`Immediate::bitcast`) and machine lowering (`lower_bitcast`) do.
-    `none` for a target that is not a scalar. -/
+/-- A cast (§3.2): `ptr_to_int` to `i256`, `int_to_ptr` to a pointer type and `bitcast` to a
+    pointer type or to `i256` keep a pointer (`bitcast *T i256` is the identity, as Sonatina's
+    verifier admits it and `lower_bitcast` lowers it, review 24 H1); an integer `int_to_ptr` or
+    `bitcast` to a pointer type is the 256-bit integer of its value; every other cast is on the
+    word, as `CastOp.eval` computes it, to an integer of the target's width.  A `bitcast`
+    between integer types truncates or zero-extends, as Sonatina's interpreter
+    (`Immediate::bitcast`) and machine lowering (`lower_bitcast`) do.  `none` for a target
+    that is not a value type. -/
 def castVal (st : State) (op : CastOp) (x : Val) (ty : Ty) : Option Val :=
   let bits := ty.bits
-  if bits == 0 then none
+  if !Ty.value ty then none
   else match op, x, ty with
     | .ptrToInt, .ptr .., .int 256 => some x
     | .intToPtr, .ptr .., .ptr _ => some x
-    | .bitcast, .ptr .., .ptr _ => some x
+    | .bitcast, .ptr .., .ptr _ | .bitcast, .ptr .., .int 256 => some x
     | .intToPtr, .int _ v, .ptr _ | .bitcast, .int _ v, .ptr _ => some (.int 256 v)
     | op, x, _ => some (.int bits (op.eval x.bits (st.word x) bits))
 
@@ -144,6 +154,26 @@ def _root_.Fe.Sonatina.EvmOp.memFree : EvmOp → Bool
   | .callCode | .msize => false
   | _ => true
 
+/-- The numbers of operands and of results of an EVM operation, as the machine IR's interpreter
+    (`EvmOp.run`) takes them: `evm_log` with at most four topics, after its two memory
+    operands.  `none` for `evm_msize`, which is not in H. -/
+def _root_.Fe.Sonatina.EvmOp.arity : EvmOp → Option (Nat × Nat)
+  | .address | .origin | .caller | .callValue | .calldataSize | .codeSize | .gasPrice
+  | .returnDataSize | .coinbase | .timestamp | .number | .prevRandao | .gasLimit | .chainId
+  | .selfBalance | .baseFee | .blobBaseFee | .gas => some (0, 1)
+  | .balance | .calldataLoad | .extCodeSize | .extCodeHash | .blockHash | .blobHash | .codeLoad
+  | .mload | .sload | .tload => some (1, 1)
+  | .keccak256 => some (2, 1)
+  | .mstore | .sstore | .tstore | .mstore8 => some (2, 0)
+  | .calldataCopy | .codeCopy | .returnDataCopy | .mcopy => some (3, 0)
+  | .extCodeCopy => some (4, 0)
+  | .create | .addMod | .mulMod => some (3, 1)
+  | .create2 => some (4, 1)
+  | .call | .callCode => some (7, 1)
+  | .staticCall | .delegateCall => some (6, 1)
+  | .log k => if k ≤ 4 then some (k + 2, 0) else none
+  | .msize => none
+
 /-- A value of the machine IR's interpreter as one of H: an integer. -/
 def ofSonatina : Sonatina.Val → Option Val
   | .int bits v => some (.int bits v)
@@ -154,7 +184,7 @@ def ofSonatina : Sonatina.Val → Option Val
 def liftFe {α : Type} (I : ExecutionEnv) (st : State) (m : FeM α) (k : α → State → IRes) :
     IRes :=
   match m.exec I st.world with
-  | none => .stuck "a run of the model library that does not terminate"
+  | none => .diverge
   | some (.error e) => .exit e
   | some (.ok (a, w)) => k a { st with world := w }
 
@@ -166,14 +196,22 @@ def callH (I : ExecutionEnv) (st : State) (ar : Range) (al : Nat) (rr : Range) (
   liftFe I st (fe (st.bytes ar al)) fun (z, o) st =>
     .ok [.int 256 z.toNat] (st.writeBytes rr (o.extract 0 (retCount rl o)))
 
-/-- An EVM operation of H on its operand values (§3.4, §3.6). -/
+/-- An EVM operation of H on its operand values (§3.4, §3.6).  Each decides the failures it has
+    besides memory before it resolves its ranges, in the model library's order (I3): `log`,
+    `create` and `create2` under a static call, and `call` moving value under one, exit
+    `static`; `return_data_copy` past the return data exits `oob`; a creation of more than
+    49152 bytes of init code diverges, as `createWith` does.  The feed is consulted after the
+    ranges (`messageCore`, `createCore`): an exhausted feed is the model's divergence, which a
+    real feed never reaches. -/
 def evmH (I : ExecutionEnv) (st : State) (op : EvmOp) (args : List Val) : IRes :=
   let w := st.word
   let uw := st.uword
   let some' {α : Type} (o : Option α) (k : α → IRes) : IRes := match o with
     | some a => k a
     | none => .ub
-  if op.memFree then
+  if op.arity.map (·.1) != some args.length then
+    .stuck "an EVM operation with the wrong number of operands"
+  else if op.memFree then
     liftFe I st (op.run (args.map uw)) fun vals st =>
       match vals.mapM ofSonatina with
       | some vs => .ok vs st
@@ -189,8 +227,10 @@ def evmH (I : ExecutionEnv) (st : State) (op : EvmOp) (args : List Val) : IRes :
       .ok [.int 256 (fromByteArrayBigEndian (KEC (st.bytes r (w l))) % 2 ^ 256)] st
   | .mcopy, [d, s, l] => some' (st.range d (w l)) fun rd => some' (st.range s (w l)) fun rs =>
       .ok [] (st.write rd (st.cells rs (w l)))
-  | .log _, p :: l :: topics => some' (st.range p (w l)) fun r =>
-      liftFe I st (emit (topics.map uw).toArray (st.bytes r (w l))) fun _ st => .ok [] st
+  | .log _, p :: l :: topics =>
+      if I.perm = false then .exit .static
+      else some' (st.range p (w l)) fun r =>
+        liftFe I st (emit (topics.map uw).toArray (st.bytes r (w l))) fun _ st => .ok [] st
   | .calldataCopy, [d, o, l] => some' (st.range d (w l)) fun r =>
       .ok [] (st.writeBytes r (I.calldata.readWithPadding (w o) (w l)))
   | .codeCopy, [d, o, l] => some' (st.range d (w l)) fun r =>
@@ -199,22 +239,29 @@ def evmH (I : ExecutionEnv) (st : State) (op : EvmOp) (args : List Val) : IRes :
       let code := st.world.accounts.get? (AccountAddress.ofUInt256 (uw a))
         |>.option ByteArray.empty (fun (acc : Account) => acc.code)
       .ok [] (st.writeBytes r (code.readWithPadding (w o) (w l)))
-  | .returnDataCopy, [d, o, l] => some' (st.range d (w l)) fun r =>
+  | .returnDataCopy, [d, o, l] =>
       if w o + w l > st.world.returnData.size then .exit .oob
-      else .ok [] (st.writeBytes r (st.world.returnData.readWithPadding (w o) (w l)))
-  | .create, [v, p, l] => some' (st.range p (w l)) fun r =>
-      liftFe I st (createCore none (uw v) (st.bytes r (w l))) fun a st => .ok [.int 256 a.toNat] st
-  | .create2, [v, p, l, s] => some' (st.range p (w l)) fun r =>
-      liftFe I st (createCore (some (uw s).toByteArray) (uw v) (st.bytes r (w l))) fun a st =>
-        .ok [.int 256 a.toNat] st
+      else some' (st.range d (w l)) fun r =>
+        .ok [] (st.writeBytes r (st.world.returnData.readWithPadding (w o) (w l)))
+  | .create, [v, p, l] =>
+      if I.perm = false then .exit .static
+      else if w l > 49152 then .diverge
+      else some' (st.range p (w l)) fun r =>
+        liftFe I st (createCore none (uw v) (st.bytes r (w l))) fun a st =>
+          .ok [.int 256 a.toNat] st
+  | .create2, [v, p, l, s] =>
+      if I.perm = false then .exit .static
+      else if w l > 49152 then .diverge
+      else some' (st.range p (w l)) fun r =>
+        liftFe I st (createCore (some (uw s).toByteArray) (uw v) (st.bytes r (w l))) fun a st =>
+          .ok [.int 256 a.toNat] st
   | .call, [g, a, v, ap, al, rp, rl] =>
-    some' (st.range ap (w al)) fun ar => some' (st.range rp (w rl)) fun rr =>
+    if I.perm = false ∧ uw v ≠ ⟨0⟩ then .exit .static
+    else some' (st.range ap (w al)) fun ar => some' (st.range rp (w rl)) fun rr =>
       callH I st ar (w al) rr (uw rl) fun input => do
         let I ← read
-        if I.perm = false ∧ uw v ≠ ⟨0⟩ then Fe.M.fail .static
-        else
-          let t := AccountAddress.ofUInt256 (uw a)
-          messageCore (uw g) I.codeOwner t t (uw v) (uw v) input I.perm
+        let t := AccountAddress.ofUInt256 (uw a)
+        messageCore (uw g) I.codeOwner t t (uw v) (uw v) input I.perm
   | .staticCall, [g, a, ap, al, rp, rl] =>
     some' (st.range ap (w al)) fun ar => some' (st.range rp (w rl)) fun rr =>
       callH I st ar (w al) rr (uw rl) fun input => do
@@ -266,21 +313,25 @@ def stepInst (c : Ctx) (I : ExecutionEnv) (env : HEnv) (st : State) : HInst → 
         let (r, f) := oop.eval x.bits (w x) (w y)
         .ok [.int x.bits r, .int 1 (if f then 1 else 0)] st
       else .stuck "ill-typed operands"
-    | .sat sop a b ty => op a fun x => op b fun y => .ok [.int 256 (sop.eval ty.bits (w x) (w y))] st
+    | .sat sop a b ty => op a fun x => op b fun y =>
+      if ty matches .int _ && Ty.value ty then
+        .ok [.int 256 (sop.eval ty.bits (w x) (w y))] st
+      else .stuck "a saturating operation at a type that is not an integer"
     | .cast cop a ty => op a fun x => opt (castVal st cop x ty)
-    | .select cnd a b => op cnd fun x => op (if w x != 0 then a else b) fun v => .ok [v] st
+    | .select cnd a b => op cnd fun x => op a fun va => op b fun vb =>
+      .ok [if w x != 0 then va else vb] st
     | .evm eop args => match args.mapM (evalOp env) with
       | some vs => evmH I st eop vs
       | none => .stuck "an operand with no value"
     | .mload a ty => op a fun x =>
-      if Ty.scalar ty then match st.range x 32 with
+      if Ty.value ty then match st.range x 32 with
         | some (.at b o) => match st.load b o ty with
           | some v => .ok [v] st
           | none => .ub
         | _ => .ub
       else .stuck "a load of a type that is not a scalar"
     | .mstore a v ty => op a fun x => op v fun y =>
-      if Ty.scalar ty && y.fits ty then match st.range x 32 with
+      if Ty.value ty && y.fits ty then match st.range x 32 with
         | some r => .ok [] (st.write r y.cells)
         | none => .ub
       else .stuck "a store of a type that is not a scalar, or of a value not of its type"
@@ -321,7 +372,7 @@ def stepInst (c : Ctx) (I : ExecutionEnv) (env : HEnv) (st : State) : HInst → 
   | .truncNuw a ty =>
     match evalOp env a with
     | some x =>
-      if ty.bits == 0 then .stuck "trunc_nuw to a type that is not an integer"
+      if !(ty matches .int _ && Ty.value ty) then .stuck "trunc_nuw to a type that is not an integer"
       else if st.word x < 2 ^ ty.bits then .ok [.int ty.bits (st.word x)] st else .ub
     | none => .stuck "an operand with no value"
 
@@ -331,6 +382,8 @@ inductive TRes where
   | ret (vals : List Val)
   | halt (o : Outcome)
   | stuck (why : String)
+  /-- The model library's run does not terminate. -/
+  | diverge
 
 /-- Run a terminator (§3.6). -/
 def stepTerm (I : ExecutionEnv) (env : HEnv) (st : State) : HTerm → TRes
@@ -363,7 +416,7 @@ def stepTerm (I : ExecutionEnv) (env : HEnv) (st : State) : HTerm → TRes
       | some x => match (Fe.EVM.selfdestruct (st.uword x)).exec I st.world with
         | some (.error e) => .halt (.ends (.error e))
         | some (.ok (e, _)) => nomatch e
-        | none => .stuck "a run of the model library that does not terminate"
+        | none => .diverge
       | none => .stuck "an operand with no value"
   | .returnCode o l => match evalOp env o, evalOp env l with
     | some x, some n =>

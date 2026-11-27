@@ -6,8 +6,9 @@ import Fe.Sonatina.H.Sem
 `runFunc` runs H with an explicit `Oracle` for its choices, the address word and the fresh
 bytes of each allocation, and fuel: every statement, block and call spends one unit.  It returns
 an `RRes`: a result, a halt with the outcome (and where it arose, for the reports), or why it
-stopped short: a construct H does not define (`stuck`), no fuel left, or an oracle that chose an
-address word H does not allow (`badOracle`, `AddrOk`).
+stopped short: a construct H does not define (`stuck`), a run of the model library that does
+not terminate (`diverge`, where it arose), no fuel left, or an oracle that chose an address word
+H does not allow (`badOracle`, `AddrOk`).
 
 `runH_sound` proves it a sub-relation of H: a result or a halt `runFunc` returns is a run of
 `ExecFunc` (likewise `runBlocks`, `runBody`); `runRuntime_sound` and `runDeploy_sound` give
@@ -44,6 +45,8 @@ inductive RRes (α : Type) where
   /-- A halt, and where it arose. -/
   | halt (o : Outcome) (at_ : String)
   | stuck (why : String)
+  /-- The model library's run does not terminate, and where. -/
+  | diverge (at_ : String)
   | fuel
   | badOracle (why : String)
 
@@ -51,6 +54,7 @@ def RRes.bind {α β : Type} : RRes α → (α → RRes β) → RRes β
   | .ok a, k => k a
   | .halt o w, _ => .halt o w
   | .stuck w, _ => .stuck w
+  | .diverge w, _ => .diverge w
   | .fuel, _ => .fuel
   | .badOracle w, _ => .badOracle w
 
@@ -137,6 +141,7 @@ def runBody (P : HSection) (O : Oracle) (I : ExecutionEnv) (f : HFunc) (bid : Na
       | .exit e => .halt (.ends (.error e)) at_
       | .ub => .halt .ub at_
       | .stuck why => .stuck s!"{why} at {at_}"
+      | .diverge => .diverge at_
 
 /-- Run `f` from block `id`, entered from `prev`. -/
 def runBlocks (P : HSection) (O : Oracle) (I : ExecutionEnv) :
@@ -154,6 +159,7 @@ def runBlocks (P : HSection) (O : Oracle) (I : ExecutionEnv) :
         | .ret vals => .ok (vals, st₂)
         | .halt o => .halt o at_
         | .stuck why => .stuck s!"{why} at {at_}"
+        | .diverge => .diverge at_
 
 /-- Run function `name` on `args`. -/
 def runFunc (P : HSection) (O : Oracle) (I : ExecutionEnv) :
@@ -283,6 +289,7 @@ theorem runH_sound (P : HSection) (O : Oracle) (I : ExecutionEnv) :
           | exit e => simpa [RRes.Sound] using ExecBody.exit hi
           | ub => simpa [RRes.Sound] using ExecBody.ub hi
           | stuck _ => simp [RRes.Sound]
+          | diverge => simp [RRes.Sound]
     · intro f env prev id st
       rw [runBlocks]
       cases hb : f.block? id with
@@ -305,6 +312,7 @@ theorem runH_sound (P : HSection) (O : Oracle) (I : ExecutionEnv) :
           | ret vals => simpa [RRes.Sound] using ExecBlocks.ret hb he hbody ht
           | halt o => simpa [RRes.Sound] using ExecBlocks.halt hb he hbody ht
           | stuck _ => simp [RRes.Sound]
+          | diverge => simp [RRes.Sound]
     · intro name args st
       rw [runFunc]
       cases hf : P.module.func? name with

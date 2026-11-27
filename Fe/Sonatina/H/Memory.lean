@@ -114,12 +114,6 @@ def State.write (st : State) (r : Range) (cs : List MByte) : State :=
 def State.writeBytes (st : State) (r : Range) (bs : ByteArray) : State :=
   st.write r (bs.toList.map .byte)
 
-/-- A scalar type of this dialect: an integer or a pointer, which takes one word (Sonatina's
-    EVM layout, `crates/ir/src/isa/evm.rs`). -/
-def Ty.scalar : Ty → Bool
-  | .int _ | .ptr _ => true
-  | _ => false
-
 /-- A typed 32-byte load at block `b`, offset `o`, of a scalar type (§3.4): the pointer whose
     fragments the cells are, at pointer and `i256` types; otherwise the word of the byte values,
     `ub` (`none`) at a narrow type if a bit above its width is set (U2b). -/
