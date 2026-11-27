@@ -6,6 +6,7 @@ import Fe.Sonatina.Steps.Adce
 import Fe.Sonatina.Steps.Record
 import Fe.Sonatina.Steps.SchemasStep
 import Fe.Sonatina.Steps.GvnRewrite
+import Fe.Sonatina.Steps.GvnPrune
 
 /-!
 # Validating a record of machine steps
@@ -73,6 +74,7 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .scalarCanonicalize, _, f, ids, s, F => Schemas.checkScalarCanonicalize f ids s F
   | .adce, _, f, ids, s, F => checkAdce f ids s F
   | .gvnRewrite, _, f, ids, s, F => Schemas.checkGvnRewrite f ids s F
+  | .gvnPrune, _, f, ids, s, F => Schemas.checkGvnPrune f ids s F
   | _, _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/
@@ -279,7 +281,7 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     rounds switched off, `demandRounds`). -/
 def StepKind.proved : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
-    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize, .adce, .gvnRewrite]
+    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize, .adce, .gvnRewrite, .gvnPrune]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=

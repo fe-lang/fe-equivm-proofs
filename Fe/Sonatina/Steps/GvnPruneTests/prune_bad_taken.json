@@ -1,0 +1,143 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = lt v0 v1;\n        br v2 block1 block2;\n    block1:\n        v3.i256 = lt v0 v1;\n        br v3 block3 block4;\n    block2:\n        return 0.i256;\n    block3:\n        return 1.i256;\n    block4:\n        return 2.i256;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4
+    ],
+    [
+     5
+    ],
+    [
+     6
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "gvn",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "gvn_prune",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = lt v0 v1;\n        br v2 block1 block2;\n    block1:\n        v3.i256 = lt v0 v1;\n        jump block4;\n    block2:\n        return 0.i256;\n    block4:\n        return 2.i256;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          2,
+          3
+         ],
+         [
+          4
+         ],
+         [
+          6
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": {
+         "dead_edges": [
+          [
+           1,
+           0
+          ]
+         ],
+         "class": [
+          [
+           3,
+           {
+            "value": 2
+           }
+          ]
+         ],
+         "preds": [
+          [
+           0,
+           0,
+           {
+            "value": 2
+           },
+           {
+            "imm": "1"
+           }
+          ],
+          [
+           0,
+           1,
+           {
+            "value": 2
+           },
+           {
+            "imm": "0"
+           }
+          ],
+          [
+           1,
+           0,
+           {
+            "value": 3
+           },
+           {
+            "imm": "1"
+           }
+          ],
+          [
+           1,
+           1,
+           {
+            "value": 3
+           },
+           {
+            "imm": "0"
+           }
+          ]
+         ],
+         "phis": [],
+         "value_phis": []
+        },
+        "known_bits": [
+         [
+          2,
+          "115792089237316195423570985008687907853269984665640564039457584007913129639934",
+          "0"
+         ],
+         [
+          3,
+          "115792089237316195423570985008687907853269984665640564039457584007913129639934",
+          "0"
+         ]
+        ],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

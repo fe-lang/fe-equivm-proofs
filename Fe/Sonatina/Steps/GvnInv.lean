@@ -372,11 +372,15 @@ theorem repTerm_ok (c : Ctx) {b k : Nat} (hbroot : (domTree f).Anc e0 b)
 
 end rep
 
-/-- A statement keeps the classes, and establishes those of its result. -/
-theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blocks)
+/-- A statement keeps the classes, and establishes those of its result: for any classes whose
+    representatives dominate their values and whose statement pairs `pairOk` justifies. -/
+theorem ginv_stmt_of {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blocks)
     (hD : X.inD = defsOf f) (hT : X.T = domTree f) (hwf : f.wf sig syms = true)
     (hs : ssa f (domTree f) = true) {F : StepFacts} {cls : List (Nat × Operand)}
-    (hK : X.K = kbMap F) (hok : X.clsOk cls = true) (c : Ctx) {e : Env} {b k : Nat}
+    (hK : X.K = kbMap F)
+    (hok : ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true ∧
+      ∀ B j, X.inD.find? v = some (.stmt B j) → X.pairOk (.ofList cls) v r = true)
+    (c : Ctx) {e : Env} {b k : Nat}
     (S : SidePt sig syms f e b k) (hG : GInv f cls e b k) {blk : Block} (hb : f.block? b = some blk)
     {st : Stmt} (hst : blk.body[k]? = some st) {vals : List Val}
     (S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1))
@@ -388,7 +392,7 @@ theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blo
   have hid : blk.id = b := by simpa using List.find?_some hb
   obtain ⟨e1, _, hroot', hbroot⟩ := S.root
   have hcl : ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true := fun v r h =>
-    ⟨(clsOk_spec hok v r h).1, (clsOk_spec hok v r h).2.1⟩
+    ⟨(hok v r h).1, (hok v r h).2.1⟩
   set e' := (st.dsts.zip vals).foldl bindStep e
   have hW' : Words f e' b k := words_pred S'.words
   have hG' : GInv f cls e' b k := fun v r hvr hv => by
@@ -402,8 +406,8 @@ theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blo
   obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hres
   have hdefv := hid ▸ stmt_def hmem hst hd
   have hfind : X.inD.find? d.1 = some (.stmt b k) := hD ▸ defsOf_find hU hdefv
-  obtain ⟨hrw, hbef, hpair⟩ := clsOk_spec hok d.1 r hvr
-  obtain ⟨st', p, hst', hp, hc, hce⟩ := pairOk_stmt hpair hfind
+  obtain ⟨hrw, hbef, hpair⟩ := hok d.1 r hvr
+  obtain ⟨st', p, hst', hp, hc, hce⟩ := pairOk_stmt (hpair b k hfind) hfind
   rw [hB, hD] at hst'
   obtain ⟨d0, j0, blk0, hdef0, hb0, hj0, _⟩ := defStmt_spec hn hst'
   obtain ⟨h1, h2⟩ := Def.stmt.inj (hU.fn hdef0 hdefv)
@@ -435,6 +439,20 @@ theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blo
   rw [hok1.1, hrt.1] at heq
   rw [hrv, ← heq]
   simp [opVal, hval]
+
+
+/-- A statement keeps the classes, and establishes those of its result. -/
+theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blocks)
+    (hD : X.inD = defsOf f) (hT : X.T = domTree f) (hwf : f.wf sig syms = true)
+    (hs : ssa f (domTree f) = true) {F : StepFacts} {cls : List (Nat × Operand)}
+    (hK : X.K = kbMap F) (hok : X.clsOk cls = true) (c : Ctx) {e : Env} {b k : Nat}
+    (S : SidePt sig syms f e b k) (hG : GInv f cls e b k) {blk : Block} (hb : f.block? b = some blk)
+    {st : Stmt} (hst : blk.body[k]? = some st) {vals : List Val}
+    (S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1))
+    (hK' : KBHolds (kbMap F) ((st.dsts.zip vals).foldl bindStep e)) :
+    GInv f cls ((st.dsts.zip vals).foldl bindStep e) b (k + 1) :=
+  ginv_stmt_of hB hD hT hwf hs hK (fun v r h => ⟨(clsOk_spec hok v r h).1,
+    (clsOk_spec hok v r h).2.1, fun _ _ _ => (clsOk_spec hok v r h).2.2⟩) c S hG hb hst S' hK'
 
 
 /-! ## Entering a block -/
