@@ -172,4 +172,28 @@ example : PRUNE s_bad_phi_const = false := by decide +kernel
 example : PRUNE s_bad_unexec = false := by decide +kernel
 example : PRUNE s_bad_loop = false := by decide +kernel
 
+/-! ## The compiler's own `sccp_prune` steps
+
+`real_is_null_O1` and `real_try_alloc_O1` are the sidecars Fe `a4c2ab6eb` (Sonatina `e39b70c4d`)
+writes at `-O1` for `real_is_null.fe` and `real_try_alloc.fe`.  Each runtime's message handler
+allocates first, at the fresh free pointer, so memory placement gives the allocation a fixed base
+(128), which lowering writes as an immediate; the null test of the pointer, which no IR pass
+could fold, is then a `br` on the constant 128 (after `branch_canonicalize`), and the machine
+stage's SCCP prunes its dead edge.  Both records validate and the byte checker accepts both
+sidecars, so `machine_sound_sidecar` applies to them with no hypothesis. -/
+
+sonatina_sidecar realIsNull "Fe/Sonatina/Steps/SccpPruneTests/real_is_null_O1.sidecar.json"
+sonatina_sidecar realTryAlloc "Fe/Sonatina/Steps/SccpPruneTests/real_try_alloc_O1.sidecar.json"
+
+example : (realIsNull.stepsOf "runtime").kinds.contains .sccpPrune = true := by decide +kernel
+example : (realTryAlloc.stepsOf "runtime").kinds.contains .sccpPrune = true := by decide +kernel
+
+theorem realIsNull_validate : realIsNull.validate = true := by decide +kernel
+theorem realIsNull_check : Check.check realIsNull = true := by decide +kernel
+theorem realTryAlloc_validate : realTryAlloc.validate = true := by decide +kernel
+theorem realTryAlloc_check : Check.check realTryAlloc = true := by decide +kernel
+
+example := machine_sound_sidecar realIsNull_validate realIsNull_check
+example := machine_sound_sidecar realTryAlloc_validate realTryAlloc_check
+
 end Fe.Sonatina.Steps.Schemas.SccpPruneTests

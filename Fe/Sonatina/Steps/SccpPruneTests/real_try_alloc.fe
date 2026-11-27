@@ -1,0 +1,28 @@
+use core::ptr
+use core::option::Option
+use core::abi::{load_word, store_word}
+
+msg ProbeMsg {
+    #[selector = 1]
+    Probe { x: u256 } -> u256,
+}
+
+pub contract Probe {
+    mut last: u256
+
+    init() {}
+
+    recv ProbeMsg {
+        Probe { x } -> u256 uses (mut last) {
+            let v: u256 = match ptr::try_alloc_bytes(32) {
+                Option::Some(p) => {
+                    unsafe { store_word(ptr: p, value: x) }
+                    unsafe { load_word(p) }
+                }
+                Option::None => 1
+            }
+            last = v
+            v
+        }
+    }
+}
