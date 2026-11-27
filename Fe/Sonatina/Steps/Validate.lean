@@ -1,6 +1,7 @@
 import Fe.Sonatina.Steps.CfgCleanup
 import Fe.Sonatina.Steps.BranchCanon
 import Fe.Sonatina.Steps.Coalesce
+import Fe.Sonatina.Steps.LowerSwitches
 import Fe.Sonatina.Steps.Record
 import Fe.Sonatina.Steps.SchemasStep
 
@@ -64,6 +65,7 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .branchCanonicalize, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
   | .branchConditions, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
   | .coalesceCopies, _, f, ids, s, F => noFacts F && checkCoalesce f ids s
+  | .lowerSwitches, _, f, ids, s, F => noFacts F && checkLowerSwitches f ids s
   | .knownBitsSimplify, _, f, ids, s, F => Schemas.checkKnownBitsSimplify f ids s F
   | .sccpFold, _, f, ids, s, F => Schemas.checkSccpFold f ids s F
   | _, _, _, _, _, _ => false
