@@ -1,0 +1,94 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "take_array",
+   "func_ref": 91,
+   "text": "func private %take_array(v0.i256, v1.i256) {\n    block0:\n        v2.i256 = evm_mload v1;\n        v4.i256 = shr 248.i256 v2;\n        v6.i256 = add v1 1.i256;\n        v7.i256 = evm_mload v6;\n        v8.i256 = shr 248.i256 v7;\n        v10.i256 = add v1 2.i256;\n        v11.i256 = evm_mload v10;\n        v12.i256 = shr 248.i256 v11;\n        v14.i256 = add v1 3.i256;\n        v15.i256 = evm_mload v14;\n        v16.i256 = shr 248.i256 v15;\n        v18.i256 = add v1 4.i256;\n        v19.i256 = evm_mload v18;\n        v20.i256 = shr 248.i256 v19;\n        evm_mstore v0 v4;\n        v22.i256 = add v0 32.i256;\n        evm_mstore v22 v8;\n        v24.i256 = add v0 64.i256;\n        evm_mstore v24 v12;\n        v26.i256 = add v0 96.i256;\n        evm_mstore v26 v16;\n        v28.i256 = add v0 128.i256;\n        evm_mstore v28 v20;\n        return;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3,
+     4,
+     5,
+     6,
+     7,
+     8,
+     9,
+     10,
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     18,
+     19,
+     20,
+     21,
+     22,
+     23
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "scalar_canonicalize",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "scalar_canonicalize",
+     "funcs": [
+      {
+       "out": {
+        "func": "take_array",
+        "func_ref": 91,
+        "text": "func private %take_array(v0.i256, v1.i256) {\n    block0:\n        v2.i256 = evm_mload v1;\n        v4.i256 = evm_byte 0.i256 v2;\n        v6.i256 = add v1 1.i256;\n        v7.i256 = evm_mload v6;\n        v8.i256 = evm_byte 1.i256 v7;\n        v10.i256 = add v1 2.i256;\n        v11.i256 = evm_mload v10;\n        v12.i256 = evm_byte 0.i256 v11;\n        v14.i256 = add v1 3.i256;\n        v15.i256 = evm_mload v14;\n        v16.i256 = evm_byte 0.i256 v15;\n        v18.i256 = add v1 4.i256;\n        v19.i256 = evm_mload v18;\n        v20.i256 = evm_byte 0.i256 v19;\n        evm_mstore v0 v4;\n        v22.i256 = add v0 32.i256;\n        evm_mstore v22 v8;\n        v24.i256 = add v0 64.i256;\n        evm_mstore v24 v12;\n        v26.i256 = add v0 96.i256;\n        evm_mstore v26 v16;\n        v28.i256 = add v0 128.i256;\n        evm_mstore v28 v20;\n        return;\n}\n",
+        "insts": [
+         [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

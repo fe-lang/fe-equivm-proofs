@@ -85,9 +85,12 @@ def lsReason (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) : String
 def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : FuncStep) : String :=
   if !checked.contains k then "no checker"
-  else if k == .sccpFold || k == .knownBitsSimplify then match M.func? fs.func with
-    | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold else
-        Schemas.diagnoseKnownBitsSimplify) f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
+  else if k == .sccpFold || k == .knownBitsSimplify || k == .scalarCanonicalize then
+    match M.func? fs.func with
+    | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold
+        else if k == .scalarCanonicalize then Schemas.diagnoseScalarCanonicalize
+        else Schemas.diagnoseKnownBitsSimplify) f (I.lookup fs.func) fs.out fs.facts).getD
+          "check rejects"
     | none => "no such function"
   else if k == .adce then match M.func? fs.func with
     | some f => if !fs.out.wf M.sig syms then "output not well formed"

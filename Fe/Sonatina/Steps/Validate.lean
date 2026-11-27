@@ -69,6 +69,7 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .lowerSwitches, _, f, ids, s, F => noFacts F && checkLowerSwitches f ids s
   | .knownBitsSimplify, _, f, ids, s, F => Schemas.checkKnownBitsSimplify f ids s F
   | .sccpFold, _, f, ids, s, F => Schemas.checkSccpFold f ids s F
+  | .scalarCanonicalize, _, f, ids, s, F => Schemas.checkScalarCanonicalize f ids s F
   | .adce, _, f, ids, s, F => checkAdce f ids s F
   | _, _, _, _, _, _ => false
 
@@ -276,7 +277,7 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     rounds switched off, `demandRounds`). -/
 def StepKind.proved : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
-    .knownBitsSimplify, .lowerSwitches, .adce]
+    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize, .adce]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=

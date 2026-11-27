@@ -3,15 +3,18 @@ import Fe.Sonatina.Steps.CfgCleanup
 import Fe.Sonatina.Steps.SchemasFacts
 
 /-!
-# The `known_bits_simplify` and `sccp_fold` checkers
+# The `known_bits_simplify`, `sccp_fold` and `scalar_canonicalize` checkers
 
-Both steps keep the control flow and every terminator, and change the function by aliasing:
-`change_to_alias(v, x)` replaces every use of `v` by `x` (an immediate or a value), and the
-instruction that defined `v` is erased (`remove_rewritten_inst`, SCCP's `fold`).  `sccp_fold`
-may also replace an instruction in place by `is_zero x` (`SimplifyAction::BuildIsZero`, the
-only in-place replacement `sccp.rs` builds on machine IR: `Bitcast` and `FoldFreshInsert` build
-instructions machine IR does not have), and alias a phi whose executable incoming operands are
-one value (`try_fold_phi`).
+The three steps keep the control flow and every terminator.  The first two change the function
+by aliasing: `change_to_alias(v, x)` replaces every use of `v` by `x` (an immediate or a value),
+and the instruction that defined `v` is erased (`remove_rewritten_inst`, SCCP's `fold`).
+`sccp_fold` may also replace an instruction in place by `is_zero x`
+(`SimplifyAction::BuildIsZero`, the only in-place replacement `sccp.rs` builds on machine IR:
+`Bitcast` and `FoldFreshInsert` build instructions machine IR does not have), and alias a phi
+whose executable incoming operands are one value (`try_fold_phi`).  A `scalar_canonicalize`
+round replaces instructions in place (`RewritePlan::ReplaceInst`; its `Copy` plans come from
+casts, which machine IR does not have) by any pure instruction, each plan made on the round's
+input, and deletes dead pure instructions (`prune_dead_pure_insts`); it exports no facts.
 
 **Frame** (review 13, finding 3).  The checks stand on their own under `f.wf` of the input: the
 output keeps the input's name, parameters and results, is machine IR, every output operand is
@@ -28,14 +31,16 @@ than `clz` (review H-2), never a terminator.
 
 **σ** (`sigmaOf`).  Zipping the operands of each paired line gives, where they differ, an entry
 `v ↦ x` for an input operand `v`.  σ must be a function, and every paired line must be its input
-line with σ applied to its operands (`mapLine`), except, for `sccp_fold`, a replaced statement
-(`replaceOk`).  Every value σ maps is the result of a deleted line.
+line with σ applied to its operands (`mapLine`), except, for `sccp_fold` and
+`scalar_canonicalize`, a replaced statement (`replaceOk`).  Every value σ maps is the result of
+a deleted line.
 
 **Justification** of each σ entry `v ↦ x` (design §4.7 and §4.5, review C-2):
 - `sccp_fold`: `x` is the immediate `c` and SCCP claims `v = c`; or a schema (`checkExact`)
   maps the unfolded input definition of `v` to `x` unfolded in the output, with SCCP's constants
   as literals (ruling 5);
 - `known_bits_simplify` without demanded bits: a schema (`checkExact`) with the known bits;
+- `scalar_canonicalize`: a schema (`checkExact`) without facts;
 - `known_bits_simplify` with demanded bits (a round of demand rewrites only, C-2): a demand
   schema (`checkDemand`) on the demanded bits of `v`, and `x` a value whose demand contains
   `v`'s.
@@ -45,8 +50,10 @@ definitions (the input's for `T_in`, the output's for `T_out`): the same depth o
 to 3, or the output side a leaf and the input side 0 to 3 levels (ruling R-11.1).  Its leaves
 are values: paired ones on the output side (the output's strict SSA rejects a use of a deleted
 one), any value of the input on the input side.  An entry may also go through a chain of at most
-three deleted operands, each step justified (`resolve_replacements` collapses copy chains).  No
-term has `clz` (review H-2, review 13 finding 2).
+three deleted operands, each step justified (`resolve_replacements` collapses copy chains).  A
+replaced statement's input term may also be unfolded three levels down to the replacement's
+operands (`unfoldStop`), for rewrites whose operands sit at different depths
+(`not (add (not x) y) → sub x y`).  No term has `clz` (review H-2, review 13 finding 2).
 
 **Facts**, checked on the input (design §3.3, ruling 8): known bits as a post-fixpoint
 (`kbFactsOk`); SCCP's dead edges and constants on the executable blocks, a set the check
@@ -55,7 +62,8 @@ validates itself: it holds the entry and is closed under every slot not claimed 
 over every instruction (`dbFactsOk`).  Both snapshots are checked in strict SSA under a validated dominator
 tree.
 
-`checkKnownBitsSimplify f ids s F` and `checkSccpFold f ids s F`: the input function `f` with
+`checkKnownBitsSimplify f ids s F`, `checkSccpFold f ids s F` and
+`checkScalarCanonicalize f ids s F`: the input function `f` with
 its instruction ids `ids`, the output snapshot `s`, the step's facts `F` (`readFacts` reads them
 from the record's JSON, at elaboration).  `diagnose…` give the first failing check by name.
 -/
@@ -90,6 +98,19 @@ def unfold (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) : Nat → Opera
         | some (.op1 .clz _) | none => .atom v
         | some p => termOf (unfold B D cs d) p
 
+/-- `unfold`, leaving the values of `stop` atoms: the input's term of a replaced statement
+    stops at the operands of its replacement, however deep they sit in it. -/
+def unfoldStop (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) (stop : List Nat) :
+    Nat → Operand → Term
+  | _, .imm _ w => .lit w
+  | d, .var v => match cs.find? v with
+    | some c => .lit c
+    | none => if stop.contains v then .atom v else match d with
+      | 0 => .atom v
+      | d + 1 => match (defStmt B D v).bind (pureInst? ·.inst) with
+        | some (.op1 .clz _) | none => .atom v
+        | some p => termOf (unfoldStop B D cs stop d) p
+
 /-- A pure instruction other than `clz`. -/
 def noClz : PureInst → Bool
   | .op1 .clz _ => false
@@ -101,6 +122,19 @@ def instTerm (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) (d : Nat) (i 
   match pureInst? i with
   | some p => if noClz p then some (termOf (unfold B D cs d) p) else none
   | none => none
+
+/-- `instTerm` with `unfoldStop`. -/
+def instTermStop (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) (stop : List Nat)
+    (d : Nat) (i : Inst) : Option Term :=
+  match pureInst? i with
+  | some p => if noClz p then some (termOf (unfoldStop B D cs stop d) p) else none
+  | none => none
+
+/-- The values among the operands. -/
+def opVars (os : List Operand) : List Nat :=
+  os.filterMap fun o => match o with
+    | .var v => some v
+    | _ => none
 
 /-! ## Pairing the two snapshots -/
 
@@ -159,12 +193,16 @@ def subst (σ : NatMap Operand) : Operand → Operand
   | .var v => (σ.find? v).getD (.var v)
   | o => o
 
-/-- σ from the paired lines: each differing operand pair `(var v, x)`; a function. -/
-def sigmaOf (pairs : List (Line × Line)) : Option (NatMap Operand) :=
+/-- σ from the paired lines: each differing operand pair `(var v, x)`; a function.  The
+    operands of two statements are not zipped if their counts differ (a replaced statement), or
+    at all if `zipStmts` is off (`scalar_canonicalize`, whose replacements may keep the count). -/
+def sigmaOf (zipStmts : Bool) (pairs : List (Line × Line)) : Option (NatMap Operand) :=
   pairs.foldlM (fun σ LL =>
     let a := lineOps LL.1
     let b := lineOps LL.2
-    if a.length != b.length then
+    if a.length != b.length || (!zipStmts && match LL.1, LL.2 with
+        | .stmt _, .stmt _ => true
+        | _, _ => false) then
       -- a replaced statement: its operands are not zipped
       match LL.1, LL.2 with
       | .stmt _, .stmt _ => some σ
@@ -379,6 +417,8 @@ inductive Mode where
   | demand (DB : NatMap Nat)
   /-- `sccp_fold`. -/
   | sccp
+  /-- `scalar_canonicalize`: no facts; statements replaced in place by any pure instruction. -/
+  | scalar
 
 /-- `x` is an immediate, or a parameter, or defined in a strict dominator of block `b` of the
     input: its value is the same on every entry of `b`. -/
@@ -401,7 +441,8 @@ def StepCtx.phiFold (X : StepCtx) (v : Nat) (x : Operand) : Bool :=
 /-- One justification of `v ↦ x`, without chains. -/
 def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
   match m with
-  | .exact => depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
+  | .exact | .scalar =>
+    depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
   | .sccp =>
     (match x with
       | .imm _ c => X.cs.find? v == some (c % W) && decide (c < W)
@@ -426,15 +467,29 @@ def entryOk (X : StepCtx) (m : Mode) (dels : List Nat) : Nat → Nat → Operand
     | .var u => dels.contains u && entryDirect X m v (.var u) && entryOk X m dels n u x
     | _ => false
 
-/-- `sccp_fold`'s in-place replacement of a statement (`BuildIsZero`): the same results, the
-    output `is_zero`, the input pure and not `clz`, and a schema maps the input's term to the
-    output's. -/
-def replaceOk (X : StepCtx) (s s' : Stmt) : Bool :=
-  s.dsts == s'.dsts && (match s'.inst with | .isZero _ => true | _ => false) &&
-    depths.any fun dd =>
+/-- The replacement may build this instruction: `sccp_fold` builds only `is_zero` in place
+    (`BuildIsZero`), `scalar_canonicalize` any pure instruction (`instTerm` asks it pure and not
+    `clz`). -/
+def Mode.builds : Mode → Inst → Bool
+  | .scalar, _ => true
+  | _, .isZero _ => true
+  | _, _ => false
+
+/-- An in-place replacement of a statement (`sccp_fold`'s `BuildIsZero`, every rewrite of
+    `scalar_canonicalize`): the same results, both instructions pure and not `clz`, and a schema
+    maps the input's term to the output's: unfolded to the same depth, or the output's a leaf
+    and the input's at depth 0 to 3, or the input's unfolded 3 levels down to the output's
+    operands (`unfoldStop`) and the output's a leaf. -/
+def replaceOk (m : Mode) (X : StepCtx) (s s' : Stmt) : Bool :=
+  s.dsts == s'.dsts && m.builds s'.inst &&
+    ((depths.any fun dd =>
       match instTerm X.inB X.inD X.cs dd.1 s.inst, instTerm X.outB X.outD X.cs dd.2 s'.inst with
       | some t, some t' => checkExact (kbOf X.K) t t'
-      | _, _ => false
+      | _, _ => false) ||
+    match instTermStop X.inB X.inD X.cs (opVars s'.inst.args) 3 s.inst,
+      instTerm X.outB X.outD X.cs 0 s'.inst with
+    | some t, some t' => checkExact (kbOf X.K) t t'
+    | _, _ => false)
 
 /-- The values σ maps that the paired input lines read. -/
 def sigmaKeys (pairs : List (Line × Line)) (σ : NatMap Operand) : List Nat :=
@@ -455,11 +510,16 @@ def Mode.sccp? : Mode → Bool
   | .sccp => true
   | _ => false
 
-/-- Every paired output line is its input line with σ applied, or, for `sccp_fold`, a statement
-    replaced in place. -/
+/-- `scalar_canonicalize`'s mode. -/
+def Mode.scalar? : Mode → Bool
+  | .scalar => true
+  | _ => false
+
+/-- Every paired output line is its input line with σ applied, or, for `sccp_fold` and
+    `scalar_canonicalize`, a statement replaced in place. -/
 def linesOk (m : Mode) (X : StepCtx) (σ : NatMap Operand) (pairs : List (Line × Line)) : Bool :=
   pairs.all fun LL => lineEq (mapLine σ LL.1) LL.2 || match m, LL.1, LL.2 with
-    | .sccp, .stmt a, .stmt b => replaceOk X a b
+    | .sccp, .stmt a, .stmt b | .scalar, .stmt a, .stmt b => replaceOk m X a b
     | _, _, _ => false
 
 /-- Why a step is rejected. -/
@@ -483,7 +543,7 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
   | none => some .pairing
   | some (pairs, deleted) =>
     let X := StepCtx.of f s F m.sccp?
-    match sigmaOf pairs with
+    match sigmaOf (!m.scalar?) pairs with
     | none => some .sigma
     | some σ =>
       let dels := deleted.flatMap lineDefs
@@ -530,6 +590,14 @@ def sccpReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : S
   else if !sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F then some .sccpFacts
   else aliasReject .sccp f ids s F
 
+/-- A `scalar_canonicalize` round exports no facts (`StepLog::step(…, None)`). -/
+def scalarReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
+    Option Reject :=
+  if !(F.unread.isEmpty && F.finiteLoops.isEmpty) then some .unread
+  else if !(F.knownBits.isEmpty && F.demanded.isNone && F.consts.isNone && F.deadEdges.isEmpty)
+  then some .wrongFacts
+  else aliasReject .scalar f ids s F
+
 /-- `known_bits_simplify` (design §4.5, review C-2): a round of exact rewrites, or, with
     demanded bits, a round of demand rewrites only.  Range facts are not read: a step that has
     them is rejected (I6 is not done). -/
@@ -541,6 +609,17 @@ def checkKnownBitsSimplify (f : Func) (ids : Option (List (List Nat))) (s : Func
 def checkSccpFold (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Bool :=
   (sccpReject f ids s F).isNone
+
+/-- `scalar_canonicalize` (design §4.5): one round, its statements replaced in place, each by a
+    schema on the two unfolded terms (ruling R-11.1), and dead pure statements deleted
+    (`prune_dead_pure_insts`). -/
+def checkScalarCanonicalize (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Bool :=
+  (scalarReject f ids s F).isNone
+
+def diagnoseScalarCanonicalize (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
+    (F : StepFacts) : Option String :=
+  (scalarReject f ids s F).map fun r => s!"{repr r}"
 
 /-- The first failing check, by name (for measurement). -/
 def diagnoseKnownBitsSimplify (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)

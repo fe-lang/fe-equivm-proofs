@@ -241,7 +241,7 @@ theorem machine_sound_edgeSplit {s : Sidecar} {rr ri : MachineSteps}
 theorem StepKind.proved_sound : ∀ k ∈ StepKind.proved, StepSound k := by
   intro k hk
   simp only [StepKind.proved, List.mem_cons, List.not_mem_nil, or_false] at hk
-  rcases hk with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  rcases hk with rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl | rfl
   · exact edgeSplit_stepSound
   · exact cfgCleanup_stepSound
   · exact branchCanon_stepSound
@@ -250,6 +250,7 @@ theorem StepKind.proved_sound : ∀ k ∈ StepKind.proved, StepSound k := by
   · exact Schemas.sccpFold_stepSound
   · exact Schemas.knownBitsSimplify_stepSound
   · exact lowerSwitches_stepSound
+  · exact Schemas.scalarCanonicalize_stepSound
   · exact adce_stepSound
 
 /-- `machine_sound_of_sound` for records that `validate` accepts, which use only the proved
@@ -266,8 +267,8 @@ theorem machine_sound_proved_of_sound {s : Sidecar} {rr ri : MachineSteps}
 
 /-- `machine_sound` for records that `validate` accepts, which use only the proved kinds
     (`StepKind.proved`: `edge_split`, `cfg_cleanup`, `branch_canonicalize`, `branch_conditions`,
-    `coalesce_copies`, `sccp_fold`, `known_bits_simplify`, `lower_switches` and `adce`): no
-    hypothesis.
+    `coalesce_copies`, `sccp_fold`, `known_bits_simplify`, `lower_switches`,
+    `scalar_canonicalize` and `adce`): no hypothesis.
 
     It applies to sidecars without memory spills only (`check s = true` holds `s.noSpills`); a
     sidecar with spills has `machine_sound_spills_proved`.

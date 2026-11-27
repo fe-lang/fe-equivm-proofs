@@ -29,7 +29,9 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Adce.lean` | `EvmOp.readArity`, `Inst.deadRes`, `freshV`, `removable`, `adBodyOk`, `Term.isGoto`, `ACtx` (`crossOk`, `chainOk`, `region`, `peel`, `order`, `bypassOrder`, `bypassOk`, `loopBypass`, `slotOk`, `blockOk`), `closedOk`, `adIdsOk`, `adceFactsOk`, `checkAdce`, `adceWhy` |
 | `AdceSound.lean` | `total_read`, `total_dead`, `AFacts`, `OutAgree`, `total_stmt`, `total_body`, `total_term`, `total_cross`, `ad_walk`, `AR`, `AMid`, `AQ`, `ad_enter`, `ad_stmts`, `Fol.approx_walk`, `ad_term`, `ad_block_fol`, `ad_sim`, `adce_sound`, `adce_stepSound` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
-| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
+| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound`, `scalarCanonicalize_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
+| `SchemasS2.lean` | the `scalar_canonicalize` rewrites Sonatina added after the design, S16–S24, proved (`SCHEMAS-NOTES.md`) |
+| `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
 | `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound_of_sound` (from `Sound s`), `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved_of_sound`, `machine_sound_proved` (on `validate` and `check`), `machine_sound_spills_proved` (on `validate`, `checkSpills` and `FrameSafe`) |
@@ -124,13 +126,15 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`,
-   `lower_switches` and `adce`** (phase 2; all nine are proved and in `StepKind.proved`, the kinds `validate` accepts and
-   `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
-   `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
-   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each kind but the two schema ones and `adce`
-   requires `noFacts` (no known bits, no demand round, no SCCP facts, no finite loops, no unread
-   key), the two schema kinds check the facts they read, `adce` allows only `finite_loops`
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`,
+   `scalar_canonicalize` and `adce`** (phase 2; all ten are proved and in
+   `StepKind.proved`, the kinds `validate` accepts and `machine_sound_proved` covers;
+   `known_bits_simplify`'s demand rounds are switched off, `SchemasStep.lean`,
+   `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is
+   the `Schemas.StepFacts` that `Schemas.readFacts` reads at read time; `checkFunc` takes them;
+   each kind but `sccp_fold`, `known_bits_simplify` and `adce` requires `noFacts` (no known bits,
+   no demand round, no SCCP facts, no finite loops, no unread key; `scalar_canonicalize` by
+   `scalarReject`), the two check the facts they read, and `adce` allows only `finite_loops`
    (`Schemas.StepFacts.finiteLoops`, read and not used); `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
@@ -863,6 +867,106 @@ own records: it would need the record in the sidecar (a `machineSteps` field of 
 `Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
 `Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
 with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+
+- With `scalar_canonicalize` proved as well (`StepKind.proved` has nine kinds; `chain-sc` after
+  merging `chain` `0746147`), on the same corpora (`scalar-canon/measure.sh`,
+  `scripts/MachineSteps.lean` end to end and `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), eight kinds | nine kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | FeProofs `-Os` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | the 265 | 494/530 | 517/530 | `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
+
+  Before the merge (`scalar_canonicalize` with the seven kinds of `chain` `610f491`): `-O0` 40,
+  `-O1` 31 (29 before), `-Os` 34 (32), the 265 475 (460).  Every `scalar_canonicalize` function
+  step is accepted (0, 25, 19, 48 in v5 and v6), and no step of a proved kind is rejected; every
+  rejection end to end is a kind with no proof.  The schema verdicts and mutants of
+  `scripts/SchemasSteps.lean`: `SCHEMAS-NOTES.md`.
+
+## The top theorem: what it covers (review 20, M-3)
+
+`machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
+refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
+are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_sound_proved_of_sound`
+(`validate`, `Sound s`), and two corollaries for the two ways the repository has of proving
+`Sound s`:
+
+- `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
+  `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
+  Its statement is unchanged.
+- `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
+  `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
+
+`check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
+entry for), `validate` on one section's record; the theorems need both sections' records.
+
+**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
+`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
+outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
+`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
+`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
+Sections (each with its own section's byte verdict), then sidecars (both records and the
+sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
+
+| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
+| --- | --- | --- |
+| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
+| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
+| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
+
+The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
+EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
+in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
+`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
+`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
+`validate` too (`lower_switches`).  Every (c) is a
+`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
+
+**`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
+sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
+machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
+(s.spilledModel s.spillPlan) CalldataFits` on every message call whose calldata fits, and
+`ImplementsDeploy` likewise on every deployment.  The instrumented model panics with
+`spillClobbered` where a statement changes a word whose value the bytes reload later, so
+`FrameSafe` says no statement clobbers a live spill word, and that no spill store overwrites IR
+data the IR reads later.  It is proved only for sidecars without spills
+(`frameSafe_of_noSpills`, through which `check_sound` goes).  For no sidecar with spills does the
+repository prove it: `fixedSlotsSafe` (inside `checkSpills`) rejects one way of breaking it (a
+spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
+`scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
+(precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
+
+**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
+keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
+`validate`: each record's composition, from its lowered functions through its steps, must be the
+section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
+(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
+`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
+same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
+the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
+For a record with no passes the lowered functions are the machine IR and the theorem restates
+`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
+own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
+`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
+`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
+with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+
+- With `scalar_canonicalize` proved (branch `chain-sc`, before merging `chain` `0746147`; seven kinds and it),
+  sections accepted end to end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted),
+  v5 and v6 alike, before and after the S16–S24 schemas:
+
+  | corpus | end to end (`validate`) | before | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 31/40 | 29/40 | `gvn_rewrite` 4, `lower_switches` 3, `adce` 2 |
+  | FeProofs `-Os` | 34/40 | 32/40 | `gvn_rewrite` 4, `adce` 2 |
+  | the 265 | 475/530 | 460/530 | `lower_switches` 42, `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
+
+  Every `scalar_canonicalize` function step is accepted (v5 and v6: 0, 25, 19, 48), and no step of
+  a proved kind is rejected.  Every rejection end to end is a kind with no proof.
 
 ## Not done
 
