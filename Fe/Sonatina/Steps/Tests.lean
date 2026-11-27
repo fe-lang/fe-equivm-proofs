@@ -218,6 +218,11 @@ machine_steps_file kc_bad_moved "Fe/Sonatina/Steps/Tests/kc_bad_moved.json"
 machine_steps_file kc_bad_base_inter "Fe/Sonatina/Steps/Tests/kc_bad_base_inter.json"
 machine_steps_file kc_bad_past_inter "Fe/Sonatina/Steps/Tests/kc_bad_past_inter.json"
 machine_steps_file kc_bad_two_base "Fe/Sonatina/Steps/Tests/kc_bad_two_base.json"
+machine_steps_file kc_unreach "Fe/Sonatina/Steps/Tests/kc_unreach.json"
+machine_steps_file kc_unreach_any "Fe/Sonatina/Steps/Tests/kc_unreach_any.json"
+machine_steps_file kc_bad_unreach_term "Fe/Sonatina/Steps/Tests/kc_bad_unreach_term.json"
+machine_steps_file kc_bad_unreach_used "Fe/Sonatina/Steps/Tests/kc_bad_unreach_used.json"
+machine_steps_file kc_bad_reach_any "Fe/Sonatina/Steps/Tests/kc_bad_reach_any.json"
 
 abbrev KC := validateWith [.coalesceCopies] []
 
@@ -253,5 +258,120 @@ example : KC kc_bad_moved (replay kc_bad_moved) = false := by decide +kernel
 example : KC kc_bad_base_inter (replay kc_bad_base_inter) = false := by decide +kernel
 example : KC kc_bad_past_inter (replay kc_bad_past_inter) = false := by decide +kernel
 example : KC kc_bad_two_base (replay kc_bad_two_base) = false := by decide +kernel
+
+/-- Review 20, M-1: a run in an unreachable block whose addresses go through that block's own
+`add`s, which the compiler coalesces (`copy.rs` visits every block).  `addrNorm` follows only
+definitions in reachable blocks, so `cbodyOk` rejects the block's statements (the check before
+the change ran it on every block); `blockOk` no longer checks an unreachable block's statements,
+so the step is accepted, as is any other body there.  Rejected: the unreachable block's terminator
+changed; its body using a deleted value (`unusedOk'`); the arbitrary body in a reachable block. -/
+example : (((kc_unreach.lowered.head?.map (·.func)).bind fun f =>
+    ((replay kc_unreach).funcs.head?).bind fun f' => (f.block? 1).bind fun b =>
+      (f'.block? 1).map fun b' => (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body) =
+    some false) := by decide +kernel
+example : KC kc_unreach (replay kc_unreach) = true := by decide +kernel
+example : KC kc_unreach_any (replay kc_unreach_any) = true := by decide +kernel
+example : KC kc_bad_unreach_term (replay kc_bad_unreach_term) = false := by decide +kernel
+example : KC kc_bad_unreach_used (replay kc_bad_unreach_used) = false := by decide +kernel
+example : KC kc_bad_reach_any (replay kc_bad_reach_any) = false := by decide +kernel
+
+/-! ## `lower_switches` -/
+
+machine_steps_file ls_real "Fe/Sonatina/Steps/Tests/ls_real.json"
+machine_steps_file ls_real_phi "Fe/Sonatina/Steps/Tests/ls_real_phi.json"
+machine_steps_file ls_tree "Fe/Sonatina/Steps/Tests/ls_tree.json"
+machine_steps_file ls_tree_perm "Fe/Sonatina/Steps/Tests/ls_tree_perm.json"
+machine_steps_file ls_bad_pivot "Fe/Sonatina/Steps/Tests/ls_bad_pivot.json"
+machine_steps_file ls_bad_pivot_low "Fe/Sonatina/Steps/Tests/ls_bad_pivot_low.json"
+machine_steps_file ls_bad_swap "Fe/Sonatina/Steps/Tests/ls_bad_swap.json"
+machine_steps_file ls_bad_default "Fe/Sonatina/Steps/Tests/ls_bad_default.json"
+machine_steps_file ls_bad_missing "Fe/Sonatina/Steps/Tests/ls_bad_missing.json"
+machine_steps_file ls_bad_target "Fe/Sonatina/Steps/Tests/ls_bad_target.json"
+machine_steps_file ls_bad_moved "Fe/Sonatina/Steps/Tests/ls_bad_moved.json"
+machine_steps_file ls_bad_extra "Fe/Sonatina/Steps/Tests/ls_bad_extra.json"
+machine_steps_file ls_bad_fresh "Fe/Sonatina/Steps/Tests/ls_bad_fresh.json"
+machine_steps_file ls_bad_slt "Fe/Sonatina/Steps/Tests/ls_bad_slt.json"
+machine_steps_file ls_bad_scrut "Fe/Sonatina/Steps/Tests/ls_bad_scrut.json"
+machine_steps_file ls_bad_id "Fe/Sonatina/Steps/Tests/ls_bad_id.json"
+machine_steps_file ls_bad_junk "Fe/Sonatina/Steps/Tests/ls_bad_junk.json"
+machine_steps_file ls_bad_body "Fe/Sonatina/Steps/Tests/ls_bad_body.json"
+machine_steps_file ls_bad_node "Fe/Sonatina/Steps/Tests/ls_bad_node.json"
+machine_steps_file ls_bad_phi_old "Fe/Sonatina/Steps/Tests/ls_bad_phi_old.json"
+machine_steps_file ls_bad_phi_missing "Fe/Sonatina/Steps/Tests/ls_bad_phi_missing.json"
+machine_steps_file ls_bad_phi_value "Fe/Sonatina/Steps/Tests/ls_bad_phi_value.json"
+machine_steps_file ls_bad_max "Fe/Sonatina/Steps/Tests/ls_bad_max.json"
+
+/-- The records validate with the symbols of their sections. -/
+abbrev LS (r : MachineSteps) : Bool :=
+  validateWith [.lowerSwitches] ["%contract_runtime_root_BytesViewBounds", ".", "%from_abi_tail__ge513",
+    "%contract_runtime_root_Order"] r (replay r)
+
+/-- The check alone, on the record's first lowered function and its first step's output: the
+    mutants below fail it, not only the output's `wf`. -/
+def lsCheck (r : MachineSteps) : Bool :=
+  match r.lowered.head?, r.passes.head?.bind (·.steps.head?) with
+  | some f, some st => match st.funcs.head? with
+    | some fs => fs.facts.unread.isEmpty && checkLowerSwitches f.func (some f.insts) fs.out
+    | none => false
+  | _, _ => false
+
+/-- Accepted: two real records (one switch of five keys; six switches, with phis in their
+targets, whose operands from the switch's block move to the end); a hand-written switch with
+keys 0 and `2 ^ 256 - 1`, the default also a case's target, a target two leaves go to, phis
+in the targets and a kept one-case table; the same with phi operands in another order. -/
+example : LS ls_real = true := by decide +kernel
+example : lsCheck ls_real = true := by decide +kernel
+example : LS ls_real_phi = true := by decide +kernel
+example : lsCheck ls_real_phi = true := by decide +kernel
+example : LS ls_tree = true := by decide +kernel
+example : lsCheck ls_tree = true := by decide +kernel
+example : LS ls_tree_perm = true := by decide +kernel
+example : lsCheck ls_tree_perm = true := by decide +kernel
+
+/-- Rejected, by `validate` and by the check alone: a pivot one above and one below; swapped
+branch targets; a leaf with a wrong default, a missing key, a wrong target, a key of the other
+leaf; an extra instruction in a new block; a condition that is an input value; a signed
+compare; a leaf on another scrutinee; a leaf with the switch's instruction id; a new block
+outside the trees; a changed statement of the switch's block; a node that is an input block;
+a phi operand left on the switch's block, one missing for a leaf, a wrong one for a leaf; the
+key `2 ^ 256 - 1` in the lower leaf. -/
+example : LS ls_bad_pivot = false := by decide +kernel
+example : lsCheck ls_bad_pivot = false := by decide +kernel
+example : LS ls_bad_pivot_low = false := by decide +kernel
+example : lsCheck ls_bad_pivot_low = false := by decide +kernel
+example : LS ls_bad_swap = false := by decide +kernel
+example : lsCheck ls_bad_swap = false := by decide +kernel
+example : LS ls_bad_default = false := by decide +kernel
+example : lsCheck ls_bad_default = false := by decide +kernel
+example : LS ls_bad_missing = false := by decide +kernel
+example : lsCheck ls_bad_missing = false := by decide +kernel
+example : LS ls_bad_target = false := by decide +kernel
+example : lsCheck ls_bad_target = false := by decide +kernel
+example : LS ls_bad_moved = false := by decide +kernel
+example : lsCheck ls_bad_moved = false := by decide +kernel
+example : LS ls_bad_extra = false := by decide +kernel
+example : lsCheck ls_bad_extra = false := by decide +kernel
+example : LS ls_bad_fresh = false := by decide +kernel
+example : lsCheck ls_bad_fresh = false := by decide +kernel
+example : LS ls_bad_slt = false := by decide +kernel
+example : lsCheck ls_bad_slt = false := by decide +kernel
+example : LS ls_bad_scrut = false := by decide +kernel
+example : lsCheck ls_bad_scrut = false := by decide +kernel
+example : LS ls_bad_id = false := by decide +kernel
+example : lsCheck ls_bad_id = false := by decide +kernel
+example : LS ls_bad_junk = false := by decide +kernel
+example : lsCheck ls_bad_junk = false := by decide +kernel
+example : LS ls_bad_body = false := by decide +kernel
+example : lsCheck ls_bad_body = false := by decide +kernel
+example : LS ls_bad_node = false := by decide +kernel
+example : lsCheck ls_bad_node = false := by decide +kernel
+example : LS ls_bad_phi_old = false := by decide +kernel
+example : lsCheck ls_bad_phi_old = false := by decide +kernel
+example : LS ls_bad_phi_missing = false := by decide +kernel
+example : lsCheck ls_bad_phi_missing = false := by decide +kernel
+example : LS ls_bad_phi_value = false := by decide +kernel
+example : lsCheck ls_bad_phi_value = false := by decide +kernel
+example : LS ls_bad_max = false := by decide +kernel
+example : lsCheck ls_bad_max = false := by decide +kernel
 
 end Fe.Sonatina.Steps.Tests

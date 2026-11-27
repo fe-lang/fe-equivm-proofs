@@ -473,3 +473,92 @@ two_base = ["v2.i256 = evm_mload v0", "v3.i256 = add v1 32.i256", "v4.i256 = evm
 write("kc_bad_two_base.json", kc([(0, two_base + [RET], ids_from(6))],
     [(0, ["evm_mcopy 512.i256 v0 64.i256", RET], [4, 5])], params=("v0.i256", "v1.i256")))
 write("kc_bad_moved.json", kc(keep_in, [(0, ["evm_mcopy 512.i256 256.i256 64.i256", "v6.i256 = add 512.i256 32.i256", "return v6"], [4, 2, 5])]))
+# Review 20 M-1: a run in an unreachable block (block1), its addresses through that block's own
+# adds, which `addrNorm` does not follow; the compiler coalesces it (`copy.rs` visits every
+# block).  Accepted, as is any body of an unreachable block (its statements are not checked).
+# Rejected: the unreachable block's terminator changed; its new body uses a deleted value; the
+# same arbitrary body in block1 reachable (block0 jumps to it).
+unr_in = [(0, [RET], [0]), (1, base2 + [RET], ids_from(7, 1))]
+unr = lambda b1, ids, b0="return 0.i256": kc([(0, [b0], [0])] + unr_in[1:], [(0, [b0], [0]), (1, b1, ids)],
+    params=("v0.i256", "v1.i256"))
+write("kc_unreach.json", unr(["evm_mcopy v1 v0 64.i256", RET], [6, 7]))
+write("kc_unreach_any.json", unr(["evm_sstore 0.i256 1.i256", RET], [6, 7]))
+write("kc_bad_unreach_term.json", unr(["evm_mcopy v1 v0 64.i256", "return 1.i256"], [6, 7]))
+write("kc_bad_unreach_used.json", unr(["evm_mstore 0.i256 v3", RET], [6, 7]))
+write("kc_bad_reach_any.json", unr(["evm_sstore 0.i256 1.i256", RET], [6, 7], b0="jump block1"))
+
+# lower_switches.  `ls_real.json` and `ls_real_phi.json` are real records (corpus v6, the 265:
+# `abi_dynamic_payload` BytesViewBounds and `enum_state_machine` Order, runtime sections), cut to
+# their `lower_switches` pass with the module before it as `lowered`.  The mutants below change
+# the step's output of the first function.
+def ls_mut(base, name, edits, ids=None):
+    with open(base) as f:
+        r = json.load(f)
+    out = r["passes"][0]["steps"][0]["funcs"][0]["out"]
+    for a, b in edits:
+        assert a in out["text"], (name, a)
+        out["text"] = out["text"].replace(a, b, 1)
+    if ids is not None:
+        out["insts"] = ids(out["insts"])
+    write(name, r)
+
+def ls_block_ids(k, new):
+    return lambda insts: insts[:k] + [new] + insts[k + 1:]
+
+LSR = "ls_real.json"
+# A pivot off by one, above and below; swapped branch targets; a leaf with a wrong default, a
+# missing key, a wrong target, a key in the wrong leaf; an extra instruction in a new block; a
+# condition that is an input value; a signed compare; a leaf on another scrutinee; a leaf
+# reusing the switch's instruction id (M-4); a new block outside the trees; a changed statement
+# of the switch's block; a node that is an input block.
+ls_mut(LSR, "ls_bad_pivot.json", [("lt v6 18.i256", "lt v6 19.i256")])
+ls_mut(LSR, "ls_bad_pivot_low.json", [("lt v6 18.i256", "lt v6 17.i256")])
+ls_mut(LSR, "ls_bad_swap.json", [("br v31 block21 block20", "br v31 block20 block21")])
+ls_mut(LSR, "ls_bad_default.json", [("br_table v6 block4 (18.i256", "br_table v6 block5 (18.i256")])
+ls_mut(LSR, "ls_bad_missing.json", [(" (20.i256 block17);", ";")])
+ls_mut(LSR, "ls_bad_target.json", [("(19.i256 block14)", "(19.i256 block11)")])
+ls_mut(LSR, "ls_bad_moved.json", [("br_table v6 block4 (18.i256 block11) ", "br_table v6 block4 "),
+    ("(17.i256 block8);", "(17.i256 block8) (18.i256 block11);")])
+ls_mut(LSR, "ls_bad_extra.json", [("    block20:\n", "    block20:\n        v99.i256 = add v6 1.i256;\n")],
+    ids=ls_block_ids(2, [44, 42]))
+ls_mut(LSR, "ls_bad_fresh.json", [("v31.i256 = lt v6 18.i256;\n        br v31", "v4.i256 = lt v6 18.i256;\n        br v4")])
+ls_mut(LSR, "ls_bad_slt.json", [("lt v6 18.i256", "slt v6 18.i256")])
+ls_mut(LSR, "ls_bad_scrut.json", [("br_table v6 block4 (16.i256", "br_table v4 block4 (16.i256")])
+ls_mut(LSR, "ls_bad_id.json", [], ids=ls_block_ids(2, [5]))
+ls_mut(LSR, "ls_bad_junk.json", [("evm_return 0.i256 0.i256;\n}", "evm_return 0.i256 0.i256;\n\n    block22:\n        jump block4;\n}")],
+    ids=lambda insts: insts + [[44]])
+ls_mut(LSR, "ls_bad_body.json", [("v6.i256 = shr 224.i256 v4;\n        v31", "v6.i256 = shr 223.i256 v4;\n        v31")])
+ls_mut(LSR, "ls_bad_node.json", [("br v31 block21 block20", "br v31 block5 block20")])
+
+# A hand-written switch: keys 0 and 2^256 - 1, the default also a case's target, a target that
+# two leaves go to, targets with phis, and a kept one-case table (block3).
+MAX = 2 ** 256 - 1
+ls_in = snap("f", P, ["i256"], [
+    (0, [f"br_table v0 block1 (0.i256 block3) (1.i256 block2) (2.i256 block3) (3.i256 block1) ({MAX}.i256 block2)"]),
+    (1, ["v1.i256 = phi (10.i256 block0) (v0 block3)", "return v1"]),
+    (2, ["v2.i256 = phi (v0 block0) (20.i256 block3)", "return v2"]),
+    (3, ["br_table v0 block1 (7.i256 block2)"])],
+    [[0], [1, 2], [3, 4], [5]])
+def ls_out(root=("v3.i256 = lt v0 2.i256", "br v3 block5 block4"),
+           up=f"br_table v0 block1 (2.i256 block3) (3.i256 block1) ({MAX}.i256 block2)",
+           lo="br_table v0 block1 (0.i256 block3) (1.i256 block2)",
+           phi1="v1.i256 = phi (v0 block3) (10.i256 block4) (10.i256 block5)",
+           phi2="v2.i256 = phi (20.i256 block3) (v0 block4) (v0 block5)"):
+    return snap("f", P, ["i256"], [(0, list(root)), (4, [up]), (5, [lo]),
+        (1, [phi1, "return v1"]), (2, [phi2, "return v2"]), (3, ["br_table v0 block1 (7.i256 block2)"])],
+        [[6, 7], [8], [9], [1, 2], [3, 4], [5]])
+write("ls_tree.json", one("lower_switches", "f", ls_in, ls_out()))
+# Accepted: the phis' operands in another order.
+write("ls_tree_perm.json", one("lower_switches", "f", ls_in,
+    ls_out(phi1="v1.i256 = phi (10.i256 block5) (v0 block3) (10.i256 block4)")))
+# Rejected: a phi operand left on the switch's block; one missing for a leaf; a wrong operand for
+# a leaf; the key 2^256 - 1 in the lower leaf.
+write("ls_bad_phi_old.json", one("lower_switches", "f", ls_in,
+    ls_out(phi1="v1.i256 = phi (v0 block3) (10.i256 block0) (10.i256 block4) (10.i256 block5)")))
+write("ls_bad_phi_missing.json", one("lower_switches", "f", ls_in,
+    ls_out(phi2="v2.i256 = phi (20.i256 block3) (v0 block4)")))
+write("ls_bad_phi_value.json", one("lower_switches", "f", ls_in,
+    ls_out(phi2="v2.i256 = phi (20.i256 block3) (v0 block4) (20.i256 block5)")))
+write("ls_bad_max.json", one("lower_switches", "f", ls_in,
+    ls_out(up="br_table v0 block1 (2.i256 block3) (3.i256 block1)",
+           lo=f"br_table v0 block1 (0.i256 block3) (1.i256 block2) ({MAX}.i256 block2)")))

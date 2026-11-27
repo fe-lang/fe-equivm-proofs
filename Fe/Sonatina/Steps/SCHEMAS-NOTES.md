@@ -498,7 +498,7 @@ before the change; the hand-written tests pass.  Sections accepted end to end: `
 
 - Import `Fe.Sonatina.Steps.SchemasG` and `Fe.Sonatina.Steps.SchemasD` (they import the rest),
   `open Fe.Sonatina.Steps.Schemas`.
-- Build `Term`s with `atom v` for value `v`, `lit w` for an immediate (or `undef`, as 0); map an
+- Build `Term`s with `atom v` for value `v`, `lit w` for an immediate; map an
   instruction with `pureInst?`. Supply `kb v` = the verified known-bits fact of `v` (or
   `KB.unknown`); prove `FactsOn kb (envWord env) [l, r]` with `factsOn_env` from the known-bits
   invariant and the atoms being bound.

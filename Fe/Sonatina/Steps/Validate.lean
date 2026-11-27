@@ -1,6 +1,7 @@
 import Fe.Sonatina.Steps.CfgCleanup
 import Fe.Sonatina.Steps.BranchCanon
 import Fe.Sonatina.Steps.Coalesce
+import Fe.Sonatina.Steps.LowerSwitches
 import Fe.Sonatina.Steps.Record
 import Fe.Sonatina.Steps.SchemasStep
 
@@ -64,6 +65,7 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .branchCanonicalize, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
   | .branchConditions, _, f, ids, s, F => noFacts F && checkBranchCanon f ids s
   | .coalesceCopies, _, f, ids, s, F => noFacts F && checkCoalesce f ids s
+  | .lowerSwitches, _, f, ids, s, F => noFacts F && checkLowerSwitches f ids s
   | .knownBitsSimplify, _, f, ids, s, F => Schemas.checkKnownBitsSimplify f ids s F
   | .sccpFold, _, f, ids, s, F => Schemas.checkSccpFold f ids s F
   | .scalarCanonicalize, _, f, ids, s, F => Schemas.checkScalarCanonicalize f ids s F
@@ -273,7 +275,7 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     rounds switched off, `demandRounds`). -/
 def StepKind.proved : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
-    .knownBitsSimplify, .scalarCanonicalize]
+    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=

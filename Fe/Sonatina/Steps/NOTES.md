@@ -12,7 +12,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Oracle.lean` | `runStmtO`/`runBodyO`/`stepBlock`/`runBlocksO`/`runFuncO`, `runBlocks_iter`, `runFunc_approx`, `runFunc_intRet`, `runFunc_ctx` (C0 and reflexivity), `runFuncO_approx`, `Ctx.Has`, `ModRefines syms`, `FuncRef`, C1 `modRefines_of_funcs`; `Oracle.IntRet` |
 | `Wf.lean` | `Func.wf`, `Module.wf`, `FuncSnap.wf` (review C-6), `VFunc`, `defsOf`, `ssa` (review H-1, M-1), `DomAt`, `useOk_sound`, `phiUseOk_sound` |
 | `Defined.lean` | the definedness invariant: `BlockInv`, `PointInv`, `stepBlock_inv`, `Reaches`, `reaches_inv`, `defined`, `term_defined`, `phis_defined` |
-| `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps` |
+| `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps_env` (a stutter step may bind), `Sim.of_steps` |
 | `NatMap.lean` | bit trie, `find?_insert`, `find?_ofList`, `find?_ofListBy` |
 | `Eq.lean` | `DecidableEq` for the IR |
 | `EdgeSplit.lean` | `termRel` (terminators slot by slot, shared with `cfg_cleanup`), `approx_runTerm`, `checkEdgeSplit`, `edgeSplit_sound` |
@@ -24,13 +24,15 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Coalesce.lean` | `addrNorm`, `useCount`, `loadsFirst`, `fresh`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce` |
 | `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `writes`, `writes_read`, `writes_copyMem`, `addrNorm_sound`, `baseVal`, `addrNorm_base_sound`, `exec_mcopy`, `exec_mcopy_big`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `WInv.env`, `keep_operand`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
+| `LowerSwitches.lean` | `funcVars`, `look`, `subtree`, `leafOk`, `LSCtx` (`lab`, `pivot?`, `nodeOk`, `rootOk`, `expected`, `phiOk`, `blockOk`, `shapeOk`, `idsOk`), `checkLowerSwitches` |
+| `LowerSwitchesSound.lean` | `LSCtx.Agree`, `runInst_congr`, `runStmtO_congr`, `runTerm_congr`, `approx_runTerm_agree`, `LSCtx.approx_runBodyO`, `LSCtx.approx_enter`, `leafOk_sel`, `runTerm_table`, `lt_br_run`, `stepBlock_leaf`, `stepBlock_node`, `LSCtx.R`, `lowerSwitches_sound`, `lowerSwitches_stepSound` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound`, `scalarCanonicalize_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `SchemasS2.lean` | the `scalar_canonicalize` rewrites Sonatina added after the design, S16–S24, proved (`SCHEMAS-NOTES.md`) |
 | `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved` (on `validate`) |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound_of_sound` (from `Sound s`), `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved_of_sound`, `machine_sound_proved` (on `validate` and `check`), `machine_sound_spills_proved` (on `validate`, `checkSpills` and `FrameSafe`) |
 | `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
 | `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
@@ -122,13 +124,15 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold` and
-   `scalar_canonicalize`** (phase 2; all eight are proved and in `StepKind.proved`, the kinds
-   `validate` accepts and `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
-   `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
-   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
-   requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), and so does
-   `scalar_canonicalize` (`scalarReject`), the two other schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`
+   and `scalar_canonicalize`** (phase 2; all nine are proved and in
+   `StepKind.proved`, the kinds `validate` accepts and `machine_sound_proved` covers;
+   `known_bits_simplify`'s demand rounds are switched off, `SchemasStep.lean`,
+   `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is
+   the `Schemas.StepFacts` that `Schemas.readFacts` reads at read time; `checkFunc` takes them;
+   each kind but `sccp_fold` and `known_bits_simplify` requires `noFacts` (no known bits, no
+   demand round, no SCCP facts, no unread key; `scalar_canonicalize` by `scalarReject`), the two
+   check the facts they read; `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
@@ -233,14 +237,15 @@ Deviations and choices:
 function in strict SSA on a valid tree, on a run from the entry (`l2`), at every point `(b, k)`
 each statement of a reachable block that comes before the point (`Before`: in a strict tree
 ancestor of `b`, or earlier in `b`) whose instruction is pure (`Inst.pure`: `bin`, `cmp`,
-`is_zero`, `not`, `neg`, `ctz`, `ovf`, `cast`, `select`) has its results bound to the
+`is_zero`, `not`, `neg`, `ctz`, `ovf`, `cast`, `select`, `evm_add_mod`, `evm_mul_mod`) has its
+results bound to the
 instruction's values on the current environment, as their types (`PureInv`, `pureVals`, with
 `runInst_pure`: such an instruction runs to `pureVals` or is stuck).  The proof: unique
 definitions, `ssa`'s uses (an operand's definition comes before the statement), D1's edge
 condition and the tree's antisymmetry; the preservation lemmas (`pureInv_enter`,
 `pureInv_stmt`, `pureInv_take`, `pureInv_step`) serve simulations that walk the input
 themselves, as `branch_canonicalize`'s does.  `clz` is not pure here (it traps before Osaka),
-nor `keccak_words`, `sym_addr`/`sym_size` or `addmod`/`mulmod`; adding one is a case of
+nor `keccak_words` or `sym_addr`/`sym_size`; adding one is a case of
 `pureVals`, `runInst_pure` and `pureVals_congr`.
 
 ## `branch_canonicalize` and `branch_conditions` (phase 2)
@@ -295,13 +300,20 @@ called last in `machine/pipeline.rs:76-79`; design §4.10 and review H-6 describ
   immediate; the window's other instructions are erased if they have no result or an unused one
   (`:27-38`): the loads, the other stores, unused `add`/`sub`; used ones stay in place.
 
+`coalesce_machine_copies` walks every block of the layout (`copy.rs:16-18` at `e39b70c4d`),
+reachable or not, and
+`address` follows `add`/`sub` definitions wherever they are; at `-O0` no `cfg_cleanup` runs before
+it, so unreachable blocks of the lowered code reach it.  (At `-O1`/`-Os` the machine pipeline's
+last `cfg_cleanup` comes before it, with only `lower_switches` and `branch_conditions` between.)
+
 In the four corpora (FeProofs `-O0`/`-O1`/`-Os` and the 265 sidecars of `corpus-v5-full`): 229
 steps, 819 copies; every change is a store replaced by `evm_mcopy` or a deleted `evm_mload`,
 `evm_mstore` or `add`; source and destination normalize to constants in 676 copies (278 snapshot,
 398 interleaved, none overlapping, none past `u32`), to a base value in 143 (all snapshot).
 
-The checker (`checkCoalesce`, stage 1): the output has the input's blocks in order with their
-ids, phis and terminators; each output block's statements are the input block's in order, where
+The checker (`checkCoalesce`, as of stage 2 and the unreachable blocks below): the output
+has the input's blocks in order with their ids, phis and terminators; each output block the
+input's tree reaches has the input block's statements in order, where
 a window may become its kept `add`/`sub` statements, in order, then the copy (`cbodyOk`,
 `keptOk`); a window (`runOk`) holds only loads with one result, stores, and `add`/`sub` with one
 result, ends in a store, has `n ≥ 2` loads `l_i` at `s + 32 i` and `n` stores `t_i` of `l_i`'s
@@ -319,12 +331,37 @@ window); no result of a window statement the output does not keep is defined in 
 copy's `d` and `s` are values the output must have bound at the copy: the check does not check
 the output's SSA; an unbound operand makes the output stuck, which the simulation allows, and
 `unusedOk'` keeps every value the output reads defined in it.  Several windows in one block and
-in one function are accepted.  Tests: two words snapshot and interleaved, `add`/`sub` chains (the
+in one function are accepted.  Instruction ids are checked for shape only (review 20, L-1):
+`checkStep`'s `FuncSnap.wf` (one per line, distinct), and nothing compares the output's ids with
+the input's; the proof needs no correspondence.  Tests: two words snapshot and interleaved, `add`/`sub` chains (the
 arithmetic deleted, three words), a kept `add`, two runs in a block and one in another;
 mutants: overlapping interleaved ranges, a length other than `32 n`, store `i` of another load,
-a load used twice, a base-relative run, a deleted store outside a window, a changed copy operand,
-non-contiguous addresses, another instruction in the window, one word, a range past `2 ^ 256`, a
-kept `add` moved after the copy.
+a load used twice, an interleaved base-relative run, a deleted store outside a window, a changed
+copy operand, non-contiguous addresses, another instruction in the window, one word, an
+interleaved range past `2 ^ 256`, loads at two bases, a kept `add` moved after the copy.
+
+**Unreachable blocks (review 20, M-1).**  `addrNorm` follows only definitions in blocks the input's
+tree reaches (`stmtOf`, which its proof needs), so a run in an unreachable block whose addresses go
+through that block's own `add`s was rejected, though the compiler coalesces it.  `blockOk` now
+checks an unreachable block's id, phis and terminator only, not its statements: no run of the
+input or the output enters it (the terminators are the input's), and the simulation steps only
+reachable blocks (`kc_block` takes the reachability `BR` carries).  `unusedOk'` still covers the
+whole output.  Tests: `kc_unreach` (Gemini's example; `cbodyOk` alone rejects its block, as the
+check did before), `kc_unreach_any` (any body in an unreachable block); mutants
+`kc_bad_unreach_term`, `kc_bad_unreach_used` (a deleted value used there), `kc_bad_reach_any`
+(the same body with the block reachable).  No step of the corpora has such a run: every
+`coalesce_copies` step was accepted before the change.
+
+The other proved checkers: `cfg_cleanup` deletes unreachable blocks, and its check is driven by
+the output's blocks, chains from the input's; `edge_split` reads no definitions; the schema
+checkers' unfolding and pairing read definitions in any block (only SCCP's facts are restricted,
+to the executable set, which the checker validates).  `branch_canonicalize`'s `isZeroArg` has the
+same restriction as `stmtOf`, so a peel of a branch in an unreachable block whose `is_zero`s are
+defined there is rejected; but Sonatina runs `BranchCanonicalize` right after `cfg_cleanup` in the
+one round of `MACHINE_PASSES`, and `branch_conditions` after the round's last `cfg_cleanup`, so
+neither sees an unreachable block; every `branch_canonicalize` step of the corpora is accepted
+(`branch_conditions` has none).  Accepting it
+would mean accepting a changed terminator in an unreachable block, not the same change; not done.
 
 **Stage 2 (ruling R-11.4, review C-1), done:** the interpreter's `evm_mcopy` does not terminate
 where a range ends past `2 ^ 256` (`mcopyIR`, below), the byte side is re-proved (`mcopy_oog`),
@@ -370,6 +407,88 @@ skip the dropped ones, the phis and parameters are the input's, and the input's 
 unique (`ssa`).  (2) The snapshot test is `loadsFirst` (no load after the first store) in place
 of "the last load's index is below the first store's"; with a load in the window (`n ≥ 2` is
 checked) the two agree.  The tests (`Tests.lean`, `kc_*`) are unchanged and pass.
+
+## `lower_switches` (design §4.9, review H-5 and M-4)
+
+What Sonatina does (`crates/codegen/src/isa/evm/machine/switch.rs` at `machine-steps-main`
+`e39b70c4d`; the step runs when `pipeline.rs:56-60` picks the tree: `Auto` at Speed, `Tree` at
+any level, never `Linear`; there is one algorithm, the strategy only decides whether it runs):
+- candidates (`:30-60`): a block ending in a `br_table` with a default and more than 4 cases,
+  every key an immediate; keys sorted by unsigned value (`to_u256`, `:46-52`); the gas
+  heuristic `split_index` must split the whole table (`:57`);
+- leaf size 4, or 8 when the block's live values and the scrutinee leave fewer than two slots
+  of reach (`:76-93`); a table of at most that many cases is left as it is;
+- `emit` (`:156-198`): if `split_index` does not split, the block ends in
+  `br_table s D cases'` (the default kept); else, at `mid = len / 2`, two new blocks, the block
+  ends in `v = lt s k; br v lower upper` with `k` the upper half's first key (as its operand),
+  and the halves recurse, upper first; the root always splits (`:57`, the same heuristic);
+- every tree instruction is new (`insert_inst_data_from` copies the attribution only); the old
+  terminator is erased (`:119`);
+- phis (`:114-118`, `:166-173`): each leaf appends to each destination's phis, once per
+  destination, the operand from the root (`copy_phi_incoming_block`, `cfg_edit.rs:1110`), and
+  after the tree the root's operands are removed (`remove_phi_incoming_from`): the order of a
+  phi's operands changes.
+
+What both corpora emit (`ls_shapes.py` over every step; v5 and v6 identical): 45 function steps
+in the 265 (44 with one switch, one with six: 50 switches), 3 at FeProofs `-O1`, none at
+`-O0`/`-Os`.  Trees, as `(lower upper)` with leaf sizes: 5 cases `(L2 L3)` 19 + 1 (`-O1`), 7
+`(L3 L4)` 7, 8 `(L4 L4)` 6, 6 `(L3 L3)` 5 + 1, 11 `((L2 L3) (L3 L3))` 4 + 1, 10
+`((L2 L3) (L2 L3))` 3, 13 `((L3 L3) (L3 L4))` 1, 12 `((L3 L3) (L3 L3))` 1, 9 `(L4 (L2 L3))` 1,
+18 `((L4 (L2 L3)) (L4 (L2 L3)))` 1, 19 `((L4 (L2 L3)) ((L2 L3) (L2 L3)))` 1, 22
+`(((L2 L3) (L3 L3)) ((L2 L3) (L3 L3)))` 1.  Every leaf is the input's cases on its interval in
+sorted order; no leaf has more than 4 cases (the pressured size 8 is not exercised); every
+pivot lies strictly inside its interval; a key 0 in 5 switches, none `2 ^ 256 - 1`; no
+duplicate targets, no default that is also a case's target; 5 targets with phis (all in the
+six-switch function), each reached from one leaf; one table kept (one case); every other block
+and its instruction ids unchanged; no tree instruction reuses an id.
+
+The checker (`checkLowerSwitches`, `LowerSwitches.lean`; one stage, nothing switched off): the
+output's blocks of input ids, in the input's order, have the input's phis with each operand from
+a lowered block `r` replaced by one from each leaf of `r`'s tree that goes there (`phiOk`:
+semantically through `lab`, and exactly as a permutation of `expected`), and either the input's
+statements and terminator (targets input blocks) or, lowered (`rootOk`), the input's
+`br_table s D cs` with immediate keys and input targets, the input's statements, `v = lt s k`
+(`v` a value the input does not mention, `pivot?`), `br v lo hi`; the trees (`nodeOk`, an
+interval `[a, b)`, `[0, 2 ^ 256)` at the root, `[a, k)` towards `lo`, `[k, b)` towards `hi`,
+`a < k < b`): an internal node a new block with no phis, exactly `v = lt s k` (fresh) and
+`br v lo hi`; a leaf a new block with no phis or statements and exactly
+`br_table s D cs'`, `cs'` the input's cases on the interval (`leafOk`), distinct keys, input
+targets, and `lab` taking it to `r`; every new block a node of one tree, once, the trees' new
+values distinct (`shapeOk`); instruction ids (`idsOk`): unchanged blocks keep theirs, a lowered
+block keeps its phis' and statements' and has two new ones, new blocks new ones; the input's
+dominator tree valid and the input in strict SSA.  The checker computes the trees and the
+leaves' switches (`LSCtx.of`) and checks them; fuel is the output's block count plus one, an
+exhausted walk rejects.
+
+Proof (`LowerSwitchesSound.lean`, `lowerSwitches_sound`, `lowerSwitches_stepSound`; no
+hypothesis beyond `StepSound.of_func`'s): the simulation `LSCtx.R` relates the output at an
+input block to the input at it, the predecessor relabelled (`lab`, as `edge_split`'s), and the
+output at a tree node of `r`'s switch, on `[a, b)`, to the input entering `t` from `r`, where the
+input's scrutinee `v` is in `[a, b)` and `t` the input table's target for `v`
+(design §5.4's "output at new block `n` from `p` ~ input entering `t` from `p`", the interval
+lemma being `leafOk_sel`).  The output binds the trees' `lt` results, which the input does not,
+so the environments agree on the values the input mentions (`Agree`, over `funcVars`), not
+`EnvSub`: the input's statements and terminators run alike (`runStmtO_congr`,
+`runTerm_congr`), and a fresh binding keeps the agreement.  A lowered block steps with the
+input's block (its `lt` and `br` against the input's table, `runTerm_table`, `lt_br_run`, the
+scrutinee read through the definedness invariant); a tree node steps alone, to a related state
+with the input unmoved: `Sim.of_steps_env`, `Sim.of_steps` generalized to a stutter step that
+binds (`Sim.of_steps` is now its corollary).
+
+Choices: exactness the proof does not need is checked anyway (H-5, M-4): the permutation of
+`expected`, `shapeOk`, `idsOk`, the leaves' distinct keys, the pivots' bounds, the type of the
+`lt` result.  A phi's operands are compared as a permutation, since Sonatina moves the new ones
+to the end (`ls_real_phi`).  Tests (`Tests.lean`, `ls_*`): two real records (BytesViewBounds,
+and Order with six switches and target phis), a hand-written switch with keys 0 and
+`2 ^ 256 - 1`, a default that is also a case's target, a target two leaves go to, phis and a
+kept one-case table, and the same with phi operands reordered; mutants (each rejected by
+`validateWith` and by the check alone, `lsCheck`): a pivot one above and one below, swapped
+branch targets, a wrong leaf default, a missing key, a wrong target, a key in the other leaf,
+an extra instruction in a new block, a condition that is an input value, `slt`, a leaf on
+another scrutinee, a leaf with the switch's instruction id, a new block outside the trees, a
+changed statement of the switch's block, a node that is an input block, a phi operand left on
+the switch's block, one missing for a leaf, a wrong one for a leaf, the key `2 ^ 256 - 1` in the
+lower leaf.
 
 ## Review 6 (phase 1) findings taken up in phase 2
 
@@ -545,7 +664,182 @@ line of WETH9's `returnValue_run`.
   `branch_conditions` has no step in either corpus.  No `known_bits_simplify` step is rejected as
   a demand round: every sidecar of both corpora has `demanded_bits: null`.
 
-- With `scalar_canonicalize` proved (`StepKind.proved` has eight kinds; branch `chain-sc`),
+- With `lower_switches` proved (`StepKind.proved` has eight kinds; `chain-ls`, after merging
+  `chain` `c3b8225`), on the same corpora (`lower-switches/measure.sh`, `scripts/MachineSteps.lean`
+  end to end and `steps`, interpreted; the byte checker and the schema verdicts were not rerun,
+  nothing they read changed):
+
+  | corpus | end to end (`validate`), before | after | first rejected kind |
+  | --- | --- | --- | --- |
+  | v5 FeProofs `-O0` | 40/40 | 40/40 | none |
+  | v5 FeProofs `-O1` | 29/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v5 FeProofs `-Os` | 32/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v5 the 265 | 460/530 | 494/530 | `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+  | v6 FeProofs `-O0` | 40/40 | 40/40 | none |
+  | v6 FeProofs `-O1` | 29/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v6 FeProofs `-Os` | 32/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v6 the 265 | 460/530 | 494/530 | `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+
+  Every `lower_switches` step is accepted: `-O1` 3 and the 265 45, in v5 and v6 (none at `-O0`
+  and `-Os`); the other kinds' per-step counts are those of the table above, none rejected, no
+  summary table failing.
+
+## The top theorem: what it covers (review 20, M-3)
+
+`machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
+refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
+are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_sound_proved_of_sound`
+(`validate`, `Sound s`), and two corollaries for the two ways the repository has of proving
+`Sound s`:
+
+- `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
+  `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
+  Its statement is unchanged.
+- `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
+  `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
+
+`check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
+entry for), `validate` on one section's record; the theorems need both sections' records.
+
+**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
+`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
+outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
+`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
+`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
+Sections (each with its own section's byte verdict), then sidecars (both records and the
+sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
+
+| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
+| --- | --- | --- |
+| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
+| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
+| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
+
+The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
+EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
+in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
+`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
+`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
+`validate` too (`lower_switches`).  Every (c) is a
+`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
+
+**`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
+sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
+machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
+(s.spilledModel s.spillPlan) CalldataFits` on every message call whose calldata fits, and
+`ImplementsDeploy` likewise on every deployment.  The instrumented model panics with
+`spillClobbered` where a statement changes a word whose value the bytes reload later, so
+`FrameSafe` says no statement clobbers a live spill word, and that no spill store overwrites IR
+data the IR reads later.  It is proved only for sidecars without spills
+(`frameSafe_of_noSpills`, through which `check_sound` goes).  For no sidecar with spills does the
+repository prove it: `fixedSlotsSafe` (inside `checkSpills`) rejects one way of breaking it (a
+spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
+`scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
+(precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
+
+**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
+keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
+`validate`: each record's composition, from its lowered functions through its steps, must be the
+section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
+(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
+`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
+same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
+the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
+For a record with no passes the lowered functions are the machine IR and the theorem restates
+`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
+own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
+`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
+`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
+with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+
+- With `scalar_canonicalize` proved as well (`StepKind.proved` has nine kinds; `chain-sc` after
+  merging `chain` `0746147`), on the same corpora (`scalar-canon/measure.sh`,
+  `scripts/MachineSteps.lean` end to end and `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), eight kinds | nine kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | FeProofs `-Os` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | the 265 | 494/530 | 517/530 | `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
+
+  Before the merge (`scalar_canonicalize` with the seven kinds of `chain` `610f491`): `-O0` 40,
+  `-O1` 31 (29 before), `-Os` 34 (32), the 265 475 (460).  Every `scalar_canonicalize` function
+  step is accepted (0, 25, 19, 48 in v5 and v6), and no step of a proved kind is rejected; every
+  rejection end to end is a kind with no proof.  The schema verdicts and mutants of
+  `scripts/SchemasSteps.lean`: `SCHEMAS-NOTES.md`.
+
+## The top theorem: what it covers (review 20, M-3)
+
+`machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
+refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
+are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_sound_proved_of_sound`
+(`validate`, `Sound s`), and two corollaries for the two ways the repository has of proving
+`Sound s`:
+
+- `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
+  `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
+  Its statement is unchanged.
+- `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
+  `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
+
+`check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
+entry for), `validate` on one section's record; the theorems need both sections' records.
+
+**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
+`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
+outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
+`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
+`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
+Sections (each with its own section's byte verdict), then sidecars (both records and the
+sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
+
+| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
+| --- | --- | --- |
+| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
+| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
+| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
+
+The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
+EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
+in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
+`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
+`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
+`validate` too (`lower_switches`).  Every (c) is a
+`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
+
+**`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
+sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
+machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
+(s.spilledModel s.spillPlan) CalldataFits` on every message call whose calldata fits, and
+`ImplementsDeploy` likewise on every deployment.  The instrumented model panics with
+`spillClobbered` where a statement changes a word whose value the bytes reload later, so
+`FrameSafe` says no statement clobbers a live spill word, and that no spill store overwrites IR
+data the IR reads later.  It is proved only for sidecars without spills
+(`frameSafe_of_noSpills`, through which `check_sound` goes).  For no sidecar with spills does the
+repository prove it: `fixedSlotsSafe` (inside `checkSpills`) rejects one way of breaking it (a
+spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
+`scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
+(precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
+
+**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
+keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
+`validate`: each record's composition, from its lowered functions through its steps, must be the
+section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
+(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
+`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
+same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
+the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
+For a record with no passes the lowered functions are the machine IR and the theorem restates
+`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
+own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
+`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
+`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
+with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+
+- With `scalar_canonicalize` proved (branch `chain-sc`, before merging `chain` `0746147`; seven kinds and it),
   sections accepted end to end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted),
   v5 and v6 alike, before and after the S16–S24 schemas:
 
@@ -564,4 +858,8 @@ line of WETH9's `returnValue_run`.
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 - The summary table's effect and `will_return` claims are not checked (no consumer).
 - `known_bits_simplify`'s demand rounds, switched off (`demandRounds`; plan in `SCHEMAS-NOTES.md`).
-- `known_bits_simplify`'s new Sonatina rules (`sdiv` by a power of two, tighter `clz`/`ctz` known bits) wait for a regenerated corpus.
+- `known_bits_simplify`'s `sdiv` by a power of two (`signed_pow2_division`, replacing
+  `evm_sdiv x 2^k` in place by `shr k x` or `sar k x`): a known rewrite the checker rejects (an
+  in-place change of an instruction, review 20 M-2).  Corpus v6 is the regenerated corpus at the
+  compiler that has it, and no `known_bits_simplify` step of it changes an `evm_sdiv`: 0
+  occurrences (every such step of v6 is accepted, which an in-place change is not).

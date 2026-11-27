@@ -60,6 +60,27 @@ def kcReason (f f' : Func) : String := Id.run do
   if !unusedOk' f f' then return "deleted value used"
   return "function"
 
+/-- Why `checkLowerSwitches` rejects: its first failing part. -/
+def lsReason (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) : String := Id.run do
+  let f' := s.func
+  let X := LSCtx.of f f'
+  if ids.isNone then return "no input ids"
+  let (some e, some e') := (f.blocks.head?, f'.blocks.head?) | return "no entry"
+  if e.id != e'.id then return "entry changed"
+  if f'.params != f.params then return "parameters changed"
+  if !((domTree f).valid f && ssa f (domTree f)) then return "input dominators or SSA rejected"
+  for b' in f'.blocks do
+    if !X.blockOk b' then
+      let part := match X.B.find? b'.id with
+        | some bb =>
+          if !X.phisOk b'.id b'.phis bb.phis then "phis"
+          else if b'.term == bb.term then "statements or targets"
+          else "switch tree"
+        | none => "new block"
+      return s!"block {b'.id}: {part}"
+  if !X.shapeOk f f' then return "tree shape (new blocks, block order, new values)"
+  return "instruction ids"
+
 /-- Why `checkStep` rejects a function step. -/
 def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M : Module)
     (I : IdTab) (fs : FuncStep) : String :=
@@ -80,6 +101,9 @@ def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M :
       (domTree f).valid f && ssa f (domTree f)) then "input dominators or SSA rejected"
   else if k == .cfgCleanup then match M.func? fs.func with
     | some f => cfgReason O f (I.lookup fs.func) fs.out
+    | none => "no such function"
+  else if k == .lowerSwitches then match M.func? fs.func with
+    | some f => lsReason f (I.lookup fs.func) fs.out
     | none => "no such function"
   else if k == .coalesceCopies then match M.func? fs.func with
     | some f => kcReason f fs.out.func

@@ -9,9 +9,9 @@ replaces a run of full-word copies `v_i = evm_mload (s + 32 i)`, `evm_mstore (d 
 instruction id), and deletes the run's other instructions that have no result or an unused one.
 
 The check: the output has the input's blocks, in order, with their ids, phis and terminators.
-Each output block's statements are the input block's, in order (`cbodyOk`), where a window of
-the input (`runOk`) may become the window's `add`/`sub` statements the output keeps, in order,
-followed by `evm_mcopy`:
+Each output block the input's dominator tree reaches has the input block's statements, in order
+(`cbodyOk`), where a window of the input (`runOk`) may become the window's `add`/`sub` statements
+the output keeps, in order, followed by `evm_mcopy`:
 
 - the window holds only `evm_mload` with one result, `evm_mstore`, and `add`/`sub` with one
   result, and ends in a store;
@@ -30,10 +30,20 @@ below that the run's wrapping `add`s compute the copy's `Nat` addresses.  An int
 needs its constant ranges in bounds for `Nat` disjointness to mean that no load reads a word an
 earlier store of the run wrote.
 
+The statements of an unreachable block are not checked (review 20, M-1): the compiler coalesces
+there too, and `addrNorm` follows only definitions in reachable blocks, so a run whose addresses
+go through the unreachable block's own `add`s would be rejected.  No run enters such a block, in
+the input or in the output, whose terminators are the input's.
+
 What may be deleted: the window's loads and other stores, and `add`/`sub` statements of the
 window; no result of a window statement the output does not keep is defined in the output
-(`keptOk`, `fresh`) or used in it (`unusedOk'`).  Everything else of the function is unchanged.  Instruction ids: kept statements keep theirs, a copy has the replaced
-store's.
+(`keptOk`, `fresh`) or used in it (`unusedOk'`).  Everything else of the function is unchanged.
+
+Instruction ids are checked for shape only (review 20, L-1): `checkCoalesce` requires that the
+input has ids (`ids.isSome`) and reads nothing else of them or of the output's, which `checkStep`
+checks well formed (`FuncSnap.wf`: one per line, distinct).  The compiler keeps each kept
+statement's id and gives the copy the replaced store's, but nothing here compares ids: the proof
+needs no correspondence of them.
 -/
 
 namespace Fe.Sonatina.Steps
@@ -181,10 +191,14 @@ def cbodyOk : Nat → List Stmt → List Stmt → Bool
           cbodyOk n (os.drop (k + 1)) ((i :: is).drop (w + 2))
       | none => false)
 
-/-- An output block against the input block at its place. -/
+/-- An output block against the input block at its place: the same id, phis and terminator,
+    and, if the input's tree reaches the block, statements `cbodyOk` accepts.  An unreachable
+    block's statements are not checked (review 20, M-1): no run enters it, in the input or the
+    output, whose terminators are the input's; `addrNorm` would not follow its own `add`/`sub`
+    definitions. -/
 def blockOk (b' b : Block) : Bool :=
   b'.id == b.id && decide (b'.phis = b.phis) && decide (b'.term = b.term) &&
-    X.cbodyOk (b.body.length + 1) b'.body b.body
+    ((X.T.reach.find? b.id).isNone || X.cbodyOk (b.body.length + 1) b'.body b.body)
 
 end KCtx
 
@@ -202,8 +216,9 @@ where
       | .var u => some (u, ())
       | _ => none)
 
-/-- The check of a `coalesce_copies` step of `f` to the snapshot `s` (instruction ids are the
-    statements', checked by `checkStep`'s `wf`; the copy's id is the replaced store's). -/
+/-- The check of a `coalesce_copies` step of `f` to the snapshot `s`.  Of the instruction ids it
+    reads only that the input has them (`ids.isSome`); `checkStep`'s `wf` checks the output's
+    shape and distinctness, and no id of the output is compared with the input's. -/
 def checkCoalesce (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) : Bool :=
   let f' := s.func
   let X := KCtx.of f f'
