@@ -36,10 +36,15 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `GvnInsert.lean` | `insPhis_wf`, `approx_enter_ins`, `insPhis_sound` |
 | `GvnRewriteSound.lean` | `gvnRewrite_sound`, `gvnRewrite_stepSound` |
 | `GvnTests.lean`, `GvnTests/` | `gvn_rewrite` records (five real, four hand-written) and twenty mutants; symbol instructions in `scalar_canonicalize` and `known_bits_simplify` |
-| `GvnPrune.lean` | `pruneTerm`, `keepIn`, `pruneBlock`, `pruneFunc`, `pruneShapeOk`, `predOk`, `inSlots`, `UPred`, `usePred`, `gTermAt`, `pairOkP`, `clsOkP`, `keepValidP`, `deadOk`, `prunePrep`, `gvnPruneReject`, `checkGvnPrune` |
+| `Prune.lean` | `liveCases`, `pruneTerm` (`br` and `br_table`), `keepIn`, `pruneBlock`, `pruneFunc`: the input with its dead slots removed, shared by `gvn_prune` and `sccp_prune` |
+| `PruneSound.lean` | `pruneFunc_block?`, `liveCases_sublist`, `caseIdx`, `look_liveFrom`, `tableSlot`, `Takes`, `TermLive`, `pruneTerm_succ`, `enterOpt_prune`, `pruneTerm_wf`, `pruneFunc_wf`, `prune_term_of`, `PruneRun` (what the simulation needs of an invariant), `prune_exec_of`, `prune_sound_of` |
+| `GvnPrune.lean` | `pruneShapeOk`, `predOk`, `inSlots`, `UPred`, `usePred`, `gTermAt`, `pairOkP`, `clsOkP`, `keepValidP`, `deadOk`, `prunePrep`, `gvnPruneReject`, `checkGvnPrune` |
 | `GvnPruneInv.lean` | `PredInv`, `SlotSem`, `runTerm_sem`, `predOk_sound`, `above_opAt`, `gTermAt_ok`, `pairOkP_phi`, `ginv_enterP`, `predInv_stmt`, `predInv_enter`, `EdgeOk`, `PSpec`, `PPt`, `PS`, `ps_stmt`, `ps_take`, `ps_enter`, `ps_live`, `ps_term`, `ps_step`, `ps_reaches` |
-| `GvnPruneSound.lean` | `pruneFunc_block?`, `pruneTerm_succ`, `enterOpt_prune`, `pruneFunc_wf`, `prune_term`, `prune_exec`, `ps_entry`, `prune_sound`, `gvnPruneReject_spec`, `gvnPrune_sound`, `gvnPrune_stepSound` |
+| `GvnPruneSound.lean` | `ps_termLive`, `prune_term`, `ps_entry`, `ps_run` (`PS` as a `PruneRun`), `prune_exec`, `prune_sound`, `gvnPruneReject_spec`, `gvnPrune_sound`, `gvnPrune_stepSound` |
 | `GvnPruneTests.lean`, `GvnPruneTests/` | `gvn_prune` records (four real, three hand-written) and twenty-two mutants |
+| `SccpPrune.lean` | `SPReject`, `sccpPruneReject`, `checkSccpPrune` |
+| `SccpPruneSound.lean` | `constOf_key`, `find_constOf`, `slotTaken_of`, `QSpec`, `QPt`, `QS`, `qs_stmt`, `qs_take`, `qs_enter`, `qs_live`, `qs_termLive`, `qs_term`, `qs_step`, `qs_entry`, `qs_run`, `sccpPruneReject_spec`, `sccpPrune_sound`, `sccpPrune_stepSound` |
+| `SccpPruneTests.lean`, `SccpPruneTests/` | `sccp_prune` records (eight hand-written) and twenty-two mutants |
 | `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
@@ -138,16 +143,18 @@ of `PointInv`.
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
    `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`,
-   `scalar_canonicalize`, `adce`, `gvn_rewrite` and `gvn_prune`** (phase 2; all twelve are proved and in
-   `StepKind.proved`, the kinds `validate` accepts and `machine_sound_proved` covers;
-   `known_bits_simplify`'s demand rounds are switched off, `SchemasStep.lean`,
-   `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is
+   `scalar_canonicalize`, `adce`, `gvn_rewrite`, `gvn_prune` and `sccp_prune`**, every kind of
+   the record (phase 2; all thirteen are proved and in `StepKind.proved`, the kinds `validate`
+   accepts and `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched
+   off, `SchemasStep.lean`, `SCHEMAS-NOTES.md`).  Facts (ruling R-11.3): `FuncStep.facts` is
    the `Schemas.StepFacts` that `Schemas.readFacts` reads at read time; `checkFunc` takes them;
-   each kind but `sccp_fold`, `known_bits_simplify`, `adce` and `gvn_rewrite` requires `noFacts`
+   each kind but `sccp_fold`, `sccp_prune`, `known_bits_simplify`, `adce`, `gvn_rewrite` and
+   `gvn_prune` requires `noFacts`
    (no known bits, no demand round, no SCCP facts, no finite loops, no GVN facts, no unread key;
-   `scalar_canonicalize` by `scalarReject`), the two check the facts they read, `adce` allows only
-   `finite_loops` (`Schemas.StepFacts.finiteLoops`, read and not used), and `gvn_rewrite` reads
-   known bits and GVN's facts (`Schemas.StepFacts.gvn`); `StepSound.of_func` quantifies over them.
+   `scalar_canonicalize` by `scalarReject`), the SCCP and known-bits kinds check the facts they
+   read, `adce` allows only `finite_loops` (`Schemas.StepFacts.finiteLoops`, read and not used),
+   and the GVN kinds read known bits and GVN's facts (`Schemas.StepFacts.gvn`); `StepSound.of_func`
+   quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
@@ -679,7 +686,8 @@ operand equal by a schema to `t` with `Q`'s phis replaced by their operands from
 The record's `value_phis` and predicates are not read: each replacement is justified anew, and a
 class only a predicate justifies is dropped (none is used by a replacement in the corpora).
 
-Proof (no hypothesis beyond `StepSound.of_func`'s): `gvnRewrite_sound` composes two
+Proof (`StepSound.of_func_has`: in a context with the section's symbols, `c.Has syms`, which a
+deleted symbol instruction needs; **Symbol instructions** below): `gvnRewrite_sound` composes two
 approximations.  `insPhis_sound`: `f₁` approximates `f`, block for block, its environment
 agreeing with `f`'s on every value `f` mentions (`LSCtx.Agree` over `funcVars`, from
 `lower_switches`), the new phis bound besides or the run stuck; `insPhis_wf` gives `f₁.wf`.  The
@@ -769,8 +777,9 @@ boolean `lt`/`gt` on a same-key condition, in Blob through congruent phis) or by
 `br_table` case slot into that predecessor, whose key is `0`).
 
 The checker (`checkGvnPrune`, `GvnPrune.lean`) splits the step at `f₁ = pruneFunc f dead`: the
-input with each dead slot removed (`pruneTerm`: a `br` with one dead slot becomes a `jump` to the
-other) and each phi operand dropped whose predecessor went to the phi's block and no longer does
+input with each dead slot removed (`pruneTerm`, `Prune.lean`, shared with `sccp_prune`: a `br`
+with one dead slot becomes a `jump` to the other; `pruneShapeOk` leaves `gvn_prune` no other dead
+slot) and each phi operand dropped whose predecessor went to the phi's block and no longer does
 (`keepIn`), nothing else changed.
 1. On the input: strict SSA under a valid tree, known bits a post-fixpoint, no facts but known bits
    and GVN's dead edges, classes and predicates (no inserted phis, no value phis); the executable
@@ -807,7 +816,9 @@ established from the predecessor's end through the predicates there (`ginv_enter
 facts the pruned function's block runs as the input's, world for world (`prune_exec`): the phis
 read the operand the prune kept (`enterOpt_prune`), the statements are the same, and a `br` turned
 into a `jump` goes where the input's goes (`prune_term`); `Sim.of_steps` with the relation
-"same state, `PS`" gives the approximation.
+"same state, `PS`" gives the approximation.  That simulation is `PruneSound.lean`'s
+(`prune_exec_of`, `prune_sound_of`), over any invariant with the fields of `PruneRun`; `PS` is one
+(`ps_run`), and `prune_term`, `prune_exec`, `prune_sound` keep their statements.
 
 Tests (`GvnPruneTests.lean`, `GvnPruneTests/gen.py`; `decide +kernel`, 44 s): accepted, the four
 real steps by the check alone and three hand-written by `validateWith` and the check (a `br` on a
@@ -828,6 +839,74 @@ FeProofs `-O0` 40/40, `-O1` 40/40, `-Os` 40/40, the 265 530/530 (with eleven kin
 525).  Every function step of every kind is accepted; `gvn_prune` 4/4 and `gvn_rewrite` 16/16,
 10/10, 23/23 (v5 and v6).  With `gvn_prune` alone added (`c9b344e`, v6), the 265 rose to 529/530,
 the one left being `permute`'s `sym_addr` merge.
+
+## `sccp_prune` (design §4.7, review 21 M-1)
+
+What Sonatina does (`optim/sccp.rs` at `e39b70c4d`, `run_with_steps` and
+`remove_unreachable_edges`, step 1 of the `sccp` pass, between `cfg_cleanup` and `sccp_fold`): the
+solver's facts are exported on the unpruned function (`known_bits` and `sccp`, the shapes
+`sccp_fold` gets), then `delete_blocks_unreachable` removes the blocks the solver never reached
+(dropping their operands from their successors' phis, `simplify_trivial_phis_in_block` replacing
+the phis left trivial by `change_to_alias`), then `remove_succ` removes from each reached block
+each target no reachable edge goes to (`remove_edges_to_block`: a `br` loses the slot, becoming a
+`jump`, or `unreachable` with both gone; a `br_table` loses its default and cases to the target,
+and becomes a `jump` with one slot left, `unreachable` with none; the target's phis lose the
+block's operand and are simplified).  Edges are keyed by target, so slots to one target are all
+live or all dead; `dead_edges` lists, for the reached blocks, the slots whose target no reachable
+edge goes to.  A `br` on a constant takes one slot; a `br_table` on a constant scrutinee takes the
+first case of that key, else the default (`eval_branch`).  No record of either corpus has the step
+(review 21, M-1), so only hand-written records test it.
+
+The checker (`checkSccpPrune`, `SccpPrune.lean`) splits the step at `f₁ = pruneFunc f dead`
+(`Prune.lean`): a `br` with one dead slot a `jump`; a `br_table` with a dead slot its live cases
+(`liveCases`) and its default if live, then a `jump` with one slot left, `unreachable` with none;
+a `br_table` whose dead default leaves two or more cases keeps the default (the machine IR's table
+has one, `Term.wf`, and the compiler's table without one is not machine IR: the output's
+well-formedness rejects it); each phi operand dropped whose predecessor no longer goes to the phi's
+block (`keepIn`).
+1. On the input: no facts but known bits and SCCP's (no demanded bits, no GVN facts, no finite
+   loops, no unread key), strict SSA under a valid tree, known bits a post-fixpoint (or none), and
+   `sccpFactsOk`, `sccp_fold`'s check: the executable set (`execSet`, the entry's closure over the
+   slots not claimed dead, computed by the checker and checked closed, `execClosed`), each dead
+   slot of an executable block one its terminator does not take under the claimed constants
+   (`slotTaken`; a `br_table` only with a default, its keys immediates by `Term.wf`), each claimed
+   constant of a value of an executable block holding (a phi's from every executable incoming
+   edge, a pure statement other than `clz` by evaluation or a schema at depth 0 to 3), no claim of
+   a parameter or an effectful result.
+2. `f₁`'s control flow (`cfgOk`), and `checkCfgCleanup none f₁ ids s`, as for `gvn_prune`: the
+   blocks `f₁` does not reach deleted, the trivial phis' `σ` checked, whatever order the compiler
+   simplified them in (`sigmaOf` resolves chains).
+
+Proof (`SccpPruneSound.lean`; `sccpPrune_stepSound` by `StepSound.of_func`, no hypothesis beyond
+it): `sccpPrune_sound` composes `cfgCleanup_sound` (no summary table, `pruneFunc_wf`) and
+`prune_sound_of` on the invariant `QS` (`qs_run`): at every block state the input's run reaches,
+definedness, L2, the known bits, SCCP's constants (`CHolds`, `cholds_enter`, `cholds_stmt` of
+`SchemasInv.lean`), the block executable and entered from an executable block over a slot not
+claimed dead.  At a block's end the slot the terminator takes (`Takes`) is one `slotTaken` allows
+under the constants (`slotTaken_of`), so not dead (`qs_live`).  The shared simulation
+(`PruneSound.lean`): entering over a live slot, the pruned block's phis read the operand kept
+(`pruneTerm_succ`, `enterOpt_prune`); the terminator the prune left runs as the input's when the
+slot taken is live (`prune_term_of`; for a table, the live cases look the scrutinee up as the cases
+do when its first case is live, `look_liveFrom`).
+
+Tests (`SccpPruneTests.lean`, `SccpPruneTests/gen.py`; `decide +kernel`): accepted by
+`validateWith` and the check, a `br` on a constant of each polarity (the block left unreachable
+deleted, with one only it reaches), a `br_table` on a constant taking a case and taking the default
+(each a `jump`) and left a smaller table, a pruned edge into a block whose phi keeps two operands
+and into one whose phi is left trivial, a pruned loop back-edge; rejected, the polarity swapped, a
+wrong constant, a constant SCCP cannot know, no constant, both slots dead, the output going to the
+dead target, keeping the `br` or deleting the live block, facts of other steps (GVN's, finite
+loops, demanded bits, ranges), no SCCP facts, the taken case's slot dead, the default dead where no
+key matches, the default pruned with two cases left (rejected as the compiler would emit it), a
+phi operand dropped from a live edge and the removed edge's operand kept (both by the output's
+`wf`, the check alone accepting them soundly), the trivial phi replaced by the wrong operand, a phi
+claimed constant though an executable operand is not, the same with that operand's edge claimed
+dead from a block whose condition is no constant, a back-edge claimed dead on a non-constant
+condition.  A real record would differ from these: its `known_bits` cover most values and its
+`consts` every value SCCP found constant, its pass lists the `sccp_prune` step between the pass's
+first `cfg_cleanup` and `sccp_fold` (each only if it changed the function), and its constants and
+known bits are the solve's, checked as `sccp_fold`'s are (all 201 `sccp_fold` steps of corpus v6
+pass the same check on the same kind of facts).
 
 ## Review 6 (phase 1) findings taken up in phase 2
 
@@ -1023,6 +1102,23 @@ line of WETH9's `returnValue_run`.
   and `-Os`); the other kinds' per-step counts are those of the table above, none rejected, no
   summary table failing.
 
+- With `scalar_canonicalize` proved as well (`StepKind.proved` has nine kinds; `chain-sc` after
+  merging `chain` `0746147`), on the same corpora (`scalar-canon/measure.sh`,
+  `scripts/MachineSteps.lean` end to end and `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), eight kinds | nine kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | FeProofs `-Os` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
+  | the 265 | 494/530 | 517/530 | `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
+
+  Before the merge (`scalar_canonicalize` with the seven kinds of `chain` `610f491`): `-O0` 40,
+  `-O1` 31 (29 before), `-Os` 34 (32), the 265 475 (460).  Every `scalar_canonicalize` function
+  step is accepted (0, 25, 19, 48 in v5 and v6), and no step of a proved kind is rejected; every
+  rejection end to end is a kind with no proof.  The schema verdicts and mutants of
+  `scripts/SchemasSteps.lean`: `SCHEMAS-NOTES.md`.
+
 - With `adce` proved as well (`StepKind.proved` has ten kinds; `chain-adce` after merging `chain`
   `5a90a11`), on the same corpora (`adce/measure.sh`, `scripts/MachineSteps.lean` end to end and
   `steps`, interpreted), v5 and v6 alike:
@@ -1059,6 +1155,12 @@ line of WETH9's `returnValue_run`.
   `storage_bytes_encode_return` and of `storage_bytes_to_memory`.  No step of another proved kind
   is rejected, no summary table fails.
 
+- With `sccp_prune` proved as well (`StepKind.proved` has all thirteen kinds; `chain-sp` on `chain`
+  `0d02281`, `sccp-prune/measure/m1`, `scripts/MachineSteps.lean` end to end and `steps`,
+  interpreted): `validate` accepts every section, v5 and v6 alike: FeProofs `-O0` 40/40, `-O1`
+  40/40, `-Os` 40/40, the 265 530/530, as with twelve.  Every function step of every kind is
+  accepted; neither corpus has an `sccp_prune` step.
+
 ## The top theorem: what it covers (review 20, M-3)
 
 `machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
@@ -1076,28 +1178,26 @@ are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_s
 `check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
 entry for), `validate` on one section's record; the theorems need both sections' records.
 
-**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
-`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
-outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
-`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
-`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
-Sections (each with its own section's byte verdict), then sidecars (both records and the
-sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
+**Which theorem applies**, per sidecar (both records and the sidecar's byte verdicts, as the
+theorems take them), corpus v6 with the twelve kinds of `0d02281` (`validate` per section from
+`scripts/MachineSteps.lean`, `check` and `checkSpills` from `scripts/DialectSweep.lean`): (a) both
+records validate and `check`: `machine_sound_proved` applies, no hypothesis left; (b) both
+validate and `checkSpills` but not `check`: only `machine_sound_spills_proved`, under
+`FrameSafe`; (c) neither.  `sccp_prune`, the thirteenth kind, occurs in neither corpus, so the
+table is the same with it:
 
-| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
-| --- | --- | --- |
-| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
-| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
-| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
-| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
+| set | sidecars (a) no hypothesis / (b) needs `FrameSafe` / (c) rejected |
+| --- | --- |
+| FeProofs `-O0` | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 13 / 7 / 0 of 20 |
+| FeProofs `-Os` | 13 / 7 / 0 of 20 |
+| the 265 | 255 / 9 / 1 of 265 |
 
-The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
-EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
-in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
-`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
-`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
-`validate` too (`lower_switches`).  Every (c) is a
-`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
+Every section validates (§ Measured), so (b) and (c) are the byte checker's: the (b) sidecars are
+those with memory spills (at `-O0` the runtimes of Bn254Add, Bn254Mul, Ecrecover,
+EcrecoverPrecompile, Modexp and Ripemd160; at `-O1`, `-Os` and in the 265 the precompiles',
+`erc4337.EntryPoint`'s and `msg_nested_array_arg.Caller`'s), and the one (c) is
+`storage_map_recursive_views`, whose `C` runtime `checkSpills` rejects (its dynamic frames).
 
 **`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
 sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
@@ -1127,117 +1227,44 @@ own records: it would need the record in the sidecar (a `machineSteps` field of 
 `Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
 `Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
 with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
-
-- With `scalar_canonicalize` proved as well (`StepKind.proved` has nine kinds; `chain-sc` after
-  merging `chain` `0746147`), on the same corpora (`scalar-canon/measure.sh`,
-  `scripts/MachineSteps.lean` end to end and `steps`, interpreted), v5 and v6 alike:
-
-  | corpus | end to end (`validate`), eight kinds | nine kinds | first rejected kind |
-  | --- | --- | --- | --- |
-  | FeProofs `-O0` | 40/40 | 40/40 | none |
-  | FeProofs `-O1` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
-  | FeProofs `-Os` | 32/40 | 34/40 | `gvn_rewrite` 4, `adce` 2 |
-  | the 265 | 494/530 | 517/530 | `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
-
-  Before the merge (`scalar_canonicalize` with the seven kinds of `chain` `610f491`): `-O0` 40,
-  `-O1` 31 (29 before), `-Os` 34 (32), the 265 475 (460).  Every `scalar_canonicalize` function
-  step is accepted (0, 25, 19, 48 in v5 and v6), and no step of a proved kind is rejected; every
-  rejection end to end is a kind with no proof.  The schema verdicts and mutants of
-  `scripts/SchemasSteps.lean`: `SCHEMAS-NOTES.md`.
-
-## The top theorem: what it covers (review 20, M-3)
-
-`machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
-refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
-are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_sound_proved_of_sound`
-(`validate`, `Sound s`), and two corollaries for the two ways the repository has of proving
-`Sound s`:
-
-- `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
-  `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
-  Its statement is unchanged.
-- `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
-  `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
-
-`check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
-entry for), `validate` on one section's record; the theorems need both sections' records.
-
-**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
-`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
-outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
-`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
-`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
-Sections (each with its own section's byte verdict), then sidecars (both records and the
-sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
-
-| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
-| --- | --- | --- |
-| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
-| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
-| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
-| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
-
-The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
-EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
-in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
-`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
-`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
-`validate` too (`lower_switches`).  Every (c) is a
-`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
-
-**`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
-sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
-machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
-(s.spilledModel s.spillPlan) CalldataFits` on every message call whose calldata fits, and
-`ImplementsDeploy` likewise on every deployment.  The instrumented model panics with
-`spillClobbered` where a statement changes a word whose value the bytes reload later, so
-`FrameSafe` says no statement clobbers a live spill word, and that no spill store overwrites IR
-data the IR reads later.  It is proved only for sidecars without spills
-(`frameSafe_of_noSpills`, through which `check_sound` goes).  For no sidecar with spills does the
-repository prove it: `fixedSlotsSafe` (inside `checkSpills`) rejects one way of breaking it (a
-spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
-`scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
-(precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
-
-**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
-keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
-`validate`: each record's composition, from its lowered functions through its steps, must be the
-section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
-(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
-`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
-same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
-the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
-For a record with no passes the lowered functions are the machine IR and the theorem restates
-`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
-own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
-`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
-`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
-with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
-
-- With `scalar_canonicalize` proved (branch `chain-sc`, before merging `chain` `0746147`; seven kinds and it),
-  sections accepted end to end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted),
-  v5 and v6 alike, before and after the S16–S24 schemas:
-
-  | corpus | end to end (`validate`) | before | first rejected kind |
-  | --- | --- | --- | --- |
-  | FeProofs `-O0` | 40/40 | 40/40 | none |
-  | FeProofs `-O1` | 31/40 | 29/40 | `gvn_rewrite` 4, `lower_switches` 3, `adce` 2 |
-  | FeProofs `-Os` | 34/40 | 32/40 | `gvn_rewrite` 4, `adce` 2 |
-  | the 265 | 475/530 | 460/530 | `lower_switches` 42, `gvn_rewrite` 6, `gvn_prune` 4, `adce` 3 |
-
-  Every `scalar_canonicalize` function step is accepted (v5 and v6: 0, 25, 19, 48), and no step of
-  a proved kind is rejected.  Every rejection end to end is a kind with no proof.
 
 ## Not done
 
-- `gvn_prune` (4 function steps, the 265 only): no checker; plan in § `gvn_rewrite` and the
-  scratch hand-off.  `gvn_rewrite`'s `sym_addr` merges (1 step per level), `ValuePhi::Value`
-  replacements and classes only a predicate justifies (0 each) are rejected.
+What the proved checkers reject that the compiler can emit (review 21, M-2 and M-3, and
+`sccp_prune`'s; each checked against the Lean at this commit and Sonatina `e39b70c4d`).  None of
+it occurs in corpus v5 or v6, where every section validates:
+
+- `sccp_prune`: the default of a `br_table` pruned with two or more cases left, all to the one
+  live target (`remove_edges_to_block` leaves a table without a default, which `Term.wf` rejects
+  in the output; the checker's `pruneFunc` keeps the default); and every slot of a terminator
+  pruned, which SCCP does for a `br` on a condition it left undefined (`LatticeCell::Bot`) and
+  `slotTaken` never allows.
+- `gvn_prune`: a dead slot of a `br_table` (`analyze_last_insn` marks one case slot or the default
+  reachable, `retain_out_edges` removes the others) or of a `jump`, and both slots of a `br`
+  (`pruneShapeOk`; `pruneFunc` prunes table slots, so lifting it needs `deadOk` and `ps_live` for
+  them); `extract_edge_predicate`'s `eq`/`ne`/`is_zero` predicates (dropped by `predOk`); chained
+  predicates (`infer_value_at_block` follows several dominating edges, `gTermAt` one); predicates
+  in statement pairs, and symbol pairs (`pairOkP` checks a statement's pair by `pairOk` alone, no
+  `symPair`).
+- `gvn_rewrite`: `ValuePhi::Value` replacements (`resolve_value_phi`; the record has no field for
+  them, plan in `gvn2/HANDOFF.md`), classes only an edge predicate justifies (dropped by
+  `keepValid`), merges of `clz` and of calls without effects (`gvn.rs` :619, :2739).
+- `adce`: removing a loop (`bypassOk` never peels a cyclic region; `finite_loops` is read and not
+  used), elidable calls under `UseCurrentFuncEffects`, dead symbol instructions (`removable`,
+  `Inst.deadRes`), dead `clz` and `evm_gas` (no roots for `adce.rs` :629, which keeps what may
+  mutate state or transfer control; rejecting them is required: `clz` traps before Osaka, `gas`
+  reads the oracle's feed), and a `br_table` that `remove_succ` leaves with fewer slots (`termRel`
+  needs as many).
+- `scalar_canonicalize`: `prune_dead_pure_insts` deletes any unused instruction without effects
+  (`can_drop_if_unused`): dead `clz`, saturating arithmetic, a multi-result `ovf`, a call without
+  effects; `deletableIn .scalar` takes a single-result `pureInst?` other than `clz` or a
+  single-result symbol instruction.
+- `known_bits_simplify`: demand rounds, switched off (`demandRounds`; plan in
+  `SCHEMAS-NOTES.md`), and the `sdiv` by a power of two (`signed_pow2_division`, replacing
+  `evm_sdiv x 2^k` in place by `shr k x` or `sar k x`, review 20 M-2).
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
-- The summary table's effect and `will_return` claims are not checked (no consumer).
-- `known_bits_simplify`'s demand rounds, switched off (`demandRounds`; plan in `SCHEMAS-NOTES.md`).
-- `known_bits_simplify`'s `sdiv` by a power of two (`signed_pow2_division`, replacing
-  `evm_sdiv x 2^k` in place by `shr k x` or `sar k x`): a known rewrite the checker rejects (an
-  in-place change of an instruction, review 20 M-2).  Corpus v6 is the regenerated corpus at the
-  compiler that has it, and no `known_bits_simplify` step of it changes an `evm_sdiv`: 0
-  occurrences (every such step of v6 is accepted, which an in-place change is not).
+
+Besides: the summary table's effect and `will_return` claims are not checked (no consumer), and
+the top theorem's caveats (review 21 M-4): `FrameSafe` for sidecars with spills and the records
+as arguments (§ above), and `Sidecar.model` leaving `ContractModel.immutables` at its default, so
+that `RefinesOn` speaks of runtimes without immutables.

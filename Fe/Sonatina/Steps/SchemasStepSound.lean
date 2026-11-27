@@ -981,10 +981,11 @@ theorem SF.sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
 
 end sim
 
-/-! ## The two step kinds -/
+/-! ## The step kinds -/
 
-/-- The shared check accepting a step, in exact or SCCP mode, with SCCP's facts in the latter:
-    the output function approximates the well-formed input function on integers. -/
+/-- The shared check accepting a step, in any mode (`Mode.Ok`: exact, SCCP, scalar or GVN), with
+    SCCP's facts in SCCP mode and the section's symbols where the mode deletes symbol
+    instructions: the output function approximates the well-formed input function on integers. -/
 theorem aliasReject_sound {m : Mode} (hm : m.Ok) {f : Func}
     {ids : Option (List (List Nat))} {s : FuncSnap} {F : StepFacts} (hwf : f.wf sig syms = true)
     (h : aliasReject m f ids s F = none) (hsc : m = .sccp → SccpSpec f (ctxOf m f s F))

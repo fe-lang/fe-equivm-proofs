@@ -15,9 +15,11 @@ equal to what `Interp.lean` computes for that instruction on `i256` operands:
 - `runInst_pure`: `runInst` of a pure instruction whose operands evaluate to `i256` words
   returns the one value of the word function (`clz` only on Osaka, `runInst_clz`).
 
-Operations of the machine instruction set that are not here: `evm_uaddsat`, `evm_saddsat`,
-`evm_usubsat`, `evm_ssubsat`, `evm_umulsat`, `evm_smulsat`, `get_function_ptr`, `black_box`
-(the Lean parser and interpreter have none of them), and `evm_keccak256` (it reads memory).
+Operations of the machine instruction set that are not here, though the Lean interpreter runs
+them (`Interp.lean`): the saturating `evm_uaddsat`, `evm_saddsat`, `evm_usubsat`, `evm_ssubsat`,
+`evm_umulsat`, `evm_smulsat` (`.sat`), `get_function_ptr` (`.funcPtr`, a symbol instruction, whose
+value the context fixes: `isSym`), `black_box` (`.blackBox`, which no rewrite may see through); and
+`evm_keccak256` (it reads memory).
 -/
 
 namespace Fe.Sonatina.Steps.Schemas
