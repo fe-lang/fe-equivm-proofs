@@ -1,5 +1,6 @@
 import Fe.Sonatina.Steps.SchemasG
 import Fe.Sonatina.Steps.SchemasD
+import Fe.Sonatina.Steps.SchemasS2
 
 /-!
 # The checker's entry points
@@ -175,15 +176,17 @@ theorem eval_atom_env {env : Env} {v x : Nat} (hx : env[v]? = some (.int 256 x))
     folded normal forms. -/
 def checkExact (kb : Nat → KB) (l r : Term) : Bool :=
   let k := restrict kb [l, r]
-  l.nf == r.nf || checkI k l r || checkS k l r || checkG k l r ||
-    checkI k l.nf r.nf || checkS k l.nf r.nf || checkG k l.nf r.nf
+  l.nf == r.nf || checkI k l r || checkS k l r || checkS2 k l r || checkG k l r ||
+    checkI k l.nf r.nf || checkS k l.nf r.nf || checkS2 k l.nf r.nf || checkG k l.nf r.nf
 
 theorem exact_any {k : Nat → KB} {ρ : Nat → Nat} (hf : FactsHold k ρ) {l r : Term}
-    (h : (checkI k l r || checkS k l r || checkG k l r) = true) : l.eval ρ = r.eval ρ := by
+    (h : (checkI k l r || checkS k l r || checkS2 k l r || checkG k l r) = true) :
+    l.eval ρ = r.eval ρ := by
   simp only [Bool.or_eq_true] at h
-  rcases h with (h | h) | h
+  rcases h with ((h | h) | h) | h
   · exact checkI_sound hf h
   · exact checkS_sound hf h
+  · exact checkS2_sound hf h
   · exact checkG_sound hf h
 
 theorem checkExact_sound {kb : Nat → KB} {ρ : Nat → Nat} {l r : Term}
@@ -191,13 +194,15 @@ theorem checkExact_sound {kb : Nat → KB} {ρ : Nat → Nat} {l r : Term}
   have hk := factsHold_restrict hf
   unfold checkExact at h
   simp only [Bool.or_eq_true, beq_iff_eq] at h
-  rcases h with (((((h | h) | h) | h) | h) | h) | h
+  rcases h with (((((((h | h) | h) | h) | h) | h) | h) | h) | h
   · rw [← Term.nf_eval ρ l, h, Term.nf_eval]
   · exact checkI_sound hk h
   · exact checkS_sound hk h
+  · exact checkS2_sound hk h
   · exact checkG_sound hk h
   · rw [← Term.nf_eval ρ l, ← Term.nf_eval ρ r]; exact checkI_sound hk h
   · rw [← Term.nf_eval ρ l, ← Term.nf_eval ρ r]; exact checkS_sound hk h
+  · rw [← Term.nf_eval ρ l, ← Term.nf_eval ρ r]; exact checkS2_sound hk h
   · rw [← Term.nf_eval ρ l, ← Term.nf_eval ρ r]; exact checkG_sound hk h
 
 /-- Demanded-bits mode (D1–D3): `T_in` and `T_out` agree on the demanded bits `d`. -/
