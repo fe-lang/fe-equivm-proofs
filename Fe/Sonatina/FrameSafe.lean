@@ -18,6 +18,10 @@ on every call and deployment `Sound` speaks of.  It is a statement about the mac
 plan alone.  As the machine IR never panics (`machine_not_panic`), it says that no statement
 changes a word whose value the bytes reload later.  `frameSafe_of_noSpills`: a sidecar without
 spills is frame-safe.
+
+`FrameSafeAt s I σ A feed` (and `FrameSafeDeployAt`) is the same of one call and one feed, both
+runs under that feed: what the spilled soundness under the call's real feed needs, at that call
+only.
 -/
 
 namespace Fe.Sonatina
@@ -276,6 +280,55 @@ theorem frameSafe_of_noSpills {s : Sidecar} (h : s.noSpills = true) : FrameSafe 
   rw [FrameSafe, hm]
   exact ⟨fun I σ A feed _ _ => ⟨feed, EndsAs.refl _⟩,
     fun I σ A feed args _ _ _ _ => ⟨feed, EndsAs.refl _⟩⟩
+
+/-! ## `FrameSafeAt`: one call, one feed
+
+`FrameSafe` asks of every admitted call and every feed, and lets the machine IR's run take
+another feed than the instrumented model's.  `FrameSafeAt s I σ A feed` asks of one call and one
+feed, with both runs under that feed: the instrumented runtime under `feed` ends as the machine
+IR's runtime under the same `feed`.  `FrameSafeDeployAt` is the same of one deployment.  The
+spilled soundness theorems under the real feed (`checkSpills_sound_at`, `checkSpills_sound_fut`,
+`CheckCert.lean`) need it only at the call in hand and under that call's real feed, which is
+what a proof that rests on the source program's having no undefined behaviour on that call can
+give.
+
+`FrameSafeAt` at every admitted call and feed gives `FrameSafe` (`FrameSafe.of_at`).  The
+converse does not follow: `FrameSafe` lets the machine IR's run that matches the instrumented
+model's use another feed, and nothing proved of the instrumented model says that the same feed
+would do. -/
+
+/-- On this call and under this feed, the machine IR with its spills, under the sidecar's spill
+    plan, ends as the machine IR does under the same feed. -/
+def FrameSafeAt (s : Sidecar) (I : ExecutionEnv) (σ : AccountMap) (A : Substate)
+    (feed : List Supply) : Prop :=
+  EndsAs ((s.model .machine).runtime.exec I (World.init σ A feed))
+    ((s.spilledModel s.spillPlan).runtime.exec I (World.init σ A feed))
+
+/-- `FrameSafeAt` of one deployment, on argument bytes `args`. -/
+def FrameSafeDeployAt (s : Sidecar) (args : ByteArray) (I : ExecutionEnv) (σ : AccountMap)
+    (A : Substate) (feed : List Supply) : Prop :=
+  EndsAs (((s.model .machine).init args >>= fun tail => pure (ByteArray.empty ++ tail)).exec I
+      (World.init σ A feed))
+    (((s.spilledModel s.spillPlan).init args >>= fun tail => pure (ByteArray.empty ++ tail)).exec I
+      (World.init σ A feed))
+
+/-- `FrameSafeAt` on every call `FrameSafe` speaks of, and under every feed, is `FrameSafe`. -/
+theorem FrameSafe.of_at {s : Sidecar}
+    (hr : ∀ I σ A feed, OwnerExists σ I → CalldataFits I → FrameSafeAt s I σ A feed)
+    (hd : ∀ I σ A feed args, I.code = s.code "init" ++ args → OwnerExists σ I → I.perm = true →
+      FrameSafeDeployAt s args I σ A feed) :
+    FrameSafe s :=
+  ⟨fun I σ A feed ho hc => ⟨feed, hr I σ A feed ho hc⟩,
+    fun I σ A feed args _ hc ho hp => ⟨feed, hd I σ A feed args hc ho hp⟩⟩
+
+/-- A sidecar without memory spills is frame-safe on every call and deployment, under every
+    feed: its instrumented model is its machine IR's. -/
+theorem frameSafeAt_of_noSpills {s : Sidecar} (h : s.noSpills = true) :
+    (∀ I σ A feed, FrameSafeAt s I σ A feed) ∧ ∀ args I σ A feed, FrameSafeDeployAt s args I σ A feed := by
+  have hm : s.spilledModel s.spillPlan = s.model .machine := by
+    rw [show s.spillPlan = fun _ => [] from funext (spillPlan_eq_nil h), spilledModel_nil]
+  simp only [FrameSafeAt, FrameSafeDeployAt, hm]
+  exact ⟨fun _ _ _ _ => EndsAs.refl _, fun _ _ _ _ _ => EndsAs.refl _⟩
 
 /-! ## Fixed-slot spills (a convenience check)
 
