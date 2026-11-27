@@ -1,5 +1,6 @@
 import Fe.Sonatina.CheckCalls
 import Fe.Sonatina.FrameSafe
+import Fe.Sonatina.RealFeed
 import Reasoning.Stepping
 import Fe.EVM.RefineInvariant
 
@@ -213,19 +214,22 @@ theorem lookup_entries {secs : List Section} {name entry : String}
       exact ⟨sec', by simp [hb', h1], h2, List.mem_cons_of_mem _ h3⟩
 
 /-- A section of a checked sidecar, run as `Ξ` runs a frame on its code followed by any bytes,
-    refines the machine IR's run of it at profile `P1`; if its machine IR makes no message call,
-    the frame makes no message call nor creation: `XiOk` holds of it for every condition on
-    them; and a frame that succeeds makes only the calls the machine IR's run records. -/
-theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith plan s = true)
+    refines the machine IR's run of it at profile `P1` under the frame's real feed, given that
+    the run under that feed does not panic; if its machine IR makes no message call, the frame
+    makes no message call nor creation: `XiOk` holds of it for every condition on them; and a
+    frame that succeeds makes only the calls the machine IR's run under the real feed
+    records. -/
+theorem section_sound_fut {s : Sidecar} {plan : String → SpillPlan} (h : checkWith plan s = true)
     {name : String} (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256}
     {A : Substate} {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail)
-    (hnp : ∀ feed, NoPanicAt
+    (hnp : ∀ feed, RealFeed σ σ₀ g A I feed → NoPanicAt
       ((s.runSectionWith name .machine (plan name).prepare).exec I (World.init σ A feed))) :
-    (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed, Agrees .P1 (Ξ σ σ₀ g A I)
+    (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed, RealFeed σ σ₀ g A I feed ∧ Agrees .P1 (Ξ σ σ₀ g A I)
       ((s.runSectionWith name .machine (plan name).prepare).exec I (World.init σ A feed))) ∧
       (s.hasCalls name = false → ∀ Q, Invariant.XiOk Q σ σ₀ g A I) ∧
-      ∀ Q, (∀ feed out w, Succeeds ((s.runSectionWith name .machine (plan name).prepare).exec I
-        (World.init σ A feed)) out w → ∀ c ∈ w.calls, c.Ok Q) →
+      ∀ Q, (∀ feed out w, RealFeed σ σ₀ g A I feed →
+        Succeeds ((s.runSectionWith name .machine (plan name).prepare).exec I
+          (World.init σ A feed)) out w → ∀ c ∈ w.calls, c.Ok Q) →
         (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) → Invariant.XiOk Q σ σ₀ g A I := by
   obtain ⟨hall, -, -⟩ := checkWith_ok h
   obtain ⟨entry, hentry⟩ := Option.isSome_iff_exists.mp hn
@@ -277,7 +281,7 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
           ⟨(code.symbols.lookup ·), low.machine.fixedEnd, low.machine.structs⟩ [] f {} none
           eb.id).exec I (World.init σ A feed)) := by
       simp only [show (hint.name == entry) = true by simp [hname], preIf, ite_true]
-      have h2 := hnp feed
+      have h2 := hnp feed ⟨M, hfeed⟩
       rw [runSectionWith_eq hobj hsec hcode hlow hfe he hpar] at h2
       exact NoPanicAt.of_endRun h2
     have hfin := func_run (low := low') (K := low.machine.hasCalls) (M := M) (tail := tail)
@@ -295,7 +299,7 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
     have hF := hfin.final
     refine ⟨(Xi_agrees (hF.agrees (by
       simp [Reasoning.Theory.initState, Sat256.ofUInt256, Sat256.toNat]; exact le_refl _))).imp
-      id fun h => ⟨feed, ?_⟩, fun hnc Q => ?_, fun Q hQ ⟨_, _, hΞ⟩ => ?_⟩
+      id fun h => ⟨feed, ⟨M, hfeed⟩, ?_⟩, fun hnc Q => ?_, fun Q hQ ⟨_, _, hΞ⟩ => ?_⟩
     · rw [runSectionWith_eq hobj hsec hcode hlow hfe he hpar]
       exact h
     -- Without message calls every step is calm.
@@ -311,8 +315,26 @@ theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith
         (World.init σ A feed) = some (.error (.stop out w')) := by
       rw [runSectionWith_eq hobj hsec hcode hlow hfe he hpar]
       exact (congrArg endRun hr).trans rfl
-    exact hfeed.xOk (fun c hc' => hQ feed out w' (.inr hrun) c (hc ▸ hc')) (g.toNat + 1)
+    exact hfeed.xOk (fun c hc' => hQ feed out w' ⟨M, hfeed⟩ (.inr hrun) c (hc ▸ hc'))
+      (g.toNat + 1)
   · simp at hce
+
+/-- `section_sound_fut` without the real feed: a section of a checked sidecar refines the
+    machine IR's run of it under some feed, given that no run of it panics. -/
+theorem section_sound {s : Sidecar} {plan : String → SpillPlan} (h : checkWith plan s = true)
+    {name : String} (hn : ((entries s).lookup name).isSome) {σ σ₀ : AccountMap} {g : UInt256}
+    {A : Substate} {I : ExecutionEnv} {tail : ByteArray} (hI : I.code = s.code name ++ tail)
+    (hnp : ∀ feed, NoPanicAt
+      ((s.runSectionWith name .machine (plan name).prepare).exec I (World.init σ A feed))) :
+    (Exhausted (Ξ σ σ₀ g A I) ∨ ∃ feed, Agrees .P1 (Ξ σ σ₀ g A I)
+      ((s.runSectionWith name .machine (plan name).prepare).exec I (World.init σ A feed))) ∧
+      (s.hasCalls name = false → ∀ Q, Invariant.XiOk Q σ σ₀ g A I) ∧
+      ∀ Q, (∀ feed out w, Succeeds ((s.runSectionWith name .machine (plan name).prepare).exec I
+        (World.init σ A feed)) out w → ∀ c ∈ w.calls, c.Ok Q) →
+        (∃ r o, Ξ σ σ₀ g A I = .ok (.success r o)) → Invariant.XiOk Q σ σ₀ g A I := by
+  obtain ⟨h1, h2, h3⟩ := section_sound_fut h hn hI fun feed _ => hnp feed
+  exact ⟨h1.imp id fun ⟨feed, _, hag⟩ => ⟨feed, hag⟩, h2,
+    fun Q hQ => h3 Q fun feed out w _ => hQ feed out w⟩
 
 /-- A section's run never returns: it ends stuck where its entry would. -/
 theorem runSectionWith_not_ok (s : Sidecar) (name : String) (level : Level)
@@ -375,17 +397,46 @@ theorem succeeds_of_bind_pure {x : FeM ByteArray} {pre : ByteArray} {I : Executi
     · cases h; exact ⟨v, .inl rfl⟩
     · cases h
 
+/-- A run of the instrumented runtime that ends as a run of the machine IR does, under any
+    feed, never panics, as the machine IR's never does. -/
+theorem runtime_noPanic_of_endsAs {s : Sidecar} {I : ExecutionEnv} {σ : AccountMap}
+    {A : Substate} {feed feed' : List Supply}
+    (hend : EndsAs ((s.model .machine).runtime.exec I (World.init σ A feed'))
+      ((s.spilledModel s.spillPlan).runtime.exec I (World.init σ A feed))) :
+    NoPanicAt ((s.runSectionWith "runtime" .machine (s.spillPlan "runtime").prepare).exec I
+      (World.init σ A feed)) := by
+  intro c hc
+  have hend' : EndsAs ((s.model .machine).runtime.exec I (World.init σ A feed'))
+      (some (.error (.panic c))) := by rw [← hc]; exact hend
+  exact (machine_not_panic s).1 I _ c hend'.panic_of
+
+/-- A run of the instrumented constructor that ends as a run of the machine IR's does, under
+    any feed, never panics. -/
+theorem init_noPanic_of_endsAs {s : Sidecar} {I : ExecutionEnv} {σ : AccountMap}
+    {A : Substate} {args : ByteArray} {feed feed' : List Supply}
+    (hend : EndsAs (((s.model .machine).init args >>= fun tail =>
+        pure (ByteArray.empty ++ tail)).exec I (World.init σ A feed'))
+      (((s.spilledModel s.spillPlan).init args >>= fun tail =>
+        pure (ByteArray.empty ++ tail)).exec I (World.init σ A feed))) :
+    NoPanicAt ((s.runSectionWith "init" .machine (s.spillPlan "init").prepare).exec I
+      (World.init σ A feed)) := by
+  intro c hc
+  simp only [Sidecar.spilledModel] at hend
+  rw [init_bind_exec, init_bind_exec, hc] at hend
+  have hm := hend.panic_of
+  have hnp := (machine_not_panic s).2 args I (World.init σ A feed') c
+  revert hm hnp
+  rcases ((s.model .machine).init args).exec I (World.init σ A feed') with _ | _ | ⟨v, w'⟩ <;>
+    simp
+
 /-- Under `FrameSafe`, the runtime of the instrumented model never panics on a call `Sound`
     speaks of, as the machine IR's never does. -/
 theorem FrameSafe.runtime_noPanic {s : Sidecar} (hf : FrameSafe s) {I : ExecutionEnv}
     {σ : AccountMap} {A : Substate} (hown : OwnerExists σ I) (hcf : CalldataFits I)
     (feed : List Supply) : NoPanicAt ((s.runSectionWith "runtime" .machine
       (s.spillPlan "runtime").prepare).exec I (World.init σ A feed)) := by
-  intro c hc
-  obtain ⟨feed', hend⟩ := hf.1 I σ A feed hown hcf
-  have hend' : EndsAs ((s.model .machine).runtime.exec I (World.init σ A feed'))
-      (some (.error (.panic c))) := by rw [← hc]; exact hend
-  exact (machine_not_panic s).1 I _ c hend'.panic_of
+  obtain ⟨_, hend⟩ := hf.1 I σ A feed hown hcf
+  exact runtime_noPanic_of_endsAs hend
 
 /-- Under `FrameSafe`, the constructor of the instrumented model never panics on a deployment
     `Sound` speaks of. -/
@@ -394,15 +445,8 @@ theorem FrameSafe.init_noPanic {s : Sidecar} (hf : FrameSafe s) {I : ExecutionEn
     (hown : OwnerExists σ I) (hperm : I.perm = true) (feed : List Supply) :
     NoPanicAt ((s.runSectionWith "init" .machine (s.spillPlan "init").prepare).exec I
       (World.init σ A feed)) := by
-  intro c hc
-  obtain ⟨feed', hend⟩ := hf.2 I σ A feed args trivial hI hown hperm
-  simp only [Sidecar.spilledModel] at hend
-  rw [init_bind_exec, init_bind_exec, hc] at hend
-  have hm := hend.panic_of
-  have hnp := (machine_not_panic s).2 args I (World.init σ A feed') c
-  revert hm hnp
-  rcases ((s.model .machine).init args).exec I (World.init σ A feed') with _ | _ | ⟨v, w'⟩ <;>
-    simp
+  obtain ⟨_, hend⟩ := hf.2 I σ A feed args trivial hI hown hperm
+  exact init_noPanic_of_endsAs hend
 
 /-- The bytes of a sidecar `checkWith plan` accepts refine its instrumented model wherever
     that never panics, a constructor's result after the empty code. -/
@@ -452,12 +496,100 @@ theorem checkSpills_sound {s : Sidecar} (h : checkSpills s = true) (hf : FrameSa
     · obtain ⟨feed', hend⟩ := hf.2 I σ A feed args trivial hI hown hperm
       exact .inr ⟨feed', Agrees.of_endsAs hend (init_agrees hx)⟩
 
+/-! ## Under the real feed
+
+`Sound s` lets the machine IR agree with the bytes under some feed; `SoundFut s` says the feed
+is the call's real one (`RealFeed`), which a source semantics whose runs may be excused needs.
+`section_sound_fut` picks that feed already; the theorems below keep it.  For a sidecar with
+spills the frame hypothesis is `FrameSafeAt`, at the call in hand and under its real feed only:
+`checkSpills_sound_at` (one call), `checkSpills_deploy_at` (one deployment),
+`checkSpills_sound_fut` (all of them).  `FrameSafe` does not give `FrameSafeAt` (`FrameSafe.lean`),
+so `checkSpills_sound` keeps its own proof. -/
+
+/-- What `check s = true` implies, with the agreeing feed the real one: the runtime bytes refine
+    the machine IR's runtime and the init bytes its constructor, at `P1`, under each call's real
+    feed. -/
+def SoundFut (s : Sidecar) : Prop :=
+  RefinesOnFut .P1 (s.code "runtime") (s.model .machine) CalldataFits ∧
+    RefinesDeployFut .P1 (s.code "init") .empty (s.model .machine) (fun _ => True)
+
+theorem SoundFut.toSound {s : Sidecar} (h : SoundFut s) : Sound s :=
+  ⟨h.1.toRefinesOn, h.2.toRefinesDeploy⟩
+
+/-- `FrameSafeAt`: the instrumented runtime does not panic on that call and feed. -/
+theorem FrameSafeAt.noPanic {s : Sidecar} {I : ExecutionEnv} {σ : AccountMap} {A : Substate}
+    {feed : List Supply} (hf : FrameSafeAt s I σ A feed) :
+    NoPanicAt ((s.runSectionWith "runtime" .machine (s.spillPlan "runtime").prepare).exec I
+      (World.init σ A feed)) :=
+  runtime_noPanic_of_endsAs hf
+
+/-- `FrameSafeDeployAt`: the instrumented constructor does not panic on that deployment and
+    feed. -/
+theorem FrameSafeDeployAt.noPanic {s : Sidecar} {args : ByteArray} {I : ExecutionEnv}
+    {σ : AccountMap} {A : Substate} {feed : List Supply} (hf : FrameSafeDeployAt s args I σ A feed) :
+    NoPanicAt ((s.runSectionWith "init" .machine (s.spillPlan "init").prepare).exec I
+      (World.init σ A feed)) :=
+  init_noPanic_of_endsAs hf
+
+/-- The spill-aware checker's soundness on one call, under its real feed: if the sidecar's
+    spills change nothing on this call under the feed the bytes' run supplies
+    (`FrameSafeAt`, asked of that feed only), the runtime bytes, followed by any bytes, run out of
+    gas or of stack, or the machine IR's runtime ends as they do under that feed, at `P1`. -/
+theorem checkSpills_sound_at {s : Sidecar} (h : checkSpills s = true) {σ σ₀ : AccountMap}
+    {g : UInt256} {A : Substate} {I : ExecutionEnv} {tail : ByteArray}
+    (hI : I.code = s.code "runtime" ++ tail)
+    (hf : ∀ feed, RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed) :
+    RefinesForFut .P1 (s.model .machine) σ σ₀ g A I := by
+  replace h := ((Bool.and_eq_true _ _).mp h).1
+  obtain ⟨-, -, hrt⟩ := checkWith_ok h
+  rcases (section_sound_fut h hrt hI fun feed hr => FrameSafeAt.noPanic (hf feed hr)).1 with
+    hx | ⟨feed, hr, hx⟩
+  · exact .inl hx
+  · exact .inr ⟨feed, hr, Agrees.of_endsAs (hf feed hr) hx⟩
+
+/-- `checkSpills_sound_at` for one deployment: the init bytes followed by `args`, under
+    `FrameSafeDeployAt` at the deployment's real feed. -/
+theorem checkSpills_deploy_at {s : Sidecar} (h : checkSpills s = true) {σ σ₀ : AccountMap}
+    {g : UInt256} {A : Substate} {I : ExecutionEnv} {args : ByteArray}
+    (hI : I.code = s.code "init" ++ args)
+    (hf : ∀ feed, RealFeed σ σ₀ g A I feed → FrameSafeDeployAt s args I σ A feed) :
+    RefinesDeployForFut .P1 .empty (s.model .machine) args σ σ₀ g A I := by
+  replace h := ((Bool.and_eq_true _ _).mp h).1
+  obtain ⟨-, hinit, -⟩ := checkWith_ok h
+  rcases (section_sound_fut h hinit hI fun feed hr => FrameSafeDeployAt.noPanic (hf feed hr)).1 with
+    hx | ⟨feed, hr, hx⟩
+  · exact .inl hx
+  · exact .inr ⟨feed, hr, Agrees.of_endsAs (hf feed hr) (init_agrees hx)⟩
+
+/-- The spill-aware checker's soundness under the real feed: a sidecar it accepts, whose spills
+    change nothing on each call and deployment `SoundFut` speaks of under that call's real feed
+    (`FrameSafeAt`, `FrameSafeDeployAt`), has bytes that refine its machine IR under each call's
+    real feed. -/
+theorem checkSpills_sound_fut {s : Sidecar} (h : checkSpills s = true)
+    (hfr : ∀ σ σ₀ g A I tail feed, I.code = s.code "runtime" ++ tail → tail.size = 0 →
+      OwnerExists σ I → CalldataFits I → RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed)
+    (hfi : ∀ σ σ₀ g A I args feed, I.code = s.code "init" ++ args → OwnerExists σ I →
+      I.perm = true → RealFeed σ σ₀ g A I feed → FrameSafeDeployAt s args I σ A feed) :
+    SoundFut s :=
+  ⟨fun σ σ₀ g A I tail hI ht hown hcf =>
+      checkSpills_sound_at h hI fun feed => hfr σ σ₀ g A I tail feed hI ht hown hcf,
+    fun σ σ₀ g A I args _ hI hown hperm =>
+      checkSpills_deploy_at h hI fun feed => hfi σ σ₀ g A I args feed hI hown hperm⟩
+
+/-- The checker's soundness under the real feed: a sidecar it accepts has bytes that refine its
+    machine IR under each call's real feed, the runtime on every call whose calldata fits and the
+    constructor on every deployment, at profile `P1`. -/
+theorem check_sound_fut {s : Sidecar} (h : check s = true) : SoundFut s := by
+  rw [check_eq, Bool.and_eq_true] at h
+  obtain ⟨hr, hd⟩ := frameSafeAt_of_noSpills h.2
+  exact checkSpills_sound_fut h.1 (fun _ _ _ _ I _ feed _ _ _ _ _ => hr I _ _ feed)
+    fun _ _ _ _ I args feed _ _ _ _ => hd args I _ _ feed
+
 /-- The checker's soundness: a sidecar it accepts has bytes that refine its machine IR, the
     runtime on every call whose calldata fits and the constructor on every deployment, at
-    profile `P1`. -/
-theorem check_sound {s : Sidecar} (h : check s = true) : Sound s := by
-  rw [check_eq, Bool.and_eq_true] at h
-  exact checkSpills_sound h.1 (frameSafe_of_noSpills h.2)
+    profile `P1`.  `check_sound_fut` without the real feed. -/
+theorem check_sound {s : Sidecar} (h : check s = true) : Sound s :=
+  (check_sound_fut h).toSound
 
 /-- The frames of a sidecar `checkSpills` accepts, under `FrameSafe`, whose machine IR makes no
     message call make no message call nor creation: `XiOk` holds, for every condition on calls,

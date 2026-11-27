@@ -18,6 +18,12 @@ Run with `lake lean scripts/SonatinaCheck.lean`.
 
 open Fe.Sonatina
 
+-- The mutation checks below compare whole lowerings.  The step-record types derive no `BEq`
+-- in the library, which never compares them.
+deriving instance BEq for Steps.Schemas.GTerm, Steps.Schemas.GvnFacts, Steps.Schemas.StepFacts,
+  Steps.FuncSnap, Steps.FuncStep, Steps.Step, Steps.Summary, Steps.Pass, Steps.MachineSteps,
+  Lowering
+
 def mapBlocks (c : CodeSection) (g : BlockHint → BlockHint) : CodeSection :=
   { c with lowering := c.lowering.map fun l => { l with funcs := l.funcs.map fun f =>
       { f with blocks := f.blocks.map g } } }

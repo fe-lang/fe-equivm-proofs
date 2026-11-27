@@ -1283,6 +1283,82 @@ spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
 `scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
 (precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
 
+**Under the real feed: the `_fut` forms.**  `RefinesOn` (`Fe/EVM/Refine.lean`) says the bytes
+run out of gas or of stack, or *some* feed makes the model end as they do.  A feed is what the
+model takes from outside: callee gas, the substate and original account map handed to callees,
+`gas()` reads.  Leaving it free costs nothing while the model has no excuse, since `Agrees` makes
+the model's run reproduce the bytes' result whatever the feed.  The next link (Stage 3) has a
+source semantics with excuses, undefined behaviour and heap exhaustion; an excuse found under a
+made-up feed would excuse any bytes, so the excuse must be taken under the feed the bytes' run of
+that call really supplies.  `Fe/Sonatina/RealFeed.lean` defines it:
+
+```lean
+def RealFeed (σ σ₀ : AccountMap) (g : UInt256) (A : Substate) (I : ExecutionEnv)
+    (feed : List Supply) : Prop :=
+  ∃ M, Check.Fut (Reasoning.Theory.initState σ σ₀ (.ofUInt256 g) A I) feed M
+theorem realFeed_exists … : ∃ feed, RealFeed σ σ₀ g A I feed   -- `fut_exists`
+theorem RealFeed.unique … (h₁ : RealFeed … f₁) (h₂ : RealFeed … f₂) : f₁ = f₂   -- `Fut.functional`
+```
+
+and `RefinesForFut`, `RefinesOnFut`, `RefinesDeployFut` (and the per-deployment
+`RefinesDeployForFut`): the existing statements with `RealFeed … feed ∧` under the existential,
+each implying the existing one (`RefinesOnFut.toRefinesOn`, `RefinesDeployFut.toRefinesDeploy`).
+It lives after `CheckEvent.lean` (which defines `Fut`) and before `CheckCert.lean`, because
+`Fe/EVM/Refine.lean` is imported by the checker's modules and so cannot import `Fut`.  The real
+feed's gas entries are the gas the compiled bytecode has left when it reaches `GAS`, a call or a
+creation, so a source program whose excuse depends on a `gas()` value is judged under the
+bytecode's gas schedule.
+
+No proof had to change its argument: `section_sound` already picked its feed with `fut_exists`,
+and the step proofs relate runs by `Approx Eq`, which keeps the world, feed included.  The
+`_fut` forms only say so:
+
+- `section_sound_fut`: the agreeing feed is real, and the no-panic premise is asked only under
+  the real feed; `section_sound` is derived from it.
+- `SoundFut s` (`Sound s` under the real feed), `check_sound_fut`; `check_sound` is derived.
+- `machine_implementsP_same` (`ImplementsPSame`: the lowered modules run under the machine IR's
+  own feed); `machine_implementsP` is derived.
+- `machine_sound_proved_fut`, `machine_sound_sidecar_fut`, concluding `RefinesOnFut … ∧
+  RefinesDeployFut …`; `machine_sound_proved` and `machine_sound_sidecar` are derived from them.
+  No `*_stepSound` changed.
+
+**Spills under the real feed: `FrameSafeAt`.**  `FrameSafe s` asks of every admitted call and
+every feed, and lets the machine IR's matching run take another feed than the instrumented
+model's (it is an `Implements`).  Neither fits the next link, which can show frame safety only
+on calls where the source has no undefined behaviour, and needs the machine IR to agree under
+the real feed.  `FrameSafeAt s I σ A feed` (`FrameSafeDeployAt s args I σ A feed`) asks of one
+call and one feed, both models under that feed: the instrumented runtime (constructor) ends as
+the machine IR's.  The spilled theorems need it only at the call in hand, under its real feed:
+
+```lean
+theorem checkSpills_sound_at {s : Sidecar} (h : checkSpills s = true) … (hI : I.code = s.code "runtime" ++ tail)
+    (hf : ∀ feed, RealFeed σ σ₀ g A I feed → FrameSafeAt s I σ A feed) :
+    RefinesForFut .P1 (s.model .machine) σ σ₀ g A I
+```
+
+with `checkSpills_deploy_at` for one deployment, `checkSpills_sound_fut` (every call and
+deployment, giving `SoundFut s`), and at the lowered modules `machine_sound_spills_at`,
+`machine_deploy_spills_at`, `machine_sound_spills_proved_fut` and
+`machine_sound_spills_sidecar_fut`.  `FrameSafeAt` at every admitted call and feed gives
+`FrameSafe` (`FrameSafe.of_at`), and a sidecar without spills has it everywhere
+(`frameSafeAt_of_noSpills`, through which `check_sound_fut` goes).  `FrameSafe` does not give
+`FrameSafeAt`: from "some feed makes the machine IR end as the instrumented model" nothing proved
+of the instrumented model yields "the same feed does" (two models related by `Implements`, one
+reading `gas()` and one not, are related under no common feed when the feed is empty).  So
+`checkSpills_sound` and `machine_sound_spills_proved` keep their own proofs (through
+`section_sound`) and are not derived from the `_fut` forms.
+
+**`CALLCODE` and the real feed.**  `supplyOf` (`CheckEvent.lean`), which says what each step of the
+bytes supplies, has entries for `GAS`, `CALL`, `STATICCALL`, `DELEGATECALL`, `CREATE` and
+`CREATE2` but none for `CALLCODE`, although `callOps` and `madeAt` list it; the model's
+`callcode` (`Interp.lean`) takes a feed entry as `call` does.  So for bytes that execute a
+`CALLCODE`, `RealFeed` would lack that call's entry and would not be the feed the model consumes.
+It does not matter to any theorem here: the checker matches no `CALLCODE`, neither in the machine
+IR (`evmEventOpcode` has no case for `callCode`, so a statement `evm_call_code` fails) nor in the
+bytes (`Check.run` accepts no `CALLCODE` on a path), so the bytes' run of a sidecar `check` or
+`checkSpills` accepts never executes one, and Fe does not emit it.  Not fixed; to be added to
+`supplyOf` (and `call_evMoves`) if the checker ever matches `CALLCODE`.
+
 **The records.**  What ties a record to `s` is `validate`: its composition, from its lowered
 functions through its steps, must be the section's machine IR (`s.machineOf`, compared function
 by function), under the section's symbols (`s.symbolsOf`).  In the sidecar-level theorems the
@@ -1332,7 +1408,8 @@ it occurs in corpus v5 or v6, where every section validates:
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 
 Besides: the summary table's effect and `will_return` claims are not checked (no consumer), and
-the top theorem's caveats (review 21 M-4): `FrameSafe` for sidecars with spills (§ above), nothing
+the top theorem's caveats (review 21 M-4): `FrameSafe` (or `FrameSafeAt` for the `_fut` forms)
+for sidecars with spills (§ above), nothing
 tying a record's lowered functions to the lowering of the source IR (Stage 3), and `Sidecar.model`
 leaving `ContractModel.immutables` at its default, so that `RefinesOn` speaks of runtimes without
 immutables.  The sidecar reader is strict for the record only: elsewhere in a lowering (hints,
