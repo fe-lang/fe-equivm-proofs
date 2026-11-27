@@ -26,8 +26,8 @@ Runs the handover semantics H (`Fe/Sonatina/H/`) on every sidecar under the dire
 - `SUM <file> …` per sidecar and `TOTAL …` at the end.
 
 A `ub`'s cause: `panic` (an access at a literal address in a block that ends
-`evm_revert 0 36`, Fe's panic payload), `immutables` (the init section's literal `mload 0`, the
-hand-off of immutable fields), `literal` (another literal-address access) or `OTHER`.
+`evm_revert 0 36`, Fe's panic payload), `immutables` (any other literal-address access of an init
+section: the hand-off of immutable fields, checked by hand), `literal` (another literal-address access) or `OTHER`.
 
 Run with `HDIFF_DIR=<dir> lake lean scripts/HDiff.lean`; `HDIFF_SEQ` and `HDIFF_CALLS` set the
 sequences per contract and calls per sequence (4 and 16).
@@ -176,9 +176,8 @@ def ubCause (sec : String) (h : HSection) (at_ : String) : String :=
       | none => match b.term with
         | .base (.evmRevert a l) | .base (.evmReturn a l) => literal a && l != .imm 256 0
         | _ => false
-    let initLoad := sec == "init" && (i matches some (.base (.mload (.imm _ 0) _)))
     if lit && panicBlock then "panic"
-    else if initLoad then "immutables"
+    else if lit && sec == "init" then "immutables"
     else if lit then "literal"
     else "OTHER"
   | none => "OTHER"
@@ -202,6 +201,8 @@ structure Tally where
   oracleDisagree : Nat := 0
   machineDiverges : Nat := 0
   machineVsBytes : Nat := 0
+  /-- Frames the machine IR's model ends successfully. -/
+  success : Nat := 0
 
 def Tally.add (a b : Tally) : Tally where
   frames := a.frames + b.frames
@@ -218,13 +219,14 @@ def Tally.add (a b : Tally) : Tally where
   oracleDisagree := a.oracleDisagree + b.oracleDisagree
   machineDiverges := a.machineDiverges + b.machineDiverges
   machineVsBytes := a.machineVsBytes + b.machineVsBytes
+  success := a.success + b.success
 
 def Tally.fields (t : Tally) : String :=
   let ubs := t.ub.toList.mergeSort (fun a b => a.1 ≤ b.1) |>.map fun (k, v) => s!"ub_{k}={v}"
   s!"frames={t.frames} outOfGas={t.outOfGas} agree={t.agree} runs={t.runs} ends={t.ends} \
     disagree={t.disagree} {" ".intercalate ubs} exhausted={t.exhausted} stuck={t.stuck} \
     fuel={t.fuel} badOracle={t.badOracle} oracleDisagree={t.oracleDisagree} \
-    machineDiverges={t.machineDiverges} machineVsBytes={t.machineVsBytes}"
+    machineDiverges={t.machineDiverges} machineVsBytes={t.machineVsBytes} success={t.success}"
 
 def hFuel : Nat := 20000000
 
@@ -244,6 +246,8 @@ def frame (file sec input : String) (h : HSection) (os : List (String × Oracle)
     let mut t : Tally := { frames := 1 }
     if !(compare r.result m matches .agree _) then t := { t with machineVsBytes := 1 }
     let mdesc := (observe m).describe
+    if m matches some (.ok _) || m matches some (.error (.stop ..)) then
+      t := { t with success := 1 }
     let mut allAgree := true
     let mut keys : List String := []
     for (oname, O) in os do
@@ -411,7 +415,9 @@ def main : IO Unit := do
         for (k, w) in rs do
           IO.println s!"WF {file} {name} rejected {k} {w}"
         for k in (rs.map (·.1)).eraseDups do wf := wf.insert k (wf.getD k 0 + 1)
+      let dirName := (path.parent.bind (·.fileName)).getD ""
       let abi := abis.find? fun p => p.fileName == some s!"{s.object}.abi.json"
+        || p.fileName == some s!"Fe{s.object}.abi.json" || p.fileName == some s!"{dirName}.abi.json"
       let interface ← match abi with
         | some p => match interfaceOfAbi (← IO.FS.readFile p) with
           | .ok i => pure i

@@ -7,6 +7,7 @@ import Fe.Sonatina.H.Inst
 import Fe.Sonatina.H.Sem
 import Fe.Sonatina.H.Run
 import Fe.Sonatina.H.Wf
+import Fe.Sonatina.H.Tests
 
 /-!
 # The handover semantics H (design `s3/design.md` §3, §7.2; Slice 1)
@@ -25,6 +26,7 @@ block it came from and each block's address word is a choice.
 | `H/Sem` | `ExecBody`/`ExecBlocks`/`ExecFunc`, `Object.Runtime`, `Object.Deploy`, `Matches`, `ImplementsH`, `ImplementsDeployH`; the readings I1–I11 | §3.1, §3.3, §7.2 |
 | `H/Run` | `Oracle`, `runFunc`, `runRuntime`, `runDeploy`; `runH_sound`, `runRuntime_sound`, `runDeploy_sound` | §3.1 |
 | `H/Wf` | `wfReasons`, `wfH` | §3.7 static rejections |
+| `H/Tests` | `#guard` tests of the rules, one at a time, under two oracles, and of `wfH` | |
 
 `scripts/HDiff.lean` runs H against the machine IR's interpreter on generated calls.
 -/

@@ -96,7 +96,7 @@ def runBody (P : HSection) (O : Oracle) (I : ExecutionEnv) (f : HFunc) (bid : Na
   | 0, _, _, _, _ => .fuel
   | _ + 1, _, env, [], st => .ok (env, st)
   | fuel + 1, k, env, s :: rest, st =>
-    let at_ : String := s!"{f.name} block{bid} #{k}: {repr s.inst}"
+    let at_ : String := s!"{f.name} block{bid} #{k}: {(repr s.inst).pretty 100000}"
     match s.inst.special with
     | .alloca ty => match sizeOf P.module.structs sizeFuel ty with
       | none => .stuck s!"an alloca of a type with no size at {at_}"
@@ -148,7 +148,7 @@ def runBlocks (P : HSection) (O : Oracle) (I : ExecutionEnv) :
     | some b => match enter env prev b with
       | none => .stuck s!"the phis of {f.name} block{id}"
       | some env₁ => (runBody P O I f id fuel 0 env₁ b.body st).bind fun (env₂, st₂) =>
-        let at_ : String := s!"{f.name} block{id} terminator: {repr b.term}"
+        let at_ : String := s!"{f.name} block{id} terminator: {(repr b.term).pretty 100000}"
         match stepTerm I env₂ st₂ b.term with
         | .goto d => runBlocks P O I fuel f env₂ (some id) d st₂
         | .ret vals => .ok (vals, st₂)
