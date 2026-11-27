@@ -7,7 +7,8 @@ import FeModel
 `fe…Solvent…`), and the machine pipeline's theorems under `Fe.Sonatina` (`check_sound`,
 `checkSpills_sound`, `machine_sound_proved` and its variants, `machine_sound_sidecar`,
 `machine_sound_spills_sidecar`, `StepKind.proved_sound`, each step kind's
-`…_stepSound`, the known-bits invariant `kb_reaches` and `kb_point`).  Run:
+`…_stepSound`, the known-bits invariant `kb_reaches` and `kb_point`, and the handover semantics'
+`runH_sound`, `runRuntime_sound`, `runDeploy_sound`, `message_eq_core`, `createWith_eq_core`).  Run:
 `lake lean scripts/Audit.lean`. -/
 open Lean
 
@@ -15,6 +16,7 @@ open Lean
   let machine := ["check_sound", "checkSpills_sound", "machine_sound_proved",
     "machine_sound_proved_of_sound", "machine_sound_spills_proved", "machine_sound_sidecar",
     "machine_sound_spills_sidecar", "proved_sound",
+    "runH_sound", "runRuntime_sound", "runDeploy_sound", "message_eq_core", "createWith_eq_core",
     "kb_reaches", "kb_point"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString
