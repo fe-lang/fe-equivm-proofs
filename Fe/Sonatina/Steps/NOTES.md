@@ -593,6 +593,29 @@ are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_s
 `check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
 entry for), `validate` on one section's record; the theorems need both sections' records.
 
+**Which theorem applies**, at `42e8439`, both corpora (`validate` per section from
+`scripts/MachineSteps.lean`; `check` and `checkSpills` from `scripts/DialectSweep.lean`, whose
+outputs at `6060422` are reused: no file the byte checker reads has changed since).  (a)
+`validate` and `check`: `machine_sound_proved` applies, no hypothesis left; (b) `validate` and
+`checkSpills` but not `check`: only `machine_sound_spills_proved`, under `FrameSafe`; (c) neither.
+Sections (each with its own section's byte verdict), then sidecars (both records and the
+sidecar's verdicts, as the theorems take them).  v5 and v6 agree section for section:
+
+| set | sections (a) / (b) / (c) | sidecars (a) / (b) / (c) |
+| --- | --- | --- |
+| FeProofs `-O0` | 34 / 6 / 0 of 40 | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 29 / 0 / 11 of 40 | 9 / 0 / 11 of 20 |
+| FeProofs `-Os` | 32 / 0 / 8 of 40 | 12 / 0 / 8 of 20 |
+| the 265 | 460 / 0 / 70 of 530 | 196 / 0 / 69 of 265 |
+
+The (b) sections are the six `-O0` runtimes with memory spills: Bn254Add, Bn254Mul, Ecrecover,
+EcrecoverPrecompile, Modexp, Ripemd160 (Blake2F's `-O0` runtime has none).  At `-O1`, `-Os` and
+in the 265 every section with spills (7, 7 and 9; the precompiles, `erc4337.EntryPoint`,
+`msg_nested_array_arg.Caller`) is rejected by `validate` (`scalar_canonicalize`, once
+`gvn_prune`), and the one section `checkSpills` rejects (the runtime of `storage_map_recursive_views.C`) by
+`validate` too (`lower_switches`).  Every (c) is a
+`validate` rejection; no sidecar both of whose records validate fails `checkSpills`.
+
 **`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
 sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
 machine IR, untrusted), end as the machine IR does: `Implements (s.model .machine)
