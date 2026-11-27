@@ -37,8 +37,13 @@ the input or in the output, whose terminators are the input's.
 
 What may be deleted: the window's loads and other stores, and `add`/`sub` statements of the
 window; no result of a window statement the output does not keep is defined in the output
-(`keptOk`, `fresh`) or used in it (`unusedOk'`).  Everything else of the function is unchanged.  Instruction ids: kept statements keep theirs, a copy has the replaced
-store's.
+(`keptOk`, `fresh`) or used in it (`unusedOk'`).  Everything else of the function is unchanged.
+
+Instruction ids are checked for shape only (review 20, L-1): `checkCoalesce` requires that the
+input has ids (`ids.isSome`) and reads nothing else of them or of the output's, which `checkStep`
+checks well formed (`FuncSnap.wf`: one per line, distinct).  The compiler keeps each kept
+statement's id and gives the copy the replaced store's, but nothing here compares ids: the proof
+needs no correspondence of them.
 -/
 
 namespace Fe.Sonatina.Steps
@@ -211,8 +216,9 @@ where
       | .var u => some (u, ())
       | _ => none)
 
-/-- The check of a `coalesce_copies` step of `f` to the snapshot `s` (instruction ids are the
-    statements', checked by `checkStep`'s `wf`; the copy's id is the replaced store's). -/
+/-- The check of a `coalesce_copies` step of `f` to the snapshot `s`.  Of the instruction ids it
+    reads only that the input has them (`ids.isSome`); `checkStep`'s `wf` checks the output's
+    shape and distinctness, and no id of the output is compared with the input's. -/
 def checkCoalesce (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) : Bool :=
   let f' := s.func
   let X := KCtx.of f f'
