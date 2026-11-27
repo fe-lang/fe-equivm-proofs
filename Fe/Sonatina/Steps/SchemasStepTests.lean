@@ -21,7 +21,7 @@ abbrev OneStep := Func × Option (List (List Nat)) × FuncSnap × StepFacts
 /-- `schema_step name "path"`: the first step of the record file, read at elaboration. -/
 elab "schema_step " name:ident path:str : command => do
   let text ← IO.FS.readFile path.getString
-  let r ← match Json.parse text >>= Read.parseMachineSteps with
+  let r ← match Json.parse text >>= Parse.parseMachineSteps with
     | .ok r => pure r
     | .error e => throwError "{path.getString}: {e}"
   let some inp := r.lowered.head? | throwError "no lowered function"

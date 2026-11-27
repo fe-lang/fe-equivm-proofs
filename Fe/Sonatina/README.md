@@ -274,6 +274,7 @@ named; immediates are decimal strings.
 | `funcs[].spills[]` | per value: memory address, frame slot or rematerialized; the points the code stores it and reloads it at (`stores`, `reloads`: function entry, before or after a machine instruction, or before a `br_table` case), in emission order | `StackifyAlloc::spill_storage`, `MachineFuncPlan::{obj_loc, spill_obj}` via `FinalAlloc`; the emitted spill actions (`VCode::spill_points`) |
 | `funcs[].frame`, `mallocs[]` | stable objects (none, at a base, dynamic frame) and word counts; each source-IR malloc's placement | `MachineFuncPlan`, `EvmFuncPlacementPlan::malloc_placements` |
 | `units[]`, `redirects[]` | outlined code units; every label the late merges redirected (block to block, block to unit, function to function) | `ObjectLayout::section_units`, `VCode::redirects` (recorded in `rewrite_labels` and for fallthrough blocks moved into units) |
+| `lowering.machine_steps` (version 5) | the machine IR of every function right after lowering, and each machine pass's steps with the functions they changed and their facts; read with the sidecar into `Lowering.machineSteps` (`Steps/NOTES.md`) | `SectionLowering::machine_steps` (`MachineSteps`) |
 
 Not recorded yet: the save and restore of scratch objects around calls (`call_preserve`), the
 dynamic stack pointer's initial value and frame layouts, and the entry stack's dead values below

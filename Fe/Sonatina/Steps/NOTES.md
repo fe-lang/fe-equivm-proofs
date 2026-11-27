@@ -44,14 +44,16 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `GvnPruneTests.lean`, `GvnPruneTests/` | `gvn_prune` records (four real, three hand-written) and twenty-two mutants |
 | `SccpPrune.lean` | `SPReject`, `sccpPruneReject`, `checkSccpPrune` |
 | `SccpPruneSound.lean` | `constOf_key`, `find_constOf`, `slotTaken_of`, `QSpec`, `QPt`, `QS`, `qs_stmt`, `qs_take`, `qs_enter`, `qs_live`, `qs_termLive`, `qs_term`, `qs_step`, `qs_entry`, `qs_run`, `sccpPruneReject_spec`, `sccpPrune_sound`, `sccpPrune_stepSound` |
-| `SccpPruneTests.lean`, `SccpPruneTests/` | `sccp_prune` records (eight hand-written) and twenty-two mutants |
+| `SccpPruneTests.lean`, `SccpPruneTests/` | `sccp_prune` records (eight hand-written) and twenty-two mutants; two real sidecars with the step (`real_*`), `machine_sound_sidecar` applied to each |
 | `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
-| `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
+| `Record.lean` | `MachineSteps`, the record of a section's machine steps (`Lowering.machineSteps`, `Sidecar.lean`), read with the sidecar by `Parse.parseMachineSteps` |
+| `Read.lean` | `machine_steps_file`: a record alone, for the tests |
+| `ReadTests.lean`, `ReadTests/` | the reader's rejections of malformed records (mutations of a real sidecar) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
-| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `machine_implementsP`, `machine_sound_of_sound` (from `Sound s`), `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved_of_sound`, `machine_sound_proved` (on `validate` and `check`), `machine_sound_spills_proved` (on `validate`, `checkSpills` and `FrameSafe`) |
+| `Machine.lean` | `Sidecar.lowered`, `Sidecar.symbolsOf`, `Sidecar.stepsOf`, `machine_implementsP`, `machine_sound_of_sound` (from `Sound s`), `machine_sound`, `machine_sound_edgeSplit`, `StepKind.proved_sound`, `machine_sound_proved_of_sound`, `machine_sound_proved` (on `validate` and `check`), `machine_sound_spills_proved` (on `validate`, `checkSpills` and `FrameSafe`); at the sidecar's own records `Sidecar.validate`, `Sidecar.asLowered`, `machine_sound_sidecar`, `machine_sound_spills_sidecar` |
 | `Dom.lean` | `domTree`, `DomTree.valid` (review H-1, review 6 F-8), D1 `DomTree.dominates`, `valid_root` |
 | `Tests.lean`, `Tests/` | hand-written records, accepted and mutated |
-| `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars |
+| `scripts/MachineSteps.lean` | verdict and first failing step per section of version-5 sidecars; per step (`steps`); per sidecar which theorem applies (`sidecar`) |
 
 The `Steps` modules belong to the model library `FeModel` (its globs take every module under
 `Fe/Sonatina`), which the default `lake build` builds; `FeModel.lean` imports `Machine`, `Read`
@@ -155,14 +157,20 @@ of `PointInv`.
    read, `adce` allows only `finite_loops` (`Schemas.StepFacts.finiteLoops`, read and not used),
    and the GVN kinds read known bits and GVN's facts (`Schemas.StepFacts.gvn`); `StepSound.of_func`
    quantifies over them.
-   `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
+   `Parse.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
 4. **Final comparison by name.** The machine IR prints a section's functions in another order
    than `lowered` lists them; `validate` compares function by function (`sameFuncs`).
-5. **The record reader** follows `sidecar-v5.md` of the export, not design §3.1 (no version
-   key; `Pass.kind`; a function step named by `out.func`; every fact key present, empty ones
-   dropped by the reader).  `Parse.lean` accepts sidecar versions 4 and 5.
+5. **The record reader** follows the writer (`SidecarMachineSteps` of Fe's `sidecar.rs`,
+   `sidecar-v5.md` of the export), not design §3.1 (no version key; `Pass.kind`; a function step
+   named by `out.func`; every fact key present, empty ones dropped by the reader).  `Parse.lean`
+   accepts sidecar versions 4 and 5 and reads each section's record with the sidecar
+   (`parseLowering`, `Lowering.machineSteps`): version 5 must have one in every lowering, version
+   4 must have none and gets the empty record.  Every object of the record is read with exactly
+   the keys the writer writes (`Schemas.exactKeys`: a key it does not write is an error, and so
+   is a missing one), a step kind outside `StepKind.all` is an error, and so is a function twice
+   in `lowered` or in one step (review 6 F-7, F-9; `ReadTests.lean`).
 6. **`wf` and `ssa` (phase 2).**  `validateWith` checks `Module.wf syms` of the lowered module and
    the instruction ids of its snapshots; `checkStep` checks every output function well formed
    in the input module, with its instruction ids, and the input's signature (parameters and
@@ -855,7 +863,7 @@ block's operand and are simplified).  Edges are keyed by target, so slots to one
 live or all dead; `dead_edges` lists, for the reached blocks, the slots whose target no reachable
 edge goes to.  A `br` on a constant takes one slot; a `br_table` on a constant scrutinee takes the
 first case of that key, else the default (`eval_branch`).  No record of either corpus has the step
-(review 21, M-1), so only hand-written records test it.
+(review 21, M-1); hand-written records test it, and two real sidecars (below).
 
 The checker (`checkSccpPrune`, `SccpPrune.lean`) splits the step at `f₁ = pruneFunc f dead`
 (`Prune.lean`): a `br` with one dead slot a `jump`; a `br_table` with a dead slot its live cases
@@ -908,6 +916,25 @@ first `cfg_cleanup` and `sccp_fold` (each only if it changed the function), and 
 known bits are the solve's, checked as `sccp_fold`'s are (all 201 `sccp_fold` steps of corpus v6
 pass the same check on the same kind of facts).
 
+Real records (`SccpPruneTests/real_*`, Fe `a4c2ab6eb` with Sonatina `e39b70c4d`, `-O1`; the
+sources `real_is_null.fe` and `real_try_alloc.fe` beside them).  Machine-stage SCCP finds a dead
+edge the IR passes left where a constant appears only at lowering: a heap allocation at the fresh
+free pointer gets a fixed base from memory placement (`exact_base`, `placement.rs`), which
+lowering writes as an immediate (`machine/lower.rs`), so a null test of the pointer
+(`is_zero (ptr_to_int p)`, from `ptr::is_null` or `ptr::try_alloc_bytes`), opaque to every IR
+pass, is a `br` on `128` once `branch_canonicalize` has dropped the `is_zero`; no machine pass
+before `sccp` folds a branch on a constant, and SCCP's `eval_branch` takes the nonzero slot.  A
+contract whose message handler allocates first has such a step in its runtime (pass 4, step 0,
+before the pass's `cfg_cleanup`): `real_is_null` with facts `consts [(0, 9)]`, `dead_edges
+[(7, 1)]` (the pruned block deleted, the phi left trivial and replaced by the constant),
+`real_try_alloc` with `dead_edges [(9, 1)]` (the phi left trivial and replaced by the loaded
+word).
+The checker accepts both steps and both records, `check` accepts both sidecars, and
+`machine_sound_sidecar` applies to each (`SccpPruneTests.lean`, by `decide +kernel`).  The same
+step comes out at `-Os`, and in three standalone programs (one section, `main`); all ten are
+accepted (`bind/sccp-real` on mb16).  None of the 128 codegen fixtures of Fe has the step (none
+tests a pointer), nor does any corpus program.
+
 ## Review 6 (phase 1) findings taken up in phase 2
 
 - F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
@@ -919,7 +946,22 @@ pass the same check on the same kind of facts).
 - F-5: adopted for the symbols (above), and for the summary table in phase 2 item 2
   (`SummariesOk`, `NoRetHolds`).
 - F-8: adopted (deviation 7).
-- Not taken up here (out of item 1): F-4, F-6, F-7, F-9, F-10.
+- F-6: adopted (`machine_sound_of_sound` takes `Sound s`; `machine_sound_spills_proved`).
+- F-7: adopted.  The records are read with the sidecar (`Lowering.machineSteps`), once, by
+  `parseSidecar`, which checks the version; the `machine_steps` elaborator and `sectionSteps`
+  are gone, and so is the record's hard-coded `version` field (nothing read it).  The reader is
+  strict (deviation 5).  Not taken up: the reader still ignores a snapshot text's declarations
+  other than its one function (the writer prints `target`, struct types and `declare` lines with
+  it), and `Parse.lean`'s immediates and function headers are read as before.
+- F-9: adopted at read time: a function twice in `lowered` or in one step is an error.  `Module.wf`
+  and `validate` do not check distinct names; that is not needed for soundness (`Module.func?`
+  takes the first function of a name, and `checkStep` checks the output against that one;
+  `sameFuncs` compares by name both ways), so a record with a shadowed function, which only a
+  hand-made record can be now, validates soundly.
+- F-10: `s.validate` holds of a sidecar without `init` or `runtime` sections (empty records
+  against empty machine IR); `check s` and `checkSpills s` require both, so the top theorems are
+  not vacuous.
+- F-4: adopted earlier (`parseFacts` keeps `"demanded_bits": []`, deviation 3).
 
 ## Phase-1 history
 
@@ -1159,9 +1201,16 @@ line of WETH9's `returnValue_run`.
   `0d02281`, `sccp-prune/measure/m1`, `scripts/MachineSteps.lean` end to end and `steps`,
   interpreted): `validate` accepts every section, v5 and v6 alike: FeProofs `-O0` 40/40, `-O1`
   40/40, `-Os` 40/40, the 265 530/530, as with twelve.  Every function step of every kind is
-  accepted; neither corpus has an `sccp_prune` step.
+  accepted; neither corpus has an `sccp_prune` step (real ones: § `sccp_prune`).
 
-## The top theorem: what it covers (review 20, M-3)
+- Records read with the sidecar (`chain-bind`, `bind/measure_all.sh`, `scripts/MachineSteps.lean`
+  interpreted, v5 and v6): the strict reader reads every sidecar of both corpora; the outputs of
+  the `steps` mode and of end to end with the thirteen kinds are identical line for line to
+  `sccp-prune/measure/m1`'s (every section accepted); the `sidecar` mode's table is in § The top
+  theorem.  The `sidecar` mode runs the byte checker, interpreted, as `DialectSweep.lean` does:
+  `-O0` 8 min, `-O1` 5, `-Os` 4, the 265 6.
+
+## The top theorem: what it covers (review 20 M-3, review 21 M-4)
 
 `machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
 refine the machine IR's runtime and the init bytes its constructor, at `P1`.  So the statements
@@ -1171,33 +1220,54 @@ are layered: `machine_sound_of_sound` (any allowed kinds, `Sound s`), `machine_s
 
 - `machine_sound_proved`: `validate` for both records and `check s = true` (`check_sound`).
   `check s = checkSpills s && s.noSpills`, so it applies only to sidecars without memory spills.
-  Its statement is unchanged.
 - `machine_sound_spills_proved`: `validate` for both records, `checkSpills s = true` and
   `FrameSafe s` (`checkSpills_sound`), for sidecars with spills.
 
+In these the records `rr` and `ri` are arguments, and the statements hold for every pair
+`validate` accepts.  The sidecar's own records are part of it: each section's lowering carries
+its record (`Lowering.machineSteps`, `Sidecar.lean`), which `parseSidecar` reads with the rest of
+the sidecar from the one file (`sonatina_sidecar` makes one term of both), strictly (deviation 5).
+At them, with no record in the statement:
+
+```lean
+def Sidecar.stepsOf (s : Sidecar) (name : String) : MachineSteps  -- the section's record
+def Sidecar.validate (s : Sidecar) : Bool  -- both sections' own records validate
+def Sidecar.asLowered (s : Sidecar) : Sidecar :=
+  s.lowered (s.stepsOf "runtime") (s.stepsOf "init")
+
+theorem machine_sound_sidecar {s : Sidecar} (hv : s.validate = true) (hc : check s = true) :
+    RefinesOn .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True)
+theorem machine_sound_spills_sidecar {s : Sidecar} (hv : s.validate = true)
+    (hc : checkSpills s = true) (hf : FrameSafe s) : …  -- the same conclusion
+```
+
 `check` and `checkSpills` are verdicts on the whole sidecar (every section the object has an
-entry for), `validate` on one section's record; the theorems need both sections' records.
+entry for, and an `init` and a `runtime`), `validate` on one section's record; `s.validate`
+takes both.  A version-4 sidecar has no record: its lowerings have the empty one, which
+validates only against a machine IR without functions, so neither theorem applies to it.
 
-**Which theorem applies**, per sidecar (both records and the sidecar's byte verdicts, as the
-theorems take them), corpus v6 with the twelve kinds of `0d02281` (`validate` per section from
-`scripts/MachineSteps.lean`, `check` and `checkSpills` from `scripts/DialectSweep.lean`): (a) both
-records validate and `check`: `machine_sound_proved` applies, no hypothesis left; (b) both
-validate and `checkSpills` but not `check`: only `machine_sound_spills_proved`, under
-`FrameSafe`; (c) neither.  `sccp_prune`, the thirteenth kind, occurs in neither corpus, so the
-table is the same with it:
+**Which theorem applies**, per sidecar, as `scripts/MachineSteps.lean`'s `sidecar` mode decides
+it (interpreted; `bind/measure.sh`, branch `chain-bind`): (a) `s.validate` and `check s`:
+`machine_sound_sidecar`, no hypothesis left; (b) `s.validate` and `checkSpills s` but not
+`check s`: only `machine_sound_spills_sidecar`, under `FrameSafe s`; (c) neither.
 
-| set | sidecars (a) no hypothesis / (b) needs `FrameSafe` / (c) rejected |
-| --- | --- |
-| FeProofs `-O0` | 14 / 6 / 0 of 20 |
-| FeProofs `-O1` | 13 / 7 / 0 of 20 |
-| FeProofs `-Os` | 13 / 7 / 0 of 20 |
-| the 265 | 255 / 9 / 1 of 265 |
+| set | v6 sidecars (a) / (b) / (c) | v5 sidecars (a) / (b) / (c) |
+| --- | --- | --- |
+| FeProofs `-O0` | 14 / 6 / 0 of 20 | 14 / 6 / 0 of 20 |
+| FeProofs `-O1` | 13 / 7 / 0 of 20 | 13 / 7 / 0 of 20 |
+| FeProofs `-Os` | 13 / 7 / 0 of 20 | 13 / 7 / 0 of 20 |
+| the 265 | 255 / 9 / 1 of 265 | 255 / 9 / 1 of 265 |
 
-Every section validates (§ Measured), so (b) and (c) are the byte checker's: the (b) sidecars are
-those with memory spills (at `-O0` the runtimes of Bn254Add, Bn254Mul, Ecrecover,
-EcrecoverPrecompile, Modexp and Ripemd160; at `-O1`, `-Os` and in the 265 the precompiles',
-`erc4337.EntryPoint`'s and `msg_nested_array_arg.Caller`'s), and the one (c) is
-`storage_map_recursive_views`, whose `C` runtime `checkSpills` rejects (its dynamic frames).
+The v6 numbers are those the earlier join of `validate` per section with the byte sweep gave
+(`review20-fixes/tally.py`), now from one script reading the sidecar alone; v5 has the same.
+
+The (b) sidecars are those with memory spills (at `-O0` the runtimes of Bn254Add, Bn254Mul,
+Ecrecover, EcrecoverPrecompile, Modexp and Ripemd160; at `-O1`, `-Os` and in the 265 the
+precompiles', `erc4337.EntryPoint`'s and `msg_nested_array_arg.Caller`'s), and the one (c) is
+`storage_map_recursive_views`, whose `C` runtime `checkSpills` rejects (`direct_dynamic` in v6,
+`default_recursive` in v5: a function outside the class).  Every section validates, so (b) and
+(c) are the byte checker's.
 
 **`FrameSafe s`** (`FrameSafe.lean`) asks that the machine IR with its spill stores, under the
 sidecar's spill plan (`Sidecar.spillPlan`, found by walking the bytes against the instrumented
@@ -1213,20 +1283,17 @@ spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
 `scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
 (precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
 
-**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
-keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
-`validate`: each record's composition, from its lowered functions through its steps, must be the
-section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
-(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
-`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
-same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
-the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
-For a record with no passes the lowered functions are the machine IR and the theorem restates
-`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
-own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
-`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
-`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
-with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+**The records.**  What ties a record to `s` is `validate`: its composition, from its lowered
+functions through its steps, must be the section's machine IR (`s.machineOf`, compared function
+by function), under the section's symbols (`s.symbolsOf`).  In the sidecar-level theorems the
+record is moreover the section's own (`s.stepsOf`), read from the same file as the bytes and the
+machine IR; it was an argument before, and any record `validate` accepted would do (a use relied
+on the elaborator `machine_steps`, now removed, to read the same file).  What is still not tied
+(Stage 3): that a record's lowered functions are what lowering made of `s`'s source IR; they are
+what the record says lowering produced.  For a record with no passes the lowered functions are
+the machine IR and the theorem restates `check_sound`.  `s.validate` holds of a sidecar without
+an `init` or `runtime` section (empty records against empty machine IR), but `check` and
+`checkSpills` reject one (review 6 F-10), so neither theorem is vacuous there.
 
 ## Not done
 
@@ -1265,6 +1332,8 @@ it occurs in corpus v5 or v6, where every section validates:
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 
 Besides: the summary table's effect and `will_return` claims are not checked (no consumer), and
-the top theorem's caveats (review 21 M-4): `FrameSafe` for sidecars with spills and the records
-as arguments (§ above), and `Sidecar.model` leaving `ContractModel.immutables` at its default, so
-that `RefinesOn` speaks of runtimes without immutables.
+the top theorem's caveats (review 21 M-4): `FrameSafe` for sidecars with spills (§ above), nothing
+tying a record's lowered functions to the lowering of the source IR (Stage 3), and `Sidecar.model`
+leaving `ContractModel.immutables` at its default, so that `RefinesOn` speaks of runtimes without
+immutables.  The sidecar reader is strict for the record only: elsewhere in a lowering (hints,
+frames, units) a key the writer does not write is still ignored.

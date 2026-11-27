@@ -21,8 +21,11 @@ refine the lowered module (`machine_sound_of_sound`).  `Sound s` comes from `che
 sidecar without memory spills (`machine_sound`, `machine_sound_proved`), or from
 `checkSpills_sound` and `FrameSafe s` for one with spills (`machine_sound_spills_proved`).
 
-The records `rr` and `ri` are arguments: the statements tie them to `s` only through `validate`,
-whose composed module must be `s`'s machine IR, under `s`'s symbols (see `machine_sound_proved`).
+In these the records `rr` and `ri` are arguments, tied to `s` only through `validate`, whose
+composed module must be `s`'s machine IR, under `s`'s symbols.  The sidecar's own records are
+those its sections' lowerings carry (`Lowering.machineSteps`, read with the sidecar from one
+file): `Sidecar.validate s` validates both, `s.asLowered` is `s.lowered` at them, and
+`machine_sound_sidecar` and `machine_sound_spills_sidecar` state the theorems of `s` alone.
 -/
 
 namespace Fe.Sonatina.Steps
@@ -38,6 +41,11 @@ def _root_.Fe.Sonatina.Sidecar.withMachine (s : Sidecar) (name : String) (m : Mo
 /-- The machine IR of section `name`, empty if it has none. -/
 def _root_.Fe.Sonatina.Sidecar.machineOf (s : Sidecar) (name : String) : Module :=
   (((s.section? name).bind (·.lowering)).map (·.machine)).getD default
+
+/-- The record of machine steps of section `name` (`Lowering.machineSteps`), empty if it has no
+    lowering. -/
+def _root_.Fe.Sonatina.Sidecar.stepsOf (s : Sidecar) (name : String) : MachineSteps :=
+  (((s.section? name).bind (·.lowering)).map (·.machineSteps)).getD default
 
 /-- The names of section `name`'s symbols, none if it has no section of the name. -/
 def _root_.Fe.Sonatina.Sidecar.symbolsOf (s : Sidecar) (name : String) : List String :=
@@ -284,15 +292,12 @@ theorem machine_sound_proved_of_sound {s : Sidecar} {rr ri : MachineSteps}
     from its lowered functions through its steps and requires the result to be the section's
     machine IR (`s.machineOf`), under the section's symbols (`s.symbolsOf`); the conclusion is
     about `s.lowered rr ri`, `s` with each section's machine IR replaced by the module its record
-    starts from.  Nothing else: the statement holds for every pair of records `validate`
-    accepts, not only for the sidecar's own `machine_steps`.  `Sidecar` keeps no record (a
-    section's `Lowering` has no field for one), so the statement cannot name them; that a use of
-    the theorem passes the records of the same file is the elaborator's part: `machine_steps`
-    (`Read.lean`) reads them from the JSON file `sonatina_sidecar` reads `s` from.  Nor does
-    anything tie a record's lowered functions to the lowering of `s`'s source IR: they are what
-    the record says lowering produced.  For a record with no passes, its lowered functions are
-    the machine IR, `s.lowered rr ri` has `s`'s machine IR, and the theorem restates
-    `check_sound`. -/
+    starts from.  The statement holds for every pair of records `validate` accepts, not only for
+    the sidecar's own; `machine_sound_sidecar` is it at the sidecar's own records
+    (`Lowering.machineSteps`).  Nor does anything tie a record's lowered functions to the
+    lowering of `s`'s source IR: they are what the record says lowering produced.  For a record
+    with no passes, its lowered functions are the machine IR, `s.lowered rr ri` has `s`'s
+    machine IR, and the theorem restates `check_sound`. -/
 theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
@@ -315,5 +320,43 @@ theorem machine_sound_spills_proved {s : Sidecar} {rr ri : MachineSteps}
       RefinesDeploy .P1 (s.code "init") .empty ((s.lowered rr ri).model .machine)
         (fun _ => True) :=
   machine_sound_proved_of_sound hr hi (checkSpills_sound hc hf)
+
+/-! ## The sidecar's own records -/
+
+/-- Both sections' own records (`Sidecar.stepsOf`) validate against their own machine IR, under
+    their own symbols, with the proved kinds. -/
+def _root_.Fe.Sonatina.Sidecar.validate (s : Sidecar) : Bool :=
+  Fe.Sonatina.Steps.validate (s.symbolsOf "runtime") (s.stepsOf "runtime")
+      (s.machineOf "runtime") &&
+    Fe.Sonatina.Steps.validate (s.symbolsOf "init") (s.stepsOf "init") (s.machineOf "init")
+
+/-- The sidecar as lowering made it: each section's machine IR replaced by the module its own
+    record starts from (`Sidecar.lowered` at `s`'s own records). -/
+def _root_.Fe.Sonatina.Sidecar.asLowered (s : Sidecar) : Sidecar :=
+  s.lowered (s.stepsOf "runtime") (s.stepsOf "init")
+
+/-- `machine_sound_proved` at the sidecar's own records: when both validate (`s.validate`) and
+    the byte checker accepts the sidecar, which then has no memory spills (`check s`), the
+    runtime bytes refine the runtime of the modules right after lowering on every message call
+    whose calldata fits, and the init bytes their constructor on every deployment, at `P1`.
+
+    The records are those of the sidecar's lowerings (`Lowering.machineSteps`), which
+    `parseSidecar` reads with the rest of `s` from one file.  What lowering made of `s`'s source
+    IR is what the records say it made: nothing here ties their lowered functions to the
+    source IR. -/
+theorem machine_sound_sidecar {s : Sidecar} (hv : s.validate = true) (hc : check s = true) :
+    RefinesOn .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True) := by
+  simp only [Sidecar.validate, Bool.and_eq_true] at hv
+  exact machine_sound_proved hv.1 hv.2 hc
+
+/-- `machine_sound_spills_proved` at the sidecar's own records: `machine_sound_sidecar` for a
+    sidecar with memory spills, under `FrameSafe s`, which nothing here proves for one. -/
+theorem machine_sound_spills_sidecar {s : Sidecar} (hv : s.validate = true)
+    (hc : checkSpills s = true) (hf : FrameSafe s) :
+    RefinesOn .P1 (s.code "runtime") (s.asLowered.model .machine) CalldataFits ∧
+      RefinesDeploy .P1 (s.code "init") .empty (s.asLowered.model .machine) (fun _ => True) := by
+  simp only [Sidecar.validate, Bool.and_eq_true] at hv
+  exact machine_sound_spills_proved hv.1 hv.2 hc hf
 
 end Fe.Sonatina.Steps

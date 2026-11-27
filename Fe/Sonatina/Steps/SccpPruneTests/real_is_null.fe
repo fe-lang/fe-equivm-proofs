@@ -1,0 +1,21 @@
+use core::ptr
+
+msg ProbeMsg {
+    #[selector = 1]
+    Probe -> u256,
+}
+
+pub contract Probe {
+    mut last: u256
+
+    init() {}
+
+    recv ProbeMsg {
+        Probe -> u256 uses (mut last) {
+            let a = ptr::alloc_bytes(32)
+            let v: u256 = if ptr::is_null(a) { 7 } else { 9 }
+            last = v
+            v
+        }
+    }
+}

@@ -6,7 +6,8 @@ import Lean.ToExpr
 
 The data of a Sonatina module as the EVM backend receives it after optimization: functions of
 basic blocks in SSA form, and objects whose sections name an entry function and the sections
-they embed.  `Fe/Sonatina/README.md` describes the subset and where it comes from.
+they embed, and the hints of how the backend lowered a function.  `Fe/Sonatina/README.md`
+describes the subset and where it comes from.  The sidecar that holds them is in `Sidecar.lean`.
 
 Values are typed integers.  An operand of type `iN` is held as its unsigned value below `2 ^ N`;
 signed instructions read it in two's complement.  A pointer is a 256-bit integer.  A value of a
@@ -284,45 +285,5 @@ structure FuncHint where
   spills : List SpillHint
   frame : FrameHint
   deriving Repr, BEq, Inhabited, Lean.ToExpr
-
-/-- How the backend lowered a section: the IR machine lowering read (`source`), the machine IR
-    the code is emitted from (`machine`), and what connects the machine IR to the bytes. -/
-structure Lowering where
-  /-- `none` when the section IR uses what the subset does not read: only the machine IR is
-      needed to check the bytes. -/
-  source : Option Module
-  machine : Module
-  codeSize : Nat
-  arenaBase : Nat
-  dynBase : Nat
-  entryFreePtr : Option Nat
-  funcs : List FuncHint
-  /-- The outlined code units: name, offset and size. -/
-  units : List (String × Nat × Nat)
-  /-- Code that went to the first label goes to the second. -/
-  redirects : List (CodeLabel × CodeLabel)
-  deriving Repr, BEq, Inhabited, Lean.ToExpr
-
-/-- A section of compiled code: its bytes, the place and size of each symbol it defines, and
-    how it was lowered. -/
-structure CodeSection where
-  name : String
-  bytecode : ByteArray
-  symbols : List (String × Nat × Nat)
-  lowering : Option Lowering
-
-/-- The sidecar of an object: the objects of the module the backend compiled it from, that
-    module, and the object's sections. -/
-structure Sidecar where
-  object : String
-  /-- Each section's entry function and embeds. -/
-  objects : List Object
-  /-- `none` when the module uses what the subset does not read: only each section's machine
-      IR is needed to check the bytes. -/
-  module : Option Module
-  sections : List CodeSection
-
-def Sidecar.section? (s : Sidecar) (name : String) : Option CodeSection :=
-  s.sections.find? (·.name == name)
 
 end Fe.Sonatina
