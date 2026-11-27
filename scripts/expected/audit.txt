@@ -10,6 +10,7 @@ Fe.Sonatina.Steps.branchConditions_stepSound: [Classical.choice, Quot.sound, pro
 Fe.Sonatina.Steps.cfgCleanup_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.coalesceCopies_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.edgeSplit_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Steps.lowerSwitches_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.machine_sound_proved: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.machine_sound_proved_of_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.machine_sound_spills_proved: [Classical.choice, Quot.sound, propext] + 0 native_decide
