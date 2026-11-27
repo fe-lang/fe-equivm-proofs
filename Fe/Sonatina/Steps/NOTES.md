@@ -799,6 +799,24 @@ line of WETH9's `returnValue_run`.
   and `-Os`); the other kinds' per-step counts are those of the table above, none rejected, no
   summary table failing.
 
+- With `adce` proved as well (`StepKind.proved` has ten kinds; `chain-adce` after merging `chain`
+  `5a90a11`), on the same corpora (`adce/measure.sh`, `scripts/MachineSteps.lean` end to end and
+  `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), nine kinds | ten kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 34/40 | 35/40 | `gvn_rewrite` 5 |
+  | FeProofs `-Os` | 34/40 | 35/40 | `gvn_rewrite` 5 |
+  | the 265 | 517/530 | 519/530 | `gvn_rewrite` 7, `gvn_prune` 4 |
+
+  Every `adce` function step is accepted (v6: `-O1` 12, `-Os` 6, the 265 13; v5: 8, 6, 9; none at
+  `-O0`), no step of a proved kind is rejected and no summary table fails; every rejection end to
+  end is a kind with no proof.  Of the sections `adce` stopped before, one per FeProofs level and
+  one of the 265's three now stop at a later `gvn_rewrite`.  Before the merge (eight kinds and
+  `adce`) the verdicts end to end were those of the eight kinds (`-O1` 32, `-Os` 32, the 265
+  494): every section with an `adce` step stopped earlier at `scalar_canonicalize`.
+
 ## The top theorem: what it covers (review 20, M-3)
 
 `machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
