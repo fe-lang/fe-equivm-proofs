@@ -6,6 +6,7 @@ Fe.Sonatina.Steps.Schemas.knownBitsSimplify_stepSound: [Classical.choice, Quot.s
 Fe.Sonatina.Steps.Schemas.scalarCanonicalize_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.sccpFold_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.StepKind.proved_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Steps.adce_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.branchCanon_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.branchConditions_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.cfgCleanup_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
