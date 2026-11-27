@@ -21,6 +21,7 @@ namespace Fe.Sonatina.Steps.Schemas.GvnTests
 open Fe.Sonatina.Steps.Schemas.StepTests
 
 def GVN (t : OneStep) : Bool := checkGvnRewrite t.1 t.2.1 t.2.2.1 t.2.2.2
+def SCS (t : OneStep) : Bool := checkScalarCanonicalize t.1 t.2.1 t.2.2.1 t.2.2.2
 def why (t : OneStep) : Option String := diagnoseGvnRewrite t.1 t.2.1 t.2.2.1 t.2.2.2
 
 schema_step gvn_bad_clz "Fe/Sonatina/Steps/GvnTests/gvn_bad_clz.json"
@@ -48,6 +49,12 @@ schema_step gvn_key "Fe/Sonatina/Steps/GvnTests/gvn_key.json"
 schema_step gvn_nested "Fe/Sonatina/Steps/GvnTests/gvn_nested.json"
 schema_step gvn_odd_power "Fe/Sonatina/Steps/GvnTests/gvn_odd_power.json"
 schema_step gvn_phi "Fe/Sonatina/Steps/GvnTests/gvn_phi.json"
+schema_step gvn_sym "Fe/Sonatina/Steps/GvnTests/gvn_sym.json"
+schema_step gvn_bad_sym_other "Fe/Sonatina/Steps/GvnTests/gvn_bad_sym_other.json"
+schema_step gvn_bad_sym_size "Fe/Sonatina/Steps/GvnTests/gvn_bad_sym_size.json"
+schema_step gvn_permute "Fe/Sonatina/Steps/GvnTests/gvn_permute.json"
+schema_step sc_sym_dead "Fe/Sonatina/Steps/GvnTests/sc_sym_dead.json"
+schema_step kb_bad_sym_dead "Fe/Sonatina/Steps/GvnTests/kb_bad_sym_dead.json"
 
 example : GVN gvn_bad_clz = false := by decide +kernel
 example : GVN gvn_bad_dead = false := by decide +kernel
@@ -74,5 +81,15 @@ example : GVN gvn_key = true := by decide +kernel
 example : GVN gvn_nested = true := by decide +kernel
 example : GVN gvn_odd_power = true := by decide +kernel
 example : GVN gvn_phi = true := by decide +kernel
+
+/-! Symbol instructions: two `sym_addr` of one symbol merged (hand-written, and `permute` of
+`EcrecoverPrecompile`, corpus v6), not of two symbols or `sym_addr` with `sym_size`; a dead
+`sym_addr` deleted by `scalar_canonicalize`, not by `known_bits_simplify`. -/
+example : GVN gvn_sym = true := by decide +kernel
+example : GVN gvn_bad_sym_other = false := by decide +kernel
+example : GVN gvn_bad_sym_size = false := by decide +kernel
+example : GVN gvn_permute = true := by decide +kernel
+example : SCS sc_sym_dead = true := by decide +kernel
+example : KBS kb_bad_sym_dead = false := by decide +kernel
 
 end Fe.Sonatina.Steps.Schemas.GvnTests

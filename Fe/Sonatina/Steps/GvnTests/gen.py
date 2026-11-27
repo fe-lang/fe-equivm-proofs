@@ -114,6 +114,21 @@ def hand():
     pr2_in = copy.deepcopy(pr_in); pr2_in["text"] = pr2_in["text"].replace("br v2 block1 block2", "br v2 block2 block1")
     pr2_out = copy.deepcopy(pr_out); pr2_out["text"] = pr2_out["text"].replace("br v2 block1 block2", "br v2 block2 block1")
     write("gvn_bad_pred_polarity.json", one(pr2_in, pr2_out, facts(gvn(cls=[(4, V(3))], preds=[(0, 1, V(0), V(1))]))))
+    # Two `sym_addr` of one symbol merged (as `EcrecoverPrecompile`'s `permute`), the second deleted.
+    sy_in = snap(P2, R, [(0, [(0, "v2.i256 = sym_addr $g"), (1, "v3.i256 = sym_addr $g"), (2, "v4.i256 = add v2 v3"),
+                              (3, "return v4")])])
+    sy_out = snap(P2, R, [(0, [(0, "v2.i256 = sym_addr $g"), (2, "v4.i256 = add v2 v2"), (3, "return v4")])])
+    write("gvn_sym.json", one(sy_in, sy_out, facts(gvn(cls=[(3, V(2))]))))
+    # Rejected: of another symbol, or `sym_size` of the symbol.
+    for tag, line in [("other", "v3.i256 = sym_addr $h"), ("size", "v3.i256 = sym_size $g")]:
+        bad = copy.deepcopy(sy_in); bad["text"] = bad["text"].replace("v3.i256 = sym_addr $g", line)
+        write(f"gvn_bad_sym_{tag}.json", one(bad, sy_out, facts(gvn(cls=[(3, V(2))]))))
+    # A dead `sym_addr` deleted by `scalar_canonicalize`; rejected by `known_bits_simplify`.
+    dd_in = snap(P2, R, [(0, [(0, "v2.i256 = sym_addr $g"), (1, "return v0")])])
+    dd_out = snap(P2, R, [(0, [(1, "return v0")])])
+    nof = {"gvn": None, "known_bits": [], "demanded_bits": None, "sccp": None, "finite_loops": [], "ranges": None}
+    write("sc_sym_dead.json", one(dd_in, dd_out, nof, kind="scalar_canonicalize"))
+    write("kb_bad_sym_dead.json", one(dd_in, dd_out, nof, kind="known_bits_simplify"))
     # Rejected: a rewrite step with dead edges.
     write("gvn_bad_dead.json", one(inp, out, facts(gvn(cls=[(3, V(2))], dead=[(0, 0)]))))
     # Nested value phis (gvn.rs `gvn_rewrite_lists_nested_value_phis_with_their_terms`).

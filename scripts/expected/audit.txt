@@ -1,5 +1,6 @@
 Fe.Sonatina.Check.checkSpills_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.check_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Steps.Schemas.gvnPrune_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.gvnRewrite_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.kb_point: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.kb_reaches: [Classical.choice, Quot.sound, propext] + 0 native_decide

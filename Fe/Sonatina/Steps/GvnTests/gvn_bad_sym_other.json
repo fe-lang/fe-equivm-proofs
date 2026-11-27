@@ -1,0 +1,66 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = sym_addr $g;\n        v3.i256 = sym_addr $h;\n        v4.i256 = add v2 v3;\n        return v4;\n}\n",
+   "insts": [
+    [
+     0,
+     1,
+     2,
+     3
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "gvn",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "gvn_rewrite",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = sym_addr $g;\n        v4.i256 = add v2 v2;\n        return v4;\n}\n",
+        "insts": [
+         [
+          0,
+          2,
+          3
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": {
+         "dead_edges": [],
+         "class": [
+          [
+           3,
+           {
+            "value": 2
+           }
+          ]
+         ],
+         "preds": [],
+         "phis": [],
+         "value_phis": []
+        },
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

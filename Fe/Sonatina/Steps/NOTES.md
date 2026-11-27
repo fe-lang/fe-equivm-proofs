@@ -35,7 +35,11 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `GvnInv.lean` | `GInv`, `PInv`, `before_domAt`, `gRoot_ok`, `gTerm_ok`, `repTerm_ok`, `ginv_stmt`, `ginv_enter`, `ginv_root`, `pinv_stmt`, `pinv_enter`, `pinv_root`, `substPhis_eval`, `entryGvn_sound` |
 | `GvnInsert.lean` | `insPhis_wf`, `approx_enter_ins`, `insPhis_sound` |
 | `GvnRewriteSound.lean` | `gvnRewrite_sound`, `gvnRewrite_stepSound` |
-| `GvnTests.lean`, `GvnTests/` | `gvn_rewrite` records (four real, three hand-written) and eighteen mutants |
+| `GvnTests.lean`, `GvnTests/` | `gvn_rewrite` records (five real, four hand-written) and twenty mutants; symbol instructions in `scalar_canonicalize` and `known_bits_simplify` |
+| `GvnPrune.lean` | `pruneTerm`, `keepIn`, `pruneBlock`, `pruneFunc`, `pruneShapeOk`, `predOk`, `inSlots`, `UPred`, `usePred`, `gTermAt`, `pairOkP`, `clsOkP`, `keepValidP`, `deadOk`, `prunePrep`, `gvnPruneReject`, `checkGvnPrune` |
+| `GvnPruneInv.lean` | `PredInv`, `SlotSem`, `runTerm_sem`, `predOk_sound`, `above_opAt`, `gTermAt_ok`, `pairOkP_phi`, `ginv_enterP`, `predInv_stmt`, `predInv_enter`, `EdgeOk`, `PSpec`, `PPt`, `PS`, `ps_stmt`, `ps_take`, `ps_enter`, `ps_live`, `ps_term`, `ps_step`, `ps_reaches` |
+| `GvnPruneSound.lean` | `pruneFunc_block?`, `pruneTerm_succ`, `enterOpt_prune`, `pruneFunc_wf`, `prune_term`, `prune_exec`, `ps_entry`, `prune_sound`, `gvnPruneReject_spec`, `gvnPrune_sound`, `gvnPrune_stepSound` |
+| `GvnPruneTests.lean`, `GvnPruneTests/` | `gvn_prune` records (four real, three hand-written) and twenty-two mutants |
 | `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
@@ -92,8 +96,10 @@ and C0 (`runFunc_approx`) carry `EnvInt` through the run.
 
 `ModRefines syms` and `StepSound` also take the section's symbol names: only contexts that give
 each of them a place (`Ctx.Has syms`, review C-6 and review 6 F-5), which `runSection_approx`
-discharges from `code.symbols` (`lookup_has`).  No proof of this phase needs `Ctx.Has`; a
-deleting kind (a dead `sym_addr`) will.  `StepSound` is a plain `∀ … → …` statement, so the
+discharges from `code.symbols` (`lookup_has`).  `StepSound.of_func_has` passes `c.Has syms` on
+to a kind's per-function lemma (`StepSound.of_func` is its corollary): `gvn_rewrite` and
+`scalar_canonicalize` use it, as they may delete a symbol instruction, which runs only where the
+context has the symbol.  `StepSound` is a plain `∀ … → …` statement, so the
 summary-table hypothesis (`SummariesOk`, review 6 F-5) is one more premise beside `c.Has syms`.
 
 ## The definedness invariant
@@ -132,7 +138,7 @@ of `PointInv`.
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
    `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`,
-   `scalar_canonicalize`, `adce` and `gvn_rewrite`** (phase 2; all eleven are proved and in
+   `scalar_canonicalize`, `adce`, `gvn_rewrite` and `gvn_prune`** (phase 2; all twelve are proved and in
    `StepKind.proved`, the kinds `validate` accepts and `machine_sound_proved` covers;
    `known_bits_simplify`'s demand rounds are switched off, `SchemasStep.lean`,
    `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is
@@ -646,8 +652,8 @@ through phis); an inserted phi 24, 4, 25 / 28, 4, 29, each phi's operands its te
 by unfolding (no nested inserted phi occurs).  Class pairs the checker validates: same key
 53, 21, 63 / 49, 21, 59; congruent phis 0, 0, 5; one pair (a phi equal to `0` through a
 predicate) dropped.  No replacement is a `ValuePhi::Value` one (below), none merges a call, a
-load or `clz`.  The one rejected step per level (`EcrecoverPrecompile`'s `permute`) merges two
-`sym_addr` of one symbol and deletes one: `sym_addr` is not pure in L2 and not deletable here.
+load or `clz`.  One step per level (`EcrecoverPrecompile`'s `permute`) merges two `sym_addr` of
+one symbol and deletes one; accepted since the symbol pairs below.
 
 The checker (`checkGvnRewrite`, `GvnRewrite.lean`): the output's leading phis whose ids the input
 has not are the inserted ones; the input with them prepended to their blocks (`insPhis`, its ids
@@ -717,19 +723,111 @@ polarity, dead edges in a rewrite, an inserted phi with a wrong operand, a wrong
 recorded in another block, after an input phi; on the real records, a wrong inserted-phi operand,
 a wrong term, the other inserted phi used, a representative of another class used.
 
-**`gvn_prune`: not done.**  Its four steps (the 265: `erc4337` EntryPoint,
+**Symbol instructions.**  A class pair may be two symbol instructions alike (`symPair`: `v`'s and
+`r`'s statements one `sym_addr s`, `sym_size s` or `get_function_ptr g`), beside `pairOk`'s
+pairs, in `clsOk` and `keepValid`; and in the modes `gvn` and `scalar` (`Mode.symDel`) a deleted
+line may be a symbol instruction with one result (`deletableIn`).  Proof: the input's run keeps
+every bound result of a symbol instruction at the context's value (`SymInv`, a field of `InPt` and
+a conjunct of `RS`, which take the context; `symInv_stmt`, `symInv_enter`, `symInv_params`), so the
+two results of a pair are equal where the later is bound (`ginv_stmt_of`'s second case).  A deleted
+symbol instruction runs on the input alone, which needs the symbol in the context: `f.wf` puts it
+among `syms` (`Inst.wf`), and `c.Has syms` gives it a value (`runStmtO_sym`), so `SF.del_fol`,
+`SF.sound` and `aliasReject_sound` take `m.symDel = true → c.Has syms` (the other modes pass
+`fun h => by cases h`), and `gvnRewrite_sound` and `scalarCanonicalize_sound` take `c.Has syms`,
+which their `…_stepSound` get from `StepSound.of_func_has`.  Tests: `gvn_sym`, `gvn_permute` (the
+real step); mutants of another symbol and of `sym_size`; a dead `sym_addr` deleted by
+`scalar_canonicalize` (`sc_sym_dead`), and rejected in `known_bits_simplify` (`kb_bad_sym_dead`).
+`adce` does not delete symbol instructions (`removable`); the same change there would be a case of
+`Inst.deadRes` and `total_dead` (`AdceSound.lean`), whose lemmas take no context with the symbols;
+not done (0 occur).
+
+## `gvn_prune` (design §4.8)
+
+What Sonatina does (`optim/gvn.rs` at `e39b70c4d`, `remove_unreachable_edges`, recorded as
+`gvn_prune` with the solver's facts of the unpruned function, `export(…, pruned = false)`):
+- edges: a `br`'s two slots carry `cond = 1` (nonzero slot, only if known bits make `cond`
+  boolean, `branch_resolved_cond`) and `cond = 0`, and `extract_edge_predicate`'s predicate
+  (`eq`/`ne`/`is_zero` forms, `not` peeled only on `i1`); a `br_table` case slot carries
+  `scrutinee = key`; the exported `preds` are these, per `(block, slot)`.  A slot is dead when the
+  solver never marks it reachable (`analyze_last_insn`, `infer_edge_reachability`: the condition's
+  leader, followed up the dominating edges' predicates, `infer_value_at_block`, is the edge's
+  resolved value);
+- `retain_out_edges` on each solver-reachable block with a dead slot (`retain_edges`: a `br` with
+  one slot left becomes a `jump`, a `br_table` loses its slots, a lone one becomes a `jump`), then
+  `remove_phi_incoming_from` on each target no slot of the block reaches any more and
+  `simplify_trivial_phis_in_block` (a phi whose operands other than itself are one value is
+  replaced by it, `change_to_alias`); then `delete_blocks_unreachable` on the blocks the CFG no
+  longer reaches, which drops their operands from their successors' phis and again simplifies
+  the phis left trivial.
+
+The four steps of the corpora (the 265 only, v5 and v6 alike: `erc4337` EntryPoint,
 `lane_holds_before_halts` C, the Blob of `storage_bytes_encode_return` and of
-`storage_bytes_to_memory`) remove the slots GVN proved dead (`br → jump`, phis' operands from
-removed edges, the blocks left unreachable, trivial phis): every one rests on an edge predicate.  EntryPoint and Blob: the branch condition
-has, through a class (same key; in Blob through congruent phis), the value of a dominating
-branch's condition on its taken edge (`cond = resolved`, a `br` on a boolean); C: a phi whose
-operand from a predecessor is, through a class, the case value of the `br_table` edge into that
-predecessor, so the phi is the constant `0`, and `br` on it has a dead slot.  A checker needs the
-predicates as an invariant (an edge's predicate holds where its target dominates, the target has
-it as its only non-dead in-edge, and the target does not dominate the edge's source), proved
-jointly with the run taking no dead edge (as SCCP's `execClosed`), and classes justified at a
-predecessor's end through those predicates; then a simulation of the CFG change.  Plan in the
-scratch hand-off (`provable-pipeline/gvn/HANDOFF.md`).
+`storage_bytes_to_memory`): six dead slots, all of a `br`, each justified by a predicate of a
+dominating branch reached through a class (EntryPoint, Blob: `cond = 1` or `cond = 0` of a
+boolean `lt`/`gt` on a same-key condition, in Blob through congruent phis) or by a phi equal to `0`
+(C: its operand from a predecessor is, through a class of congruent phis, the scrutinee of the
+`br_table` case slot into that predecessor, whose key is `0`).
+
+The checker (`checkGvnPrune`, `GvnPrune.lean`) splits the step at `f₁ = pruneFunc f dead`: the
+input with each dead slot removed (`pruneTerm`: a `br` with one dead slot becomes a `jump` to the
+other) and each phi operand dropped whose predecessor went to the phi's block and no longer does
+(`keepIn`), nothing else changed.
+1. On the input: strict SSA under a valid tree, known bits a post-fixpoint, no facts but known bits
+   and GVN's dead edges, classes and predicates (no inserted phis, no value phis); the executable
+   set `E` (`execSet` over the slots not claimed dead) closed (`execClosed`); every dead slot one
+   of a `br`, not both of one (`pruneShapeOk`; a dead slot of a `jump` or `br_table` is rejected,
+   none occurs); the predicates validated (`usePred`): `predOk` against the source's terminator
+   (`br c` slot 0: `c = 1` with `c`'s known bits zero above bit 0; slot 1: `c = 0`; a `br_table`
+   case slot: the scrutinee equal to the case's key; no `eq`/`ne`/`is_zero` form and no peeling),
+   both sides well formed and defined strictly above the target `T` (`above`), and `(P, k)` the
+   one slot into `T` from an executable block not claimed dead (`inSlots`); the record's other
+   predicates dropped; the classes, those a check fails dropped to a fixpoint (`keepValidP`), then
+   checked (`clsOkP`): a statement's pair `pairOk`'s, a phi's from each executable edge `q → B`
+   with its operand's term at `q`'s end equal to `r`'s (`gTermAt`: through the representative,
+   then a usable predicate whose target dominates `q` replaces it by the other side's term); each
+   dead slot of an executable block a slot its `br` does not take: the condition's `gTermAt` at
+   the block's end is a literal selecting the other slot (`deadOk`).
+2. `f₁`'s control flow (`cfgOk`), and `checkCfgCleanup none f₁ ids s`: the cleanup check with no
+   summary table, which deletes the blocks `f₁` does not reach and checks the trivial phis' `σ`.
+
+Proof (`GvnPruneInv.lean`, `GvnPruneSound.lean`; `gvnPrune_stepSound` by `StepSound.of_func`, no
+hypothesis beyond it): `gvnPrune_sound` composes `cfgCleanup_sound` (with `NoRetHolds none`, true
+of any oracle, and `pruneFunc_wf`) and `prune_sound`.  `prune_sound`: the run of `f` keeps, at
+every block state it reaches (`PS`, `ps_step`, `ps_reaches`), definedness, L2, the known bits, the
+block executable, entered over a slot not claimed dead whose predicates held at the predecessor's
+end (`EdgeOk`), and at every point (`PPt`) the classes (`GInv`) and the usable predicates
+(`PredInv`: each holds where its target dominates).  The terminator goes by the slot its
+semantics selects (`runTerm_sem`, `SlotSem`), which is not dead (`ps_live`: `deadOk`'s literal is
+the condition's value, `gTermAt_ok`), so the run stays in `E`; entering the target of a usable
+predicate, its slot is the one the run took (`mem_inSlots`), so it holds there (`predOk_sound`),
+and it stays: its sides are defined strictly above the target, so no statement and no phi inside
+the target's region rebinds them (`above_opAt`, `above_not_phi`), and every edge into a block the
+target strictly dominates comes from one it dominates (`DomTree.anc_of_edge`).  A phi's pair is
+established from the predecessor's end through the predicates there (`ginv_enterP`).  On those
+facts the pruned function's block runs as the input's, world for world (`prune_exec`): the phis
+read the operand the prune kept (`enterOpt_prune`), the statements are the same, and a `br` turned
+into a `jump` goes where the input's goes (`prune_term`); `Sim.of_steps` with the relation
+"same state, `PS`" gives the approximation.
+
+Tests (`GvnPruneTests.lean`, `GvnPruneTests/gen.py`; `decide +kernel`, 44 s): accepted, the four
+real steps by the check alone and three hand-written by `validateWith` and the check (a `br` on a
+boolean whose class is a dominating branch's condition, the same leaving a phi trivial, a phi equal
+to `0` through a `br_table` case predicate); rejected: the predicates' polarity swapped, no class,
+no predicate, `c = 1` of a word condition, the same with known bits claiming it boolean, the slot
+taken claimed dead, the output jumping to the dead target, a predicate used where its target does
+not dominate, a target with a second live slot into it, GVN's old `not` peel on a word, a predicate
+of the condition that does not decide the branch, a phi operand dropped from a live edge and the
+removed edge's operand kept (both by the output's `wf`, the check alone accepting them soundly), a
+case predicate of the wrong key, a phi not constant, a predicate of the default slot, a dead slot
+of a `br_table`, both slots of a `br`; the real C and Blob with their predicates or classes
+removed.
+
+Measured (`fe-correctness-scratch/provable-pipeline/gvn2/measure`, `scripts/MachineSteps.lean`,
+twelve proved kinds, `chain-gvn2` `4d4b40e`): `validate` accepts every section, v5 and v6 alike:
+FeProofs `-O0` 40/40, `-O1` 40/40, `-Os` 40/40, the 265 530/530 (with eleven kinds: 40, 39, 39,
+525).  Every function step of every kind is accepted; `gvn_prune` 4/4 and `gvn_rewrite` 16/16,
+10/10, 23/23 (v5 and v6).  With `gvn_prune` alone added (`c9b344e`, v6), the 265 rose to 529/530,
+the one left being `permute`'s `sym_addr` merge.
 
 ## Review 6 (phase 1) findings taken up in phase 2
 
