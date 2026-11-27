@@ -92,6 +92,10 @@ def stepWhy (k : StepKind) (syms : List String) (O : Option (List Summary)) (M :
     | some f => if !fs.out.wf M.sig syms then "output not well formed" else
         (Schemas.diagnoseGvnPrune f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
     | none => "no such function"
+  else if k == .sccpPrune then match M.func? fs.func with
+    | some f => if !fs.out.wf M.sig syms then "output not well formed" else
+        (Schemas.diagnoseSccpPrune f (I.lookup fs.func) fs.out fs.facts).getD "check rejects"
+    | none => "no such function"
   else if k == .sccpFold || k == .knownBitsSimplify || k == .scalarCanonicalize then
     match M.func? fs.func with
     | some f => ((if k == .sccpFold then Schemas.diagnoseSccpFold

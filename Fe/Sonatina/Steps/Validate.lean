@@ -7,6 +7,7 @@ import Fe.Sonatina.Steps.Record
 import Fe.Sonatina.Steps.SchemasStep
 import Fe.Sonatina.Steps.GvnRewrite
 import Fe.Sonatina.Steps.GvnPrune
+import Fe.Sonatina.Steps.SccpPrune
 
 /-!
 # Validating a record of machine steps
@@ -60,7 +61,7 @@ abbrev IdTab := List (String × List (List Nat))
 
 /-- The check of one function by a step kind, given the pass's summary table, the input
     function, its instruction ids, the output snapshot, and the step's facts on the function.
-    A kind that reads no facts rejects a step with any; kinds without a checker reject. -/
+    A kind that reads no facts rejects a step with any. -/
 def checkFunc : StepKind → Option (List Summary) → Func → Option (List (List Nat)) → FuncSnap →
     Schemas.StepFacts → Bool
   | .edgeSplit, _, f, _, s, F => noFacts F && checkEdgeSplit f s.func
@@ -71,11 +72,11 @@ def checkFunc : StepKind → Option (List Summary) → Func → Option (List (Li
   | .lowerSwitches, _, f, ids, s, F => noFacts F && checkLowerSwitches f ids s
   | .knownBitsSimplify, _, f, ids, s, F => Schemas.checkKnownBitsSimplify f ids s F
   | .sccpFold, _, f, ids, s, F => Schemas.checkSccpFold f ids s F
+  | .sccpPrune, _, f, ids, s, F => Schemas.checkSccpPrune f ids s F
   | .scalarCanonicalize, _, f, ids, s, F => Schemas.checkScalarCanonicalize f ids s F
   | .adce, _, f, ids, s, F => checkAdce f ids s F
   | .gvnRewrite, _, f, ids, s, F => Schemas.checkGvnRewrite f ids s F
   | .gvnPrune, _, f, ids, s, F => Schemas.checkGvnPrune f ids s F
-  | _, _, _, _, _, _ => false
 
 /-- `g` has the parameters and results of `f`. -/
 def sameSig (f g : Func) : Bool := decide (g.params = f.params) && decide (g.rets = f.rets)
@@ -286,11 +287,12 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     | none => false
 
 /-- The step kinds with a `StepSound` proof (`StepKind.proved_sound`), the only kinds `validate`
-    accepts: every kind `checkFunc` has a checker for (`known_bits_simplify` with its demand
-    rounds switched off, `demandRounds`). -/
+    accepts: every kind (`StepKind.all`), `known_bits_simplify` with its demand rounds switched
+    off (`demandRounds`). -/
 def StepKind.proved : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
-    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize, .adce, .gvnRewrite, .gvnPrune]
+    .knownBitsSimplify, .lowerSwitches, .scalarCanonicalize, .adce, .gvnRewrite, .gvnPrune,
+    .sccpPrune]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=
