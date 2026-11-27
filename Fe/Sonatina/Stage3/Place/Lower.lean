@@ -189,8 +189,8 @@ def castKeep (op : CastOp) (ta ty : Ty) : Option Nat :=
 /-- Match one source statement against the machine statements `ms` of machine block `mb`.
     Its typing conditions are those under which H's step is defined on values of the declared
     types. -/
-def stmt (c : FCtx) (chk : Bool) (vm : VM) (s : HStmt) (mb : Nat) (ms : List Stmt) :
-    Option Step := do
+def stmt (c : FCtx) (chk : Bool) (vm : VM) (s : HStmt) (mb : Nat) (ms : List Stmt)
+    (callee? : Option Nat) : Option Step := do
   let ty := c.tyOf
   let one (x : Nat) (_tx : Ty) (inst : Inst) (ok : Bool) : Option Step := do
     unless ok do none
@@ -355,7 +355,8 @@ def stmt (c : FCtx) (chk : Bool) (vm : VM) (s : HStmt) (mb : Nat) (ms : List Stm
       some (vm, mb, ms, [b0] ++ dc ++ ds ++ [nf])
     | _ => none
   | .base (.call g args), dsts => do
-    let callee ← c.src.func? g
+    let callee ← c.src.funcs[← callee?]?
+    unless callee.name == g do none
     let tas ← args.mapM ty
     unless tas.length == callee.params.length &&
         (tas.zip callee.params).all (fun (t, p) => sameW t p.2) &&
@@ -371,11 +372,12 @@ def stmt (c : FCtx) (chk : Bool) (vm : VM) (s : HStmt) (mb : Nat) (ms : List Stm
     map, the machine block the region ends in with its statements left (the terminator's
     expansion), and the machine values each statement defined. -/
 def walk (c : FCtx) (chk : Bool) :
-    VM → List HStmt → Nat → List Stmt → Option (VM × Nat × List Stmt × List (List Nat))
-  | vm, [], mb, ms => some (vm, mb, ms, [])
-  | vm, s :: rest, mb, ms => do
-    let (vm, mb, ms, ds) ← stmt c chk vm s mb ms
-    let (vm, tb, ms, dss) ← walk c chk vm rest mb ms
+    VM → List HStmt → Nat → List Stmt → List Nat → Option (VM × Nat × List Stmt × List (List Nat))
+  | vm, [], mb, ms, _ => some (vm, mb, ms, [])
+  | vm, s :: rest, mb, ms, cs => do
+    let (callee?, cs) := if s.inst matches .base (.call ..) then (cs.head?, cs.tail) else (none, cs)
+    let (vm, mb, ms, ds) ← stmt c chk vm s mb ms callee?
+    let (vm, tb, ms, dss) ← walk c chk vm rest mb ms cs
     some (vm, tb, ms, ds :: dss)
 
 /-- The machine terminator lowering makes of a source one (`lower_inst_active`): targets mapped
@@ -427,8 +429,23 @@ def termOk (c : FCtx) (vm : VM) (rets : List Ty) (t : HTerm) (ms : List Stmt) (m
       some ()).isSome
   | .base t => ms.isEmpty && mapTerm c vm rets t == some mt
 
+/-- The list without repeats, its first occurrences kept last to first (structural, so that the
+    kernel evaluates it; `List.eraseDups` is not). -/
+def _root_.List.dedupB {α : Type} [BEq α] : List α → List α
+  | [] => []
+  | x :: xs => let r := xs.dedupB; if r.contains x then r else x :: r
+
+/-- `x` inserted in the ascending list, once. -/
+def sortedInsert (x : Nat) : List Nat → List Nat
+  | [] => [x]
+  | y :: ys => if x < y then x :: y :: ys else if x == y then y :: ys else y :: sortedInsert x ys
+
+/-- A set of naturals, ascending and without repeats (`Plan.normSet` sorts by `mergeSort`,
+    which the kernel does not evaluate). -/
+def nset (l : List Nat) : List Nat := l.foldr sortedInsert []
+
 /-- The list has no repeated element. -/
-def nodupB (l : List Nat) : Bool := l.eraseDups.length == l.length
+def nodupB (l : List Nat) : Bool := l.dedupB.length == l.length
 
 /-- The machine block's phis are the source block's, in order: each defines its source phi's
     machine value, as a word, and takes, from the block the region of each source predecessor
@@ -442,13 +459,13 @@ def phisOk (c : FCtx) (vm : VM) (tb : NatMap Nat) (ps mps : List Phi) : Bool :=
 
 /-- The region of source block `b`: its machine start block, the walk of its statements, and its
     terminator; the machine block it ends in, and the machine values each statement defined. -/
-def blockLower (c : FCtx) (chk : Bool) (vm : VM) (rets : List Ty) (b : HBlock) :
+def blockLower (c : FCtx) (chk : Bool) (vm : VM) (rets : List Ty) (b : HBlock) (cs : List Nat) :
     Option (VM × Nat × List (List Nat)) := do
   let mb ← c.bm.find? b.id
   let mblk ← c.mf.block? mb
   let vm ← if chk then some vm else
     some ((b.phis.zip mblk.phis).foldl (fun vm (p, mp) => vm.insert p.dst (.var mp.dst)) vm)
-  let (vm, tbk, ms, dss) ← walk c chk vm b.body mb mblk.body
+  let (vm, tbk, ms, dss) ← walk c chk vm b.body mb mblk.body cs
   let tblk ← c.mf.block? tbk
   unless termOk c vm rets b.term ms tblk.term do none
   some (vm, tbk, dss)
@@ -469,13 +486,13 @@ def paramVm (f : HFunc) (mf : Func) : VM :=
 
 /-- Infer the value map: walk the blocks not yet walked in rounds, until none is left or a round
     walks none (untrusted: the result is checked by `funcLowerOk`). -/
-def inferVm (c : FCtx) (f : HFunc) : Nat → VM → List HBlock → VM
+def inferVm (c : FCtx) (f : HFunc) : Nat → VM → List (HBlock × List Nat) → VM
   | 0, vm, _ => vm
   | n + 1, vm, pending =>
-    let (vm, left) := pending.foldl (fun (vm, left) b =>
-      match blockLower c false vm f.rets b with
+    let (vm, left) := pending.foldl (fun (vm, left) (b, cs) =>
+      match blockLower c false vm f.rets b cs with
       | some (vm', _, _) => (vm', left)
-      | none => (vm, left ++ [b])) (vm, [])
+      | none => (vm, left ++ [(b, cs)])) (vm, [])
     if left.isEmpty || left.length == pending.length then vm else inferVm c f n vm left
 
 /-- What the translation check of a function yields: the value map, the block each source
@@ -498,10 +515,13 @@ def funcLower (c : FCtx) (f : HFunc) : Option FuncLower := do
       f.params.all (Ty.value ·.2) && f.rets.length == c.mf.rets.length &&
       c.mf.rets.all (· == w256) && f.rets.all Ty.value && e.phis.isEmpty &&
       (me.id == be || jumpOnly me be) do none
-  let vm := inferVm c f (f.blocks.length + 1) (paramVm f c.mf) f.blocks
+  let bcs := f.blocks.zipIdx.map fun (b, k) => (b, (c.frec.calls[k]?).getD [])
+  let vm := match c.frec.vmCert with
+    | some l => NatMap.ofList l
+    | none => inferVm c f (f.blocks.length + 1) (paramVm f c.mf) bcs
   unless (f.params.zip c.mf.params).all (fun (p, mp) => vm.find? p.1 == some (.var mp.1)) do none
-  let rs ← f.blocks.mapM fun b => do
-    let (_, tbk, dss) ← blockLower c true vm f.rets b
+  let rs ← bcs.mapM fun (b, cs) => do
+    let (_, tbk, dss) ← blockLower c true vm f.rets b cs
     some (b.id, tbk, dss)
   let tb := NatMap.ofList (rs.map fun (b, t, _) => (b, t))
   unless f.blocks.all (fun b => match c.bm.find? b.id >>= c.mf.block? with

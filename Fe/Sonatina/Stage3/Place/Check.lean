@@ -29,6 +29,12 @@ The rules, in the order `diagnose` tries them (PLAN §3):
   value observed.
 - **entry**: the section entry is a source function without parameters.
 
+Before the rules, the record's hints are checked (`hintsOk`): its functions are the source
+module's, in order; each one's machine function is the first of its name in the lowered module;
+each call's callee is the first source function of its name.  After that the check names
+functions by place, never by comparing names again: comparing names is what costs the most when
+the kernel runs the check.
+
 S9 (spill reserves) is not checked: the lowered machine IR has no spills, and
 `place_lower_sound` does not use it (PLAN F1); it belongs to the spilled-sidecar slice, with the
 record's reserve ranges.
@@ -42,29 +48,41 @@ open Fe.Sonatina Fe.Sonatina.H Fe.Sonatina.Steps
     heap mallocs at an exact base, which `place_lower_sound` does not cover yet. -/
 def Stage1 : Bool := true
 
-/-- The record of function `name`, or an empty one. -/
-def Record.frec (r : Record) (name : String) : FuncRec := (r.func? name).getD { name }
+/-- Each function of the section with its place and its record. -/
+def placed (src : HSection) (r : Record) : List (Nat × HFunc × FuncRec) :=
+  src.module.funcs.zipIdx.map fun (f, k) => (k, f, (r.funcs[k]?).getD { name := f.name })
 
-/-- The source statements of a module. -/
-def _root_.Fe.Sonatina.H.HModule.stmts (m : HModule) : List HStmt := m.funcs.flatMap fun f => f.blocks.flatMap (·.body)
+/-- The `k`-th of a list of functions is the first of its name. -/
+def firstOf {α : Type} (name : α → String) (l : List α) (k : Nat) (n : String) : Bool :=
+  match l[k]? with
+  | some x => name x == n && (l.take k).all fun y => name y != n
+  | none => false
+
+/-- The record's hints: its functions are the source module's in order, by name; each one's
+    machine function (`mfunc`) is the first of its name in `low`; each call's callee (`calls`) is
+    the first source function of its name, once per callee place used. -/
+def hintsOk (src : HSection) (low : Module) (r : Record) : Bool :=
+  let fs := src.module.funcs
+  r.funcs.length == fs.length &&
+  (r.funcs.zip fs).all (fun (fr, f) => fr.name == f.name && firstOf (·.name) low.funcs fr.mfunc f.name) &&
+  let used := (r.funcs.flatMap fun fr => fr.calls.flatten).dedupB
+  used.all fun k => match fs[k]? with
+    | some g => firstOf (·.name) fs k g.name
+    | none => false
 
 /-- The section has a heap malloc. -/
-def hasHeap (src : HSection) (r : Record) : Bool :=
-  src.module.funcs.any fun f => (r.frec f.name).mallocs.any fun (x, m) =>
+def hasHeap (P : List (Nat × HFunc × FuncRec)) : Bool :=
+  P.any fun (_, f, fr) => fr.mallocs.any fun (x, m) =>
     (m matches .heap ..) && f.blocks.any fun b => b.body.any (·.defs == [x])
 
-/-- Every `alloca` range of the section. -/
-def allRanges (src : HSection) (r : Record) : List Range :=
-  src.module.funcs.flatMap (ownRanges r src.module.structs r.frec)
-
-/-- Every source `alloca` has a record location and a range; every `evm_malloc` a placement. -/
-def sitesRecorded (src : HSection) (r : Record) : Option String :=
-  src.module.funcs.findSome? fun f =>
-    let fr := r.frec f.name
+/-- Every source `alloca` has a record location and a range; every `evm_malloc` a placement of
+    rule set S. -/
+def sitesRecorded (src : HSection) (r : Record) (P : List (Nat × HFunc × FuncRec)) : Option String :=
+  P.findSome? fun (_, f, fr) =>
+    let R := rangesOf r fr src.module.structs f
     f.blocks.findSome? fun b => b.body.findSome? fun s => match s.inst, s.dsts with
       | .base (.alloca _), [(x, _)] =>
-        if (allocaRange r fr src.module.structs f x).isSome then none
-        else some s!"S2: alloca v{x} of {f.name} has no location"
+        if (R.find? x).isSome then none else some s!"S2: alloca v{x} of {f.name} has no location"
       | .base (.malloc _), [(x, _)] => match fr.mallocs.lookup x with
         | none => some s!"S2: evm_malloc v{x} of {f.name} has no placement"
         | some (.heap _ (some _) _) =>
@@ -75,54 +93,67 @@ def sitesRecorded (src : HSection) (r : Record) : Option String :=
         | some (.fixed _ _) => some s!"S2: fixed malloc v{x} of {f.name} is not terminal"
       | _, _ => none
 
-/-- Rule S1, on the record's frame facts and the entry free pointer. -/
-def ruleS1 (src : HSection) (r : Record) (efp : Option Nat) : Option String :=
-  match src.module.funcs.find? fun f => let fr := r.frec f.name
+/-- Rule S1, on the record's frame facts and the entry free pointer; `rs` are the section's
+    `alloca` ranges. -/
+def ruleS1 (P : List (Nat × HFunc × FuncRec)) (rs : List Range) (efp : Option Nat) : Option String :=
+  match P.find? fun (_, _, fr) =>
       fr.dynFrame || fr.lazyFrame || fr.callPreserves != 0 || fr.dynSpClamp with
-  | some f => some s!"S1: {f.name} has a dynamic or lazy frame, call preserves or a stack clamp"
+  | some (_, f, _) => some s!"S1: {f.name} has a dynamic or lazy frame, call preserves or a stack clamp"
   | none =>
-    if hasHeap src r then
+    if hasHeap P then
       match efp with
       | some e =>
         if e < 0x60 then some "S1: entry free pointer below 0x60"
-        else if (allRanges src r).all (disjoint (0x40, 0x60)) then none
+        else if rs.all (disjoint (0x40, 0x60)) then none
         else some "S1: an alloca range meets the free-pointer slot [0x40, 0x60)"
       | none => some "S1: a heap malloc without an entry free pointer"
     else none
 
 /-- Rule S2's function facts: no free-pointer restore. -/
-def ruleS2 (src : HSection) (r : Record) : Option String :=
-  match src.module.funcs.find? fun f => (r.frec f.name).restoresFp with
-  | some f => some s!"S2: {f.name} restores the free pointer"
-  | none => sitesRecorded src r
+def ruleS2 (src : HSection) (r : Record) (P : List (Nat × HFunc × FuncRec)) : Option String :=
+  match P.find? fun (_, _, fr) => fr.restoresFp with
+  | some (_, f, _) => some s!"S2: {f.name} restores the free pointer"
+  | none => sitesRecorded src r P
 
 /-- Rules S4 and S5. -/
-def ruleS45 (src : HSection) (r : Record) (efp : Option Nat) : Option String :=
-  let rs := allRanges src r
-  let bases := src.module.funcs.flatMap fun f => (r.frec f.name).mallocs.map fun (_, m) => match m with
+def ruleS45 (P : List (Nat × HFunc × FuncRec)) (rs : List Range) (efp : Option Nat) : Option String :=
+  let bases := P.flatMap fun (_, _, fr) => fr.mallocs.map fun (_, m) => match m with
     | .heap b _ _ => b
     | .fixed b _ => b
-  if hasHeap src r && !(rs.all fun x => x.2 ≤ efp.getD 0) then
+  if hasHeap P && !(rs.all fun x => x.2 ≤ efp.getD 0) then
     some "S4: an alloca range ends above the heap floor"
   else if !(efp.all (· < 2 ^ 32) && bases.all (· < 2 ^ 32) && rs.all (·.2 < 2 ^ 32)) then
     some "S5: an address of the record is not below 2^32"
   else none
 
+/-- The live sets of every point of every block of `f`. -/
+def pointsOf (f : HFunc) (L : Live) : NatMap (List (List Nat)) :=
+  f.blocks.foldl (fun M b => M.insert b.id (livePoints f L b)) .empty
+
+def ptsAt (pts : NatMap (List (List Nat))) (b k : Nat) : List Nat :=
+  (((pts.find? b).getD [])[k]?).getD []
+
+/-- The liveness certificate on precomputed points. -/
+def liveOkAt (f : HFunc) (L : Live) (pts : NatMap (List (List Nat))) : Bool :=
+  f.blocks.all (fun b => (ptsAt pts b.id 0).all (liveGet L b.id).contains) &&
+    match f.blocks.head? with
+    | some e => (liveGet L e.id).all fun v => f.params.any (·.1 == v)
+    | none => false
+
 /-- No machine value a source statement defines is the machine value of a source value live
     before or after it, other than the statement's own results; nor a machine phi's of a source
     value live at its block's start other than the block's phis.  (With this the machine
     environment keeps every live value's machine value; PLAN §2.) -/
-def clobberOk (f : HFunc) (L : Live) (fl : FuncLower) : Bool :=
+def clobberOk (f : HFunc) (L : Live) (pts : NatMap (List (List Nat))) (fl : FuncLower) : Bool :=
   let hits (live : List Nat) (own : List Nat) (ms : List Nat) : Bool :=
     live.any fun y => !own.contains y && ms.any fun m => fl.vm.find? y == some (.var m)
   f.blocks.all fun b =>
-    let pts := livePoints f L b
     let dss := (fl.defs.find? b.id).getD []
     !hits (liveGet L b.id) (b.phis.map (·.dst)) (b.phis.filterMap fun p => match fl.vm.find? p.dst with
       | some (.var m) => some m
       | _ => none) &&
     (b.body.zipIdx.zip dss).all fun ((s, k), ds) =>
-      !hits ((pts[k]?).getD [] ++ (pts[k + 1]?).getD []) s.defs ds
+      ds.isEmpty || !hits (ptsAt pts b.id k ++ ptsAt pts b.id (k + 1)) s.defs ds
 
 /-- Rule S3's two uses: no value with origins is the value operand of a store, or returned. -/
 def s3Uses (O : Orig) (f : HFunc) : Bool :=
@@ -134,11 +165,11 @@ def s3Uses (O : Orig) (f : HFunc) : Bool :=
     | .base (.ret vs) => vs.all fun v => (origOf O v).isEmpty
     | _ => true
 
-/-- The blocks reachable from the successors of `b`, by rounds. -/
+/-- The blocks reachable from the blocks `R`, by rounds. -/
 def reachIter (f : HFunc) : Nat → List Nat → List Nat
   | 0, R => R
   | n + 1, R =>
-    let R' := normSet (R ++ R.flatMap fun b => ((f.block? b).map (·.term.succs)).getD [])
+    let R' := nset (R ++ R.flatMap fun b => ((f.block? b).map (·.term.succs)).getD [])
     if R'.length == R.length then R else reachIter f n R'
 
 /-- The values whose address is derived only from fixed buffer `t`: its result, and `gep`s,
@@ -158,13 +189,13 @@ def mustStep (M : List Nat) (s : HStmt) : Bool :=
 def mustIter (f : HFunc) : Nat → List Nat → List Nat
   | 0, M => M
   | n + 1, M =>
-    let M' := normSet (M ++ f.blocks.flatMap fun b => b.body.flatMap fun s =>
+    let M' := nset (M ++ f.blocks.flatMap fun b => b.body.flatMap fun s =>
       if mustStep M s then s.defs else [])
     if M'.length == M.length then M else mustIter f n M'
 
 /-- Rule S6 for terminal fixed buffer `t` at statement `k` of block `b` of `f`. -/
 def s6Site (O : Orig) (f : HFunc) (b : HBlock) (k t : Nat) : Bool :=
-  let R := reachIter f (f.blocks.length + 1) (normSet b.term.succs)
+  let R := reachIter f (f.blocks.length + 1) (nset b.term.succs)
   let M := mustIter f (f.blocks.length + 1) [t]
   let inM := fun (a : Operand) => match a with
     | .var y => M.contains y
@@ -202,100 +233,159 @@ def ruleS6 (O : Orig) (fr : FuncRec) (f : HFunc) : Bool :=
     other value live after it are ranges disjoint from its own; at a call, those of every value
     live after it other than its results, and of every argument, are disjoint from the callee's
     footprint.  A fixed buffer's origin conflicts with everything. -/
-def ruleS7 (prec : Record) (structs : List (String × List Ty)) (fr : FuncRec) (P : FP) (O : Orig)
-    (L : Live) (f : HFunc) : Bool :=
-  let range := allocaRange prec fr structs f
+def ruleS7 (R : NatMap Range) (fr : FuncRec) (P : FP) (O : Orig) (pts : NatMap (List (List Nat)))
+    (f : HFunc) : Bool :=
   let ok (y : Nat) (good : Range → Bool) : Bool :=
-    (origOf O (.var y)).all fun o => o == 0 || (range (o - 1)).any good
-  f.blocks.all fun b =>
-    let pts := livePoints f L b
-    b.body.zipIdx.all fun (s, k) => match s.inst, s.dsts with
-      | .base (.alloca _), [(x, _)] => match range x with
-        | some r => r.1 == r.2 || ((pts[k + 1]?).getD []).all fun y => y == x || ok y (disjoint r)
+    (origOf O (.var y)).all fun o => o == 0 || (R.find? (o - 1)).any good
+  (f.blocks.zip (withCallees fr f)).all fun (b, ss) =>
+    (ss.zipIdx).all fun ((s, c), k) => match s.inst, s.dsts with
+      | .base (.alloca _), [(x, _)] => match R.find? x with
+        | some r => r.1 == r.2 || (ptsAt pts b.id (k + 1)).all fun y => y == x || ok y (disjoint r)
         | none => false
-      | .base (.call g args), _ =>
-        (((pts[k + 1]?).getD []).filter (!s.defs.contains ·) ++ varsOf args).all fun y =>
-          ok y fun r => (fpOf P g).all (disjoint r)
+      | .base (.call _ args), _ => match c with
+        | some g => ((ptsAt pts b.id (k + 1)).filter (!s.defs.contains ·) ++ varsOf args).all fun y =>
+            ok y fun r => (fpOf P g).all (disjoint r)
+        | none => false
       | _, _ => true
 
-/-- Some `alloca` or fixed buffer of the section is at address 0 (rule S8 applies). -/
-def zeroMode (src : HSection) (r : Record) : Bool :=
-  (allRanges src r).any (·.1 == 0) ||
-    src.module.funcs.any fun f => (r.frec f.name).mallocs.any fun (_, m) => m matches .fixed 0 _
-
-/-- The analyses of a section, computed once. -/
+/-- The analyses of a section, computed once (untrusted: `diagnose` checks each). -/
 structure Facts where
+  ranges : NatMap (NatMap Range)
   flags : Flags
-  orig : List (String × Orig)
+  orig : NatMap Orig
   fp : FP
   derived : Derived
 
-/-- Compute the analyses (untrusted: `diagnose` checks each). -/
-def facts (src : HSection) (r : Record) : Facts :=
-  let fs := src.module.funcs
-  let n := fs.length + 2
-  let origAll (F : Flags) : List (String × Orig) := fs.map fun f =>
-    (f.name, origIter (r.frec f.name) F f (f.blocks.length + 2) .empty)
+def Facts.rangesAt (X : Facts) (k : Nat) : NatMap Range := (X.ranges.find? k).getD .empty
+def Facts.origAt (X : Facts) (k : Nat) : Orig := (X.orig.find? k).getD .empty
+
+/-- The functions with place, own ranges and callees, for footprints. -/
+def fpInput (P : List (Nat × HFunc × FuncRec)) (ranges : NatMap (NatMap Range)) :
+    List (Nat × List Range × List Nat) :=
+  P.map fun (k, f, fr) => (k, ownRanges ((ranges.find? k).getD .empty) f, callees fr f)
+
+def derivedInput (P : List (Nat × HFunc × FuncRec)) :
+    List (Nat × HFunc × List (List (HStmt × Option Nat))) :=
+  P.map fun (k, f, fr) => (k, f, withCallees fr f)
+
+/-- Compute the analyses, or take the record's certificates. -/
+def facts (src : HSection) (r : Record) (P : List (Nat × HFunc × FuncRec)) : Facts :=
+  let n := P.length + 2
+  let ranges := P.foldl (fun M (k, f, fr) => M.insert k (rangesOf r fr src.module.structs f)) .empty
+  match r.flagsCert, r.fpCert, r.derivedCert,
+      P.mapM (fun (k, _, fr) => fr.origCert.map fun l => (k, NatMap.ofList l)) with
+  | some fl, some fp, some (dv, dp, dr), some os =>
+    { ranges, flags := NatMap.ofList fl, orig := NatMap.ofList os, fp := NatMap.ofList fp
+      derived := ⟨NatMap.ofList dv, NatMap.ofList dp, dr⟩ }
+  | _, _, _, _ =>
+  let origAll (F : Flags) : NatMap Orig := P.foldl (fun M (k, f, fr) =>
+    M.insert k (origIter fr F k f (f.blocks.length + 2) .empty)) .empty
   let rec flagIter : Nat → Flags → Flags
     | 0, F => F
-    | k + 1, F =>
+    | m + 1, F =>
       let O := origAll F
-      let F' := fs.map fun g => (g.name, normSet (((F.lookup g.name).getD []) ++
-        fs.flatMap fun f => (callFlags f ((O.lookup f.name).getD .empty)).flatMap fun (g', is) =>
-          if g' == g.name then is else []))
-      if F'.map (·.2.length) == F.map (·.2.length) then F' else flagIter k F'
-  let F := flagIter n (fs.map fun f => (f.name, []))
-  let own := fun name => match fs.find? (·.name == name) with
-    | some f => ownRanges r src.module.structs r.frec f
-    | none => []
-  { flags := F, orig := origAll F, fp := fpIter own fs n (fs.map fun f => (f.name, []))
-    derived := derivedIter fs n ⟨fs.map fun f => (f.name, []), fs.map fun f => (f.name, []), []⟩ }
+      let (F', changed) := P.foldl (fun (F', ch) (k, f, fr) =>
+        (callFlags fr f ((O.find? k).getD .empty)).foldl (fun (F', ch) (g, is) =>
+          let old := (F'.find? g).getD []
+          let new := nset (old ++ is)
+          (F'.insert g new, ch || new.length != old.length)) (F', ch)) (F, false)
+      if changed then flagIter m F' else F'
+  let F := flagIter n .empty
+  { ranges, flags := F, orig := origAll F, fp := fpIter (fpInput P ranges) n .empty
+    derived := derivedIter (derivedInput P) n ⟨.empty, .empty, []⟩ }
+
+/-- Some `alloca` or fixed buffer of the section is at address 0 (rule S8 applies). -/
+def zeroMode (P : List (Nat × HFunc × FuncRec)) (rs : List Range) : Bool :=
+  rs.any (·.1 == 0) || P.any fun (_, _, fr) => fr.mallocs.any fun (_, m) => m matches .fixed 0 _
 
 /-- The context of function `f`'s translation check. -/
-def fctx (src : HSection) (r : Record) (f : HFunc) (mf : Func) : FCtx :=
-  { prec := r, frec := r.frec f.name, src := src.module, symbols := src.symbols
-    decls := declsOf f, bm := blockMapOf (r.frec f.name) f, mf }
+def fctx (src : HSection) (r : Record) (fr : FuncRec) (f : HFunc) (mf : Func) : FCtx :=
+  { prec := r, frec := fr, src := src.module, symbols := src.symbols
+    decls := declsOf f, bm := blockMapOf fr f, mf }
 
 /-- The per-function rules: translation, liveness and clobbering, S3, S6, S7, S8. -/
-def funcDiag (src : HSection) (low : Module) (r : Record) (X : Facts) (z : Bool) (f : HFunc) :
-    Option String :=
-  match low.func? f.name with
+def funcDiag (src : HSection) (low : Module) (r : Record) (X : Facts) (z : Bool)
+    (kf : Nat × HFunc × FuncRec) : Option String :=
+  let (k, f, fr) := kf
+  match low.funcs[fr.mfunc]? with
   | none => some s!"translation: no machine function {f.name}"
   | some mf =>
-  match funcLower (fctx src r f mf) f with
+  match funcLower (fctx src r fr f mf) f with
   | none => some s!"translation: {f.name}"
   | some fl =>
-    let fr := r.frec f.name
-    let L := liveOf f
-    let O := (X.orig.lookup f.name).getD .empty
-    if !liveOk f L then some s!"liveness: {f.name}"
-    else if !clobberOk f L fl then some s!"translation: {f.name} redefines a live value's machine value"
-    else if !(origOk fr X.flags f O && flagsOk X.flags f O) then some s!"S3: origins of {f.name}"
+    let L := match fr.liveCert with
+      | some l => NatMap.ofList l
+      | none => liveOf f
+    let pts := pointsOf f L
+    let O := X.origAt k
+    if !liveOkAt f L pts then some s!"liveness: {f.name}"
+    else if !clobberOk f L pts fl then some s!"translation: {f.name} redefines a live value's machine value"
+    else if !(origOk fr X.flags k f O && flagsOk X.flags fr f O) then some s!"S3: origins of {f.name}"
     else if !s3Uses O f then some s!"S3: {f.name} stores or returns a value with origins"
     else if !ruleS6 O fr f then some s!"S6: a terminal buffer of {f.name}"
-    else if !ruleS7 r src.module.structs fr X.fp O L f then some s!"S7: {f.name}"
-    else if z && !notObserved X.derived f then some s!"S8: {f.name} observes a derived value"
+    else if !ruleS7 (X.rangesAt k) fr X.fp O pts f then some s!"S7: {f.name}"
+    else if z && !notObserved X.derived k f then some s!"S8: {f.name} observes a derived value"
     else none
 
 /-- The first rule the lowering of `src` to `low` under `r` fails, if any. -/
 def diagnose (src : HSection) (low : Module) (efp : Option Nat) (r : Record) : Option String :=
-  let fs := src.module.funcs
-  (ruleS1 src r efp) <|> (ruleS2 src r) <|> (ruleS45 src r efp) <|>
-  (let X := facts src r
-   let z := zeroMode src r
-   let own := fun name => match fs.find? (·.name == name) with
-     | some f => ownRanges r src.module.structs r.frec f
-     | none => []
-   if !fpOk own fs X.fp then some "S7: footprints"
-   else if z && !derivedOk fs X.derived then some "S8: derived values"
-   else fs.findSome? (funcDiag src low r X z) <|>
-     match src.module.func? src.entry with
-     | some e => if e.params.isEmpty then none else some "entry: the section entry has parameters"
+  if !hintsOk src low r then some "record: functions, machine functions or callees do not match"
+  else
+  let P := placed src r
+  let X := facts src r P
+  let rs := P.flatMap fun (k, f, _) => ownRanges (X.rangesAt k) f
+  (ruleS1 P rs efp) <|> (ruleS2 src r P) <|> (ruleS45 P rs efp) <|>
+  (let z := zeroMode P rs
+   if !fpOk (fpInput P X.ranges) X.fp then some "S7: footprints"
+   else if z && !derivedOk (derivedInput P) X.derived then some "S8: derived values"
+   else P.findSome? (funcDiag src low r X z) <|>
+     match src.module.funcs.findIdx? (·.name == src.entry) with
+     | some k => match src.module.funcs[k]? with
+       | some e => if e.params.isEmpty then none else some "entry: the section entry has parameters"
+       | none => some "entry: no section entry"
      | none => some "entry: no section entry")
 
 /-- S14 for one section: the placement record `r` and the rules of S accept lowering `src` (H
     dialect) to `low` (machine IR), entered with the free pointer `efp`. -/
 def check (src : HSection) (low : Module) (efp : Option Nat) (r : Record) : Bool :=
   (diagnose src low efp r).isNone
+
+/-- The values `f` declares. -/
+def declared (f : HFunc) : List Nat :=
+  f.params.map (·.1) ++ f.blocks.flatMap fun b => b.phis.map (·.dst) ++ b.body.flatMap HStmt.defs
+
+/-- The record with its hints filled in from `src` and `low` (compiled use: it compares names
+    freely), its functions put in the source module's order (a function the record does not list
+    gets an empty one), and its certificates computed.  The checker checks all of it. -/
+def Record.withHints (src : HSection) (low : Module) (r : Record) : Record :=
+  let fs := src.module.funcs
+  let idx (n : String) : Nat := (fs.findIdx? (·.name == n)).getD fs.length
+  let r1 : Record := { r with funcs := fs.map fun f =>
+      let fr := (r.funcs.find? (·.name == f.name)).getD { name := f.name }
+      { fr with
+        mfunc := (low.funcs.findIdx? (·.name == f.name)).getD low.funcs.length
+        calls := f.blocks.map fun b => b.body.filterMap fun s => match s.inst with
+          | .base (.call g _) => some (idx g)
+          | _ => none } }
+  let P := placed src r1
+  let X := facts src { r1 with flagsCert := none } P
+  let keys (M : NatMap (List Nat)) (xs : List Nat) : List (Nat × List Nat) :=
+    xs.filterMap fun x => (M.find? x).bind fun l => if l.isEmpty then none else some (x, l)
+  let ks := P.map (·.1)
+  { r1 with
+    funcs := P.map fun (k, f, fr) =>
+      let vm := match low.funcs[fr.mfunc]? with
+        | some mf =>
+          let c := fctx src r1 fr f mf
+          let bcs := f.blocks.zipIdx.map fun (b, j) => (b, (fr.calls[j]?).getD [])
+          let v := inferVm c f (f.blocks.length + 1) (paramVm f mf) bcs
+          some ((declared f).filterMap fun x => (v.find? x).map (x, ·))
+        | none => none
+      let L := liveOf f
+      { fr with vmCert := vm, liveCert := some (f.blocks.map fun b => (b.id, liveGet L b.id))
+                origCert := some (keys (X.origAt k) (declared f)) }
+    flagsCert := some (keys X.flags ks)
+    fpCert := some (ks.map fun k => (k, fpOf X.fp k))
+    derivedCert := some (keys X.derived.vals ks, keys X.derived.params ks, X.derived.rets) }
 
 end Fe.Sonatina.Stage3.Place

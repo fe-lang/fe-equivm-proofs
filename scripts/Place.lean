@@ -39,7 +39,7 @@ def runOne (path sec : String) (rec : Record) : IO Unit := do
   let low := s.asLowered.machineOf sec
   let efp := ((s.section? sec).bind (·.lowering)).bind (·.entryFreePtr)
   let t0 ← IO.monoMsNow
-  let d := diagnose src low efp rec
+  let d := diagnose src low efp (rec.withHints src low)
   let t1 ← IO.monoMsNow
   IO.println s!"{path} {sec}: {(d.getD "accepted")} ({t1 - t0} ms)"
 

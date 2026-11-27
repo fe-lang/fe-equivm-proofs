@@ -65,15 +65,33 @@ structure FuncRec where
   /-- Source block ↦ machine block; when absent the checker takes the `k`-th source block to
       machine block `k`, as machine lowering numbers them (`create_source_blocks`). -/
   blockMap : Option (List (Nat × Nat)) := none
+  /-- Hint: the place of the function's machine function in the lowered module. -/
+  mfunc : Nat := 0
+  /-- Hint: per source block, in order, the place among the source module's functions of the
+      callee of each `call` statement.  The checker compares each callee's name once, and then
+      works with places: comparing names is what costs the most in the kernel. -/
+  calls : List (List Nat) := []
+  /-- Certificates, which the checker computes itself when absent and checks either way: the
+      value map (source value ↦ machine operand), the live set at the start of each block's body,
+      and each value's origins (S3). -/
+  vmCert : Option (List (Nat × Operand)) := none
+  liveCert : Option (List (Nat × List Nat)) := none
+  origCert : Option (List (Nat × List Nat)) := none
   deriving Repr, BEq, Inhabited
 
-/-- A section's placement record. -/
+/-- A section's placement record.  `funcs` lists the source module's functions in their order
+    (checked). -/
 structure Record where
   /-- The byte address of word 0 of the frames (`arena_base`). -/
   arenaBase : Nat
   funcs : List FuncRec
   /-- The fixed spill slots `[0, 64)` are in use (S9). -/
   fixedSlots : Bool := false
+  /-- Certificates by function place, checked: the parameters that may receive a frame pointer
+      (S3), the footprints (S7), and the derived values, parameters and returns (S8). -/
+  flagsCert : Option (List (Nat × List Nat)) := none
+  fpCert : Option (List (Nat × List (Nat × Nat))) := none
+  derivedCert : Option (List (Nat × List Nat) × List (Nat × List Nat) × List Nat) := none
   deriving Repr, BEq, Inhabited
 
 def Record.func? (r : Record) (name : String) : Option FuncRec := r.funcs.find? (·.name == name)
