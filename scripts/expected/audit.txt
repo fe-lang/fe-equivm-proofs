@@ -4,6 +4,11 @@ Fe.Sonatina.Check.checkSpills_sound_at: [Classical.choice, Quot.sound, propext] 
 Fe.Sonatina.Check.checkSpills_sound_fut: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.check_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Check.check_sound_fut: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.H.createWith_eq_core: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.H.message_eq_core: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.H.runDeploy_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.H.runH_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.H.runRuntime_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.gvnPrune_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.gvnRewrite_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.kb_point: [Classical.choice, Quot.sound, propext] + 0 native_decide
