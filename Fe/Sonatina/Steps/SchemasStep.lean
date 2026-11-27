@@ -379,6 +379,9 @@ inductive Mode where
   | demand (DB : NatMap Nat)
   /-- `sccp_fold`. -/
   | sccp
+  /-- `gvn_rewrite`: GVN's classes, `(value, representative)`, and the phis it inserted,
+      `(phi, block, term)`, both checked on the input (`GvnRewrite.lean`). -/
+  | gvn (cls : List (Nat × Operand)) (pts : List (Nat × Nat × Term))
 
 /-- `x` is an immediate, or a parameter, or defined in a strict dominator of block `b` of the
     input: its value is the same on every entry of `b`. -/
@@ -398,6 +401,116 @@ def StepCtx.phiFold (X : StepCtx) (v : Nat) (x : Operand) : Bool :=
       live.any (·.1 == x) && live.all fun ob => ob.1 == x || ob.1 == .var v
   | _ => false
 
+/-! ## GVN's certificate -/
+
+/-- The representative of an operand: its class's chain followed at most `n` links. -/
+def gRoot (C : NatMap Operand) : Nat → Operand → Operand
+  | 0, o => o
+  | n + 1, .var v => match C.find? v with
+    | some r => gRoot C n r
+    | none => .var v
+  | _ + 1, o => o
+
+/-- An operand as a term through its representative: a literal or an atom. -/
+def gTerm (C : NatMap Operand) (o : Operand) : Term :=
+  match gRoot C 16 o with
+  | .var v => .atom v
+  | .imm _ w => .lit w
+
+/-- `x`'s definition dominates `v`'s: an immediate, a parameter, a phi of a block that is a tree
+    ancestor-or-self of `v`'s, or a statement before `v`'s definition (in a strict tree ancestor of
+    its block, or earlier in it), and `v` is defined. -/
+def StepCtx.before (X : StepCtx) (x : Operand) (v : Nat) : Bool :=
+  match x with
+  | .imm _ _ => true
+  | .var w => match X.inD.find? w, X.inD.find? v with
+    | some .param, some _ => true
+    | some (.phi d), some (.phi b) => X.T.anc d b
+    | some (.phi d), some (.stmt b _) => X.T.anc d b
+    | some (.stmt d _), some (.phi b) => d != b && X.T.anc d b
+    | some (.stmt d j), some (.stmt b k) => (d != b && X.T.anc d b) || (d == b && decide (j < k))
+    | _, _ => false
+
+/-- The block of `v`'s definition. -/
+def StepCtx.blockOf (X : StepCtx) (v : Nat) : Option Nat :=
+  match X.inD.find? v with
+  | some (.phi b) | some (.stmt b _) => some b
+  | _ => none
+
+/-- A class pair `(v, r)`, from the classes `C`: `v` a pure statement other than `clz` whose term,
+    each operand through its representative, a schema equates with `r`'s (a literal, an atom, or
+    `r`'s pure statement likewise); or `v` a phi of block `B` whose operands from each predecessor
+    have the representative of `r`'s operand from it (`r` a phi of `B`) or of `r` (`r` above
+    `B`). -/
+def StepCtx.pairOk (X : StepCtx) (C : NatMap Operand) (v : Nat) (r : Operand) : Bool :=
+  match X.inD.find? v with
+  | some (.stmt _ _) =>
+    let rt : Term := match r with
+      | .imm _ w => .lit w
+      | .var w => match (defStmt X.inB X.inD w).bind fun st => pureInst? st.inst with
+        | some q => if noClz q then termOf (gTerm C) q else gTerm C r
+        | none => gTerm C r
+    ((defStmt X.inB X.inD v).bind fun st => pureInst? st.inst).any fun p =>
+      noClz p && checkExact (kbOf X.K) (termOf (gTerm C) p) rt
+  | some (.phi B) => (phiOf X.inB B v).any fun φ =>
+    let same : Bool := match r with
+      | .var w => X.inD.find? w == some (.phi B) && (phiOf X.inB B w).any fun ψ =>
+          φ.incoming.all fun ob => (inc ψ ob.2).any fun o => gTerm C ob.1 == gTerm C o
+      | .imm _ _ => false
+    same || (X.above B r && φ.incoming.all fun ob => gTerm C ob.1 == gTerm C r)
+  | _ => false
+
+/-- The classes hold on the input: each representative dominates its value, and each pair is
+    justified. -/
+def StepCtx.clsOk (X : StepCtx) (cls : List (Nat × Operand)) : Bool :=
+  let C := NatMap.ofList cls
+  cls.all fun e => e.2.wf && X.before e.2 e.1 && X.pairOk C e.1 e.2
+
+/-- The incoming operand from `p` of the phi `a` of block `Q`, as a term. -/
+def phiArgTerm (X : StepCtx) (Q p a : Nat) : Term :=
+  match (phiOf X.inB Q a).bind fun φ => inc φ p with
+  | some (.var u) => .atom u
+  | some (.imm _ w) => .lit w
+  | none => .atom a
+
+/-- A term with each phi of block `Q` replaced by its operand from `p`. -/
+def substPhis (X : StepCtx) (Q p : Nat) : Term → Term
+  | .atom a => if X.inD.find? a == some (.phi Q) then phiArgTerm X Q p a else .atom a
+  | .lit w => .lit w
+  | .op1 o a => .op1 o (substPhis X Q p a)
+  | .op2 o a b => .op2 o (substPhis X Q p a) (substPhis X Q p b)
+  | .op3 o a b c => .op3 o (substPhis X Q p a) (substPhis X Q p b) (substPhis X Q p c)
+
+/-- The atoms of a term. -/
+def Term.atoms : Term → List Nat
+  | .atom a => [a]
+  | .lit _ => []
+  | .op1 _ a => a.atoms
+  | .op2 _ a b => a.atoms ++ b.atoms
+  | .op3 _ a b c => a.atoms ++ b.atoms ++ c.atoms
+
+/-- The inserted phis hold their terms: each a phi `ψ` of its block `Q`; its term without `clz`,
+    its atoms phis of `Q` or above `Q`; from each predecessor `p`, `ψ`'s operand is, by a schema,
+    the term with `Q`'s phis replaced by their operands from `p`: the operand unfolded, or an
+    inserted phi whose term it is. -/
+def StepCtx.ptOk (X : StepCtx) (pts : List (Nat × Nat × Term)) : Bool :=
+  let P := NatMap.ofList pts
+  pts.all fun e =>
+    let (ψ, Q, t) := e
+    X.inD.find? ψ == some (.phi Q) && !t.hasClz &&
+    t.atoms.all (fun a => X.inD.find? a == some (.phi Q) || X.above Q (.var a)) &&
+    (phiOf X.inB Q ψ).any fun φ => φ.incoming.all fun ob =>
+      let tq := substPhis X Q ob.2 t
+      (match ob.1 with
+        | .var ψ' => (P.find? ψ').any fun Qt => checkExact (kbOf X.K) tq Qt.2
+        | _ => false) ||
+      [0, 1, 2, 3].any fun d => checkExact (kbOf X.K) tq (unfold X.inB X.inD X.cs d ob.1)
+
+/-- The certificate of a mode, checked on the input (`gvn` only). -/
+def Mode.certOk (X : StepCtx) : Mode → Bool
+  | .gvn cls pts => X.clsOk cls && X.ptOk pts
+  | _ => true
+
 /-- One justification of `v ↦ x`, without chains. -/
 def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
   match m with
@@ -413,6 +526,15 @@ def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
       | _ => true) &&
     depths.any fun dd => (X.tin dd.1 v).any fun t =>
       checkDemand (kbOf X.K) (dOf DB v) t (X.tout dd.2 x)
+  | .gvn cls pts =>
+    let C := NatMap.ofList cls
+    (gTerm C (.var v) == gTerm C x && X.before x v) ||
+    (match x with
+      | .var ψ => ((NatMap.ofList pts).find? ψ).any fun Qt =>
+          (X.blockOf v).any (X.T.anc Qt.1 ·) &&
+          [1, 2, 3].any fun d => (X.tin d v).any fun tv => checkExact (kbOf X.K) tv Qt.2
+      | _ => false) ||
+    depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
 
 /-- The input operands of `v`'s definition. -/
 def StepCtx.inOps (X : StepCtx) (v : Nat) : List Operand :=
@@ -466,7 +588,7 @@ def linesOk (m : Mode) (X : StepCtx) (σ : NatMap Operand) (pairs : List (Line �
 inductive Reject where
   | noIds | frame | pairing | sigma | inputSsa | outputSsa | deletion | changed | kbFacts
   | dbFacts | sccpFacts | unread | wrongFacts | notDeleted (v : Nat) | noSchema (v : Nat)
-  | fresh | demandRound
+  | fresh | demandRound | gvnCert
   deriving Repr, DecidableEq
 
 /-- The shared check, in a mode: why it rejects, or `none`. -/
@@ -492,6 +614,7 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
       else if !deleted.all deletable then some .deletion
       else if !linesOk m X σ pairs then some .changed
       else if !(F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) then some .kbFacts
+      else if !m.certOk X then some .gvnCert
       else
         let keys := sigmaKeys pairs σ
         match keys.find? (fun v => !dels.contains v) with
@@ -512,7 +635,7 @@ def demandRounds : Bool := false
 def kbsRejectWith (demand : Bool) (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap)
     (F : StepFacts) : Option Reject :=
   if !F.unread.isEmpty then some .unread
-  else if F.consts.isSome || !F.deadEdges.isEmpty then some .wrongFacts
+  else if F.consts.isSome || !F.deadEdges.isEmpty || F.gvn.isSome then some .wrongFacts
   else match F.demanded with
     | none => aliasReject .exact f ids s F
     | some ds =>
@@ -526,7 +649,7 @@ def kbsReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : St
 def sccpReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F : StepFacts) :
     Option Reject :=
   if !F.unread.isEmpty then some .unread
-  else if F.demanded.isSome then some .wrongFacts
+  else if F.demanded.isSome || F.gvn.isSome then some .wrongFacts
   else if !sccpFactsOk f (.ofListBy (·.id) f.blocks) (defsOf f) (kbMap F) F then some .sccpFacts
   else aliasReject .sccp f ids s F
 

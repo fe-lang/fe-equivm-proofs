@@ -1,0 +1,147 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256, v2.i256, v3.i256) -> i256 {\n    block0:\n        v4.i256 = lt v0 v1;\n        br v4 block1 block2;\n    block1:\n        v5.i256 = add v1 1.i256;\n        jump block6;\n    block2:\n        v6.i256 = lt v0 v2;\n        br v6 block3 block4;\n    block3:\n        v7.i256 = add v2 1.i256;\n        jump block5;\n    block4:\n        v8.i256 = add v3 1.i256;\n        jump block5;\n    block5:\n        v9.i256 = phi (v2 block3) (v3 block4);\n        jump block6;\n    block6:\n        v10.i256 = phi (v1 block1) (v9 block5);\n        v11.i256 = add v10 1.i256;\n        return v11;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3
+    ],
+    [
+     4,
+     5
+    ],
+    [
+     6,
+     7
+    ],
+    [
+     8,
+     9
+    ],
+    [
+     10,
+     11
+    ],
+    [
+     12,
+     13,
+     14
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "gvn",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "gvn_rewrite",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256, v2.i256, v3.i256) -> i256 {\n    block0:\n        v4.i256 = lt v0 v1;\n        br v4 block1 block2;\n    block1:\n        v5.i256 = add v1 1.i256;\n        jump block6;\n    block2:\n        v6.i256 = lt v0 v2;\n        br v6 block3 block4;\n    block3:\n        v7.i256 = add v2 1.i256;\n        jump block5;\n    block4:\n        v8.i256 = add v3 1.i256;\n        jump block5;\n    block5:\n        v12.i256 = phi (v7 block3) (v8 block4);\n        v9.i256 = phi (v2 block3) (v3 block4);\n        jump block6;\n    block6:\n        v13.i256 = phi (v5 block1) (v12 block5);\n        v10.i256 = phi (v1 block1) (v9 block5);\n        return v13;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          2,
+          3
+         ],
+         [
+          4,
+          5
+         ],
+         [
+          6,
+          7
+         ],
+         [
+          8,
+          9
+         ],
+         [
+          15,
+          10,
+          11
+         ],
+         [
+          16,
+          12,
+          14
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": {
+         "dead_edges": [],
+         "class": [],
+         "preds": [],
+         "phis": [
+          {
+           "phi": 12,
+           "block": 5,
+           "term": {
+            "inst": {
+             "inst": 13,
+             "args": [
+              {
+               "value": 9
+              },
+              {
+               "imm": "1"
+              }
+             ]
+            }
+           }
+          },
+          {
+           "phi": 13,
+           "block": 6,
+           "term": {
+            "inst": {
+             "inst": 13,
+             "args": [
+              {
+               "value": 10
+              },
+              {
+               "imm": "2"
+              }
+             ]
+            }
+           }
+          }
+         ],
+         "value_phis": [
+          [
+           11,
+           13
+          ]
+         ]
+        },
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

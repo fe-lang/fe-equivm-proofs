@@ -357,6 +357,7 @@ structure AF (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (pairs : List 
   keys : ∀ p ∈ pairs, ∀ v, Operand.var v ∈ lineOps p.1 → ∀ x, σ.find? v = some x →
     entryOk (ctxOf m f s F) m (deleted.flatMap lineDefs) 3 v x = true
   fresh : ∀ v ∈ deleted.flatMap lineDefs, (defsOf s.func).find? v = none
+  cert : m.certOk (ctxOf m f s F) = true
 
 theorem kbFactsOk_nil {B : NatMap Block} {D : NatMap Def} {F : StepFacts}
     (h : F.knownBits.isEmpty = true) : kbFactsOk B D F = true := by
@@ -405,6 +406,9 @@ theorem aliasReject_spec {m : Mode} {f : Func} {ids : Option (List (List Nat))} 
   next hkb =>
   split at h
   · cases h
+  next hcert =>
+  split at h
+  · cases h
   next hnd =>
   split at h
   · cases h
@@ -412,10 +416,10 @@ theorem aliasReject_spec {m : Mode} {f : Func} {ids : Option (List (List Nat))} 
   split at h
   · cases h
   next hfresh =>
-  simp only [Bool.not_eq_true, Bool.not_eq_false'] at hsi hso hdel hch hkb hfresh
+  simp only [Bool.not_eq_true, Bool.not_eq_false'] at hsi hso hdel hch hkb hfresh hcert
   obtain ⟨hlen, hids, hmerge⟩ := pairFunc_spec hpf
   refine ⟨is, pairs, deleted, σ, rfl, hn, hp, hr, hm, hops, hwt, hcfg, hterm, hlen, hids, hmerge,
-    hsi, hso, fun L hL => List.all_eq_true.mp hdel L hL, fun p hp => ?_, ?_, ?_, ?_⟩
+    hsi, hso, fun L hL => List.all_eq_true.mp hdel L hL, fun p hp => ?_, ?_, ?_, ?_, hcert⟩
   · have := List.all_eq_true.mp (show linesOk m _ σ pairs = true from hch) p hp
     simp only [Bool.or_eq_true] at this
     rcases this with h1 | h1

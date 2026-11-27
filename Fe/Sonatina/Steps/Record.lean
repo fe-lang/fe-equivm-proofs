@@ -62,7 +62,7 @@ structure FuncStep where
 /-- A step has no facts: no known bits, no demand round, no SCCP facts, no other key. -/
 def noFacts (F : Schemas.StepFacts) : Bool :=
   F.knownBits.isEmpty && F.demanded.isNone && F.consts.isNone && F.deadEdges.isEmpty &&
-    F.unread.isEmpty
+    F.gvn.isNone && F.unread.isEmpty
 
 structure Step where
   kind : StepKind

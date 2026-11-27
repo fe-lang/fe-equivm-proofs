@@ -1,0 +1,78 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = add v0 v1;\n        br v0 block1 block2;\n    block1:\n        v3.i256 = add v1 v0;\n        evm_mstore 0.i256 v3;\n        jump block2;\n    block2:\n        return v2;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2,
+     3,
+     4
+    ],
+    [
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "gvn",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "gvn_rewrite",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = add v0 v1;\n        br v0 block1 block2;\n    block1:\n        evm_mstore 0.i256 v2;\n        jump block2;\n    block2:\n        return v2;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          3,
+          4
+         ],
+         [
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "gvn": {
+         "dead_edges": [],
+         "class": [
+          [
+           3,
+           {
+            "value": 2
+           }
+          ]
+         ],
+         "preds": [],
+         "phis": [],
+         "value_phis": []
+        },
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [],
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
