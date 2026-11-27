@@ -12,7 +12,7 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Oracle.lean` | `runStmtO`/`runBodyO`/`stepBlock`/`runBlocksO`/`runFuncO`, `runBlocks_iter`, `runFunc_approx`, `runFunc_intRet`, `runFunc_ctx` (C0 and reflexivity), `runFuncO_approx`, `Ctx.Has`, `ModRefines syms`, `FuncRef`, C1 `modRefines_of_funcs`; `Oracle.IntRet` |
 | `Wf.lean` | `Func.wf`, `Module.wf`, `FuncSnap.wf` (review C-6), `VFunc`, `defsOf`, `ssa` (review H-1, M-1), `DomAt`, `useOk_sound`, `phiUseOk_sound` |
 | `Defined.lean` | the definedness invariant: `BlockInv`, `PointInv`, `stepBlock_inv`, `Reaches`, `reaches_inv`, `defined`, `term_defined`, `phis_defined` |
-| `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps` |
+| `Sim.lean` | `Sim`, `Sim.approx`, `Sim.of_steps_env` (a stutter step may bind), `Sim.of_steps` |
 | `NatMap.lean` | bit trie, `find?_insert`, `find?_ofList`, `find?_ofListBy` |
 | `Eq.lean` | `DecidableEq` for the IR |
 | `EdgeSplit.lean` | `termRel` (terminators slot by slot, shared with `cfg_cleanup`), `approx_runTerm`, `checkEdgeSplit`, `edgeSplit_sound` |
@@ -24,6 +24,8 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Coalesce.lean` | `addrNorm`, `useCount`, `loadsFirst`, `fresh`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce` |
 | `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `writes`, `writes_read`, `writes_copyMem`, `addrNorm_sound`, `baseVal`, `addrNorm_base_sound`, `exec_mcopy`, `exec_mcopy_big`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `WInv.env`, `keep_operand`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
+| `LowerSwitches.lean` | `funcVars`, `look`, `subtree`, `leafOk`, `LSCtx` (`lab`, `pivot?`, `nodeOk`, `rootOk`, `expected`, `phiOk`, `blockOk`, `shapeOk`, `idsOk`), `checkLowerSwitches` |
+| `LowerSwitchesSound.lean` | `LSCtx.Agree`, `runInst_congr`, `runStmtO_congr`, `runTerm_congr`, `approx_runTerm_agree`, `LSCtx.approx_runBodyO`, `LSCtx.approx_enter`, `leafOk_sel`, `runTerm_table`, `lt_br_run`, `stepBlock_leaf`, `stepBlock_node`, `LSCtx.R`, `lowerSwitches_sound`, `lowerSwitches_stepSound` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
@@ -120,11 +122,11 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify` and `sccp_fold`** (phase 2;
-   all seven are proved and in `StepKind.proved`, the kinds `validate` accepts and
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold` and
+   `lower_switches`** (phase 2; all eight are proved and in `StepKind.proved`, the kinds `validate` accepts and
    `machine_sound_proved` covers; `known_bits_simplify`'s demand rounds are switched off,
    `SchemasStep.lean`, `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is the `Schemas.StepFacts` that
-   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each of the first five kinds
+   `Schemas.readFacts` reads at read time; `checkFunc` takes them; each kind but the two schema ones
    requires `noFacts` (no known bits, no demand round, no SCCP facts, no unread key), the two
    schema kinds check the facts they read; `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
@@ -402,6 +404,88 @@ unique (`ssa`).  (2) The snapshot test is `loadsFirst` (no load after the first 
 of "the last load's index is below the first store's"; with a load in the window (`n ≥ 2` is
 checked) the two agree.  The tests (`Tests.lean`, `kc_*`) are unchanged and pass.
 
+## `lower_switches` (design §4.9, review H-5 and M-4)
+
+What Sonatina does (`crates/codegen/src/isa/evm/machine/switch.rs` at `machine-steps-main`
+`e39b70c4d`; the step runs when `pipeline.rs:56-60` picks the tree: `Auto` at Speed, `Tree` at
+any level, never `Linear`; there is one algorithm, the strategy only decides whether it runs):
+- candidates (`:30-60`): a block ending in a `br_table` with a default and more than 4 cases,
+  every key an immediate; keys sorted by unsigned value (`to_u256`, `:46-52`); the gas
+  heuristic `split_index` must split the whole table (`:57`);
+- leaf size 4, or 8 when the block's live values and the scrutinee leave fewer than two slots
+  of reach (`:76-93`); a table of at most that many cases is left as it is;
+- `emit` (`:156-198`): if `split_index` does not split, the block ends in
+  `br_table s D cases'` (the default kept); else, at `mid = len / 2`, two new blocks, the block
+  ends in `v = lt s k; br v lower upper` with `k` the upper half's first key (as its operand),
+  and the halves recurse, upper first; the root always splits (`:57`, the same heuristic);
+- every tree instruction is new (`insert_inst_data_from` copies the attribution only); the old
+  terminator is erased (`:119`);
+- phis (`:114-118`, `:166-173`): each leaf appends to each destination's phis, once per
+  destination, the operand from the root (`copy_phi_incoming_block`, `cfg_edit.rs:1110`), and
+  after the tree the root's operands are removed (`remove_phi_incoming_from`): the order of a
+  phi's operands changes.
+
+What both corpora emit (`ls_shapes.py` over every step; v5 and v6 identical): 45 function steps
+in the 265 (44 with one switch, one with six: 50 switches), 3 at FeProofs `-O1`, none at
+`-O0`/`-Os`.  Trees, as `(lower upper)` with leaf sizes: 5 cases `(L2 L3)` 19 + 1 (`-O1`), 7
+`(L3 L4)` 7, 8 `(L4 L4)` 6, 6 `(L3 L3)` 5 + 1, 11 `((L2 L3) (L3 L3))` 4 + 1, 10
+`((L2 L3) (L2 L3))` 3, 13 `((L3 L3) (L3 L4))` 1, 12 `((L3 L3) (L3 L3))` 1, 9 `(L4 (L2 L3))` 1,
+18 `((L4 (L2 L3)) (L4 (L2 L3)))` 1, 19 `((L4 (L2 L3)) ((L2 L3) (L2 L3)))` 1, 22
+`(((L2 L3) (L3 L3)) ((L2 L3) (L3 L3)))` 1.  Every leaf is the input's cases on its interval in
+sorted order; no leaf has more than 4 cases (the pressured size 8 is not exercised); every
+pivot lies strictly inside its interval; a key 0 in 5 switches, none `2 ^ 256 - 1`; no
+duplicate targets, no default that is also a case's target; 5 targets with phis (all in the
+six-switch function), each reached from one leaf; one table kept (one case); every other block
+and its instruction ids unchanged; no tree instruction reuses an id.
+
+The checker (`checkLowerSwitches`, `LowerSwitches.lean`; one stage, nothing switched off): the
+output's blocks of input ids, in the input's order, have the input's phis with each operand from
+a lowered block `r` replaced by one from each leaf of `r`'s tree that goes there (`phiOk`:
+semantically through `lab`, and exactly as a permutation of `expected`), and either the input's
+statements and terminator (targets input blocks) or, lowered (`rootOk`), the input's
+`br_table s D cs` with immediate keys and input targets, the input's statements, `v = lt s k`
+(`v` a value the input does not mention, `pivot?`), `br v lo hi`; the trees (`nodeOk`, an
+interval `[a, b)`, `[0, 2 ^ 256)` at the root, `[a, k)` towards `lo`, `[k, b)` towards `hi`,
+`a < k < b`): an internal node a new block with no phis, exactly `v = lt s k` (fresh) and
+`br v lo hi`; a leaf a new block with no phis or statements and exactly
+`br_table s D cs'`, `cs'` the input's cases on the interval (`leafOk`), distinct keys, input
+targets, and `lab` taking it to `r`; every new block a node of one tree, once, the trees' new
+values distinct (`shapeOk`); instruction ids (`idsOk`): unchanged blocks keep theirs, a lowered
+block keeps its phis' and statements' and has two new ones, new blocks new ones; the input's
+dominator tree valid and the input in strict SSA.  The checker computes the trees and the
+leaves' switches (`LSCtx.of`) and checks them; fuel is the output's block count plus one, an
+exhausted walk rejects.
+
+Proof (`LowerSwitchesSound.lean`, `lowerSwitches_sound`, `lowerSwitches_stepSound`; no
+hypothesis beyond `StepSound.of_func`'s): the simulation `LSCtx.R` relates the output at an
+input block to the input at it, the predecessor relabelled (`lab`, as `edge_split`'s), and the
+output at a tree node of `r`'s switch, on `[a, b)`, to the input entering `t` from `r`, where the
+input's scrutinee `v` is in `[a, b)` and `t` the input table's target for `v`
+(design §5.4's "output at new block `n` from `p` ~ input entering `t` from `p`", the interval
+lemma being `leafOk_sel`).  The output binds the trees' `lt` results, which the input does not,
+so the environments agree on the values the input mentions (`Agree`, over `funcVars`), not
+`EnvSub`: the input's statements and terminators run alike (`runStmtO_congr`,
+`runTerm_congr`), and a fresh binding keeps the agreement.  A lowered block steps with the
+input's block (its `lt` and `br` against the input's table, `runTerm_table`, `lt_br_run`, the
+scrutinee read through the definedness invariant); a tree node steps alone, to a related state
+with the input unmoved: `Sim.of_steps_env`, `Sim.of_steps` generalized to a stutter step that
+binds (`Sim.of_steps` is now its corollary).
+
+Choices: exactness the proof does not need is checked anyway (H-5, M-4): the permutation of
+`expected`, `shapeOk`, `idsOk`, the leaves' distinct keys, the pivots' bounds, the type of the
+`lt` result.  A phi's operands are compared as a permutation, since Sonatina moves the new ones
+to the end (`ls_real_phi`).  Tests (`Tests.lean`, `ls_*`): two real records (BytesViewBounds,
+and Order with six switches and target phis), a hand-written switch with keys 0 and
+`2 ^ 256 - 1`, a default that is also a case's target, a target two leaves go to, phis and a
+kept one-case table, and the same with phi operands reordered; mutants (each rejected by
+`validateWith` and by the check alone, `lsCheck`): a pivot one above and one below, swapped
+branch targets, a wrong leaf default, a missing key, a wrong target, a key in the other leaf,
+an extra instruction in a new block, a condition that is an input value, `slt`, a leaf on
+another scrutinee, a leaf with the switch's instruction id, a new block outside the trees, a
+changed statement of the switch's block, a node that is an input block, a phi operand left on
+the switch's block, one missing for a leaf, a wrong one for a leaf, the key `2 ^ 256 - 1` in the
+lower leaf.
+
 ## Review 6 (phase 1) findings taken up in phase 2
 
 - F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
@@ -575,6 +659,26 @@ line of WETH9's `returnValue_run`.
 
   `branch_conditions` has no step in either corpus.  No `known_bits_simplify` step is rejected as
   a demand round: every sidecar of both corpora has `demanded_bits: null`.
+
+- With `lower_switches` proved (`StepKind.proved` has eight kinds; `chain-ls`, after merging
+  `chain` `c3b8225`), on the same corpora (`lower-switches/measure.sh`, `scripts/MachineSteps.lean`
+  end to end and `steps`, interpreted; the byte checker and the schema verdicts were not rerun,
+  nothing they read changed):
+
+  | corpus | end to end (`validate`), before | after | first rejected kind |
+  | --- | --- | --- | --- |
+  | v5 FeProofs `-O0` | 40/40 | 40/40 | none |
+  | v5 FeProofs `-O1` | 29/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v5 FeProofs `-Os` | 32/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v5 the 265 | 460/530 | 494/530 | `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+  | v6 FeProofs `-O0` | 40/40 | 40/40 | none |
+  | v6 FeProofs `-O1` | 29/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v6 FeProofs `-Os` | 32/40 | 32/40 | `scalar_canonicalize` 8 |
+  | v6 the 265 | 460/530 | 494/530 | `scalar_canonicalize` 30, `gvn_prune` 4, `gvn_rewrite` 2 |
+
+  Every `lower_switches` step is accepted: `-O1` 3 and the 265 45, in v5 and v6 (none at `-O0`
+  and `-Os`); the other kinds' per-step counts are those of the table above, none rejected, no
+  summary table failing.
 
 ## The top theorem: what it covers (review 20, M-3)
 
