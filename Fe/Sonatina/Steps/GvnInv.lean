@@ -110,12 +110,12 @@ theorem before_domAt {b k : Nat} (hbroot : (domTree f).Anc e0 b) {x : Operand} {
   · exact Or.inl rfl
   · right; left
     refine ⟨d, rfl, ?_⟩
-    rcases dv with _ | bv | ⟨bv, kv⟩ <;> simp only [reduceCtorEq, Bool.false_eq_true] at h
+    rcases dv with _ | bv | ⟨bv, kv⟩ <;> simp only [Bool.false_eq_true] at h
     · exact (DomTree.anc_sound h).trans (anc_of_domAt_phi hU hv hv')
     · exact (DomTree.anc_sound h).trans (anc_of_before (before_of_domAt hU hv hv'))
   · right; right
     refine ⟨d, j, rfl, ?_⟩
-    rcases dv with _ | bv | ⟨bv, kv⟩ <;> simp only [reduceCtorEq, Bool.false_eq_true,
+    rcases dv with _ | bv | ⟨bv, kv⟩ <;> simp only [Bool.false_eq_true,
       Bool.and_eq_true, bne_iff_ne, ne_eq, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq] at h
     · have hbv := anc_of_domAt_phi hU hv hv'
       have had := DomTree.anc_sound h.2
@@ -1040,5 +1040,110 @@ theorem pinv_enter {F : StepFacts} (hK : X.K = kbMap F) (hcs : X.cs = .empty)
       · rw [hd] at hpa; cases hpa
 
 end pinv
+
+/-! ## A replacement the certificate justifies -/
+
+/-- At a point where the input reads `v`, the certificate's justification of `v ↦ x` gives both one
+    value. -/
+theorem entryGvn_sound {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blocks)
+    (hD : X.inD = defsOf f) (hT : X.T = domTree f) {F : StepFacts} (hK : X.K = kbMap F)
+    (hcs : X.cs = .empty) {cls : List (Nat × Operand)} {pts : List (Nat × Nat × Term)}
+    (hcok : X.clsOk cls = true) (hpok : X.ptOk pts = true) (c : Ctx) {e : Env} {b k : Nat}
+    (S : SidePt sig syms f e b k) (hKe : KBHolds (kbMap F) e) (hG : GInv f cls e b k)
+    (hP : PInv f pts e b k) {v : Nat} (hv : DomAt f (domTree f) b k v) {x : Operand}
+    (hxw : x.wf = true) (h : entryGvn X cls pts v x = true) : opVal e x = opVal e (.var v) := by
+  have hU := S.uniq
+  have hn := Func.wf_ids S.wf
+  obtain ⟨e1, _, hroot, hbroot⟩ := S.root
+  have hcl : ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true := fun v r h =>
+    ⟨(clsOk_spec hcok v r h).1, (clsOk_spec hcok v r h).2.1⟩
+  unfold entryGvn at h
+  simp only [Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at h
+  rcases h with ⟨hgt, hbef⟩ | h
+  · obtain ⟨nv, hv1, _, hvt⟩ := gTerm_ok hD hT hU hn hroot hcl hbroot hG S.words (o := .var v) rfl
+      (fun w hw => by cases hw; exact hv)
+    obtain ⟨nx, hx1, _, hxt⟩ := gTerm_ok hD hT hU hn hroot hcl hbroot hG S.words hxw
+      (before_domAt hD hT hU hn hroot hbroot hbef hv)
+    have : nv = nx := by rw [← hvt.1, ← hxt.1, hgt]
+    rw [hx1, hv1, this]
+  · cases x with
+    | imm => cases h
+    | var ψ =>
+      simp only at h
+      rcases hq : (NatMap.ofList pts).find? ψ with _ | Qt
+      · rw [hq] at h; cases h
+      rw [hq, Option.any_some, Bool.and_eq_true] at h
+      obtain ⟨hbl, hd⟩ := h
+      rw [NatMap.find?_ofList] at hq
+      have hm : (ψ, Qt.1, Qt.2) ∈ pts := mem_of_lookup hq
+      obtain ⟨hψ, _, _⟩ := ptOk_spec hpok ψ Qt.1 Qt.2 hm
+      -- `ψ`'s block dominates `v`'s, so `ψ` dominates the point
+      have hQb : (domTree f).Anc Qt.1 b := by
+        unfold StepCtx.blockOf at hbl
+        rw [hD] at hbl
+        rcases hdv : (defsOf f).find? v with _ | dv <;> rw [hdv] at hbl
+        · cases hbl
+        rcases dv with _ | B | ⟨B, j⟩
+        · cases hbl
+        · rw [Option.any_some, hT] at hbl
+          exact (DomTree.anc_sound hbl).trans (anc_of_domAt_phi hU hv (defsOf_mem hdv))
+        · rw [Option.any_some, hT] at hbl
+          exact (DomTree.anc_sound hbl).trans (anc_of_before (before_of_domAt hU hv (defsOf_mem hdv)))
+      have hψd := domAt_of_def (T := domTree f) (k := k) hn (defsOf_mem (hD ▸ hψ))
+        (Or.inr (Or.inl ⟨Qt.1, rfl, hQb⟩))
+      obtain ⟨nψ, hψ1, hψt⟩ := hP ψ Qt.1 Qt.2 hm hψd
+      obtain ⟨nv, hv1, _, hvt⟩ := tin_ok hB hD S c (hcs ▸ cholds_empty e) hv
+      obtain ⟨d, _, hd⟩ := List.any_eq_true.mp hd
+      rcases ht : X.tin d v with _ | tv
+      · rw [ht] at hd; cases hd
+      rw [ht, Option.any_some] at hd
+      have hok := hvt d tv ht
+      have heq := checkExact_sound hd (factsOn_env (hK ▸ hKe) fun a ha => by
+        simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true] at ha
+        rcases ha with ha | ha
+        · exact hok.2 a ha
+        · exact hψt.2 a ha)
+      rw [hok.1, hψt.1] at heq
+      show e[ψ]? = e[v]?
+      rw [hψ1, hv1, heq]
+
+/-! ## The entry -/
+
+theorem words_of_point {f : Func} {e : Env} {b k : Nat} (h : PointInv f (domTree f) b k e) :
+    Words f e b k := fun w hw => by
+  obtain ⟨val, hval⟩ := Option.isSome_iff_exists.mp (h.2 w hw)
+  obtain ⟨n, hn, rfl⟩ := h.1 w val hval
+  exact ⟨n, hval, hn⟩
+
+/-- At the entry, a value dominating the start is a parameter. -/
+theorem domAt_root {f : Func} {b : Nat} (hroot : (domTree f).idom.find? b = none) {blk : Block}
+    (hb : f.block? b = some blk) (hph : blk.phis = []) {v : Nat} (h : DomAt f (domTree f) b 0 v) :
+    v ∈ f.params.map (·.1) := by
+  rcases h with hp | ⟨blk', hb', hph' | ⟨j, hj, _⟩⟩ | ⟨d, hne, ha, _⟩
+  · exact hp
+  · rw [hb] at hb'; cases hb'; rw [hph] at hph'; cases hph'
+  · exact absurd hj (Nat.not_lt_zero _)
+  · rcases ha.inv with h' | ⟨i, hi, _⟩
+    · exact absurd h' hne
+    · rw [hroot] at hi; cases hi
+
+theorem ginv_root {f : Func} {X : StepCtx} (hD : X.inD = defsOf f) (hs : ssa f (domTree f) = true)
+    {cls : List (Nat × Operand)} (hok : X.clsOk cls = true) (e : Env) {b : Nat}
+    (hroot : (domTree f).idom.find? b = none) {blk : Block} (hb : f.block? b = some blk)
+    (hph : blk.phis = []) : GInv f cls e b 0 := by
+  intro v r hvr hdom
+  obtain ⟨p, hp, rfl⟩ := List.mem_map.mp (domAt_root hroot hb hph hdom)
+  exact (pairOk_param (clsOk_spec hok _ r hvr).2.2
+    (hD ▸ defsOf_find (UniqueDefs.of_ssa hs) (param_def hp))).elim
+
+theorem pinv_root {f : Func} {X : StepCtx} (hD : X.inD = defsOf f) (hs : ssa f (domTree f) = true)
+    {pts : List (Nat × Nat × Term)} (hok : X.ptOk pts = true) (e : Env) {b : Nat}
+    (hroot : (domTree f).idom.find? b = none) {blk : Block} (hb : f.block? b = some blk)
+    (hph : blk.phis = []) : PInv f pts e b 0 := by
+  intro ψ Q t hm hdom
+  obtain ⟨p, hp, hpe⟩ := List.mem_map.mp (domAt_root hroot hb hph hdom)
+  obtain ⟨hψ, _⟩ := ptOk_spec hok ψ Q t hm
+  have := (UniqueDefs.of_ssa hs).fn (hpe ▸ param_def hp) (defsOf_mem (hD ▸ hψ))
+  cases this
 
 end Fe.Sonatina.Steps.Schemas

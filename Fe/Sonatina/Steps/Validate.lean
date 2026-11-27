@@ -276,7 +276,7 @@ def validateWith (allowed : List StepKind) (syms : List String) (r : MachineStep
     rounds switched off, `demandRounds`). -/
 def StepKind.proved : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies, .sccpFold,
-    .knownBitsSimplify, .lowerSwitches]
+    .knownBitsSimplify, .lowerSwitches, .gvnRewrite]
 
 /-- Validate a record against the final machine IR, with the proved step kinds only. -/
 def validate (syms : List String) (r : MachineSteps) (final : Module) : Bool :=

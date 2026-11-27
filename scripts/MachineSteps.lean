@@ -49,7 +49,7 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
   return "instruction ids"
 
 /-- The kinds with a checker. -/
-def checked : List StepKind := StepKind.proved ++ [.gvnRewrite]
+def checked : List StepKind := StepKind.proved
 
 /-- Why `checkCoalesce` rejects: the first block that fails. -/
 def kcReason (f f' : Func) : String := Id.run do

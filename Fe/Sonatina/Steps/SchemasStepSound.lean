@@ -1,4 +1,4 @@
-import Fe.Sonatina.Steps.SchemasInv
+import Fe.Sonatina.Steps.GvnInv
 
 /-!
 # `sccp_fold` and `known_bits_simplify` (without demand rounds) are sound
@@ -205,7 +205,7 @@ structure SF (sig : Sigs) (syms : List String) (m : Mode) (f : Func) (s : FuncSn
     Prop where
   A : AF m f s F pairs deleted σ
   wf : f.wf sig syms = true
-  mode : m = .exact ∨ m = .sccp
+  mode : m.Ok
   sccp : m = .sccp → SccpSpec f (ctxOf m f s F)
 
 variable (Sf : SF sig syms m f s F pairs deleted σ)
@@ -226,9 +226,17 @@ theorem SF.hs' : ssa s.func (domTree s.func) = true := by
 theorem SF.wf' : s.func.wf sig syms = true := Sf.A.wf' Sf.wf
 
 theorem SF.cs_empty (h : m ≠ .sccp) : (ctxOf m f s F).cs = .empty := by
-  rcases Sf.mode with rfl | rfl
+  rcases Sf.mode with rfl | rfl | ⟨_, _, rfl⟩
   · rfl
   · exact absurd rfl h
+  · rfl
+
+/-- GVN's certificate, which the check checks. -/
+theorem SF.cert {cls : List (Nat × Operand)} {pts : List (Nat × Nat × Term)} (hm : m = .gvn cls pts) :
+    (ctxOf m f s F).clsOk cls = true ∧ (ctxOf m f s F).ptOk pts = true := by
+  have := Sf.A.cert
+  rw [hm] at this ⊢
+  simpa [Mode.certOk] using this
 
 omit Sf in
 /-- The input's invariants at point `(b, k)`. -/
@@ -238,12 +246,22 @@ structure InPt (sig : Sigs) (syms : List String) (m : Mode) (f : Func) (s : Func
   kb : KBHolds (ctxOf m f s F).K e
   cs : CHolds (ctxOf m f s F).cs e
   sc : m = .sccp → ((ctxOf m f s F).E.find? b).isSome = true ∧ TPI (ctxOf m f s F) f e b
+  gv : ∀ cls pts, m = .gvn cls pts → GInv f cls e b k ∧ PInv f pts e b k
 
 omit Sf in
 /-- The relation at a point: the input at `(b, k)`, the output at `(b, k')`. -/
 def Mid (sig : Sigs) (syms : List String) (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts)
     (e' e : Env) (b k k' : Nat) : Prop :=
   EnvSub e' e ∧ DomSub s.func e' ∧ InPt sig syms m f s F e b k ∧ SidePt sig syms s.func e' b k'
+
+/-- The certificate's justifications hold at a point of the input. -/
+theorem SF.gvn_entry {e : Env} {b k : Nat} (H : InPt sig syms m f s F e b k) (c : Ctx) :
+    ∀ cls pts, m = .gvn cls pts → ∀ v y, DomAt f (domTree f) b k v → y.wf = true →
+      entryGvn (ctxOf m f s F) cls pts v y = true → opVal e y = opVal e (.var v) := by
+  intro cls pts hm v y hv hyw h
+  obtain ⟨hc, hp⟩ := Sf.cert hm
+  exact entryGvn_sound rfl rfl rfl rfl (Sf.cs_empty (by rw [hm]; exact fun h => Mode.noConfusion h))
+    hc hp c H.side H.kb (H.gv cls pts hm).1 (H.gv cls pts hm).2 hv hyw h
 
 /-- An operand a kept statement reads has one value on both sides. -/
 theorem SF.stmt_alias {e' e : Env} {b k k' : Nat} (hm : Mid sig syms m f s F e' e b k k') (c : Ctx)
@@ -256,7 +274,7 @@ theorem SF.stmt_alias {e' e : Env} {b k k' : Nat} (hm : Mid sig syms m f s F e' 
   intro a ha
   have ha' : subst σ a ∈ (st.mapOps (subst σ)).inst.args := by
     simp only [Stmt.mapOps, Inst.args_mapOps]; exact List.mem_map_of_mem ha
-  refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2)
+  refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry H c)
     (fun v hv => ?_) ((opsWf_block Sf.A.opsWf' hobm).2.1 _ (List.mem_of_getElem? hst') _ ha')
     (fun w hw => ?_) (fun v x hv hx => Sf.A.keys _ hp v (hv ▸ ha) x hx)
   · subst hv; exact stmt_operand Sf.wf Sf.hs hib H.side.reach hst ha
@@ -269,10 +287,14 @@ theorem SF.in_step {e : Env} {b k : Nat} (H : InPt sig syms m f s F e b k) (c : 
     (hl : st.dsts.length = vals.length)
     (hkb : KBHolds (ctxOf m f s F).K ((st.dsts.zip vals).foldl bindStep e)) :
     InPt sig syms m f s F ((st.dsts.zip vals).foldl bindStep e) b (k + 1) := by
-  refine ⟨⟨Sf.wf, Sf.hv, Sf.hs, H.side.blk, point_succ' Sf.wf hib hst H.side.pi hiv hl,
-    pureInv_stmt Sf.wf Sf.hv Sf.hs hib H.side.reach hst H.side.pu hpv hl, H.side.anc⟩, hkb,
+  have S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1) :=
+    ⟨Sf.wf, Sf.hv, Sf.hs, H.side.blk, point_succ' Sf.wf hib hst H.side.pi hiv hl,
+      pureInv_stmt Sf.wf Sf.hv Sf.hs hib H.side.reach hst H.side.pu hpv hl, H.side.anc⟩
+  refine ⟨S', hkb,
     ?_, fun h => ⟨(H.sc h).1, tpi_stmt rfl rfl Sf.hv Sf.hs hib H.side.reach hst (H.sc h).2 _
-      fun y hy => (List.of_mem_zip hy).1⟩⟩
+      fun y hy => (List.of_mem_zip hy).1⟩, fun cls pts hm =>
+      ⟨ginv_stmt rfl rfl rfl Sf.wf Sf.hs rfl (Sf.cert hm).1 c H.side (H.gv cls pts hm).1 hib hst S' hkb,
+        pinv_stmt rfl rfl Sf.wf Sf.hs (Sf.cert hm).2 H.side (H.gv cls pts hm).2 hib hst vals⟩⟩
   by_cases hms : m = .sccp
   · exact cholds_stmt rfl rfl (Sf.sccp hms) H.side c H.kb H.cs (H.sc hms).1 hib hst hpv hl
   · rw [Sf.cs_empty hms]; exact cholds_empty _
@@ -549,7 +571,9 @@ def RS (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (s' s0 : BState) : P
   AncReach (domTree s.func) s0.2.2 ∧
   (∀ p, s0.2.1 = some p → AncReach (domTree f) p ∧ AncReach (domTree s.func) p ∧
     (m = .sccp → edgeExec (ctxOf m f s F).inB (ctxOf m f s F).E (ctxOf m f s F).dead p s0.2.2 = true ∧
-      TPI (ctxOf m f s F) f s0.1 p)) ∧
+      TPI (ctxOf m f s F) f s0.1 p) ∧
+    (∀ cls pts, m = .gvn cls pts → ∀ pblk, f.block? p = some pblk →
+      GInv f cls s0.1 p pblk.body.length ∧ PInv f pts s0.1 p pblk.body.length)) ∧
   (m = .sccp → ((ctxOf m f s F).E.find? s0.2.2).isSome = true)
 
 omit Sf in
@@ -603,9 +627,10 @@ theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
   rw [enter_eq, enter_eq]
   refine Approx.lift fun e₁' he₁' => ?_
   -- the input enters, and the output binds less
-  obtain ⟨e₁, he₁, hes₁, hds₁, hcs₁, htpi₁⟩ : ∃ e₁, enterOpt env prev ib = some e₁ ∧
+  obtain ⟨e₁, he₁, hes₁, hds₁, hcs₁, htpi₁, hgv₁⟩ : ∃ e₁, enterOpt env prev ib = some e₁ ∧
       EnvSub e₁' e₁ ∧ DomSub s.func e₁' ∧ CHolds (ctxOf m f s F).cs e₁ ∧
-      (m = .sccp → TPI (ctxOf m f s F) f e₁ b) := by
+      (m = .sccp → TPI (ctxOf m f s F) f e₁ b) ∧
+      (∀ cls pts, m = .gvn cls pts → GInv f cls e₁ b 0 ∧ PInv f pts e₁ b 0) := by
     cases prev with
     | none =>
       have hph := phis_nil_of_root Sf.wf Sf.hv hib hbi.2.2.1 hbi.2.2.2
@@ -613,12 +638,14 @@ theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
         have := B.phis; rw [hph] at this; exact this.nil_left
       rw [enterOpt_nil hph'] at he₁'
       cases he₁'
-      refine ⟨env, enterOpt_nil hph, hes, hds, hcs, fun _ => ?_⟩
+      refine ⟨env, enterOpt_nil hph, hes, hds, hcs, fun _ => ?_, fun cls pts hm =>
+        ⟨ginv_root rfl Sf.hs (Sf.cert hm).1 env hbi.2.2.2 hib hph,
+          pinv_root rfl Sf.hs (Sf.cert hm).2 env hbi.2.2.2 hib hph⟩⟩
       obtain ⟨e0, he0, rfl⟩ := root_is_entry Sf.hv hib hbi.2.2.1 hbi.2.2.2
       exact tpi_root Sf.wf Sf.hv he0 env
     | some q =>
       obtain ⟨e₁, he₁⟩ := enter_total Sf.wf Sf.hs hbi hib
-      obtain ⟨hancq, hancq', hsq⟩ := hprev q rfl
+      obtain ⟨hancq, hancq', hsq, hgq⟩ := hprev q rfl
       have hqr := hbi.2.2.2.1
       obtain ⟨qblk, hqb, _⟩ := hbi.2.2.2.2.1
       have hqr' := hbi'.2.2.2.1
@@ -638,17 +665,26 @@ theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
         have hin' : (subst σ o, q) ∈ φ'.incoming := by
           rw [hφe]; exact List.mem_map.mpr ⟨(o, q), hin, rfl⟩
         exact alias_use Sf.A Sf.mode SP SP' hes c hkb hcs (fun h => (hsq h).2)
+          (fun cls pts hm v y hv hyw h => entryGvn_sound rfl rfl rfl rfl
+            (Sf.cs_empty (by rw [hm]; exact fun h => Mode.noConfusion h)) (Sf.cert hm).1 (Sf.cert hm).2
+            c SP hkb (hgq cls pts hm qblk hqb).1 (hgq cls pts hm qblk hqb).2 hv hyw h)
           (fun v hv => domAt_of_phiUse Sf.wf hqb (hv ▸ hssa φ hφ _ hin hqr))
           ((opsWf_block Sf.A.opsWf' hobm).1 φ' hφ' _ hin')
           (fun w hw => domAt_of_phiUse Sf.wf' hqb' (hw ▸ hssa' φ' hφ' _ hin' hqr'))
           (fun v x hv hx => Sf.A.keys _ hp v (by
             simp only [lineOps]; exact List.mem_map.mpr ⟨(o, q), hin, by rw [hv]⟩) x hx)
       obtain ⟨hs₁, hd₁⟩ := enter_sub hes hds hobm hS (hU.phis hmem) he₁' he₁
-      refine ⟨e₁, he₁, hs₁, hd₁, ?_, fun h => ?_⟩
+      refine ⟨e₁, he₁, hs₁, hd₁, ?_, fun h => ?_, fun cls pts hm => ?_⟩
       · by_cases hms : m = .sccp
         · exact cholds_enter rfl rfl (Sf.sccp hms) Sf.wf Sf.hs hbi.1 hcs (hexb hms) (hsq hms).1 hib he₁
         · rw [Sf.cs_empty hms]; exact cholds_empty _
       · exact tpi_enter rfl rfl rfl Sf.wf Sf.hv Sf.hs hbi (hsq h).2 (hsq h).1 hib he₁
+      · have hW₁ : Words f e₁ b 0 := words_of_point (returns_lift_some (P := PointInv f (domTree f) b 0)
+          (by rw [← he₁, ← enter_eq]; exact point_zero Sf.wf Sf.hv hbi hib))
+        exact ⟨ginv_enter rfl rfl rfl Sf.wf Sf.hs (Sf.cert hm).1 hbi hqb SP (hgq cls pts hm qblk hqb).1
+            hib he₁,
+          pinv_enter rfl rfl rfl Sf.wf Sf.hs rfl (Sf.cs_empty (by rw [hm]; exact fun h => Mode.noConfusion h))
+            (Sf.cert hm).2 c hbi hqb SP hkb (hgq cls pts hm qblk hqb).2 hib he₁ hW₁⟩
   refine ⟨e₁, he₁, hes₁, hds₁, ⟨⟨Sf.wf, Sf.hv, Sf.hs, ⟨ib, hib⟩,
       returns_lift_some (P := PointInv f (domTree f) b 0)
         (by rw [← he₁, ← enter_eq]; exact point_zero Sf.wf Sf.hv hbi hib),
@@ -656,7 +692,7 @@ theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
         (by rw [← he₁, ← enter_eq]; exact pureInv_enter Sf.wf Sf.hv Sf.hs hbi hbp hib), hanc⟩,
     returns_lift_some (P := KBHolds (ctxOf m f s F).K)
       (by rw [← he₁, ← enter_eq]; exact kb_enter Sf.wf Sf.hs Sf.A.kb hbi.1 hkb hib),
-    hcs₁, fun h => ⟨hexb h, htpi₁ h⟩⟩, ⟨Sf.wf', Sf.hv', Sf.hs', ⟨ob, hob⟩,
+    hcs₁, fun h => ⟨hexb h, htpi₁ h⟩, hgv₁⟩, ⟨Sf.wf', Sf.hv', Sf.hs', ⟨ob, hob⟩,
       returns_lift_some (P := PointInv s.func (domTree s.func) b 0)
         (by rw [← he₁', ← enter_eq]; exact point_zero Sf.wf' Sf.hv' hbi' hob),
       returns_lift_some (P := PureInv s.func (domTree s.func) b 0)
@@ -690,7 +726,7 @@ theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
     intro a ha
     have ha' : subst σ a ∈ ob.term.args := by
       rw [ht, Term.args_mapOps]; exact List.mem_map_of_mem ha
-    refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2)
+    refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry H c)
       (fun v hv => ?_) ((opsWf_block Sf.A.opsWf' hobm).2.2 _ ha') (fun w hw => ?_)
       (fun v x hv hx => Sf.A.keys _ B.term v (hv ▸ ha) x hx)
     · subst hv
@@ -739,7 +775,8 @@ theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
       fun p hp => ?_, fun h => (hex h).1⟩
     simp only [Option.some.injEq] at hp
     subst hp
-    exact ⟨H.side.anc, H'.anc, fun h => ⟨(hex h).2, (H.sc h).2⟩⟩
+    exact ⟨H.side.anc, H'.anc, fun h => ⟨(hex h).2, (H.sc h).2⟩, fun cls pts hm pblk hpb => by
+      rw [hib] at hpb; cases hpb; exact H.gv cls pts hm⟩
   · subst hn; rfl
 
 /-- One output block against the input's run from a related state. -/
@@ -875,7 +912,7 @@ end sim
 
 /-- The shared check accepting a step, in exact or SCCP mode, with SCCP's facts in the latter:
     the output function approximates the well-formed input function on integers. -/
-theorem aliasReject_sound {m : Mode} (hm : m = .exact ∨ m = .sccp) {f : Func}
+theorem aliasReject_sound {m : Mode} (hm : m.Ok) {f : Func}
     {ids : Option (List (List Nat))} {s : FuncSnap} {F : StepFacts} (hwf : f.wf sig syms = true)
     (h : aliasReject m f ids s F = none) (hsc : m = .sccp → SccpSpec f (ctxOf m f s F))
     {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
@@ -913,7 +950,7 @@ theorem sccpFold_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap
   · cases h
   next hs =>
   simp only [Bool.not_eq_true, Bool.not_eq_false'] at hs
-  exact aliasReject_sound (Or.inr rfl) hwf (Option.isNone_iff_eq_none.mp h)
+  exact aliasReject_sound (Or.inr (Or.inl rfl)) hwf (Option.isNone_iff_eq_none.mp h)
     (fun _ => sccpSpec_of hs) ho hoi c
 
 theorem knownBitsSimplify_stepSound : StepSound .knownBitsSimplify :=

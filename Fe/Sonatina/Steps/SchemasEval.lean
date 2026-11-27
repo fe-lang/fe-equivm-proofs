@@ -409,12 +409,17 @@ theorem tout_del_ok {X : StepCtx} {e : Env} (hC : CHolds X.cs e) {u n : Nat}
 
 theorem kbOf_eq (K : NatMap KB) (v : Nat) : kbOf K v = kbOf K v := rfl
 
+/-- The modes the simulation covers: all but demand rounds. -/
+def Mode.Ok (m : Mode) : Prop := m = .exact ∨ m = .sccp ∨ ∃ cls pts, m = .gvn cls pts
+
 /-- One justification of `v ↦ x`, at a point where both terms evaluate. -/
-theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp) {e : Env}
+theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m.Ok) {e : Env}
     (hK : KBHolds X.K e) (hC : CHolds X.cs e) {v : Nat} {x : Operand} {nv : Nat}
     (hv : e[v]? = some (.int 256 nv)) (hvt : ∀ d t, X.tin d v = some t → TermOk e t nv)
     {nx : Nat} (hx : opVal e x = some (.int 256 nx)) (hxt : ∀ d, TermOk e (X.tout d x) nx)
     (hphi : m = .sccp → X.phiFold v x = true → opVal e (.var v) = opVal e x)
+    (hgv : ∀ cls pts, m = .gvn cls pts → entryGvn X cls pts v x = true →
+      opVal e x = opVal e (.var v))
     (h : entryDirect X m v x = true) : opVal e x = opVal e (.var v) := by
   have exact_case : (depths.any fun dd => (X.tin dd.1 v).any fun t =>
       checkExact (kbOf X.K) t (X.tout dd.2 x)) = true → opVal e x = opVal e (.var v) := by
@@ -435,7 +440,7 @@ theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .scc
     rw [h1.1, h2.1] at this
     subst this
     rw [hx]; exact hv.symm
-  rcases hm with rfl | rfl
+  rcases hm with rfl | rfl | ⟨cls, pts, rfl⟩
   · exact exact_case h
   ·
     simp only [entryDirect, Bool.or_eq_true] at h
@@ -452,6 +457,10 @@ theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .scc
         simp [opVal, hv]
     · exact (hphi rfl h).symm
     · exact exact_case h
+  · simp only [entryDirect, Bool.or_eq_true] at h
+    rcases h with h | h
+    · exact hgv cls pts rfl h
+    · exact exact_case h
 
 /-- A folded phi's value: the phi of its block. -/
 theorem phiFold_def {X : StepCtx} {v : Nat} {x : Operand} (h : X.phiFold v x = true) :
@@ -463,11 +472,14 @@ theorem phiFold_def {X : StepCtx} {v : Nat} {x : Operand} (h : X.phiFold v x = t
 
 /-- The justification of `v ↦ x` holds at a point where the input reads `v` and the output's
     term of `x` evaluates. -/
-theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp)
+theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m.Ok)
     (hB : X.inB = .ofListBy (·.id) f.blocks) (hD : X.inD = defsOf f) {dels : List Nat}
     (hfresh : ∀ u ∈ dels, X.outD.find? u = none) {e : Env} {b k : Nat}
     (S : SidePt sig syms f e b k) (c : Ctx) (hK : KBHolds X.K e) (hC : CHolds X.cs e)
-    (hT : m = .sccp → TPI X f e b) {x : Operand} {nx : Nat} (hx : opVal e x = some (.int 256 nx))
+    (hT : m = .sccp → TPI X f e b)
+    (hgv : ∀ cls pts, m = .gvn cls pts → ∀ v y, DomAt f (domTree f) b k v → y.wf = true →
+      entryGvn X cls pts v y = true → opVal e y = opVal e (.var v))
+    {x : Operand} (hxw : x.wf = true) {nx : Nat} (hx : opVal e x = some (.int 256 nx))
     (hxt : ∀ d, TermOk e (X.tout d x) nx) :
     ∀ n v, DomAt f (domTree f) b k v → entryOk X m dels n v x = true →
       opVal e x = opVal e (.var v) := by
@@ -482,13 +494,15 @@ theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp)
   | zero =>
     intro v hv h
     obtain ⟨nv, hnv, _, hvt⟩ := tin_ok hB hD S c hC hv
-    exact entryDirect_sound hm hK hC hnv hvt hx hxt (fun hms => hphi v x hv hms) h
+    exact entryDirect_sound hm hK hC hnv hvt hx hxt (fun hms => hphi v x hv hms)
+      (fun cls pts hg => hgv cls pts hg v x hv hxw) h
   | succ n ih =>
     intro v hv h
     obtain ⟨nv, hnv, _, hvt⟩ := tin_ok hB hD S c hC hv
     simp only [entryOk, Bool.or_eq_true, List.any_eq_true] at h
     rcases h with h | ⟨o, ho, h⟩
-    · exact entryDirect_sound hm hK hC hnv hvt hx hxt (fun hms => hphi v x hv hms) h
+    · exact entryDirect_sound hm hK hC hnv hvt hx hxt (fun hms => hphi v x hv hms)
+        (fun cls pts hg => hgv cls pts hg v x hv hxw) h
     cases o with
     | imm => cases h
     | var u =>
@@ -513,15 +527,17 @@ theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp)
       obtain ⟨nu, hnu, _, hlu⟩ := S.bound (EnvSub.refl e) hud
       have h1 : opVal e (.var u) = opVal e (.var v) :=
         entryDirect_sound hm hK hC hnv hvt (by simp [opVal, hnu]) (tout_del_ok hC (hfresh u hu) hnu hlu)
-          (fun hms => hphi v _ hv hms) hdir
+          (fun hms => hphi v _ hv hms) (fun cls pts hg => hgv cls pts hg v (.var u) hv rfl) hdir
       rw [ih u hud hrest, h1]
 
 /-- A paired line's operand: at a point where the input reads `o` and the output `subst σ o`,
     the input's environment gives both the same value. -/
-theorem alias_use (A : AF m f s F pairs deleted σ) (hm : m = .exact ∨ m = .sccp) {e e' : Env}
+theorem alias_use (A : AF m f s F pairs deleted σ) (hm : m.Ok) {e e' : Env}
     {b k k' : Nat} (S : SidePt sig syms f e b k) (S' : SidePt sig syms s.func e' b k')
     (hsub : EnvSub e' e) (c : Ctx) (hK : KBHolds (ctxOf m f s F).K e)
     (hC : CHolds (ctxOf m f s F).cs e) (hT : m = .sccp → TPI (ctxOf m f s F) f e b)
+    (hgv : ∀ cls pts, m = .gvn cls pts → ∀ v y, DomAt f (domTree f) b k v → y.wf = true →
+      entryGvn (ctxOf m f s F) cls pts v y = true → opVal e y = opVal e (.var v))
     {o : Operand} (ho : ∀ v, o = .var v → DomAt f (domTree f) b k v)
     (hw' : (subst σ o).wf = true) (hd' : ∀ w, subst σ o = .var w → DomAt s.func (domTree s.func) b k' w)
     (hkey : ∀ v x, o = .var v → σ.find? v = some x →
@@ -537,7 +553,7 @@ theorem alias_use (A : AF m f s F pairs deleted σ) (hm : m = .exact ∨ m = .sc
       rw [hsx] at hw' hd' ⊢
       obtain ⟨nx, hnx, _, hxt⟩ := S'.unfold_sound hsub c hC 0 x hw' hd'
       have hxe : opVal e x = some (.int 256 nx) := hsub.opVal (opVal_of_intVal hnx)
-      refine entryOk_sound hm rfl rfl (fun u hu => A.fresh u hu) S c hK hC hT hxe
+      refine entryOk_sound hm rfl rfl (fun u hu => A.fresh u hu) S c hK hC hT hgv hw' hxe
         (fun d => ?_) 3 v (ho v rfl) (hkey v x rfl hx)
       obtain ⟨nx', hnx', _, hok⟩ := S'.unfold_sound hsub c hC d x hw' hd'
       rw [hnx] at hnx'; cases hnx'
