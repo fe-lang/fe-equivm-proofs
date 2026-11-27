@@ -253,15 +253,13 @@ theorem SidePt.bound (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) {w : Na
 
 /-- The term of a pure statement's result that dominates the point, its operands unfolded `d`
     levels, given the lemma for those operands. -/
-theorem SidePt.stmt_ok (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) (c : Ctx) {cs : NatMap Nat}
-    {d : Nat} (ih : ∀ o : Operand, o.wf = true → (∀ w, o = .var w → DomAt g (domTree g) b k w) →
-      ∃ n, intVal ε o = some (256, n) ∧ n < W ∧
-        TermOk e (unfold (.ofListBy (·.id) g.blocks) (defsOf g) cs d o) n)
+theorem SidePt.stmt_ok (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) (c : Ctx)
+    {G : Operand → Term} (ih : ∀ o : Operand, o.wf = true → (∀ w, o = .var w → DomAt g (domTree g) b k w) →
+      ∃ n, intVal ε o = some (256, n) ∧ n < W ∧ TermOk e (G o) n)
     {w : Nat} (hw : DomAt g (domTree g) b k w) {st : Stmt}
     (hst : defStmt (.ofListBy (·.id) g.blocks) (defsOf g) w = some st) {p : PureInst}
     (hp : pureInst? st.inst = some p) (hc : noClz p = true) :
-    ∃ n, ε[w]? = some (.int 256 n) ∧ n < W ∧
-      TermOk e (termOf (unfold (.ofListBy (·.id) g.blocks) (defsOf g) cs d) p) n := by
+    ∃ n, ε[w]? = some (.int 256 n) ∧ n < W ∧ TermOk e (termOf G p) n := by
   obtain ⟨e0, _, hroot, hbroot⟩ := S.root
   obtain ⟨d0, j0, blk0, hdef, hb0, hj0, hwd⟩ := defStmt_spec (Func.wf_ids S.wf) hst
   have hbef := before_of_domAt S.uniq hw hdef
@@ -272,8 +270,7 @@ theorem SidePt.stmt_ok (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) (c : 
   have hh := S.pu d0 j0 blk0 st hb0 hj0 (pureInst?_pure hp hc) hreach hbef
   have hmem0 := List.mem_of_find?_eq_some hb0
   have hsm : st ∈ blk0.body := List.mem_of_getElem? hj0
-  obtain ⟨xs, hargs, hok⟩ := termOf_ok (ε := ε) (e := e)
-    (G := unfold (.ofListBy (·.id) g.blocks) (defsOf g) cs d) (p := p) fun a ha => by
+  obtain ⟨xs, hargs, hok⟩ := termOf_ok (ε := ε) (e := e) (G := G) (p := p) fun a ha => by
       have ha' : a ∈ st.inst.args := by rw [pureInst?_args hp]; exact ha
       refine ih a ((Func.wf_operands S.wf hmem0).2.1 st hsm a ha') fun w' hw' => ?_
       subst hw'
@@ -355,6 +352,82 @@ theorem SidePt.unfold_sound (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) 
           cases hε'
           exact hok
 
+theorem unfoldStop_succ_var (B : NatMap Block) (D : NatMap Def) (cs : NatMap Nat) (stop : List Nat)
+    (d v : Nat) (hcs : cs.find? v = none) (hs : stop.contains v = false) :
+    unfoldStop B D cs stop (d + 1) (.var v) = .atom v ∨ ∃ st p, defStmt B D v = some st ∧
+      pureInst? st.inst = some p ∧ noClz p = true ∧
+      unfoldStop B D cs stop (d + 1) (.var v) = termOf (unfoldStop B D cs stop d) p := by
+  rcases hds : defStmt B D v with _ | st
+  · left; simp [unfoldStop, hcs, hs, hds]
+  rcases hp : pureInst? st.inst with _ | p
+  · left; simp [unfoldStop, hcs, hs, hds, hp]
+  by_cases hc : noClz p = true
+  · right
+    refine ⟨st, p, rfl, hp, hc, ?_⟩
+    simp only [unfoldStop, hcs, hs, hds, Option.bind_some, hp, Bool.false_eq_true, ↓reduceIte]
+    split <;> simp_all [noClz]
+  · left
+    have : ∃ a, p = .op1 .clz a := by
+      rcases p with ⟨o, a⟩ | _ | _ <;> simp [noClz] at hc
+      · cases o <;> simp at hc ⊢
+    obtain ⟨a, rfl⟩ := this
+    simp [unfoldStop, hcs, hs, hds, hp]
+
+/-- `unfold_sound` for `unfoldStop`: stopping early leaves an atom, bound to its word. -/
+theorem SidePt.unfoldStop_sound (S : SidePt sig syms g ε b k) (hsub : EnvSub ε e) (c : Ctx)
+    {cs : NatMap Nat} (hC : CHolds cs e) (stop : List Nat) :
+    ∀ d (o : Operand), o.wf = true → (∀ w, o = .var w → DomAt g (domTree g) b k w) →
+      ∃ n, intVal ε o = some (256, n) ∧ n < W ∧
+        TermOk e (unfoldStop (.ofListBy (·.id) g.blocks) (defsOf g) cs stop d o) n := by
+  intro d
+  induction d with
+  | zero =>
+    intro o ho hd
+    cases o with
+    | imm bits v =>
+      simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at ho
+      obtain ⟨rfl, hv⟩ := ho
+      exact ⟨v, rfl, hv, termOk_lit hv⟩
+    | var w =>
+      obtain ⟨n, hε, he, hn⟩ := S.bound hsub (hd w rfl)
+      refine ⟨n, by simp [intVal, opVal, hε], hn, ?_⟩
+      cases hcs : cs.find? w with
+      | some c0 =>
+        have := hC w c0 n hcs he
+        subst this
+        simp only [unfoldStop, hcs]
+        exact termOk_lit hn
+      | none =>
+        simp only [unfoldStop, hcs]
+        split <;> exact termOk_atom he hn
+  | succ d ih =>
+    intro o ho hd
+    cases o with
+    | imm bits v =>
+      simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at ho
+      obtain ⟨rfl, hv⟩ := ho
+      exact ⟨v, rfl, hv, termOk_lit hv⟩
+    | var w =>
+      obtain ⟨n, hε, he, hn⟩ := S.bound hsub (hd w rfl)
+      refine ⟨n, by simp [intVal, opVal, hε], hn, ?_⟩
+      cases hcs : cs.find? w with
+      | some c0 =>
+        have := hC w c0 n hcs he
+        subst this
+        simp only [unfoldStop, hcs]
+        exact termOk_lit hn
+      | none =>
+        cases hs : stop.contains w with
+        | true => simp only [unfoldStop, hcs, hs, ↓reduceIte]; exact termOk_atom he hn
+        | false =>
+          rcases unfoldStop_succ_var _ _ cs stop d w hcs hs with h | ⟨st, p, hst, hp, hc, h⟩
+          · rw [h]; exact termOk_atom he hn
+          · rw [h]
+            obtain ⟨n', hε', _, hok⟩ := S.stmt_ok hsub c ih (hd w rfl) hst hp hc
+            rw [hε] at hε'
+            cases hε'
+            exact hok
+
 end unfold
 
 /-! ## The justification of an entry -/
@@ -410,7 +483,7 @@ theorem tout_del_ok {X : StepCtx} {e : Env} (hC : CHolds X.cs e) {u n : Nat}
 theorem kbOf_eq (K : NatMap KB) (v : Nat) : kbOf K v = kbOf K v := rfl
 
 /-- One justification of `v ↦ x`, at a point where both terms evaluate. -/
-theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp) {e : Env}
+theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp ∨ m = .scalar) {e : Env}
     (hK : KBHolds X.K e) (hC : CHolds X.cs e) {v : Nat} {x : Operand} {nv : Nat}
     (hv : e[v]? = some (.int 256 nv)) (hvt : ∀ d t, X.tin d v = some t → TermOk e t nv)
     {nx : Nat} (hx : opVal e x = some (.int 256 nx)) (hxt : ∀ d, TermOk e (X.tout d x) nx)
@@ -435,10 +508,9 @@ theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .scc
     rw [h1.1, h2.1] at this
     subst this
     rw [hx]; exact hv.symm
-  rcases hm with rfl | rfl
+  rcases hm with rfl | rfl | rfl
   · exact exact_case h
-  ·
-    simp only [entryDirect, Bool.or_eq_true] at h
+  · simp only [entryDirect, Bool.or_eq_true] at h
     rcases h with (h | h) | h
     · cases x with
       | var => simp at h
@@ -452,6 +524,7 @@ theorem entryDirect_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .scc
         simp [opVal, hv]
     · exact (hphi rfl h).symm
     · exact exact_case h
+  · exact exact_case h
 
 /-- A folded phi's value: the phi of its block. -/
 theorem phiFold_def {X : StepCtx} {v : Nat} {x : Operand} (h : X.phiFold v x = true) :
@@ -463,7 +536,7 @@ theorem phiFold_def {X : StepCtx} {v : Nat} {x : Operand} (h : X.phiFold v x = t
 
 /-- The justification of `v ↦ x` holds at a point where the input reads `v` and the output's
     term of `x` evaluates. -/
-theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp)
+theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp ∨ m = .scalar)
     (hB : X.inB = .ofListBy (·.id) f.blocks) (hD : X.inD = defsOf f) {dels : List Nat}
     (hfresh : ∀ u ∈ dels, X.outD.find? u = none) {e : Env} {b k : Nat}
     (S : SidePt sig syms f e b k) (c : Ctx) (hK : KBHolds X.K e) (hC : CHolds X.cs e)
@@ -518,7 +591,7 @@ theorem entryOk_sound {X : StepCtx} {m : Mode} (hm : m = .exact ∨ m = .sccp)
 
 /-- A paired line's operand: at a point where the input reads `o` and the output `subst σ o`,
     the input's environment gives both the same value. -/
-theorem alias_use (A : AF m f s F pairs deleted σ) (hm : m = .exact ∨ m = .sccp) {e e' : Env}
+theorem alias_use (A : AF m f s F pairs deleted σ) (hm : m = .exact ∨ m = .sccp ∨ m = .scalar) {e e' : Env}
     {b k k' : Nat} (S : SidePt sig syms f e b k) (S' : SidePt sig syms s.func e' b k')
     (hsub : EnvSub e' e) (c : Ctx) (hK : KBHolds (ctxOf m f s F).K e)
     (hC : CHolds (ctxOf m f s F).cs e) (hT : m = .sccp → TPI (ctxOf m f s F) f e b)

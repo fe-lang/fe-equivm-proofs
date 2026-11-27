@@ -121,7 +121,7 @@ def outMutants (f : Func) (ids : List (List Nat)) (s : FuncSnap) : List (String 
   let pairsOf : List (Option (List (Line × Line))) :=
     ((f.blocks.zip ids).zip (fo.blocks.zip s.insts)).map fun bb =>
       (pairUp (idLines bb.1.1 bb.1.2) (idLines bb.2.1 bb.2.2)).map (·.1)
-  let σ := (sigmaOf ((pairsOf.filterMap id).flatten)).getD .empty
+  let σ := (sigmaOf true ((pairsOf.filterMap id).flatten)).getD .empty
   let inDefs := defsOf f
   let outDefs := defsOf fo
   -- The output statement paired with input statement `si` substituted operand `k`.
