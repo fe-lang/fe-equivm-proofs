@@ -717,9 +717,10 @@ polarity, dead edges in a rewrite, an inserted phi with a wrong operand, a wrong
 recorded in another block, after an input phi; on the real records, a wrong inserted-phi operand,
 a wrong term, the other inserted phi used, a representative of another class used.
 
-**`gvn_prune`: not done.**  Its four steps (the 265: EntryPoint, C, Blob twice) remove the slots
-GVN proved dead (`br → jump`, phis' operands from removed edges, the blocks left unreachable,
-trivial phis): every one rests on an edge predicate.  EntryPoint and Blob: the branch condition
+**`gvn_prune`: not done.**  Its four steps (the 265: `erc4337` EntryPoint,
+`lane_holds_before_halts` C, the Blob of `storage_bytes_encode_return` and of
+`storage_bytes_to_memory`) remove the slots GVN proved dead (`br → jump`, phis' operands from
+removed edges, the blocks left unreachable, trivial phis): every one rests on an edge predicate.  EntryPoint and Blob: the branch condition
 has, through a class (same key; in Blob through congruent phis), the value of a dominating
 branch's condition on its taken edge (`cond = resolved`, a `br` on a boolean); C: a phi whose
 operand from a predecessor is, through a class, the case value of the `br_table` edge into that
@@ -941,6 +942,24 @@ line of WETH9's `returnValue_run`.
   one of the 265's three now stop at a later `gvn_rewrite`.  Before the merge (eight kinds and
   `adce`) the verdicts end to end were those of the eight kinds (`-O1` 32, `-Os` 32, the 265
   494): every section with an `adce` step stopped earlier at `scalar_canonicalize`.
+
+- With `gvn_rewrite` proved as well (`StepKind.proved` has eleven kinds; `chain-gvn` after merging
+  `chain` `cb174b8`), on the same corpora (`gvn/measure_all.sh`, `scripts/MachineSteps.lean` end to
+  end and `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), ten kinds | eleven kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 35/40 | 39/40 | `gvn_rewrite` 1 |
+  | FeProofs `-Os` | 35/40 | 39/40 | `gvn_rewrite` 1 |
+  | the 265 | 519/530 | 525/530 | `gvn_prune` 4, `gvn_rewrite` 1 |
+
+  `gvn_rewrite` function steps accepted: `-O1` 15 of 16, `-Os` 9 of 10, the 265 22 of 23 (v5 and
+  v6); the one rejected step per level is `EcrecoverPrecompile`'s `permute` (a `sym_addr` merged
+  and deleted, `deletion`), which is also each level's one section rejected at `gvn_rewrite`.  The
+  265's `gvn_prune` sections: `erc4337` EntryPoint, `lane_holds_before_halts` C and the Blob of
+  `storage_bytes_encode_return` and of `storage_bytes_to_memory`.  No step of another proved kind
+  is rejected, no summary table fails.
 
 ## The top theorem: what it covers (review 20, M-3)
 

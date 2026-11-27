@@ -388,6 +388,17 @@ other kinds' mutants, 970, 893, 3716 (v5) and 970, 893, 3713 (v6), none accepted
 133, 94, v6 131, 95).  Tests: `ScalarStepTests.lean`, 71 records, 40 accepted and 31 rejected, by
 `decide +kernel` (12 s).
 
+## The `gvn_rewrite` mode (`SchemasStep.lean`, mode `.gvn cls pts`)
+
+`gvn_rewrite` runs `aliasReject` in the mode `.gvn cls pts` on its input with the inserted phis
+added (`GvnRewrite.lean`): `entryDirect` also accepts `entryGvn` (one class representative, or an
+inserted phi whose term the replaced value unfolds to), and `aliasReject` checks the mode's
+certificate (`Mode.certOk`: `clsOk`, `ptOk`) after the known bits.  The simulation's mode
+predicate is `Mode.Ok` (`exact`, `sccp`, `scalar`, `gvn`); `entryDirect_sound`, `entryOk_sound`
+and `alias_use` take the `gvn` case as a hypothesis, which `SF.gvn_entry` discharges from the
+invariants `GInv` and `PInv` (`GvnInv.lean`) that `InPt` and `RS` carry in that mode.  Details
+and measurements: `NOTES.md`, § `gvn_rewrite`.
+
 ## Review 13 (`reviews/review-13-lean-step-checkers.md`)
 
 The reviewer's inputs for findings 1–3 were added as records first (`r13_*`), and the checker at

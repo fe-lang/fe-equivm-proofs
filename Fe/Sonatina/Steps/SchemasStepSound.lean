@@ -7,7 +7,9 @@ The output has the input's blocks; the simulation (`RS`) relates the output and 
 the same block entered from the same block, the output's environment binding less (`EnvSub`)
 and only output values (`DomSub`).  Each side carries its own definedness invariant and L2
 (`BlockInv`, `BlockPure`, on its own dominator tree), and the input the known bits (`KBHolds`),
-SCCP's constants (`CHolds`) and, for `sccp_fold`, executability and the folded phis (`TPI`).
+SCCP's constants (`CHolds`), for `sccp_fold` executability and the folded phis (`TPI`), and in the
+`gvn` mode of `gvn_rewrite` GVN's classes and the inserted phis' terms (`GInv`, `PInv`,
+`GvnInv.lean`; the step's soundness is `GvnRewriteSound.lean`).
 
 In a block the output's lines are the input's less the deleted ones (`BF`): a kept statement,
 phi operand or terminator reads `σ v` where the input reads `v`, and the two have one value at
