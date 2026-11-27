@@ -244,21 +244,22 @@ theorem SF.cert {cls : List (Nat × Operand)} {pts : List (Nat × Nat × Term)} 
 omit Sf in
 /-- The input's invariants at point `(b, k)`. -/
 structure InPt (sig : Sigs) (syms : List String) (m : Mode) (f : Func) (s : FuncSnap)
-    (F : StepFacts) (e : Env) (b k : Nat) : Prop where
+    (F : StepFacts) (c : Ctx) (e : Env) (b k : Nat) : Prop where
   side : SidePt sig syms f e b k
   kb : KBHolds (ctxOf m f s F).K e
   cs : CHolds (ctxOf m f s F).cs e
   sc : m = .sccp → ((ctxOf m f s F).E.find? b).isSome = true ∧ TPI (ctxOf m f s F) f e b
   gv : ∀ cls pts, m = .gvn cls pts → GInv f cls e b k ∧ PInv f pts e b k
+  sy : SymInv c f e
 
 omit Sf in
 /-- The relation at a point: the input at `(b, k)`, the output at `(b, k')`. -/
 def Mid (sig : Sigs) (syms : List String) (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts)
-    (e' e : Env) (b k k' : Nat) : Prop :=
-  EnvSub e' e ∧ DomSub s.func e' ∧ InPt sig syms m f s F e b k ∧ SidePt sig syms s.func e' b k'
+    (c : Ctx) (e' e : Env) (b k k' : Nat) : Prop :=
+  EnvSub e' e ∧ DomSub s.func e' ∧ InPt sig syms m f s F c e b k ∧ SidePt sig syms s.func e' b k'
 
 /-- The certificate's justifications hold at a point of the input. -/
-theorem SF.gvn_entry {e : Env} {b k : Nat} (H : InPt sig syms m f s F e b k) (c : Ctx) :
+theorem SF.gvn_entry (c : Ctx) {e : Env} {b k : Nat} (H : InPt sig syms m f s F c e b k) :
     ∀ cls pts, m = .gvn cls pts → ∀ v y, DomAt f (domTree f) b k v → y.wf = true →
       entryGvn (ctxOf m f s F) cls pts v y = true → opVal e y = opVal e (.var v) := by
   intro cls pts hm v y hv hyw h
@@ -267,7 +268,7 @@ theorem SF.gvn_entry {e : Env} {b k : Nat} (H : InPt sig syms m f s F e b k) (c 
     hc hp c H.side H.kb (H.gv cls pts hm).1 (H.gv cls pts hm).2 hv hyw h
 
 /-- An operand a kept statement reads has one value on both sides. -/
-theorem SF.stmt_alias {e' e : Env} {b k k' : Nat} (hm : Mid sig syms m f s F e' e b k k') (c : Ctx)
+theorem SF.stmt_alias (c : Ctx) {e' e : Env} {b k k' : Nat} (hm : Mid sig syms m f s F c e' e b k k')
     {ib ob : Block} (hib : f.block? b = some ib) (hob : s.func.block? b = some ob) {st : Stmt}
     (hst : ib.body[k]? = some st) (hst' : ob.body[k']? = some (st.mapOps (subst σ)))
     (hp : (Line.stmt st, Line.stmt (st.mapOps (subst σ))) ∈ pairs) :
@@ -277,27 +278,30 @@ theorem SF.stmt_alias {e' e : Env} {b k k' : Nat} (hm : Mid sig syms m f s F e' 
   intro a ha
   have ha' : subst σ a ∈ (st.mapOps (subst σ)).inst.args := by
     simp only [Stmt.mapOps, Inst.args_mapOps]; exact List.mem_map_of_mem ha
-  refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry H c)
+  refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry c H)
     (fun v hv => ?_) ((opsWf_block Sf.A.opsWf' hobm).2.1 _ (List.mem_of_getElem? hst') _ ha')
     (fun w hw => ?_) (fun v x hv hx => Sf.A.keys _ hp v (hv ▸ ha) x hx)
   · subst hv; exact stmt_operand Sf.wf Sf.hs hib H.side.reach hst ha
   · exact stmt_operand Sf.wf' Sf.hs' hob H'.reach hst' (hw ▸ ha')
 
 /-- A statement keeps the input's invariants. -/
-theorem SF.in_step {e : Env} {b k : Nat} (H : InPt sig syms m f s F e b k) (c : Ctx) {ib : Block}
+theorem SF.in_step (c : Ctx) {e : Env} {b k : Nat} (H : InPt sig syms m f s F c e b k) {ib : Block}
     (hib : f.block? b = some ib) {st : Stmt} (hst : ib.body[k]? = some st) {vals : List Val}
     (hiv : IntVals vals) (hpv : st.inst.pure = true → pureVals e st.inst = some vals)
     (hl : st.dsts.length = vals.length)
+    (hsv : st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv])
     (hkb : KBHolds (ctxOf m f s F).K ((st.dsts.zip vals).foldl bindStep e)) :
-    InPt sig syms m f s F ((st.dsts.zip vals).foldl bindStep e) b (k + 1) := by
+    InPt sig syms m f s F c ((st.dsts.zip vals).foldl bindStep e) b (k + 1) := by
   have S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1) :=
     ⟨Sf.wf, Sf.hv, Sf.hs, H.side.blk, point_succ' Sf.wf hib hst H.side.pi hiv hl,
       pureInv_stmt Sf.wf Sf.hv Sf.hs hib H.side.reach hst H.side.pu hpv hl, H.side.anc⟩
   refine ⟨S', hkb,
     ?_, fun h => ⟨(H.sc h).1, tpi_stmt rfl rfl Sf.hv Sf.hs hib H.side.reach hst (H.sc h).2 _
       fun y hy => (List.of_mem_zip hy).1⟩, fun cls pts hm =>
-      ⟨ginv_stmt rfl rfl rfl Sf.wf Sf.hs rfl (Sf.cert hm).1 c H.side (H.gv cls pts hm).1 hib hst S' hkb,
-        pinv_stmt rfl rfl Sf.wf Sf.hs (Sf.cert hm).2 H.side (H.gv cls pts hm).2 hib hst vals⟩⟩
+      ⟨ginv_stmt rfl rfl rfl Sf.wf Sf.hs rfl (Sf.cert hm).1 c H.side (H.gv cls pts hm).1 H.sy hib hst
+          hl hsv S' hkb,
+        pinv_stmt rfl rfl Sf.wf Sf.hs (Sf.cert hm).2 H.side (H.gv cls pts hm).2 hib hst vals⟩,
+      symInv_stmt H.side.uniq H.sy hib hst hsv⟩
   by_cases hms : m = .sccp
   · exact cholds_stmt rfl rfl (Sf.sccp hms) H.side c H.kb H.cs (H.sc hms).1 hib hst hpv hl
   · rw [Sf.cs_empty hms]; exact cholds_empty _
@@ -321,6 +325,44 @@ theorem domSub_step {f' : Func} {e' : Env} (hds : DomSub f' e') {ob : Block} (ho
   · exact out_stmt_def hob hst (List.of_mem_zip hx).1
   · exact hds k (by rw [he]; rfl)
 
+omit Sf in
+/-- A symbol instruction runs to its value; any other, to anything. -/
+theorem returns_symv {o : Oracle} (c : Ctx) (e : Env) (st : Stmt) :
+    Returns (fun vals => st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv])
+      (runStmtO o c e st) := by
+  by_cases h : st.inst.isSym = true
+  · exact Returns.mono (returns_sym c e h) fun _ hv _ => hv
+  · exact fun _ _ _ _ _ h' => absurd h' h
+
+omit Sf in
+theorem pure_of_isSym {i : Inst} (h : i.isSym = true) : i.pure = false := by
+  cases i <;> simp_all [Inst.isSym, Inst.pure]
+
+omit Sf in
+/-- A symbol instruction of a well-formed statement, in a context with the section's symbols,
+    runs to its value, a word, and leaves the world as it was. -/
+theorem runStmtO_sym {o : Oracle} {c : Ctx} (e : Env) (hc : c.Has syms) {st : Stmt} {n : Nat}
+    (hw : st.inst.wf sig syms n = true) (h : st.inst.isSym = true) :
+    ∃ sv x, symVal c st.inst = some sv ∧ runStmtO o c e st = pure [sv] ∧ sv = .int 256 x := by
+  rcases st with ⟨dsts, inst⟩
+  cases inst <;> simp only [Inst.isSym, Bool.false_eq_true] at h
+  case symAddr x =>
+    simp only [Inst.wf, Bool.and_eq_true, List.contains_iff_mem] at hw
+    obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp (hc _ hw.2)
+    exact ⟨.int 256 p.1, p.1, by simp [symVal, hp], by simp [runStmtO, runInst, hp]; try rfl, rfl⟩
+  case symSize x =>
+    simp only [Inst.wf, Bool.and_eq_true, List.contains_iff_mem] at hw
+    obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp (hc _ hw.2)
+    exact ⟨.int 256 p.2, p.2, by simp [symVal, hp], by simp [runStmtO, runInst, hp]; try rfl, rfl⟩
+  case funcPtr x =>
+    simp only [Inst.wf, Bool.and_eq_true, List.contains_iff_mem] at hw
+    obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp (hc _ hw.2)
+    exact ⟨.int 256 p.1, p.1, by simp [symVal, hp], by simp [runStmtO, runInst, hp]; try rfl, rfl⟩
+
+omit Sf in
+theorem isSym_pure {i : Inst} {p : PureInst} (h : pureInst? i = some p) : i.isSym = false := by
+  cases i <;> simp_all [pureInst?, Inst.isSym]
+
 /-- A kept statement against the input's. -/
 theorem SF.keep_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) {b : Nat}
     {ib ob : Block} (hib : f.block? b = some ib) (hob : s.func.block? b = some ob)
@@ -328,11 +370,11 @@ theorem SF.keep_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
     {st : Stmt} {k k' : Nat} {e' e : Env} (hsk : ib.body[k]? = some st)
     (hsk' : ob.body[k']? = some (st.mapOps (subst σ)))
     (hp : (Line.stmt st, Line.stmt (st.mapOps (subst σ))) ∈ pairs)
-    (hm : Mid sig syms m f s F e' e b k k')
-    (ih : ∀ e₁' e₁, Mid sig syms m f s F e₁' e₁ b (k + 1) (k' + 1) →
+    (hm : Mid sig syms m f s F c e' e b k k')
+    (ih : ∀ e₁' e₁, Mid sig syms m f s F c e₁' e₁ b (k + 1) (k' + 1) →
       Fol Q (runBodyO o c e₁' os) (runBodyO o c e₁ is >>= K)) :
     Fol Q (runBodyO o c e' (st.mapOps (subst σ) :: os)) (runBodyO o c e (st :: is) >>= K) := by
-  have hal := Sf.stmt_alias hm c hib hob hsk hsk' hp
+  have hal := Sf.stmt_alias c hm hib hob hsk hsk' hp
   obtain ⟨hes, hds, H, H'⟩ := hm
   have hobm := List.mem_of_find?_eq_some hob
   have hsob := List.mem_of_getElem? hsk'
@@ -345,34 +387,70 @@ theorem SF.keep_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
     exact Approx.runStmtO_sub ho hes H.side.pi.1.int _ hmach'
   simp only [runBodyO, bind_assoc]
   refine Fol.bind (Fol.strengthen (Fol.approx (Approx.strengthen happ
-      (Returns.and (returns_runStmtO_pure hoi c H.side.pi.1.int hmach)
-        (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb)))
+      (Returns.and (Returns.and (returns_runStmtO_pure hoi c H.side.pi.1.int hmach)
+        (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb)) (returns_symv c e st)))
       (Q := fun vals y => (IntVals vals ∧ (st.inst.pure = true → pureVals e st.inst = some vals)) ∧
         (st.dsts.length = vals.length → KBHolds (ctxOf m f s F).K ((st.dsts.zip vals).foldl bindStep e)) ∧
+        (st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv]) ∧
         y = (Fe.Sonatina.bind e st.dsts vals >>= fun e₁ => runBodyO o c e₁ is >>= K))
-      fun a' a ⟨h1, h2⟩ => ⟨h1 ▸ h2.1, h1 ▸ h2.2, h1 ▸ rfl⟩)
+      fun a' a ⟨h1, h2⟩ => ⟨h1 ▸ h2.1.1, h1 ▸ h2.1.2, h1 ▸ h2.2, h1 ▸ rfl⟩)
     (returns_runStmtO_pure hoi c H'.pi.1.int hmach')) ?_
-  rintro vals y ⟨⟨⟨hiv, hpv⟩, hkbv, rfl⟩, ⟨_, hpv'⟩⟩
+  rintro vals y ⟨⟨⟨hiv, hpv⟩, hkbv, hsvv, rfl⟩, ⟨_, hpv'⟩⟩
   refine Fol.bind (Fol.approx (bind_rel e' e st.dsts vals)
     (Q := fun e₁' y₂ => ∃ e₁, y₂ = (runBodyO o c e₁ is >>= K) ∧
-      Mid sig syms m f s F e₁' e₁ b (k + 1) (k' + 1))
+      Mid sig syms m f s F c e₁' e₁ b (k + 1) (k' + 1))
     fun a' a ⟨hl, h1, h2⟩ => ⟨a, rfl, ?_⟩) ?_
   · subst h1 h2
     exact ⟨EnvSub.fold hes _, domSub_step hds hobm hsob vals,
-      Sf.in_step H c hib hsk hiv hpv hl (hkbv hl), H'.step hob hsk' hiv hpv' hl⟩
+      Sf.in_step c H hib hsk hiv hpv hl hsvv (hkbv hl), H'.step hob hsk' hiv hpv' hl⟩
   · rintro e₁' y₂ ⟨e₁, rfl, hm₁⟩
     exact ih e₁' e₁ hm₁
 
 /-- A deleted statement: the input steps alone. -/
-theorem SF.del_fol {o : Oracle} (c : Ctx) {b : Nat} {ib : Block} (hib : f.block? b = some ib)
+theorem SF.del_fol {o : Oracle} (c : Ctx) (hc : m.symDel = true → c.Has syms) {b : Nat} {ib : Block} (hib : f.block? b = some ib)
     {Q : Env → FeM (List Val) → Prop} {K : Env → FeM (List Val)} {is os : List Stmt}
     {st : Stmt} {k k' : Nat} {e' e : Env} (hsk : ib.body[k]? = some st)
-    (hdel : Line.stmt st ∈ deleted) (hm : Mid sig syms m f s F e' e b k k')
-    (ih : ∀ e₁, Mid sig syms m f s F e' e₁ b (k + 1) k' →
+    (hdel : Line.stmt st ∈ deleted) (hm : Mid sig syms m f s F c e' e b k k')
+    (ih : ∀ e₁, Mid sig syms m f s F c e' e₁ b (k + 1) k' →
       Fol Q (runBodyO o c e' os) (runBodyO o c e₁ is >>= K)) :
     Fol Q (runBodyO o c e' os) (runBodyO o c e (st :: is) >>= K) := by
   obtain ⟨hes, hds, H, H'⟩ := hm
   have hd := Sf.A.deletable _ hdel
+  simp only [deletableIn, Bool.or_eq_true, Bool.and_eq_true, beq_iff_eq] at hd
+  rcases hd with hd | ⟨hsd, hlen, hsym⟩
+  swap
+  · -- a symbol instruction: the context has its symbol
+    have hmem := List.mem_of_find?_eq_some hib
+    have hsm := List.mem_of_getElem? hsk
+    have hiw : st.inst.wf sig syms st.dsts.length = true := by
+      have hw := Sf.wf
+      unfold Func.wf at hw
+      simp only [Bool.and_eq_true, List.all_eq_true] at hw
+      exact (hw.2 ib hmem).1.2 st hsm
+    obtain ⟨sv, x, hsv, hrun, hsvx⟩ := runStmtO_sym (o := o) e (hc hsd) hiw hsym
+    have hbind : Fe.Sonatina.bind e st.dsts [sv] = pure ((st.dsts.zip [sv]).foldl bindStep e) := by
+      unfold Fe.Sonatina.bind
+      rw [hlen]
+      simp only [List.length_cons, List.length_nil, beq_self_eq_true, ↓reduceIte]
+      rfl
+    simp only [runBodyO, hrun, pure_bind, hbind]
+    have hkb := returns_pure_val hrun
+      (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb (o := o) (c := c))
+    refine ih _ ⟨fun y v hy => ?_, hds, Sf.in_step c H hib hsk (by simp [IntVals, hsvx, Val.isInt])
+      (fun h => by rw [pure_of_isSym hsym] at h; cases h) (by rw [hlen]; rfl) (fun _ => ⟨sv, hsv, rfl⟩)
+      (hkb (by rw [hlen]; rfl)), H'⟩
+    rw [fold_get_not _ _ _ ?_]
+    · exact hes y v hy
+    intro hym
+    have hyd : y ∈ st.dsts.map (·.1) := by
+      have : (st.dsts.zip [sv]).map (·.1.1) ⊆ st.dsts.map (·.1) := by
+        intro z hz
+        obtain ⟨z', hz', rfl⟩ := List.mem_map.mp hz
+        exact List.mem_map_of_mem (List.of_mem_zip hz').1
+      exact this hym
+    have hfr := Sf.A.fresh y (List.mem_flatMap.mpr ⟨_, hdel, hyd⟩)
+    have := hds y (by rw [hy]; rfl)
+    rw [hfr] at this; cases this
   simp only [Schemas.deletable, Bool.and_eq_true, beq_iff_eq] at hd
   obtain ⟨hlen, hd⟩ := hd
   rcases hp : pureInst? st.inst with _ | p
@@ -402,8 +480,8 @@ theorem SF.del_fol {o : Oracle} (c : Ctx) {b : Nat} {ib : Block} (hib : f.block?
     fun _ => pureVals_of (c := c) hp hc hargs
   have hkb := returns_pure_val (runStmtO_pure_of (o := o) (c := c) hp hc hargs)
     (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb (o := o) (c := c))
-  refine ih _ ⟨fun x v hx => ?_, hds, Sf.in_step H c hib hsk (by simp [IntVals, Val.isInt]) hpv
-    (by rw [hlen]; rfl) (hkb (by rw [hlen]; rfl)), H'⟩
+  refine ih _ ⟨fun x v hx => ?_, hds, Sf.in_step c H hib hsk (by simp [IntVals, Val.isInt]) hpv
+    (by rw [hlen]; rfl) (fun h => by rw [isSym_pure hp] at h; cases h) (hkb (by rw [hlen]; rfl)), H'⟩
   rw [fold_get_not _ _ _ ?_]
   · exact hes x v hx
   intro hxm
@@ -434,8 +512,8 @@ theorem SF.repl_fol {o : Oracle} (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
     (hob : s.func.block? b = some ob) {Q : Env → FeM (List Val) → Prop} {K : Env → FeM (List Val)}
     {is os : List Stmt} {st st' : Stmt} {k k' : Nat} {e' e : Env} (hsk : ib.body[k]? = some st)
     (hsk' : ob.body[k']? = some st') (hr : replaceOk m (ctxOf m f s F) st st' = true)
-    (hm : Mid sig syms m f s F e' e b k k')
-    (ih : ∀ e₁' e₁, Mid sig syms m f s F e₁' e₁ b (k + 1) (k' + 1) →
+    (hm : Mid sig syms m f s F c e' e b k k')
+    (ih : ∀ e₁' e₁, Mid sig syms m f s F c e₁' e₁ b (k + 1) (k' + 1) →
       Fol Q (runBodyO o c e₁' os) (runBodyO o c e₁ is >>= K)) :
     Fol Q (runBodyO o c e' (st' :: os)) (runBodyO o c e (st :: is) >>= K) := by
   obtain ⟨hes, hds, H, H'⟩ := hm
@@ -492,8 +570,9 @@ theorem SF.repl_fol {o : Oracle} (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
         ?_, ?_⟩
       · have := domSub_step hds hobm hsm' [Val.int p'.bits (p'.evalOn xs')]
         rwa [← hdsts, hd] at this
-      · have := Sf.in_step H c hib hsk (vals := [.int p.bits (p.evalOn xs)])
+      · have := Sf.in_step c H hib hsk (vals := [.int p.bits (p.evalOn xs)])
           (by simp [IntVals, Val.isInt]) (fun _ => pureVals_of (c := c) hp hc hargs) (by rw [hd]; rfl)
+          (fun h => by rw [isSym_pure hp] at h; cases h)
           (by
             have := returns_pure_val hrun
               (kb_stmt_step Sf.wf Sf.hs Sf.A.kb hib H.side.reach hsk H.side.pi H.kb (o := o) (c := c))
@@ -521,14 +600,15 @@ theorem drop_cons_spec {α : Type} {l rest : List α} {a : α} {k : Nat} (h : l.
   exact ⟨hlt, by rw [List.getElem?_eq_getElem hlt, h.1], h.2⟩
 
 /-- An output block's statements against the input block's, from points `k` and `k'`. -/
-theorem SF.body_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) {b : Nat}
+theorem SF.body_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (hc : m.symDel = true → c.Has syms) {b : Nat}
     {ib ob : Block} (hib : f.block? b = some ib) (hob : s.func.block? b = some ob)
     (K : Env → FeM (List Val)) :
     ∀ {is os : List Stmt}, Sub (fun st st' => (Line.stmt st, Line.stmt st') ∈ pairs)
       (fun st => Line.stmt st ∈ deleted) is os →
     ∀ (k k' : Nat) (e' e : Env), ib.body.drop k = is → ob.body.drop k' = os →
-      k ≤ ib.body.length → k' ≤ ob.body.length → Mid sig syms m f s F e' e b k k' →
-      Fol (fun e₂' y => ∃ e₂, y = K e₂ ∧ Mid sig syms m f s F e₂' e₂ b ib.body.length ob.body.length)
+      k ≤ ib.body.length → k' ≤ ob.body.length → Mid sig syms m f s F c e' e b k k' →
+      Fol (fun e₂' y => ∃ e₂, y = K e₂ ∧ Mid sig syms m f s F c e₂' e₂ b ib.body.length ob.body.length)
         (runBodyO o c e' os) (runBodyO o c e is >>= K)
   | _, _, .nil, k, k', e', e, hd, hd', hk, hk', hm => by
     have h1 : k = ib.body.length := by have := List.drop_eq_nil_iff.mp hd; omega
@@ -541,18 +621,18 @@ theorem SF.body_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
     obtain ⟨hlt', hsk', hdk'⟩ := drop_cons_spec hd'
     rcases Sf.A.stmt hp with rfl | ⟨_, hr⟩
     · exact Sf.keep_fol ho hoi c hib hob hsk hsk' hp hm fun e₁' e₁ hm₁ =>
-        SF.body_fol ho hoi c hib hob K hS (k + 1) (k' + 1) e₁' e₁ hdk hdk' (by omega) (by omega) hm₁
+        SF.body_fol ho hoi c hc hib hob K hS (k + 1) (k' + 1) e₁' e₁ hdk hdk' (by omega) (by omega) hm₁
     · exact Sf.repl_fol c hib hob hsk hsk' hr hm fun e₁' e₁ hm₁ =>
-        SF.body_fol ho hoi c hib hob K hS (k + 1) (k' + 1) e₁' e₁ hdk hdk' (by omega) (by omega) hm₁
+        SF.body_fol ho hoi c hc hib hob K hS (k + 1) (k' + 1) e₁' e₁ hdk hdk' (by omega) (by omega) hm₁
   | _, _, .drop (a := st) hdel hS, k, k', e', e, hd, hd', _, hk', hm => by
     obtain ⟨hlt, hsk, hdk⟩ := drop_cons_spec hd
-    exact Sf.del_fol c hib hsk hdel hm fun e₁ hm₁ =>
-      SF.body_fol ho hoi c hib hob K hS (k + 1) k' e' e₁ hdk hd' (by omega) hk' hm₁
+    exact Sf.del_fol c hc hib hsk hdel hm fun e₁ hm₁ =>
+      SF.body_fol ho hoi c hc hib hob K hS (k + 1) k' e' e₁ hdk hd' (by omega) hk' hm₁
 
 omit Sf in
 /-- The simulation: the same block entered from the same block, with both sides' invariants. -/
-def RS (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (s' s0 : BState) : Prop :=
-  s'.2 = s0.2 ∧ EnvSub s'.1 s0.1 ∧ DomSub s.func s'.1 ∧
+def RS (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (c : Ctx) (s' s0 : BState) : Prop :=
+  s'.2 = s0.2 ∧ EnvSub s'.1 s0.1 ∧ DomSub s.func s'.1 ∧ SymInv c f s0.1 ∧
   BlockInv f (domTree f) s0 ∧ BlockPure f (domTree f) s0 ∧ KBHolds (ctxOf m f s F).K s0.1 ∧
   CHolds (ctxOf m f s F).cs s0.1 ∧ AncReach (domTree f) s0.2.2 ∧
   BlockInv s.func (domTree s.func) s' ∧ BlockPure s.func (domTree s.func) s' ∧
@@ -601,12 +681,12 @@ theorem root_is_entry {g : Func} (hv : (domTree g).valid g = true) {b : Nat} {bl
     · rw [hid, hroot] at h1; cases h1
 
 /-- Entering the block of a related state. -/
-theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
-    (hR : RS m f s F (env', prev, b) (env, prev, b)) (c : Ctx) {ib ob : Block}
+theorem SF.enter_approx (c : Ctx) {env' env : Env} {prev : Option Nat} {b : Nat}
+    (hR : RS m f s F c (env', prev, b) (env, prev, b)) {ib ob : Block}
     (hib : f.block? b = some ib) (hob : s.func.block? b = some ob) (B : BF pairs deleted ib ob) :
-    Approx (fun e₁' e₁ => Mid sig syms m f s F e₁' e₁ b 0 0) (enter env' prev ob) (enter env prev ib) := by
-  obtain ⟨_, hes, hds, hbi, hbp, hkb, hcs, hanc, hbi', hbp', hanc', hprev, hexb⟩ := hR
-  simp only at hes hds hbi hbp hkb hcs hanc hbi' hbp' hanc' hprev hexb
+    Approx (fun e₁' e₁ => Mid sig syms m f s F c e₁' e₁ b 0 0) (enter env' prev ob) (enter env prev ib) := by
+  obtain ⟨_, hes, hds, hsy, hbi, hbp, hkb, hcs, hanc, hbi', hbp', hanc', hprev, hexb⟩ := hR
+  simp only at hes hds hsy hbi hbp hkb hcs hanc hbi' hbp' hanc' hprev hexb
   have hmem := List.mem_of_find?_eq_some hib
   have hobm := List.mem_of_find?_eq_some hob
   have hid : ib.id = b := by simpa using List.find?_some hib
@@ -680,7 +760,9 @@ theorem SF.enter_approx {env' env : Env} {prev : Option Nat} {b : Nat}
         (by rw [← he₁, ← enter_eq]; exact pureInv_enter Sf.wf Sf.hv Sf.hs hbi hbp hib), hanc⟩,
     returns_lift_some (P := KBHolds (ctxOf m f s F).K)
       (by rw [← he₁, ← enter_eq]; exact kb_enter Sf.wf Sf.hs Sf.A.kb hbi.1 hkb hib),
-    hcs₁, fun h => ⟨hexb h, htpi₁ h⟩, hgv₁⟩, ⟨Sf.wf', Sf.hv', Sf.hs', ⟨ob, hob⟩,
+    hcs₁, fun h => ⟨hexb h, htpi₁ h⟩, hgv₁, by
+      obtain ⟨vals, _, _, rfl⟩ := enterOpt_spec he₁
+      exact symInv_enter hU hsy hib vals⟩, ⟨Sf.wf', Sf.hv', Sf.hs', ⟨ob, hob⟩,
       returns_lift_some (P := PointInv s.func (domTree s.func) b 0)
         (by rw [← he₁', ← enter_eq]; exact point_zero Sf.wf' Sf.hv' hbi' hob),
       returns_lift_some (P := PureInv s.func (domTree s.func) b 0)
@@ -691,13 +773,13 @@ omit Sf in
 /-- Where the input's run stands once an output block ends. -/
 def SQ (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (o : Oracle) (c : Ctx) (b : Nat) :
     Next → FeM (List Val) → Prop
-  | .goto e d, y => ∃ t, (∀ I w, y.exec I w = (runFrom o c f t).exec I w) ∧ RS m f s F (e, some b, d) t
+  | .goto e d, y => ∃ t, (∀ I w, y.exec I w = (runFrom o c f t).exec I w) ∧ RS m f s F c (e, some b, d) t
   | .done v, y => y = pure v
 
 /-- The terminators, from the ends of the two blocks. -/
 theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.block? b = some ib)
     (hob : s.func.block? b = some ob) (B : BF pairs deleted ib ob) {e' e : Env}
-    (hm : Mid sig syms m f s F e' e b ib.body.length ob.body.length) :
+    (hm : Mid sig syms m f s F c e' e b ib.body.length ob.body.length) :
     Fol (SQ m f s F o c b) (runTerm e' ob.term) (runTerm e ib.term >>= fun
       | .goto e d => runFrom o c f (e, some b, d)
       | .done v => pure v) := by
@@ -714,7 +796,7 @@ theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
     intro a ha
     have ha' : subst σ a ∈ ob.term.args := by
       rw [ht, Term.args_mapOps]; exact List.mem_map_of_mem ha
-    refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry H c)
+    refine alias_use Sf.A Sf.mode H.side H' hes c H.kb H.cs (fun h => (H.sc h).2) (Sf.gvn_entry c H)
       (fun v hv => ?_) ((opsWf_block Sf.A.opsWf' hobm).2.2 _ ha') (fun w hw => ?_)
       (fun v x hv hx => Sf.A.keys _ B.term v (hv ▸ ha) x hx)
     · subst hv
@@ -753,7 +835,7 @@ theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
     have hex : m = .sccp → ((ctxOf m f s F).E.find? d').isSome = true ∧
         edgeExec (ctxOf m f s F).inB (ctxOf m f s F).E (ctxOf m f s F).dead b d' = true :=
       fun h => exec_next (Sf.sccp h) rfl hib (H.sc h).1 hk hks
-    refine ⟨(e, some b, d'), fun _ _ => rfl, rfl, hes, hds,
+    refine ⟨(e, some b, d'), fun _ _ => rfl, rfl, hes, hds, H.sy,
       blockInv_of_point Sf.hv hib H.side.reach H.side.pi hd,
       fun pblk hp => by rw [hib] at hp; cases hp; exact H.side.pu, H.kb, H.cs,
       ancReach_edge Sf.hv H.side.anc ⟨ib, hib, hd⟩,
@@ -768,8 +850,9 @@ theorem SF.term_fol (o : Oracle) (c : Ctx) {b : Nat} {ib ob : Block} (hib : f.bl
   · subst hn; rfl
 
 /-- One output block against the input's run from a related state. -/
-theorem SF.block_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) {s' s0 : BState}
-    (hR : RS m f s F s' s0) :
+theorem SF.block_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (hc : m.symDel = true → c.Has syms) {s' s0 : BState}
+    (hR : RS m f s F c s' s0) :
     Fol (SQ m f s F o c s'.2.2) (stepBlock o c s.func s'.1 s'.2.1 s'.2.2) (runFrom o c f s0) := by
   obtain ⟨env', prev', b⟩ := s'
   obtain ⟨env, prev, b₀⟩ := s0
@@ -783,22 +866,23 @@ theorem SF.block_fol {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx
   dsimp only
   obtain ⟨ib, hib, B⟩ := Sf.A.block hob
   rw [runFrom_enter o c hib]
-  refine Fol.bind (Fol.approx (Sf.enter_approx hR c hib hob B)
-    (Q := fun e₁' y => ∃ e₁, y = inRun o c f b ib e₁ ∧ Mid sig syms m f s F e₁' e₁ b 0 0)
+  refine Fol.bind (Fol.approx (Sf.enter_approx c hR hib hob B)
+    (Q := fun e₁' y => ∃ e₁, y = inRun o c f b ib e₁ ∧ Mid sig syms m f s F c e₁' e₁ b 0 0)
     fun a' a h => ⟨a, rfl, h⟩) ?_
   rintro e₁' _ ⟨e₁, rfl, hm⟩
   unfold inRun
-  refine Fol.bind (Sf.body_fol ho hoi c hib hob (fun e => runTerm e ib.term >>= fun
+  refine Fol.bind (Sf.body_fol ho hoi c hc hib hob (fun e => runTerm e ib.term >>= fun
       | .goto e d => runFrom o c f (e, some b, d)
       | .done v => pure v) B.body 0 0 e₁' e₁ rfl rfl (Nat.zero_le _) (Nat.zero_le _) hm)
     fun e₂' y ⟨e₂, hy, hm₂⟩ => ?_
   subst hy
   exact Sf.term_fol o c hib hob B hm₂
 
-theorem SF.sim {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
-    Sim o c s.func f (RS m f s F) := by
+theorem SF.sim {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (hc : m.symDel = true → c.Has syms) :
+    Sim o c s.func f (RS m f s F c) := by
   intro s' s0 hR I w' w hw
-  have h := Sf.block_fol ho hoi c hR I w' w hw
+  have h := Sf.block_fol ho hoi c hc hR I w' w hw
   revert h
   rcases (stepBlock o c s.func s'.1 s'.2.1 s'.2.2).exec I w' with _ | (e' | ⟨n, w₁'⟩)
   · intro _; trivial
@@ -814,9 +898,10 @@ theorem SF.sim {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
       exact ⟨w₁, by rw [hy, Fe.M.exec_pure], hw₁⟩
 
 /-- The output function approximates the input function on integers. -/
-theorem SF.sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
+theorem SF.sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (hc : m.symDel = true → c.Has syms) :
     FuncRef o c (some s.func) (some f) := by
-  have sim := Sf.sim ho hoi c
+  have sim := Sf.sim ho hoi c hc
   intro args hargs
   unfold runFuncO
   dsimp only
@@ -858,7 +943,7 @@ theorem SF.sound {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
     fun env env₀ ⟨e₁, ⟨hi, hi'⟩, _, hfold⟩ => ?_
   cases e₁
   refine Sim.approx sim (env, none, e.id) (env, none, e.id)
-    ⟨rfl, EnvSub.refl _, fun k hk => ?_, hi, trivial, ?_, ?_, ancReach_entry Sf.hv he, ?_, trivial,
+    ⟨rfl, EnvSub.refl _, fun k hk => ?_, by rw [hfold]; exact symInv_params hU c args, hi, trivial, ?_, ?_, ancReach_entry Sf.hv he, ?_, trivial,
       ?_, (fun p hp => by cases hp), fun h => ?_⟩
   · obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hk
     rw [hfold] at hv
@@ -903,10 +988,11 @@ end sim
 theorem aliasReject_sound {m : Mode} (hm : m.Ok) {f : Func}
     {ids : Option (List (List Nat))} {s : FuncSnap} {F : StepFacts} (hwf : f.wf sig syms = true)
     (h : aliasReject m f ids s F = none) (hsc : m = .sccp → SccpSpec f (ctxOf m f s F))
-    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
+    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx)
+    (hc : m.symDel = true → c.Has syms) :
     FuncRef o c (some s.func) (some f) := by
   obtain ⟨_, pairs, deleted, σ, _, A⟩ := aliasReject_spec h
-  exact SF.sound (sig := sig) (syms := syms) ⟨A, hwf, hm, hsc⟩ ho hoi c
+  exact SF.sound (sig := sig) (syms := syms) ⟨A, hwf, hm, hsc⟩ ho hoi c hc
 
 /-- A `known_bits_simplify` step the checker accepts is sound (demand rounds are switched off,
     `demandRounds`). -/
@@ -921,7 +1007,7 @@ theorem knownBitsSimplify_sound {f : Func} {ids : Option (List (List Nat))} {s :
   · cases h
   split at h
   · exact aliasReject_sound (Or.inl rfl) hwf (Option.isNone_iff_eq_none.mp h) (fun h => by cases h)
-      ho hoi c
+      ho hoi c (fun h => by cases h)
   · simp [demandRounds] at h
 
 /-- An `sccp_fold` step the checker accepts is sound. -/
@@ -939,12 +1025,13 @@ theorem sccpFold_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap
   next hs =>
   simp only [Bool.not_eq_true, Bool.not_eq_false'] at hs
   exact aliasReject_sound (Or.inr (Or.inl rfl)) hwf (Option.isNone_iff_eq_none.mp h)
-    (fun _ => sccpSpec_of hs) ho hoi c
+    (fun _ => sccpSpec_of hs) ho hoi c (fun h => by cases h)
 
-/-- A `scalar_canonicalize` round the checker accepts is sound. -/
+/-- A `scalar_canonicalize` round the checker accepts is sound, in a context with the section's
+    symbols (a deleted symbol instruction runs there). -/
 theorem scalarCanonicalize_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap}
     {F : StepFacts} (hwf : f.wf sig syms = true) (h : checkScalarCanonicalize f ids s F = true)
-    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
+    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) (hc : c.Has syms) :
     FuncRef o c (some s.func) (some f) := by
   unfold checkScalarCanonicalize scalarReject at h
   split at h
@@ -952,7 +1039,7 @@ theorem scalarCanonicalize_sound {f : Func} {ids : Option (List (List Nat))} {s 
   split at h
   · cases h
   exact aliasReject_sound (Or.inr (Or.inr (Or.inl rfl))) hwf (Option.isNone_iff_eq_none.mp h)
-    (fun h => by cases h) ho hoi c
+    (fun h => by cases h) ho hoi c fun _ => hc
 
 theorem knownBitsSimplify_stepSound : StepSound .knownBitsSimplify :=
   StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
@@ -963,7 +1050,7 @@ theorem sccpFold_stepSound : StepSound .sccpFold :=
     sccpFold_sound hw (by simpa only [checkFunc] using h) ho hoi c
 
 theorem scalarCanonicalize_stepSound : StepSound .scalarCanonicalize :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
-    scalarCanonicalize_sound hw (by simpa only [checkFunc] using h) ho hoi c
+  StepSound.of_func_has fun _ _ _ _ c hc ho hoi _ _ _ _ _ hw h =>
+    scalarCanonicalize_sound hw (by simpa only [checkFunc] using h) ho hoi c hc
 
 end Fe.Sonatina.Steps.Schemas

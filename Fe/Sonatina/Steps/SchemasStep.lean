@@ -423,6 +423,26 @@ inductive Mode where
       `(phi, block, term)`, both checked on the input (`GvnRewrite.lean`). -/
   | gvn (cls : List (Nat × Operand)) (pts : List (Nat × Nat × Term))
 
+/-- A symbol instruction: `sym_addr`, `sym_size`, `get_function_ptr`.  Its value is the context's
+    (`Ctx.symbol`), the same at every run of a context; it is stuck where the context lacks the
+    symbol, which a context with the section's symbols (`Ctx.Has`) does not. -/
+def _root_.Fe.Sonatina.Inst.isSym : Inst → Bool
+  | .symAddr _ | .symSize _ | .funcPtr _ => true
+  | _ => false
+
+/-- The modes whose step may delete a symbol instruction (`gvn_rewrite`, `scalar_canonicalize`):
+    their soundness takes a context with the section's symbols. -/
+def Mode.symDel : Mode → Bool
+  | .gvn _ _ | .scalar => true
+  | _ => false
+
+/-- A deleted line in mode `m`: `deletable`, or, where the mode allows, a symbol instruction with
+    one result. -/
+def deletableIn (m : Mode) (L : Line) : Bool :=
+  deletable L || (m.symDel && match L with
+    | .stmt s => s.dsts.length == 1 && s.inst.isSym
+    | _ => false)
+
 /-- `x` is an immediate, or a parameter, or defined in a strict dominator of block `b` of the
     input: its value is the same on every entry of `b`. -/
 def StepCtx.above (X : StepCtx) (b : Nat) : Operand → Bool
@@ -503,11 +523,19 @@ def StepCtx.pairOk (X : StepCtx) (C : NatMap Operand) (v : Nat) (r : Operand) : 
     same || (X.above B r && φ.incoming.all fun ob => gTerm C ob.1 == gTerm C r)
   | _ => false
 
+/-- A class pair of two symbol instructions alike: `v`'s statement and `r`'s are one symbol
+    instruction (`sym_addr` of one symbol, …), whose value the context fixes. -/
+def StepCtx.symPair (X : StepCtx) (v : Nat) (r : Operand) : Bool :=
+  match r with
+  | .var w => ((defStmt X.inB X.inD v).bind fun st => (defStmt X.inB X.inD w).map fun st' =>
+      st.inst.isSym && st.inst == st'.inst).getD false
+  | .imm _ _ => false
+
 /-- The classes hold on the input: each representative dominates its value, and each pair is
     justified. -/
 def StepCtx.clsOk (X : StepCtx) (cls : List (Nat × Operand)) : Bool :=
   let C := NatMap.ofList cls
-  cls.all fun e => e.2.wf && X.before e.2 e.1 && X.pairOk C e.1 e.2
+  cls.all fun e => e.2.wf && X.before e.2 e.1 && (X.pairOk C e.1 e.2 || X.symPair e.1 e.2)
 
 /-- The incoming operand from `p` of the phi `a` of block `Q`, as a term. -/
 def phiArgTerm (X : StepCtx) (Q p a : Nat) : Term :=
@@ -680,7 +708,7 @@ def aliasReject (m : Mode) (f : Func) (ids : Option (List (List Nat))) (s : Func
       let dels := deleted.flatMap lineDefs
       if !ssaOk f then some .inputSsa
       else if !ssaOk s.func then some .outputSsa
-      else if !deleted.all deletable then some .deletion
+      else if !deleted.all (deletableIn m) then some .deletion
       else if !linesOk m X σ pairs then some .changed
       else if !(F.knownBits.isEmpty || kbFactsOk X.inB X.inD F) then some .kbFacts
       else if !m.certOk X then some .gvnCert

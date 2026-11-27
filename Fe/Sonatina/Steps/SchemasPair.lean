@@ -351,7 +351,7 @@ structure AF (m : Mode) (f : Func) (s : FuncSnap) (F : StepFacts) (pairs : List 
       ∀ L ∈ D, L ∈ deleted
   ssaIn : ssaOk f = true
   ssaOut : ssaOk s.func = true
-  deletable : ∀ L ∈ deleted, deletable L = true
+  deletable : ∀ L ∈ deleted, deletableIn m L = true
   changed : ∀ p ∈ pairs, lineEq (mapLine σ p.1) p.2 = true ∨
     ((m = .sccp ∨ m = .scalar) ∧ ∃ a b, p = (Line.stmt a, Line.stmt b) ∧
       replaceOk m (ctxOf m f s F) a b = true)
@@ -479,7 +479,7 @@ theorem AF.kinds (A : AF m f s F pairs deleted σ) : ∀ p ∈ pairs, p.1.kind =
 theorem AF.notTerm (A : AF m f s F pairs deleted σ) : ∀ L ∈ deleted, L.kind ≠ 2 := by
   intro L hL
   have := A.deletable L hL
-  cases L <;> simp_all [Schemas.deletable, Line.kind]
+  cases L <;> simp_all [deletableIn, Schemas.deletable, Line.kind]
 
 /-- The input block of an output block's id, and what the check gives of the two. -/
 theorem AF.block (A : AF m f s F pairs deleted σ) {b : Nat} {ob : Block}

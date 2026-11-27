@@ -194,13 +194,14 @@ theorem stepOut_wf {k : StepKind} {syms : List String} {O : Option (List Summary
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp (List.mem_of_find?_eq_some hr)
     exact (checkStep_spec h s hs).2.1
 
-/-- A step kind whose check of each function gives `FuncRef` is sound. -/
-theorem StepSound.of_func {k : StepKind}
+/-- A step kind whose check of each function gives `FuncRef`, in a context with the section's
+    symbols, is sound. -/
+theorem StepSound.of_func_has {k : StepKind}
     (h : ∀ (O : Option (List Summary)) (sig : Sigs) (syms : List String) (o : Oracle) (c : Ctx),
-      Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s F, f.wf sig syms = true →
+      c.Has syms → Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s F, f.wf sig syms = true →
         checkFunc k O f ids s F = true → FuncRef o c (some s.func) (some f)) :
     StepSound k := by
-  intro syms O M I fs hM hc o c _ ho hoi hnr name
+  intro syms O M I fs hM hc o c hcs ho hoi hnr name
   rw [stepOut, Module.update_func?]
   cases hg : M.func? name with
   | none => exact FuncRef.none o c
@@ -209,7 +210,15 @@ theorem StepSound.of_func {k : StepKind}
     dsimp only [Option.map]
     rcases stepOut_func hc hg with hr | ⟨s, _, hr, _, _, _, hck⟩
     · rw [hr]; exact FuncRef.refl ho hoi c (Func.wf_machine hgw)
-    · rw [hr]; exact h O _ _ o c ho hoi hnr _ _ s.out s.facts hgw hck
+    · rw [hr]; exact h O _ _ o c hcs ho hoi hnr _ _ s.out s.facts hgw hck
+
+/-- A step kind whose check of each function gives `FuncRef` is sound. -/
+theorem StepSound.of_func {k : StepKind}
+    (h : ∀ (O : Option (List Summary)) (sig : Sigs) (syms : List String) (o : Oracle) (c : Ctx),
+      Oracle.Mono o → o.IntRet → NoRetHolds O o → ∀ f ids s F, f.wf sig syms = true →
+        checkFunc k O f ids s F = true → FuncRef o c (some s.func) (some f)) :
+    StepSound k :=
+  StepSound.of_func_has fun O sig syms o c _ => h O sig syms o c
 
 theorem edgeSplit_stepSound : StepSound .edgeSplit :=
   StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>

@@ -730,8 +730,9 @@ theorem ps_stmt {o : Oracle} (hoi : o.IntRet) (c : Ctx) {e : Env} {b k : Nat}
     (kb_stmt_step P.wf P.hs P.kb hb H.side.reach hst H.side.pi H.kb))
     fun vals ⟨⟨hiv, hpv⟩, hkv⟩ hl => ?_
   have S' := SidePt.step H.side hb hst hiv hpv hl
-  exact ⟨S', hkv hl, ginv_stmt_of P.hB P.hD P.hT P.wf P.hs P.hK P.hok c H.side H.gi hb hst S'
-    (hkv hl), predInv_stmt P.hD P.hT P.wf P.hs P.hPU H.side H.pr hb hst vals, H.ex⟩
+  exact ⟨S', hkv hl, ginv_stmt_of P.hB P.hD P.hT P.wf P.hs P.hK c (fun v r h =>
+    ⟨(P.hok v r h).1, (P.hok v r h).2.1, fun B j hv => Or.inl ((P.hok v r h).2.2 B j hv)⟩) H.side H.gi
+    hb hst S' (hkv hl), predInv_stmt P.hD P.hT P.wf P.hs P.hPU H.side H.pr hb hst vals, H.ex⟩
 
 /-- A block's first `k` statements keep the facts. -/
 theorem ps_take {o : Oracle} (hoi : o.IntRet) (c : Ctx) {b : Nat} {blk : Block}

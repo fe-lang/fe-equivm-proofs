@@ -16,10 +16,11 @@ open Ethereum Fe Fe.EVM Fe.Sonatina.Steps
 
 variable {sig : Sigs} {syms : List String}
 
-/-- A `gvn_rewrite` step the checker accepts is sound. -/
+/-- A `gvn_rewrite` step the checker accepts is sound, in a context with the section's symbols (a
+    deleted symbol instruction runs there). -/
 theorem gvnRewrite_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSnap}
     {F : StepFacts} (hwf : f.wf sig syms = true) (h : checkGvnRewrite f ids s F = true)
-    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) :
+    {o : Oracle} (ho : Oracle.Mono o) (hoi : o.IntRet) (c : Ctx) (hc : c.Has syms) :
     FuncRef o c (some s.func) (some f) := by
   unfold checkGvnRewrite gvnRewriteReject at h
   rcases ids with _ | is
@@ -45,11 +46,11 @@ theorem gvnRewrite_sound {f : Func} {ids : Option (List (List Nat))} {s : FuncSn
   simp only [gvnPrep, Prod.mk.injEq] at hp
   obtain ⟨rfl, rfl, _, rfl⟩ := hp
   have hwf₁ := insPhis_wf hwf hins
-  exact (aliasReject_sound (Or.inr (Or.inr (Or.inr ⟨_, _, rfl⟩))) hwf₁ hal (fun h' => by cases h') ho hoi c).trans
+  exact (aliasReject_sound (Or.inr (Or.inr (Or.inr ⟨_, _, rfl⟩))) hwf₁ hal (fun h' => by cases h') ho hoi c fun _ => hc).trans
     (insPhis_sound hwf hins ho hoi c)
 
 theorem gvnRewrite_stepSound : StepSound .gvnRewrite :=
-  StepSound.of_func fun _ _ _ _ c ho hoi _ _ _ _ _ hw h =>
-    gvnRewrite_sound hw (by simpa only [checkFunc] using h) ho hoi c
+  StepSound.of_func_has fun _ _ _ _ c hc ho hoi _ _ _ _ _ hw h =>
+    gvnRewrite_sound hw (by simpa only [checkFunc] using h) ho hoi c hc
 
 end Fe.Sonatina.Steps.Schemas

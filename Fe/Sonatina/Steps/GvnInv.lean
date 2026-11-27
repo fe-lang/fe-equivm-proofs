@@ -50,6 +50,7 @@ theorem SidePt.words {g : Func} {e : Env} {b k : Nat} (S : SidePt sig syms g e b
   obtain ⟨n, h1, _, h3⟩ := S.bound (EnvSub.refl e) hw
   exact ⟨n, h1, h3⟩
 
+
 /-! ## Dominance from definitions -/
 
 /-- A value dominates the point if its definition does. -/
@@ -174,11 +175,122 @@ end ctx
 /-! ## The certificate's checks -/
 
 theorem clsOk_spec {X : StepCtx} {cls : List (Nat × Operand)} (h : X.clsOk cls = true) :
-    ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true ∧ X.pairOk (.ofList cls) v r = true := by
+    ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true ∧
+      (X.pairOk (.ofList cls) v r = true ∨ X.symPair v r = true) := by
   intro v r hm
   have := List.all_eq_true.mp h (v, r) hm
-  simp only [Bool.and_eq_true] at this
+  simp only [Bool.and_eq_true, Bool.or_eq_true] at this
   exact ⟨this.1.1, this.1.2, this.2⟩
+
+/-- A pair of two symbol instructions alike. -/
+theorem symPair_def {X : StepCtx} {v : Nat} {r : Operand} (h : X.symPair v r = true) :
+    ∃ w st st', r = .var w ∧ defStmt X.inB X.inD v = some st ∧ defStmt X.inB X.inD w = some st' ∧
+      st.inst.isSym = true ∧ st'.inst = st.inst := by
+  cases r with
+  | imm => simp [StepCtx.symPair] at h
+  | var w =>
+    simp only [StepCtx.symPair] at h
+    rcases hv : defStmt X.inB X.inD v with _ | st
+    · rw [hv] at h; cases h
+    rcases hw : defStmt X.inB X.inD w with _ | st'
+    · rw [hv, hw] at h; cases h
+    rw [hv, hw] at h
+    simp only [Option.bind_some, Option.map_some, Option.getD_some, Bool.and_eq_true, beq_iff_eq] at h
+    exact ⟨w, st, st', rfl, rfl, hw, h.1, h.2.symm⟩
+
+/-- No phi or parameter is in a pair of symbol instructions. -/
+theorem symPair_stmt {X : StepCtx} {v : Nat} {r : Operand} (h : X.symPair v r = true)
+    (hv : ∀ B j, X.inD.find? v ≠ some (.stmt B j)) : False := by
+  obtain ⟨_, _, _, _, hd, _⟩ := symPair_def h
+  unfold defStmt at hd
+  split at hd
+  · next B j hB => exact hv B j hB
+  · cases hd
+
+/-! ## Symbol instructions -/
+
+/-- A symbol instruction's value in a context. -/
+def symVal (c : Ctx) : Inst → Option Val
+  | .symAddr s => (c.symbol s).map fun p => .int 256 p.1
+  | .symSize s => (c.symbol s).map fun p => .int 256 p.2
+  | .funcPtr g => (c.symbol s!"%{g}").map fun p => .int 256 p.1
+  | _ => none
+
+/-- Each bound result of a symbol instruction of `f` holds the instruction's value in `c`. -/
+def SymInv (c : Ctx) (f : Func) (e : Env) : Prop :=
+  ∀ (d j : Nat) (blk : Block) (st : Stmt), f.block? d = some blk → blk.body[j]? = some st →
+    st.inst.isSym = true → ∀ x ∈ st.dsts, ∀ val, e[x.1]? = some val →
+      ∃ sv, symVal c st.inst = some sv ∧ val = sv.as x.2
+
+/-- A symbol instruction runs to its value. -/
+theorem returns_sym {o : Oracle} (c : Ctx) (e : Env) {st : Stmt} (h : st.inst.isSym = true) :
+    Returns (fun vals => ∃ sv, symVal c st.inst = some sv ∧ vals = [sv]) (runStmtO o c e st) := by
+  rcases st with ⟨dsts, inst⟩
+  cases inst <;> simp only [Inst.isSym, Bool.false_eq_true] at h
+  all_goals
+    simp only [runStmtO, runInst]
+    split
+    · next x hx => exact Returns.pure ⟨_, by simp [symVal, hx], rfl⟩
+    · exact Returns.stuck _
+
+/-- A statement keeps the symbol values: it binds only its own results. -/
+theorem symInv_stmt {f : Func} (hU : UniqueDefs f) {c : Ctx} {e : Env} (H : SymInv c f e) {b k : Nat}
+    {blk : Block} (hb : f.block? b = some blk) {st : Stmt} (hst : blk.body[k]? = some st)
+    {vals : List Val} (hsv : st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv]) :
+    SymInv c f ((st.dsts.zip vals).foldl bindStep e) := by
+  have hmem := List.mem_of_find?_eq_some hb
+  have hid : blk.id = b := by simpa using List.find?_some hb
+  intro d j blk' st' hb' hj hsym x hx val hval
+  rcases fold_get_cases _ _ _ _ hval with ⟨y, hy, hyx, hyv⟩ | ⟨he, _⟩
+  · -- `x` is a result of `st`: `st'` is `st`
+    have hmem' := List.mem_of_find?_eq_some hb'
+    have hid' : blk'.id = d := by simpa using List.find?_some hb'
+    have h1 := hid ▸ stmt_def hmem hst (List.of_mem_zip hy).1
+    have h2 := hid' ▸ stmt_def hmem' hj hx
+    rw [hyx] at h1
+    obtain ⟨rfl, rfl⟩ := Def.stmt.inj (hU.fn h1 h2)
+    rw [hb] at hb'; cases hb'
+    rw [hst] at hj; cases hj
+    obtain ⟨sv, hsv1, rfl⟩ := hsv hsym
+    have hyd := (List.of_mem_zip hy)
+    simp only [List.mem_singleton] at hyd
+    obtain ⟨hy1, hy2⟩ := hyd
+    have hyx' : y.1 = x := by
+      have hn := hU.dsts hmem hst
+      exact List.inj_on_of_nodup_map hn hy1 hx hyx
+    refine ⟨sv, hsv1, ?_⟩
+    rw [hyv, hy2, hyx']
+  · exact H d j blk' st' hb' hj hsym x hx val he
+
+
+
+/-- Entering a block keeps the symbol values: its phis are no statement's results. -/
+theorem symInv_enter {f : Func} (hU : UniqueDefs f) {c : Ctx} {e : Env} (H : SymInv c f e)
+    {b : Nat} {blk : Block} (hb : f.block? b = some blk) (vals : List Val) :
+    SymInv c f (((blk.phis.map fun phi => (phi.dst, phi.ty)).zip vals).foldl bindStep e) := by
+  have hmem := List.mem_of_find?_eq_some hb
+  intro d j blk' st' hb' hj hsym x hx val hval
+  rcases fold_get_cases _ _ _ _ hval with ⟨y, hy, hyx, _⟩ | ⟨he, _⟩
+  · exfalso
+    obtain ⟨φ, hφ, hφy⟩ := List.mem_map.mp (List.of_mem_zip hy).1
+    have h1 := phi_def hmem hφ
+    have hmem' := List.mem_of_find?_eq_some hb'
+    have h2 := stmt_def hmem' hj hx
+    rw [← hyx, ← hφy] at h2
+    cases hU.fn h1 h2
+  · exact H d j blk' st' hb' hj hsym x hx val he
+
+/-- At the entry, the symbol values hold: the parameters are no statement's results. -/
+theorem symInv_params {f : Func} (hU : UniqueDefs f) (c : Ctx) (args : List Val) :
+    SymInv c f ((f.params.zip args).foldl bindStep {}) := by
+  intro d j blk' st' hb' hj hsym x hx val hval
+  rcases fold_get_cases _ _ _ _ hval with ⟨y, hy, hyx, _⟩ | ⟨he, _⟩
+  · exfalso
+    have h1 := param_def (List.of_mem_zip hy).1
+    have h2 := stmt_def (List.mem_of_find?_eq_some hb') hj hx
+    rw [← hyx] at h2
+    cases hU.fn h1 h2
+  · simp at he
 
 /-- A pair of a statement's result. -/
 theorem pairOk_stmt {X : StepCtx} {C : NatMap Operand} {v : Nat} {r : Operand} {B j : Nat}
@@ -378,11 +490,13 @@ theorem ginv_stmt_of {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.
     (hD : X.inD = defsOf f) (hT : X.T = domTree f) (hwf : f.wf sig syms = true)
     (hs : ssa f (domTree f) = true) {F : StepFacts} {cls : List (Nat × Operand)}
     (hK : X.K = kbMap F)
+    (c : Ctx) {e : Env} {b k : Nat} {st : Stmt} {vals : List Val}
     (hok : ∀ v r, (v, r) ∈ cls → r.wf = true ∧ X.before r v = true ∧
-      ∀ B j, X.inD.find? v = some (.stmt B j) → X.pairOk (.ofList cls) v r = true)
-    (c : Ctx) {e : Env} {b k : Nat}
+      ∀ B j, X.inD.find? v = some (.stmt B j) → X.pairOk (.ofList cls) v r = true ∨
+        (X.symPair v r = true ∧ SymInv c f e ∧ st.dsts.length = vals.length ∧
+          (st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv])))
     (S : SidePt sig syms f e b k) (hG : GInv f cls e b k) {blk : Block} (hb : f.block? b = some blk)
-    {st : Stmt} (hst : blk.body[k]? = some st) {vals : List Val}
+    (hst : blk.body[k]? = some st)
     (S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1))
     (hK' : KBHolds (kbMap F) ((st.dsts.zip vals).foldl bindStep e)) :
     GInv f cls ((st.dsts.zip vals).foldl bindStep e) b (k + 1) := by
@@ -407,7 +521,47 @@ theorem ginv_stmt_of {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.
   have hdefv := hid ▸ stmt_def hmem hst hd
   have hfind : X.inD.find? d.1 = some (.stmt b k) := hD ▸ defsOf_find hU hdefv
   obtain ⟨hrw, hbef, hpair⟩ := hok d.1 r hvr
-  obtain ⟨st', p, hst', hp, hc, hce⟩ := pairOk_stmt (hpair b k hfind) hfind
+  rcases hpair b k hfind with hpair | ⟨hsp, hsy, hlen, hsv⟩
+  swap
+  · -- two symbol instructions alike: both hold the context's value
+    obtain ⟨w, st1, st2, rfl, hst1, hst2, hsym, hinst⟩ := symPair_def hsp
+    rw [hB, hD] at hst1 hst2
+    obtain ⟨d0, j0, blk0, hdef0, hb0, hj0, _⟩ := defStmt_spec hn hst1
+    obtain ⟨h1, h2⟩ := Def.stmt.inj (hU.fn hdef0 hdefv)
+    subst d0 j0
+    rw [hb] at hb0
+    cases hb0
+    rw [hst] at hj0
+    cases hj0
+    obtain ⟨sv, hsv1, rfl⟩ := hsv hsym
+    have hsm : st ∈ blk.body := List.mem_of_getElem? hst
+    have hty := ((Func.wf_words hwf).2 blk hmem).2 st hsm
+    have hdl : st.dsts = [d] := by
+      rcases hds : st.dsts with _ | ⟨d', _ | ⟨d'', rest⟩⟩
+      · rw [hds] at hd; cases hd
+      · rw [hds] at hd; rw [List.mem_singleton.mp hd]
+      · rw [hds] at hlen; simp at hlen
+    have hv' : e'[d.1]? = some (sv.as d.2) := by
+      show (((st.dsts.zip [sv]).foldl bindStep e)[d.1]?) = _
+      rw [hdl]
+      simp [bindStep]
+    have hwat : DomAt f (domTree f) b k w := before_stmtPt hD hT hn hbef hfind w rfl
+    obtain ⟨nw, hnw, _⟩ := S.words w hwat
+    have hwe : opVal e' (.var w) = opVal e (.var w) :=
+      opVal_stmt hU hb hst [sv] (fun _ h => by cases h; exact hwat)
+    obtain ⟨d2, j2, blk2, _, hb2, hj2, hwm⟩ := defStmt_spec hn hst2
+    obtain ⟨x, hx, hxw⟩ := List.mem_map.mp hwm
+    have hsym2 : st2.inst.isSym = true := by rw [hinst]; exact hsym
+    obtain ⟨sv', hsv', hval'⟩ := hsy d2 j2 blk2 st2 hb2 hj2 hsym2 x hx _ (by rw [hxw]; exact hnw)
+    rw [hinst, hsv1] at hsv'
+    cases hsv'
+    have hty2 := ((Func.wf_words hwf).2 blk2 (List.mem_of_find?_eq_some hb2)).2 st2
+      (List.mem_of_getElem? hj2) x hx
+    show opVal e' (.var d.1) = opVal e' (.var w)
+    rw [hwe]
+    simp only [opVal] at hnw ⊢
+    rw [hv', hnw, hval', hty d hd, hty2]
+  obtain ⟨st', p, hst', hp, hc, hce⟩ := pairOk_stmt hpair hfind
   rw [hB, hD] at hst'
   obtain ⟨d0, j0, blk0, hdef0, hb0, hj0, _⟩ := defStmt_spec hn hst'
   obtain ⟨h1, h2⟩ := Def.stmt.inj (hU.fn hdef0 hdefv)
@@ -446,13 +600,16 @@ theorem ginv_stmt {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blo
     (hD : X.inD = defsOf f) (hT : X.T = domTree f) (hwf : f.wf sig syms = true)
     (hs : ssa f (domTree f) = true) {F : StepFacts} {cls : List (Nat × Operand)}
     (hK : X.K = kbMap F) (hok : X.clsOk cls = true) (c : Ctx) {e : Env} {b k : Nat}
-    (S : SidePt sig syms f e b k) (hG : GInv f cls e b k) {blk : Block} (hb : f.block? b = some blk)
-    {st : Stmt} (hst : blk.body[k]? = some st) {vals : List Val}
+    (S : SidePt sig syms f e b k) (hG : GInv f cls e b k) (hsy : SymInv c f e) {blk : Block}
+    (hb : f.block? b = some blk) {st : Stmt} (hst : blk.body[k]? = some st) {vals : List Val}
+    (hl : st.dsts.length = vals.length)
+    (hsv : st.inst.isSym = true → ∃ sv, symVal c st.inst = some sv ∧ vals = [sv])
     (S' : SidePt sig syms f ((st.dsts.zip vals).foldl bindStep e) b (k + 1))
     (hK' : KBHolds (kbMap F) ((st.dsts.zip vals).foldl bindStep e)) :
     GInv f cls ((st.dsts.zip vals).foldl bindStep e) b (k + 1) :=
-  ginv_stmt_of hB hD hT hwf hs hK (fun v r h => ⟨(clsOk_spec hok v r h).1,
-    (clsOk_spec hok v r h).2.1, fun _ _ _ => (clsOk_spec hok v r h).2.2⟩) c S hG hb hst S' hK'
+  ginv_stmt_of hB hD hT hwf hs hK c (fun v r h => ⟨(clsOk_spec hok v r h).1,
+    (clsOk_spec hok v r h).2.1, fun _ _ _ => (clsOk_spec hok v r h).2.2.imp id
+      fun hp => ⟨hp, hsy, hl, hsv⟩⟩) S hG hb hst S' hK'
 
 
 /-! ## Entering a block -/
@@ -619,11 +776,14 @@ theorem ginv_enter {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.bl
     rw [hov] at hn1
     exact congrArg some (Option.some.inj hn1)
   intro v r hvr hdom
-  obtain ⟨hrw, hbef, hpair⟩ := clsOk_spec hok v r hvr
+  obtain ⟨hrw, hbef, hpair'⟩ := clsOk_spec hok v r hvr
+  have hnstmt : (∀ B j, X.inD.find? v ≠ some (.stmt B j)) → X.pairOk (.ofList cls) v r = true :=
+    fun h => hpair'.resolve_right fun hs' => symPair_stmt hs' h
   by_cases hph : v ∈ blk.phis.map (·.dst)
   · obtain ⟨φ, hφ, rfl⟩ := List.mem_map.mp hph
     have hdefv := hid ▸ phi_def hmem hφ
     have hfind : X.inD.find? φ.dst = some (.phi b) := hD ▸ defsOf_find hU hdefv
+    have hpair := hnstmt fun B j h => by rw [hfind] at h; cases h
     obtain ⟨φ', hφ', hcase⟩ := pairOk_phi hpair hfind
     obtain ⟨blk', hb', hφm', hφd'⟩ := phiOf_spec hB hφ'
     rw [hb] at hb'
@@ -670,7 +830,8 @@ theorem ginv_enter {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.bl
       have hfu : X.inD.find? φ.dst = some (.phi b) := hD ▸ defsOf_find hU (hid ▸ phi_def hmem hφ)
       rcases hdom with hp | ⟨blk', hb', hph' | ⟨j, hj, _⟩⟩ | ⟨d, hne, ha, hdef⟩
       · obtain ⟨p, hp', rfl⟩ := List.mem_map.mp hp
-        exact pairOk_param hpair (hD ▸ defsOf_find hU (param_def hp'))
+        have hpf := hD ▸ defsOf_find hU (param_def hp')
+        exact pairOk_param (hnstmt fun B j h => by rw [hpf] at h; cases h) hpf
       · rw [hb] at hb'; cases hb'; exact hph hph'
       · exact absurd hj (Nat.not_lt_zero _)
       · exact before_not_phi hD hT hU hroot hbroot hbef hfu hdef hne ha
@@ -1151,8 +1312,10 @@ theorem ginv_root {f : Func} {X : StepCtx} (hD : X.inD = defsOf f) (hs : ssa f (
     (hph : blk.phis = []) : GInv f cls e b 0 := by
   intro v r hvr hdom
   obtain ⟨p, hp, rfl⟩ := List.mem_map.mp (domAt_root hroot hb hph hdom)
-  exact (pairOk_param (clsOk_spec hok _ r hvr).2.2
-    (hD ▸ defsOf_find (UniqueDefs.of_ssa hs) (param_def hp))).elim
+  have hpf := hD ▸ defsOf_find (UniqueDefs.of_ssa hs) (param_def hp)
+  rcases (clsOk_spec hok _ r hvr).2.2 with h | h
+  · exact (pairOk_param h hpf).elim
+  · exact (symPair_stmt h fun B j h' => by rw [hpf] at h'; cases h').elim
 
 theorem pinv_root {f : Func} {X : StepCtx} (hD : X.inD = defsOf f) (hs : ssa f (domTree f) = true)
     {pts : List (Nat × Nat × Term)} (hok : X.ptOk pts = true) (e : Env) {b : Nat}

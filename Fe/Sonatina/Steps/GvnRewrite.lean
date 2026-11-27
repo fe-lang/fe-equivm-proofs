@@ -104,7 +104,7 @@ def keepValid (X : StepCtx) : Nat → List (Nat × Operand) → List (Nat × Ope
   | 0, cls => cls
   | n + 1, cls =>
     let C := NatMap.ofList cls
-    let cls' := cls.filter fun e => e.2.wf && X.before e.2 e.1 && X.pairOk C e.1 e.2
+    let cls' := cls.filter fun e => e.2.wf && X.before e.2 e.1 && (X.pairOk C e.1 e.2 || X.symPair e.1 e.2)
     if cls'.length == cls.length then cls else keepValid X n cls'
 
 /-- Why a `gvn_rewrite` step is rejected. -/
