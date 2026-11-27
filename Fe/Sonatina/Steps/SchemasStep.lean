@@ -437,6 +437,14 @@ def StepCtx.blockOf (X : StepCtx) (v : Nat) : Option Nat :=
   | some (.phi b) | some (.stmt b _) => some b
   | _ => none
 
+/-- A representative's term: a literal, its pure statement other than `clz` with operands through
+    their representatives, or its representative. -/
+def StepCtx.repTerm (X : StepCtx) (C : NatMap Operand) : Operand → Term
+  | .imm _ w => .lit w
+  | .var w => match (defStmt X.inB X.inD w).bind fun st => pureInst? st.inst with
+    | some q => if noClz q then termOf (gTerm C) q else gTerm C (.var w)
+    | none => gTerm C (.var w)
+
 /-- A class pair `(v, r)`, from the classes `C`: `v` a pure statement other than `clz` whose term,
     each operand through its representative, a schema equates with `r`'s (a literal, an atom, or
     `r`'s pure statement likewise); or `v` a phi of block `B` whose operands from each predecessor
@@ -445,13 +453,8 @@ def StepCtx.blockOf (X : StepCtx) (v : Nat) : Option Nat :=
 def StepCtx.pairOk (X : StepCtx) (C : NatMap Operand) (v : Nat) (r : Operand) : Bool :=
   match X.inD.find? v with
   | some (.stmt _ _) =>
-    let rt : Term := match r with
-      | .imm _ w => .lit w
-      | .var w => match (defStmt X.inB X.inD w).bind fun st => pureInst? st.inst with
-        | some q => if noClz q then termOf (gTerm C) q else gTerm C r
-        | none => gTerm C r
     ((defStmt X.inB X.inD v).bind fun st => pureInst? st.inst).any fun p =>
-      noClz p && checkExact (kbOf X.K) (termOf (gTerm C) p) rt
+      noClz p && checkExact (kbOf X.K) (termOf (gTerm C) p) (X.repTerm C r)
   | some (.phi B) => (phiOf X.inB B v).any fun φ =>
     let same : Bool := match r with
       | .var w => X.inD.find? w == some (.phi B) && (phiOf X.inB B w).any fun ψ =>
