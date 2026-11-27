@@ -35,6 +35,9 @@ What the semantics fixes where Sonatina leaves a choice:
   observable.
 - `unreachable` traps, as `evm_invalid` does: Sonatina's `docs/memory.md` makes it the EVM's
   `INVALID`, which the backend emits for it.
+- `evm_mcopy` of `len > 0` bytes whose source or destination range ends past `2 ^ 256` does not
+  terminate (`mcopyIR`): the EVM's `MCOPY` runs out of gas there, and the copy's `Nat` addresses
+  would not be the wrapping ones the IR's address arithmetic computes (review C-1).
 - `sym_addr` and `sym_size` read the symbol table of the compiled section, a fact of the
   layout the IR does not fix.
 -/

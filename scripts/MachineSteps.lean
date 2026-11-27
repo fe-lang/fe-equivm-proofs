@@ -52,14 +52,10 @@ def cfgReason (O : Option (List Summary)) (f : Func) (ids : Option (List (List N
 def checked : List StepKind :=
   [.edgeSplit, .cfgCleanup, .branchCanonicalize, .branchConditions, .coalesceCopies]
 
-/-- Why `checkCoalesce` rejects: a base-relative copy (stage 1), or the first block that fails. -/
+/-- Why `checkCoalesce` rejects: the first block that fails. -/
 def kcReason (f f' : Func) : String := Id.run do
   let X := KCtx.of f f'
   if !(X.T.valid f && ssa f X.T) then return "input dominators or SSA rejected"
-  let base := f'.blocks.any fun b => b.body.any fun s => match s.inst with
-    | .evm .mcopy [d, src, _] => (X.norm d).1.isSome || (X.norm src).1.isSome
-    | _ => false
-  if base then return "base-relative copy (stage 1)"
   for (b', b) in f'.blocks.zip f.blocks do
     if !X.blockOk b' b then return s!"block {b.id}"
   if !unusedOk' f f' then return "deleted value used"

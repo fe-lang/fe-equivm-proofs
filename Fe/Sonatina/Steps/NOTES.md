@@ -21,8 +21,8 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `Run.lean` | lemmas the simulations share: `Inst.mapOps`/`Term.mapOps`, `inc`, `Fol`, `enterOpt`, binding lemmas, `UniqueDefs`, `DomTree.anc_antisymm`, `phi_has_pred`, `blockInv_of_point`, `enter_total`, `DomSub` |
 | `L2.lean` | `Inst.pure`, `pureVals`, `runInst_pure`, `Before`, `PureInv`, `BlockPure`, `pureInv_enter`, `pureInv_stmt`, `pureInv_take`, `pureInv_step`, `l2` |
 | `CfgCleanupSound.lean` | `PointTPI`, `tpi_enter`, `tpi_stmt`, `walk_run`, `stmts_fol`, `chain_fol`, `term_fol`, `enter_rel`, `block_fol`, `CR`, `cfg_sim`, `cfgCleanup_sound`, `cfgCleanup_stepSound` |
-| `Coalesce.lean` | `addrNorm`, `useCount`, `loadsFirst`, `fresh`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce`, `allowBase` |
-| `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `addrNorm_sound`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
+| `Coalesce.lean` | `addrNorm`, `useCount`, `loadsFirst`, `fresh`, `KCtx.runOk`, `keptOk`, `cbodyOk`, `unusedOk'`, `checkCoalesce` |
+| `CoalesceSound.lean` | `toByteArray_uInt256`, `CopyMem`, `copyMem_store`, `copyMem_read`, `copyMem_end`, `memEq_write_mod`, `writes`, `writes_read`, `writes_copyMem`, `addrNorm_sound`, `baseVal`, `addrNorm_base_sound`, `exec_mcopy`, `exec_mcopy_big`, `KFacts`, `WinFacts`, `runOk_spec`, `WInv`, `WInv.env`, `keep_operand`, `store_load_before`, `in_step`, `win_walk`, `win_fol`, `kc_stmts`, `kc_term`, `kc_sim`, `coalesce_sound`, `coalesceCopies_stepSound` |
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
@@ -275,7 +275,7 @@ them.  They come after
 `coalesce_copies`; the fresh condition instruction is then a new output value, its term unfolded
 through output definitions (ruling R-11.1).
 
-## `coalesce_copies` (phase 2, stage 1 of ruling R-11.4)
+## `coalesce_copies` (phase 2, ruling R-11.4, stages 1 and 2)
 
 What Sonatina does (`crates/codegen/src/isa/evm/machine/copy.rs` at `machine-steps` `0585e54f`,
 called last in `machine/pipeline.rs:76-79`; design §4.10 and review H-6 describe less):
@@ -306,8 +306,11 @@ result, ends in a store, has `n ≥ 2` loads `l_i` at `s + 32 i` and `n` stores 
 result at `d + 32 i` (`addrNorm` over the input's definitions in reachable blocks, a bounded
 walk whose early stop only leaves a larger base), each load used once in the input function
 (`useCount`), the copy `evm_mcopy d s (32 n)` with `d`, `s` the first store's and first load's
-address operands; both ranges constant, each ending at or below `2 ^ 256` in `Nat` (the
-checker's own bound, not the compiler's `u32`), and snapshot (`loadsFirst`: no load after the window's first store) or disjoint in `Nat`.  Deletions
+address operands and `32 n < 2 ^ 256`; snapshot (`loadsFirst`: no load after the window's first
+store), or both ranges constant, each ending at or below `2 ^ 256` in `Nat` (the checker's own
+bound, not the compiler's `u32`), and disjoint in `Nat`.  A snapshot run may be base-relative
+(load `i` at `b + k + 32 i` modulo `2 ^ 256` for one base value `b`, store `i` likewise at
+another or the same) and its ranges may end past `2 ^ 256`.  Deletions
 are only a window's loads, its other stores and its `add`/`sub` (a deleted store is tied to its
 window); no result of a window statement the output does not keep is defined in the output
 (`keptOk`'s `fresh`) or used in it (`unusedOk'`).  The
@@ -321,32 +324,41 @@ a load used twice, a base-relative run, a deleted store outside a window, a chan
 non-contiguous addresses, another instruction in the window, one word, a range past `2 ^ 256`, a
 kept `add` moved after the copy.
 
-**OPEN (stage 2, ruling R-11.4):** base-relative runs are rejected and counted (`allowBase =
-false`): 143 of 819 copies; steps rejected FeProofs `-O0` 68 of 149, `-O1` 12 of 26, `-Os` 12 of
-26, the 265 14 of 28; sections with a base-relative copy FeProofs `-O0` 7, `-O1` 5, `-Os` 5, the
-265 7.  Reason: the model's `mcopy` (`Fe/EVM/World.lean:131`) reads and writes at `Nat` addresses
-and never diverges, while the `add`s that build a base-relative run's addresses wrap modulo
-`2 ^ 256`; review C-1's divergence of `evm_mcopy` past `2 ^ 256` is not implemented.  Stage 2
-(the model's `mcopy` diverging, the byte checker's `MCOPY` event, the out-of-gas lemma) goes to
-the dialect line.
+**Stage 2 (ruling R-11.4, review C-1), done:** the interpreter's `evm_mcopy` does not terminate
+where a range ends past `2 ^ 256` (`mcopyIR`, below), the byte side is re-proved (`mcopy_oog`),
+and the switch `allowBase` is gone: base-relative snapshot runs are accepted, and the bound is
+no longer checked of snapshot runs.  Two conditions are new: `32 n < 2 ^ 256` (the copy's
+literal; a window of `2 ^ 251` words would otherwise copy `32 n mod 2 ^ 256` bytes), and an
+interleaved run's constant ranges must end at or below `2 ^ 256`, which stage 1 checked of every
+run: without it the stores' wrapping addresses could reach a later load's word, which `Nat`
+disjointness does not exclude.  Neither rejects a run of the corpora (all 398 interleaved copies
+are constant, none past `u32`).  Tests: `kc_base`, `kc_base2` (one base; a base each),
+`kc_past` (a constant range past `2 ^ 256`, accepted as the copy diverges there; it was the
+stage-1 mutant `kc_bad_past`); mutants `kc_bad_base_inter`, `kc_bad_past_inter`,
+`kc_bad_two_base` (loads at two bases).
 
 Proof (`CoalesceSound.lean`, `coalesce_sound`, `coalesceCopies_stepSound`; no hypothesis beyond
 `StepSound.of_func`'s): the block-for-block simulation of `branch_canonicalize` (`BR`, `BMid`,
 `kc_stmts`), a window in place of a deleted `is_zero`.  In a window (`win_walk`) the input runs
 each statement and the output its kept `add`/`sub` alongside, in order, binding the same values
 (`pureVals_sub`); the window's other statements bind results the output does not define
-(`fresh`), so the output's environment still binds less.  Memory (`CopyMem`): after `q` stores
-the input's memory is the window's start memory `m₀` with the first `q` words of `m₀`'s
-`[S, S + 32 n)` written at `D`.  A load reads `m₀`: it comes before every store (`loadsFirst`),
-or its range is disjoint from the destination's.  Store `i` writes load `i`'s word unchanged
+(`fresh`), so the output's environment still binds less.  Memory (`WInv`): each load of the
+window so far is bound to the word of the start memory `m₀` at its address, and the memory is
+`m₀` with, in order, the word of `m₀` at load `i`'s address written at store `i`'s (`writes`),
+the addresses as the environment binds them; an operand of an earlier statement of the window
+keeps its value (`keep_operand`: what defines it comes before).  A load reads `m₀`: it comes
+before every store (`loadsFirst`), or, constant and in bounds, its word is disjoint from every
+store's so far (`writes_read`).  Store `i` writes load `i`'s word unchanged
 (`toByteArray_uInt256`); `ssa` and unique definitions put that load before the store
-(`store_load_before`).  After the `n`-th store the memory is `m₀.write S m₀ D (32 n)`, and since
-`ByteArray.write` reads its source before it writes, that is the output's `mcopy` on a memory
-related to `m₀` (`copyMem_end`, `MemEq.write`; a length of `2 ^ 256` reads as `0`, and then
-`S = D = 0` and both are the identity, `memEq_write_mod`).  So snapshot windows may overlap in
-either direction, and interleaved ones must be disjoint, as the checker requires.  Addresses: L2
-on the input unfolds each `add`/`sub` that `addrNorm` follows (`addrNorm_sound`, as `peel_sound`
-does for `is_zero`), and the stage-1 bounds make each address a word, its normalized offset.
+(`store_load_before`).  At the copy (`win_fol`), L2 on the input at the window's end gives each
+address as its base's value plus its `addrNorm` offset modulo `2 ^ 256` (`addrNorm_base_sound`),
+so load `i`'s is `S + 32 i` and store `i`'s `D + 32 i` modulo `2 ^ 256`, `S` and `D` the copy's
+operands.  If `S + 32 n` or `D + 32 n` exceeds `2 ^ 256`, the output's copy does not terminate
+(`exec_mcopy_big`), which `Approx` allows.  Otherwise no address wraps, the writes are the
+copy's (`writes_copyMem`, `CopyMem`), and since `ByteArray.write` reads its source before it
+writes, that is the output's `mcopy` on a memory related to `m₀` (`copyMem_end`, `MemEq.write`).
+So snapshot windows may overlap in either direction, and interleaved ones must be disjoint, as
+the checker requires.
 
 Two changes to the checker for the proof: (1) `keptOk` requires each window statement it does
 not keep to have no result the output defines (`fresh`, the `deletable` of
@@ -375,35 +387,36 @@ checked) the two agree.  The tests (`Tests.lean`, `kc_*`) are unchanged and pass
 Commits 7e6f2c1, 9dbd430 and 04f9f01 do not build alone (each needs a later commit); they were
 left as they are.
 
-## Memory past 2^256 (ruling 3 as changed by review C-1)
+## Memory past 2^256 (ruling 3 as changed by review C-1), implemented
 
-Only `evm_mcopy` with `len > 0` and `src + len > 2^256` or `dst + len > 2^256` is to diverge in
-the IR semantics; no semantics was changed in this phase.  What the byte side (`check_sound`)
-then needs: wherever the IR's `mcopy` diverges, the bytes' `MCOPY` step must end in `OutOfGass`,
-which `RefinesFor`'s `Exhausted` disjunct excuses.
+Only `evm_mcopy` with `len > 0` and `src + len > 2^256` or `dst + len > 2^256` diverges in the
+IR semantics.  The change is the interpreter's (`Interp.lean`), not the model library's:
+`Fe.EVM.mcopy` is also the exported models' `copy_mem` (`FeProofs/Lib/Exported.lean`, and the
+proofs of `AbiEncode` and `LimbSlice` over it), whose semantics stay as they were.
 
-What EVMLean gives (`.lake/packages/evmlean`, `Ethereum/Gas.lean`, `memoryExpansionCost`, case
-`.MCOPY`; `Ethereum/MachineStateOps.lean`, `MachineState.M`; `Gas.Cₘ`):
-- the new size in words is `M activeWords (max dst src) len`, computed in `ℕ` (no wraparound:
-  "the addition is not subject to 2^256 division"), `max activeWords ((a + len + 31) / 32)`
-  with `a = max dst src`; with `a + len > 2^256` that is at least `2^251`, below `2^256`, so
-  the `UInt256.ofNat` around it does not wrap;
-- the charge is `Cₘ new - Cₘ activeWords` with `Cₘ x = 3x + x²/512`, so at least
-  `Cₘ 2^251 - Cₘ activeWords ≥ 2^493 - Cₘ activeWords`;
-- the gas left is a `UInt256`, below `2^256`.
+```lean
+def mcopyIR (dest source len : UInt256) : FeM Unit :=
+  if 0 < len.toNat ∧
+      (UInt256.size < dest.toNat + len.toNat ∨ UInt256.size < source.toNat + len.toNat) then
+    Fe.M.diverge
+  else Fe.EVM.mcopy dest source len
+```
 
-So `OutOfGass` follows if `Cₘ activeWords` is small, for instance `activeWords < 2^240`.  That
-is the lemma's missing hypothesis: EVMLean's state does not bound `activeWords` by itself; a
-frame only reaches large memory by paying for it, so the bound is an invariant of reachable
-states (`Cₘ activeWords ≤` the gas spent so far `< 2^256`), which `check_sound`'s state relation
-(`Agree`/`PathRel`, `CheckEvent.lean`, `CheckBlock.lean`) would have to carry from the frame's
-start (`activeWords = 0`) through every step that expands memory.  Proofs that change: the
-`.mcopy` case of `evRun` and its `EvMoves` (`event_evMoves`, `CheckEvent.lean`), which would
-gain the divergence case, and `run_ends`/`section_run` for the invariant.  The lemma itself,
-`mcopy_oog : len > 0 → max dst src + len > 2^256 → activeWords < 2^240 → step MCOPY = .error
-.OutOfGass`, is unproved; whether EVMLean's `X` checks the memory charge before any other
-failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read in
-`Semantics.lean` around line 674.
+`EvmOp.run .mcopy [d, s, l]` runs `mcopyIR d s l`, and the byte checker's `evRun .MCOPY` the
+same (`CheckEvent.lean` imports `Interp.lean` for it).  The byte side (`check_sound`,
+`checkSpills_sound`, statements unchanged): where `mcopyIR` diverges, the bytes' `MCOPY` step is
+`.error .OutOfGass` (`mcopy_oog`), which `EvMoves`' first disjunct and `Exhausted` excuse.  The
+gas fact is EVMLean's own (`Ethereum/Theory/ReturnDataBound.lean`): `memoryPaidByGas s :=
+Cₘ s.activeWords + s.gasAvailable < 2 ^ 256`, which `Xstep_memoryPaidByGas_of_none` keeps through
+every step that goes on (calls and creations included), and which a frame's first state has
+(`memoryPaidByGas_initState`).  `Agree` carries it (`Agree.paid`), each step that builds an
+`Agree` passing it on.  At `MCOPY`, EVMLean's `step_mcopy` checks the memory charge first; the
+new size `M activeWords (max dst src) len` is above `2 ^ 251` words and below `2 ^ 256`, so
+`Cₘ` of it is at least `2 ^ 493 ≥ 2 ^ 256 > Cₘ activeWords + gas`.  Other memory operations stay
+total (C-1: a diverging read would make deleting a dead `mload` unsound).  Proofs adjusted:
+`approx_mcopyIR` (the steps' `approx_auto`), the simp sets of `evRun_result`, `evm_run`,
+`noPanic_evmRun` and `ir_step_nat` (which decides the bound by `omega` in `ir_clean`), and one
+line of WETH9's `returnValue_run`.
 
 ## Measured
 
@@ -469,8 +482,17 @@ failure of `MCOPY` (stack underflow is excluded at a matched step) is to be read
   149, `-O1` 14 of 26, `-Os` 14 of 26, the 265 14 of 28; every rejected one is base-relative.  The
   step and section verdicts are the same as those of the checker before the two changes above.
 
+- Stage 2 (base-relative runs accepted, `evm_mcopy` diverging past `2 ^ 256`), sections accepted
+  end to end by `validate`'s kinds (`scripts/MachineSteps.lean`, interpreted): FeProofs
+  `corpus-v5b` `-O0` 40 of 40 (33 before), `-O1` 21 of 40 and `-Os` 21 of 40 (unchanged; first
+  rejected kind `scalar_canonicalize` 8, `known_bits_simplify` 7, `sccp_fold` 4); the 265
+  sidecars of `corpus-v5-full`: 351 of 530 (unchanged; `known_bits_simplify` 80, `sccp_fold` 57,
+  `scalar_canonicalize` 30, `lower_switches` 12).  `coalesce_copies` steps accepted: all 229
+  (`-O0` 149, `-O1` 26, `-Os` 26, the 265 28).  The byte checker (`scripts/DialectSweep.lean`;
+  its decision is unchanged): `checkSpills` 40 of 40 sections per level and 529 of 530, `check`
+  34, 33, 33 and 520, the same verdicts as before.
+
 ## Not done
 
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 - The summary table's effect and `will_return` claims are not checked (no consumer).
-- The `mcopy` gas lemma and semantics change (above).
