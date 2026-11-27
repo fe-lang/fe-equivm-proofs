@@ -27,7 +27,8 @@ are what the entry points are proved from.
 | `SchemasD.lean` | D1–D3: `checkD`, `checkD_sound` |
 | `SchemasCheck.lean` | `Op2.comm`, `Term.norm`, `Term.norm_eval`, `Term.commEq`, `Term.nf`, `Term.hasAtom`, `Term.hasClz`; `FactsOn`, `restrict`, `factsHold_restrict`, `envWord`, `factsOn_env`, `eval_atom_env`; `checkExact`, `checkDemand`, `checkBranchOn` and their soundness |
 | `SchemasFacts.lean` | `StepFacts`, `readFacts` (no schema or `Validate` import) |
-| `SchemasStep.lean` | `checkKnownBitsSimplify`, `checkSccpFold`, their fact checks (`kbFactsOk`, `sccpFactsOk`, `dbFactsOk`) and `diagnose…` |
+| `SchemasStep.lean` | `checkKnownBitsSimplify`, `checkSccpFold`, their fact checks (`kbFactsOk`, `sccpFactsOk`, `dbFactsOk`), the demand switch `demandRounds`, and `diagnose…` |
+| `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | the soundness proof of both step kinds (below) |
 | `SchemasStepTests.lean`, `SchemasStepTests/` | records and mutants of the two step kinds |
 | `SchemasTests.lean` | `decide +kernel` tests, the H-7 counterexamples as rejected cases, `#print axioms` |
 
@@ -283,9 +284,10 @@ def checkSccpFold (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) (F 
 ```
 
 with `f` the input function, `ids` its instruction ids, `s` the output snapshot, `F` the step's
-facts. Planned soundness (the `StepSound.of_func` shape): `Oracle.Mono o → o.IntRet →
-f.wf sig syms = true → check f ids s F = true → FuncRef o c (some s.func) (some f)`. **Not proved
-yet.** A checker handed a fact key it does not read rejects.
+facts. Soundness (`sccpFold_sound`, `knownBitsSimplify_sound`, the `StepSound.of_func` shape):
+`f.wf sig syms = true → check f ids s F = true → Oracle.Mono o → o.IntRet → FuncRef o c (some
+s.func) (some f)`, proved (below; demand rounds switched off). A checker handed a fact key it
+does not read rejects.
 
 What they check: blocks and lines paired by id; deleted lines are phis or pure single-result
 statements other than `clz`; σ from the changed operands, a function, its keys deleted values;
@@ -378,42 +380,54 @@ of its operands (`meetAll_sound`), a pure statement its word (`transfer_sound`, 
 on Osaka only), and a parameter or a result of a statement that is not pure has no claim.
 `pureInst?_pure` (`pureInst? i = some p → noClz p → i.pure`) is the one bridge to L2's purity.
 
-## What is and is not proved about the two step checkers
+## The proof (`SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean`)
 
-`checkKnownBitsSimplify` and `checkSccpFold` are arms of `checkFunc` on this branch, but there
-is no `StepSound .knownBitsSimplify` or `StepSound .sccpFold`. `validate_sound` and
-`machine_sound` take `∀ k ∈ allowed, StepSound k`; `validate` and `machine_sound_proved` use
-the proved kinds only (`StepKind.proved`), which rejects every record with either kind. Only
-`validateWith` given either kind by name accepts such records, and that acceptance proves
-nothing. Proved
-so far: the schema library (each schema sound on terms), the known-bits invariant above,
-`pureInst?_pure`. Measured, not proved: every step of both corpora accepted, every mutant
-rejected.
+`sccpFold_stepSound : StepSound .sccpFold` and `knownBitsSimplify_stepSound : StepSound
+.knownBitsSimplify`, by `StepSound.of_func` with no further hypothesis (axioms `propext`,
+`Classical.choice`, `Quot.sound`).  Both kinds are in `StepKind.proved`.  Demand rounds are
+switched off (below); everything else the checker accepts is covered.
 
-L2 as the proofs will need it: at a point `(b, k)` the input run reaches, every pure non-`clz`
-statement reached by unfolding (to depth `d ≤ 3`, and through each link of a chain) from the
-definition of a value a paired line reads there has its result bound to its value. `PureInv f
-T b k env` (from `l2`) gives that for every pure statement of a reachable block before `(b, k)`:
-an unfolded definition dominates the use (strict SSA, transitively), so it is `Before`; a phi
-operand is read at the end of the predecessor (`BlockPure`). On the output side the same needs
-`l2` on `s.func`, so `s.func.wf sig syms` (obligation 1 below).
+| Module | Contents |
+| --- | --- |
+| `SchemasPair.lean` | lawful `BEq` of the IR (derived); `Merge` (what `pairUp` computes), `Merge.split` by line kind, `Sub`; `pairFunc_spec`; `AF` (what `aliasReject = none` gives), `aliasReject_spec`, `AF.block` (an output block is its input block's phis and statements less the deleted ones, mapped by σ or, in `sccp_fold`, replaced, and its terminator mapped), `AF.wf'` (the output is `Func.wf` under the input's `sig` and `syms`) |
+| `SchemasEval.lean` | `CHolds`, `AncReach`, `TermOk`, `SidePt` (a reached point of a snapshot: definedness and L2 there), `TPI`; `domAt_trans`, `before_of_domAt`; `unfold_sound` (an operand dominating the point, unfolded through the snapshot's pure statements with SCCP's constants as literals, evaluates in the input's words to its word, its atoms bound); `tin_ok`; `entryDirect_sound`, `entryOk_sound` (chains), `alias_use` |
+| `SchemasInv.lean` | `SccpSpec` (what `sccpFactsOk` checks), `runTerm_slot`, `exec_next` (the run takes only slots `slotTaken` allows, so stays executable), `stmtConst_sound`, `cholds_stmt`, `cholds_enter` (the constants hold), `tpi_enter`, `tpi_stmt` (folded phis) |
+| `SchemasStepSound.lean` | `SF`, `InPt`, `Mid`, `RS`; `keep_fol`, `repl_fol`, `del_fol`, `body_fol`, `enter_approx`, `term_fol`, `block_fol`, `SF.sim`, `SF.sound`; `aliasReject_sound`, `sccpFold_sound`, `knownBitsSimplify_sound`, the two `…_stepSound` |
 
-Remaining obligations, in order:
+The simulation (`RS`) relates the output and the input at the same block entered from the same
+block.  The output's environment binds less than the input's (`EnvSub`) and only output values
+(`DomSub`); each side carries its own `BlockInv` and `BlockPure` (L2) on its own dominator tree
+(R-11.1: `T_out` is unfolded through output definitions, justified by L2 on the output), and every
+tree ancestor of the current block is reachable (`AncReach`, so every unfolded definition is in a
+reachable block); the input carries `KBHolds`, `CHolds`, and in `sccp_fold` the block executable,
+the edge entered by executable, and `TPI` at the predecessor.  A kept statement, phi operand or
+terminator reads `σ v` where the input reads `v`: at that point `v`'s term evaluates to `v`'s word
+by input L2, `σ v`'s to its word by output L2 (both under the input's words), and the schema
+equates them under the known bits (`checkExact_sound`), or `v` has SCCP constant `σ v`, or `v` is a
+folded phi (`TPI`), or a chain link through a deleted operand (whose output term is its atom).
+Deleted statements step on the input alone (pure, total, result fresh).
 
-1. Output well-formedness: an accepted step and `f.wf sig syms` give `s.func.wf sig syms` (the
-   sig-free parts are checked; `call`, `sym_addr`, `sym_size` come from the pairing).
-2. Pairing: `pairFunc`, `idsFit`, `sigmaOf`, `mapLine`, `lineEq` give each output block as the
-   input block with σ applied, deleted lines `deletable`, and `is_zero` replacements.
-3. Terms under L2: `unfold`/`instTerm` evaluate to the environment's words at a reached point,
-   depth a parameter; SCCP constants as literals need obligation 5.
-4. `entryOk`: each mode justifies `env[v] = value of σ v` at every use (the chain bound a
-   parameter). Demand mode gives agreement on demanded bits only and needs a `dbFactsOk`
-   invariant (every use reads only demanded bits).
-5. The SCCP invariant: `execClosed` keeps the run in the executable set and off dead slots;
-   constants hold at executable definitions (`stmtConstOk` through `evalConst` or `checkExact`
-   under the known bits, phis over executable edges).
-6. The simulation: the output run refines the input run block by block (`FuncRef`), deleted
-   pure statements and phis dropped, then `StepSound.of_func` for each kind.
+Checker changes for the proof, none changing what a real record gets (corpus verdicts below):
+- `aliasReject` checks last that no deleted value is an output value (`.fresh`); implied by the
+  other checks and the input's unique definitions, checked so the proof need not derive it;
+- `linesOk` and `Mode.sccp?` name two pieces of `aliasReject` (same code) so the proof can split
+  it;
+- **demand rounds switched off**: `kbsRejectWith (demand : Bool)`; `kbsReject` passes
+  `demandRounds = false`, so a `known_bits_simplify` step with `demanded_bits` is rejected
+  (`.demandRound`).  The tests run the demand records through `kbsRejectWith true` (`KBSD`).
+
+**Not proved: demand rounds.**  Their rewrites make the output's value agree with the input's
+only on the demanded bits, so the output environment no longer binds less than the input's;
+the simulation would relate environments by agreement under each value's demand (`Agree`,
+`demand1/2/3_sound`), with `dbFactsOk` giving that every use reads only demanded bits (impure
+uses and terminators all of them), and `checkDemand` evaluated with the output's atoms agreeing
+only under their demands.  No step of either corpus has `demanded_bits` (below), so the switch
+rejects nothing measured.
+
+Validation of the changed checker (`scripts/SchemasSteps.lean`, interpreted): per-step verdicts
+on `corpus-v5b` (86) and `corpus-v5-full` (313) and the mutants of the latter (935 with facts
+mutated, 3006 with the output mutated) are identical, line for line, to those of the checker
+before the change; the hand-written tests pass.  Sections accepted end to end: `NOTES.md`.
 
 ## For the checker authors
 
