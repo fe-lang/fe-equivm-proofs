@@ -1,0 +1,78 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        jump block1;\n    block1:\n        v3.i256 = phi (v0 block0) (v4 block1);\n        v4.i256 = add v3 1.i256;\n        v5.i256 = lt 1.i256 0.i256;\n        br v5 block1 block2;\n    block2:\n        return v4;\n}\n",
+   "insts": [
+    [
+     0
+    ],
+    [
+     1,
+     2,
+     3,
+     4
+    ],
+    [
+     5
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "sccp",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "sccp_prune",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        jump block1;\n    block1:\n        v4.i256 = add v0 1.i256;\n        v5.i256 = lt 1.i256 0.i256;\n        jump block2;\n    block2:\n        return v4;\n}\n",
+        "insts": [
+         [
+          0
+         ],
+         [
+          2,
+          3,
+          4
+         ],
+         [
+          5
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": {
+         "consts": [
+          [
+           5,
+           "0"
+          ]
+         ],
+         "dead_edges": [
+          [
+           1,
+           0
+          ]
+         ]
+        },
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

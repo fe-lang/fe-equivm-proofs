@@ -1,0 +1,89 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "f",
+   "func_ref": 0,
+   "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = lt 1.i256 2.i256;\n        br v2 block4 block3;\n    block4:\n        br v0 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        v3.i256 = phi (7.i256 block0) (v0 block1) (v1 block2);\n        return v3;\n}\n",
+   "insts": [
+    [
+     0,
+     1
+    ],
+    [
+     2
+    ],
+    [
+     3
+    ],
+    [
+     4
+    ],
+    [
+     5,
+     6
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "sccp",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "sccp_prune",
+     "funcs": [
+      {
+       "out": {
+        "func": "f",
+        "func_ref": 0,
+        "text": "func private %f(v0.i256, v1.i256) -> i256 {\n    block0:\n        v2.i256 = lt 1.i256 2.i256;\n        jump block4;\n    block4:\n        br v0 block1 block2;\n    block1:\n        jump block3;\n    block2:\n        jump block3;\n    block3:\n        v3.i256 = phi (7.i256 block0) (v0 block1) (v1 block2);\n        return v3;\n}\n",
+        "insts": [
+         [
+          0,
+          1
+         ],
+         [
+          2
+         ],
+         [
+          3
+         ],
+         [
+          4
+         ],
+         [
+          5,
+          6
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": {
+         "consts": [
+          [
+           2,
+           "1"
+          ]
+         ],
+         "dead_edges": [
+          [
+           0,
+           1
+          ]
+         ]
+        },
+        "finite_loops": [],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
