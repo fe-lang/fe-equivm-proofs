@@ -218,6 +218,11 @@ machine_steps_file kc_bad_moved "Fe/Sonatina/Steps/Tests/kc_bad_moved.json"
 machine_steps_file kc_bad_base_inter "Fe/Sonatina/Steps/Tests/kc_bad_base_inter.json"
 machine_steps_file kc_bad_past_inter "Fe/Sonatina/Steps/Tests/kc_bad_past_inter.json"
 machine_steps_file kc_bad_two_base "Fe/Sonatina/Steps/Tests/kc_bad_two_base.json"
+machine_steps_file kc_unreach "Fe/Sonatina/Steps/Tests/kc_unreach.json"
+machine_steps_file kc_unreach_any "Fe/Sonatina/Steps/Tests/kc_unreach_any.json"
+machine_steps_file kc_bad_unreach_term "Fe/Sonatina/Steps/Tests/kc_bad_unreach_term.json"
+machine_steps_file kc_bad_unreach_used "Fe/Sonatina/Steps/Tests/kc_bad_unreach_used.json"
+machine_steps_file kc_bad_reach_any "Fe/Sonatina/Steps/Tests/kc_bad_reach_any.json"
 
 abbrev KC := validateWith [.coalesceCopies] []
 
@@ -253,6 +258,22 @@ example : KC kc_bad_moved (replay kc_bad_moved) = false := by decide +kernel
 example : KC kc_bad_base_inter (replay kc_bad_base_inter) = false := by decide +kernel
 example : KC kc_bad_past_inter (replay kc_bad_past_inter) = false := by decide +kernel
 example : KC kc_bad_two_base (replay kc_bad_two_base) = false := by decide +kernel
+
+/-- Review 20, M-1: a run in an unreachable block whose addresses go through that block's own
+`add`s, which the compiler coalesces (`copy.rs` visits every block).  `addrNorm` follows only
+definitions in reachable blocks, so `cbodyOk` rejects the block's statements (the check before
+the change ran it on every block); `blockOk` no longer checks an unreachable block's statements,
+so the step is accepted, as is any other body there.  Rejected: the unreachable block's terminator
+changed; its body using a deleted value (`unusedOk'`); the arbitrary body in a reachable block. -/
+example : (((kc_unreach.lowered.head?.map (·.func)).bind fun f =>
+    ((replay kc_unreach).funcs.head?).bind fun f' => (f.block? 1).bind fun b =>
+      (f'.block? 1).map fun b' => (KCtx.of f f').cbodyOk (b.body.length + 1) b'.body b.body) =
+    some false) := by decide +kernel
+example : KC kc_unreach (replay kc_unreach) = true := by decide +kernel
+example : KC kc_unreach_any (replay kc_unreach_any) = true := by decide +kernel
+example : KC kc_bad_unreach_term (replay kc_bad_unreach_term) = false := by decide +kernel
+example : KC kc_bad_unreach_used (replay kc_bad_unreach_used) = false := by decide +kernel
+example : KC kc_bad_reach_any (replay kc_bad_reach_any) = false := by decide +kernel
 
 /-! ## `lower_switches` -/
 
