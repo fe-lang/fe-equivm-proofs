@@ -131,7 +131,7 @@ def gvnRewriteReject (f : Func) (ids : Option (List (List Nat))) (s : FuncSnap) 
   | _, none => some .noFacts
   | some is, some G =>
     if !F.unread.isEmpty || F.consts.isSome || F.demanded.isSome || !F.deadEdges.isEmpty ||
-        !G.deadEdges.isEmpty then some .wrongFacts
+        !F.finiteLoops.isEmpty || !G.deadEdges.isEmpty then some .wrongFacts
     else if !(s.func.blocks.length == f.blocks.length && is.length == f.blocks.length &&
         s.insts.length == f.blocks.length) then some .shape
     else

@@ -1,0 +1,305 @@
+{
+ "profile": "speed",
+ "lowered": [
+  {
+   "func": "contract_runtime_root_Identity",
+   "func_ref": 11,
+   "text": "func private %contract_runtime_root_Identity() {\n    block0:\n        v7.i256 = evm_call_value;\n        br v7 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v10.i256 = evm_calldata_size;\n        v13.i256 = add v10 31.i256;\n        v15.i256 = and v13 -32.i256;\n        v16.i256 = add 96.i256 v15;\n        evm_mstore 64.i256 v16;\n        v18.i256 = evm_calldata_size;\n        evm_calldata_copy 96.i256 v18 v10;\n        br v10 block3 block5;\n\n    block3:\n        evm_calldata_copy 96.i256 0.i256 v10;\n        jump block5;\n\n    block5:\n        v20.i256 = evm_mload 64.i256;\n        br v20 block6 block7;\n\n    block6:\n        v22.i256 = evm_calldata_size;\n        evm_calldata_copy v20 v22 v10;\n        v24.i256 = gt 8.i256 v10;\n        br v24 block21 block12;\n\n    block7:\n        v80.i256 = evm_mload 64.i256;\n        evm_revert 96.i256 0.i256;\n\n    block8:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 50.i256;\n        evm_revert 0.i256 36.i256;\n\n    block9:\n        v31.i256 = add 96.i256 v1;\n        v32.i256 = evm_mload v31;\n        v34.i256 = shr 192.i256 v32;\n        v35.i256 = gt v1 v0;\n        br v35 block13 block15;\n\n    block12:\n        v0.i256 = phi (v10 block6) (v3 block18);\n        v1.i256 = phi (0.i256 block6) (v2 block18);\n        v2.i256 = phi (8.i256 block6) (v69 block18);\n        v25.i256 = sub v10 v1;\n        v26.i256 = gt 8.i256 v25;\n        br v26 block8 block9;\n\n    block13:\n        v36.i256 = add v20 v0;\n        v37.i256 = sub v1 v0;\n        v38.i256 = evm_calldata_size;\n        evm_calldata_copy v36 v38 v37;\n        jump block15;\n\n    block15:\n        v39.i256 = add v1 8.i256;\n        v40.i256 = gt v39 v0;\n        br v40 block18 block17;\n\n    block17:\n        jump block18;\n\n    block18:\n        v3.i256 = phi (v0 block17) (v39 block15);\n        v41.i256 = add v20 v1;\n        v43.i256 = evm_byte 24.i256 v34;\n        evm_mstore8 v41 v43;\n        v45.i256 = evm_byte 25.i256 v34;\n        v47.i256 = add v41 1.i256;\n        evm_mstore8 v47 v45;\n        v49.i256 = evm_byte 26.i256 v34;\n        v51.i256 = add v41 2.i256;\n        evm_mstore8 v51 v49;\n        v53.i256 = evm_byte 27.i256 v34;\n        v55.i256 = add v41 3.i256;\n        evm_mstore8 v55 v53;\n        v57.i256 = evm_byte 28.i256 v34;\n        v58.i256 = add v41 4.i256;\n        evm_mstore8 v58 v57;\n        v60.i256 = evm_byte 29.i256 v34;\n        v62.i256 = add v41 5.i256;\n        evm_mstore8 v62 v60;\n        v64.i256 = evm_byte 30.i256 v34;\n        v66.i256 = add v41 6.i256;\n        evm_mstore8 v66 v64;\n        v68.i256 = add v41 7.i256;\n        evm_mstore8 v68 v34;\n        v69.i256 = add v2 8.i256;\n        v70.i256 = gt v69 v10;\n        br v70 block21 block12;\n\n    block21:\n        v4.i256 = phi (v10 block6) (v3 block18);\n        v5.i256 = phi (0.i256 block6) (v2 block18);\n        v71.i256 = lt v5 v10;\n        br v71 block24 block27;\n\n    block24:\n        v6.i256 = phi (v78 block29) (v5 block21);\n        v72.i256 = add 96.i256 v6;\n        v73.i256 = evm_mload v72;\n        v75.i256 = evm_byte 0.i256 v73;\n        v76.i256 = lt v6 v4;\n        br v76 block29 block28;\n\n    block27:\n        evm_return v20 v4;\n\n    block28:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 50.i256;\n        evm_revert 0.i256 36.i256;\n\n    block29:\n        v77.i256 = add v20 v6;\n        evm_mstore8 v77 v75;\n        v78.i256 = add v6 1.i256;\n        v79.i256 = lt v78 v10;\n        br v79 block24 block27;\n}\n",
+   "insts": [
+    [
+     7,
+     9
+    ],
+    [
+     10
+    ],
+    [
+     11,
+     12,
+     13,
+     14,
+     15,
+     16,
+     17,
+     19
+    ],
+    [
+     20,
+     21
+    ],
+    [
+     23,
+     25
+    ],
+    [
+     26,
+     27,
+     28,
+     29
+    ],
+    [
+     102,
+     103
+    ],
+    [
+     34,
+     35,
+     36
+    ],
+    [
+     37,
+     38,
+     39,
+     40,
+     41
+    ],
+    [
+     0,
+     1,
+     2,
+     31,
+     32,
+     33
+    ],
+    [
+     42,
+     43,
+     44,
+     45,
+     46
+    ],
+    [
+     48,
+     49,
+     50
+    ],
+    [
+     52
+    ],
+    [
+     3,
+     53,
+     54,
+     55,
+     56,
+     57,
+     58,
+     59,
+     60,
+     61,
+     62,
+     63,
+     64,
+     65,
+     66,
+     67,
+     68,
+     69,
+     70,
+     71,
+     72,
+     73,
+     74,
+     75,
+     76,
+     77,
+     78
+    ],
+    [
+     4,
+     5,
+     82,
+     83
+    ],
+    [
+     6,
+     85,
+     86,
+     87,
+     88,
+     89
+    ],
+    [
+     101
+    ],
+    [
+     90,
+     91,
+     92
+    ],
+    [
+     93,
+     94,
+     95,
+     96,
+     97
+    ]
+   ]
+  }
+ ],
+ "passes": [
+  {
+   "kind": "adce",
+   "func_behavior": null,
+   "steps": [
+    {
+     "kind": "adce",
+     "funcs": [
+      {
+       "out": {
+        "func": "contract_runtime_root_Identity",
+        "func_ref": 11,
+        "text": "func private %contract_runtime_root_Identity() {\n    block0:\n        v7.i256 = evm_call_value;\n        br v7 block1 block2;\n\n    block1:\n        evm_revert 0.i256 0.i256;\n\n    block2:\n        v10.i256 = evm_calldata_size;\n        v13.i256 = add v10 31.i256;\n        v15.i256 = and v13 -32.i256;\n        v16.i256 = add 96.i256 v15;\n        evm_mstore 64.i256 v16;\n        v18.i256 = evm_calldata_size;\n        evm_calldata_copy 96.i256 v18 v10;\n        br v10 block3 block5;\n\n    block3:\n        evm_calldata_copy 96.i256 0.i256 v10;\n        jump block5;\n\n    block5:\n        v20.i256 = evm_mload 64.i256;\n        br v20 block6 block7;\n\n    block6:\n        v22.i256 = evm_calldata_size;\n        evm_calldata_copy v20 v22 v10;\n        v24.i256 = gt 8.i256 v10;\n        br v24 block21 block12;\n\n    block7:\n        evm_revert 96.i256 0.i256;\n\n    block8:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 50.i256;\n        evm_revert 0.i256 36.i256;\n\n    block9:\n        v31.i256 = add 96.i256 v1;\n        v32.i256 = evm_mload v31;\n        v34.i256 = shr 192.i256 v32;\n        v35.i256 = gt v1 v0;\n        br v35 block13 block15;\n\n    block12:\n        v0.i256 = phi (v10 block6) (v3 block18);\n        v1.i256 = phi (0.i256 block6) (v2 block18);\n        v2.i256 = phi (8.i256 block6) (v69 block18);\n        v25.i256 = sub v10 v1;\n        v26.i256 = gt 8.i256 v25;\n        br v26 block8 block9;\n\n    block13:\n        v36.i256 = add v20 v0;\n        v37.i256 = sub v1 v0;\n        v38.i256 = evm_calldata_size;\n        evm_calldata_copy v36 v38 v37;\n        jump block15;\n\n    block15:\n        v39.i256 = add v1 8.i256;\n        v40.i256 = gt v39 v0;\n        br v40 block18 block17;\n\n    block17:\n        jump block18;\n\n    block18:\n        v3.i256 = phi (v0 block17) (v39 block15);\n        v41.i256 = add v20 v1;\n        v43.i256 = evm_byte 24.i256 v34;\n        evm_mstore8 v41 v43;\n        v45.i256 = evm_byte 25.i256 v34;\n        v47.i256 = add v41 1.i256;\n        evm_mstore8 v47 v45;\n        v49.i256 = evm_byte 26.i256 v34;\n        v51.i256 = add v41 2.i256;\n        evm_mstore8 v51 v49;\n        v53.i256 = evm_byte 27.i256 v34;\n        v55.i256 = add v41 3.i256;\n        evm_mstore8 v55 v53;\n        v57.i256 = evm_byte 28.i256 v34;\n        v58.i256 = add v41 4.i256;\n        evm_mstore8 v58 v57;\n        v60.i256 = evm_byte 29.i256 v34;\n        v62.i256 = add v41 5.i256;\n        evm_mstore8 v62 v60;\n        v64.i256 = evm_byte 30.i256 v34;\n        v66.i256 = add v41 6.i256;\n        evm_mstore8 v66 v64;\n        v68.i256 = add v41 7.i256;\n        evm_mstore8 v68 v34;\n        v69.i256 = add v2 8.i256;\n        v70.i256 = gt v69 v10;\n        br v70 block21 block12;\n\n    block21:\n        v4.i256 = phi (v10 block6) (v3 block18);\n        v5.i256 = phi (0.i256 block6) (v2 block18);\n        v71.i256 = lt v5 v10;\n        br v71 block24 block27;\n\n    block24:\n        v6.i256 = phi (v78 block29) (v5 block21);\n        v72.i256 = add 96.i256 v6;\n        v73.i256 = evm_mload v72;\n        v75.i256 = evm_byte 0.i256 v73;\n        v76.i256 = lt v6 v4;\n        br v76 block29 block28;\n\n    block27:\n        evm_return v20 v4;\n\n    block28:\n        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;\n        evm_mstore 4.i256 50.i256;\n        evm_revert 0.i256 36.i256;\n\n    block29:\n        v77.i256 = add v20 v6;\n        evm_mstore8 v77 v75;\n        v78.i256 = add v6 1.i256;\n        v79.i256 = lt v78 v10;\n        br v79 block24 block27;\n}\n",
+        "insts": [
+         [
+          7,
+          9
+         ],
+         [
+          10
+         ],
+         [
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          19
+         ],
+         [
+          20,
+          21
+         ],
+         [
+          23,
+          25
+         ],
+         [
+          26,
+          27,
+          28,
+          29
+         ],
+         [
+          103
+         ],
+         [
+          34,
+          35,
+          36
+         ],
+         [
+          37,
+          38,
+          39,
+          40,
+          41
+         ],
+         [
+          0,
+          1,
+          2,
+          31,
+          32,
+          33
+         ],
+         [
+          42,
+          43,
+          44,
+          45,
+          46
+         ],
+         [
+          48,
+          49,
+          50
+         ],
+         [
+          52
+         ],
+         [
+          3,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77,
+          78
+         ],
+         [
+          4,
+          5,
+          82,
+          83
+         ],
+         [
+          6,
+          85,
+          86,
+          87,
+          88,
+          89
+         ],
+         [
+          101
+         ],
+         [
+          90,
+          91,
+          92
+         ],
+         [
+          93,
+          94,
+          95,
+          96,
+          97
+         ]
+        ]
+       },
+       "facts": {
+        "known_bits": [],
+        "demanded_bits": null,
+        "sccp": null,
+        "finite_loops": [
+         {
+          "header": 24,
+          "latch": 29,
+          "iv": 6,
+          "step": 78,
+          "exit": 29
+         }
+        ],
+        "gvn": null,
+        "ranges": null
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -26,9 +26,16 @@ Design: `fe-correctness-scratch/provable-pipeline/m1/design.md` (with section 10
 | `BranchCanon.lean` | `isZeroArg`, `peelOk`, `deletable`, `bodyOk`, `unusedOk`, `bcIdsOk`, `checkBranchCanon` |
 | `LowerSwitches.lean` | `funcVars`, `look`, `subtree`, `leafOk`, `LSCtx` (`lab`, `pivot?`, `nodeOk`, `rootOk`, `expected`, `phiOk`, `blockOk`, `shapeOk`, `idsOk`), `checkLowerSwitches` |
 | `LowerSwitchesSound.lean` | `LSCtx.Agree`, `runInst_congr`, `runStmtO_congr`, `runTerm_congr`, `approx_runTerm_agree`, `LSCtx.approx_runBodyO`, `LSCtx.approx_enter`, `leafOk_sel`, `runTerm_table`, `lt_br_run`, `stepBlock_leaf`, `stepBlock_node`, `LSCtx.R`, `lowerSwitches_sound`, `lowerSwitches_stepSound` |
+| `Adce.lean` | `EvmOp.readArity`, `Inst.deadRes`, `freshV`, `removable`, `adBodyOk`, `Term.isGoto`, `ACtx` (`crossOk`, `chainOk`, `region`, `peel`, `order`, `bypassOrder`, `bypassOk`, `loopBypass`, `slotOk`, `blockOk`), `closedOk`, `adIdsOk`, `adceFactsOk`, `checkAdce`, `adceWhy` |
+| `AdceSound.lean` | `total_read`, `total_dead`, `AFacts`, `OutAgree`, `total_stmt`, `total_body`, `total_term`, `total_cross`, `ad_walk`, `AR`, `AMid`, `AQ`, `ad_enter`, `ad_stmts`, `Fol.approx_walk`, `ad_term`, `ad_block_fol`, `ad_sim`, `adce_sound`, `adce_stepSound` |
 | `BranchCanonSound.lean` | `peel_sound`, `bc_stmts`, `bc_term`, `bc_block_fol`, `BR`, `bc_sim`, `branchCanon_sound`, `branchCanon_stepSound`, `branchConditions_stepSound` |
 | `SchemasPair.lean`, `SchemasEval.lean`, `SchemasInv.lean`, `SchemasStepSound.lean` | `sccpFold_stepSound`, `knownBitsSimplify_stepSound`, `scalarCanonicalize_stepSound` and what they rest on (`SCHEMAS-NOTES.md`) |
 | `SchemasS2.lean` | the `scalar_canonicalize` rewrites Sonatina added after the design, S16–S24, proved (`SCHEMAS-NOTES.md`) |
+| `GvnRewrite.lean` | `GTerm.toTerm`, `instById`, `insPhis`, `newPhisOf`, `insOk`, `keepValid`, `gvnPrep`, `gvnRewriteReject`, `checkGvnRewrite`; the `gvn` mode's checks (`gRoot`, `gTerm`, `StepCtx.before`, `repTerm`, `pairOk`, `clsOk`, `substPhis`, `ptOk`, `Mode.certOk`, `entryGvn`) are in `SchemasStep.lean` |
+| `GvnInv.lean` | `GInv`, `PInv`, `before_domAt`, `gRoot_ok`, `gTerm_ok`, `repTerm_ok`, `ginv_stmt`, `ginv_enter`, `ginv_root`, `pinv_stmt`, `pinv_enter`, `pinv_root`, `substPhis_eval`, `entryGvn_sound` |
+| `GvnInsert.lean` | `insPhis_wf`, `approx_enter_ins`, `insPhis_sound` |
+| `GvnRewriteSound.lean` | `gvnRewrite_sound`, `gvnRewrite_stepSound` |
+| `GvnTests.lean`, `GvnTests/` | `gvn_rewrite` records (four real, three hand-written) and eighteen mutants |
 | `ScalarStepTests.lean`, `ScalarStepTests/` | `scalar_canonicalize` records (real steps of corpus v6 and one per rewrite) and mutants |
 | `Record.lean`, `Read.lean` | `MachineSteps` and its reader (`machine_steps`, `machine_steps_file`) |
 | `Validate.lean` | `IdTab`, `checkFunc`, `checkStep`, `StepSound`, `stepOut_wf`, `validateStep`, `validatePass` (checks `SummariesOk`), `validateWith`, `StepKind.proved`, `validate` (the proved kinds only), `validate_sound`, `edgeSplit_stepSound` |
@@ -124,15 +131,17 @@ of `PointInv`.
    goes on (`approx_runTerm`, `term_defined`).  A defaultless table is still rejected (review
    C-6; also by `wf`).
 3. **`checkFunc` accepts `edge_split`, `cfg_cleanup`, `branch_canonicalize`,
-   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`
-   and `scalar_canonicalize`** (phase 2; all nine are proved and in
+   `branch_conditions`, `coalesce_copies`, `known_bits_simplify`, `sccp_fold`, `lower_switches`,
+   `scalar_canonicalize`, `adce` and `gvn_rewrite`** (phase 2; all eleven are proved and in
    `StepKind.proved`, the kinds `validate` accepts and `machine_sound_proved` covers;
    `known_bits_simplify`'s demand rounds are switched off, `SchemasStep.lean`,
    `SCHEMAS-NOTES.md`); every other kind is rejected.  Facts (ruling R-11.3): `FuncStep.facts` is
    the `Schemas.StepFacts` that `Schemas.readFacts` reads at read time; `checkFunc` takes them;
-   each kind but `sccp_fold` and `known_bits_simplify` requires `noFacts` (no known bits, no
-   demand round, no SCCP facts, no unread key; `scalar_canonicalize` by `scalarReject`), the two
-   check the facts they read; `StepSound.of_func` quantifies over them.
+   each kind but `sccp_fold`, `known_bits_simplify`, `adce` and `gvn_rewrite` requires `noFacts`
+   (no known bits, no demand round, no SCCP facts, no finite loops, no GVN facts, no unread key;
+   `scalar_canonicalize` by `scalarReject`), the two check the facts they read, `adce` allows only
+   `finite_loops` (`Schemas.StepFacts.finiteLoops`, read and not used), and `gvn_rewrite` reads
+   known bits and GVN's facts (`Schemas.StepFacts.gvn`); `StepSound.of_func` quantifies over them.
    `Read.parseFacts` keeps `"demanded_bits": []`, a demand round with no demanded value.  `checkFunc` takes the pass's table, the input's instruction ids and the output
    snapshot; the replay carries each function's ids (`IdTab`, the latest first), which the module
    does not hold.
@@ -490,6 +499,237 @@ changed statement of the switch's block, a node that is an input block, a phi op
 the switch's block, one missing for a leaf, a wrong one for a leaf, the key `2 ^ 256 - 1` in the
 lower leaf.
 
+## `adce` (design §4.6, review C-5)
+
+What Sonatina does (`crates/codegen/src/optim/adce.rs` at `machine-steps-main` `e39b70c4d`; the
+machine round runs it with `AdceCallPolicy::UseCurrentFuncEffects` in two places, after SCCP's
+fold (`optim/sccp.rs:167`, the steps of the `sccp` pass) and as `Pass::Adce`
+(`optim/pipeline.rs:1285`), each as rounds until a round changes nothing, one step per round,
+then a `cfg_cleanup` step):
+- roots (`is_live_root_inst`, `:612-630`): a call unless its callee's summary says it always
+  returns and mutates nothing (`is_nonmutating_returning_call`, `can_elide_if_unused_call`:
+  `will_return` and no memory write, mutation or allocation); otherwise any instruction that may
+  write memory, mutate or allocate (`may_mutate_state`) or transfer control (terminators that
+  exit, `evm_invalid`, …); `alloca` never.  Reads (`evm_mload`, `evm_sload`, …), `evm_gas`, `clz`
+  and the arithmetic are not roots.  The entry and its terminator are live, and so are the blocks
+  with no path to an exit (`divergent_blocks`) and the blocks of cycles not proven finite
+  (`preserved_cycle_blocks`: irreducible cycles, and the header and latches of every loop not
+  proven finite or with a child not proven finite), with their terminators;
+- liveness (`mark_by_inst`, `:184-208`): an operand's definition, the terminators of a live
+  phi's predecessors, and the terminators of the post-dominance frontier of a live instruction's
+  block; marking an instruction marks its block and the block's terminator;
+- removal (`eliminate_dead_code`): every non-live instruction (checked closed under uses, `:592`);
+  then each slot of a live block's terminator to a dead block goes to the nearest live
+  post-dominator of that block (`living_post_dom`), if it has no phis or the terminator already
+  goes there (`replace_succ_allow_existing_pred`), else the slot is removed (`remove_succ`, a
+  `br` to a `jump`, a `jump` to `unreachable`); dead blocks are deleted
+  (`delete_blocks_unreachable`, which drops their phi operands from live successors);
+- finite loops (`proven_finite_loop`, `:431-482`, `branch_bounds_loop`): a natural loop whose
+  children are all finite and which has no irreducible block, with a single latch; a phi `iv`
+  of its header taking `step` from the latch and only values from outside otherwise, `step` an
+  `add` of `iv` and a nonzero constant or a `sub` of one from `iv` (not the signed minimum), its
+  block in the loop itself (not a child) and dominating the latch; and a block `exit` of the loop
+  itself dominating the latch whose `br` has one target in the loop and one out, the condition
+  normalized (`normalize_condition`) to a test that leaves the loop once `iv` (or `step`) passes
+  a loop-invariant bound (`is_loop_invariant_value`): non-zero or zero tests and `==`/`!=` only
+  for a unit step; `<`, `<=` and their signed forms pointing the way the step goes, strict with a
+  unit step for any invariant bound, otherwise a constant bound the last staying value cannot
+  step past without wrapping.  When recording, the round exports every loop proven finite,
+  removed or not, as `FiniteLoop { header, latch, iv, step, exit }`
+  (`object/lowering.rs:177-189`, test `steps_list_the_finite_loops_a_round_may_remove`).
+
+What the corpora's `adce` steps remove (`adce/py/adce_stats.py` over every function step; v6:
+FeProofs `-O1` 12 steps, `-Os` 6, the 265 13; v5: 8, 6, 9): dead phis of loop headers whose loops
+stay (v6 20 / 0 / 20, v5 12 / 0 / 12), `evm_mload`s (v6 4 / 4 / 5, v5 4 / 4 / 5; 3 of each in
+removed blocks), `shl`s (v6 0 / 4 / 1, v5 0 / 4 / 1), 3 blocks (each `evm_mload; jump`, in
+Modexp's runtime) with 11 slots retargeted past them, each region one block, the target without
+phis.  No call, store, `clz` or `evm_gas` is removed, no slot is removed (`remove_succ`), no
+branch collapses to a `jump`, and no loop is removed: every region bypassed is acyclic.  Every
+step but one of the 265's lists finite loops (v6 36 / 12 / 36, v5 32 / 12 / 32): the loops of the function
+proven finite, which all stay (they hold stores).
+
+The checker (`checkAdce`, `Adce.lean`): driven by the output's blocks, each an input block of
+its id: its phis are input phis, and each input phi it drops defines no output value
+(`freshV`); its statements are the input's in order less removable ones (`removable`: an
+instruction the model runs, on words, to exactly as many values as its statement binds, total
+and without a change of the world, `Inst.deadRes`: `bin`, `cmp`, `is_zero`, `not`, `neg`,
+`ctz`, `sat`, `cast`, `select`, `keccak_words`, `ovf` (two results), and the EVM reads with
+their operand count, `EvmOp.readArity`: environment and block reads, `balance`,
+`extcodesize`/`extcodehash`, `calldataload`, `codeload`, `mload`, `sload`, `tload`, `keccak256`,
+`addmod`/`mulmod`; not `clz`, which traps before Osaka, not `evm_gas`, which takes from the gas
+feed, not a call, store, copy, log, creation, `sym_addr`/`sym_size`/`get_function_ptr` (stuck in
+a context without the symbol, which `StepSound.of_func` does not exclude) or `black_box`), each
+result no output value; its terminator the input's slot by slot (`termRel`, a `br` or `br_table`
+possibly collapsed to a `jump`), each output target the input's or a bypass of it
+(`bypassOk t d`): the input blocks reachable from the input's target `d` before the output's
+`t` (`region`, fuel-bounded) are ordered by peeling (`order`), and the order checked
+(`chainOk`): it contains `d`, and each block's successors are `t` or later blocks, each block no
+output block, with no output values, removable statements and a `jump`, `br` or `br_table` with a
+default (`crossOk`); `t` has no phis in the output.  Also: the entry keeps its id, the
+parameters are the input's, the output is machine IR, the input's dominator tree is valid and
+the input in strict SSA, the output uses only values it defines (`closedOk`), instruction ids
+are kept (`adIdsOk`: phis and statements a subsequence, the terminator's id the same; the proof
+needs none of these three), and the facts are only `finite_loops`.
+
+A region with a cycle cannot be ordered, so a removed loop is rejected, whatever the step's
+facts (`ACtx.loopBypass`, `adceWhy` names it "loop removal (rejected)"): the one exclusion of
+this first stage, counted 0 in both corpora.  A `remove_succ` slot is accepted only where it
+amounts to a collapse to a target every slot relates to (`termRel`); `br c d o → jump o` with
+`d`'s region ending at `o` is a bypass; a `jump` to `unreachable` is rejected (the input goes on).
+
+Proof (`AdceSound.lean`, `adce_sound`, `adce_stepSound`; no hypothesis beyond
+`StepSound.of_func`'s): the simulation `AR` relates the output and the input at the same block,
+entered from the same block or, where the output's block has no phis, from another (a bypass's
+last block); the output's environment binds less (`EnvSub`) and only output values (`DomSub`);
+the input carries the definedness invariant (`BlockInv`; entered from nowhere, its block has no
+phis).  Entering (`ad_enter`): kept phis are input phis, so they bind what the input binds, and
+dropped ones bind no output value.  Statements (`ad_stmts`, `bc_stmts`'s shape): a kept one steps
+with the input's; a removed one is an input-only step (`total_stmt`: `total_dead` on the words the
+invariant gives, then `bind`, the results fresh, `OutAgree`).  The terminator (`ad_term`,
+`Fol.approx_walk`): where the targets agree, the next states are related; at a bypass the input
+runs on alone from `d` (`ad_walk`, by induction on the order: each block a total step,
+`total_cross`, to `t` or a later block), so for every input and world it reaches `t` with the
+world unchanged and only fresh values bound anew, related to the output entering `t`, which has
+no phis.  `Sim` lets the input take any number of blocks per output block, so `Sim.of_steps`
+needed no extension: the bypass is a `Fol` step, as `cfg_cleanup`'s tunnels are.
+
+The `finite_loops` fact as a certificate: it names the loop's header, latch, induction phi,
+step value and exit block, from which a checker can recompute and verify everything
+`proven_finite_loop` proves (the natural loop of the latch's back edge, the single latch, the
+phi's operands, the step's constant and block, the exit's dominance of the latch and its test
+against an invariant bound, the children by their own facts, no irreducible cycle); nothing the
+argument needs is missing from the record.  What is missing is the termination proof in the
+model: a ranking argument over runs that pass the exit once per iteration with the induction
+variable moving towards the bound without wrapping, nested loops by induction.  Not built.
+
+Tests (`Tests.lean`, `ad_*`): accepted, hand-written (dead `add`, `evm_mload` and phi, a region
+of three blocks with a branch bypassed to its end; the same collapsed to a `jump`; with a
+finite-loop fact) and real (Bn254Add's `carry`, two dead loop-header phis with four finite
+loops listed; Identity's runtime, a dead `evm_mload`; Modexp's runtime, three dead blocks
+bypassed by eleven slots, by the check alone as it has calls); rejected by `validateWith` and by
+the check alone (`adCheck`): a removed store, call, used value, `clz` and `evm_gas`; a slot
+retargeted past a `return`; a kept phi at a bypass's target; a bypassed `revert` and store; a
+bypassed loop without and with a finite-loop fact; known-bits facts.
+
+## `gvn_rewrite` (design §4.8, review C-3)
+
+What Sonatina does (`crates/codegen/src/optim/gvn.rs` at `machine-steps-main` `e39b70c4d`):
+- the solver (`GvnSolver::run_with_steps`) numbers values in RPO to a fixpoint: an instruction with
+  any effect bit gets a class of its own (`:612-622`), so loads, stores, environment reads and
+  calls with effects are never merged (calls to a callee whose summary has no effect and
+  `will_return` are effect-free and may be merged; `clz` and `sym_addr` are effect-free too);
+  machine IR has no `obj.load`, so the object-memory read keys (`:662-679`) do not apply; keys are
+  canonicalized through leaders and edge predicates (`infer_value_at_block`), commutative
+  operands sorted by rank, then simplified (`perform_simplification`: `simplify_expr`'s rules,
+  `sub`/`add` cancellation, `eq x 0` as `is_zero x`, `mul 2^k` as `shl k`, a phi of equal
+  operands); phi keys carry their block (`GvnInsn::Phi`); value phis (`ValuePhiFinder`) give a
+  class the phi of its expression over a block's phis, nested per predecessor;
+- `remove_redundant_code` (`:2627-2695`): the prune (`remove_unreachable_edges`, recorded as
+  `gvn_prune`, facts of the unpruned function), the dominator tree recomputed, then
+  (`remove_code_in_block`, in dominator-tree preorder) each effect-free result replaced by the
+  nearest dominating available member of its class (`change_to_alias`), then
+  (`resolve_value_phi_in_block`) each result whose class has a value phi replaced by a phi
+  inserted at the top of the value phi's block (`resolve_value_phi`, incoming values resolved
+  recursively, a phi before the phis that take it) or, for `ValuePhi::Value(x)`, by the
+  available member of `x`'s class; finally the replaced instructions whose results are dead are
+  erased.  The step is recorded after the erasure, with facts of the pruned function: the classes
+  (`export`: a value's representative is its class's lowest-ranked live member that strictly
+  dominates it, or an immediate), the edge predicates, the inserted phis with their terms
+  (`InsertedPhis::facts`, terms up to 4 instructions deep) and `value_phis` (the replacements by
+  an inserted phi).
+
+What the corpora emit (`gvn/sim.py` over every step; v5 / v6): `gvn_rewrite` steps 16 / 16 at
+`-O1`, 10 / 10 at `-Os`, 23 / 23 in the 265, `gvn_prune` 4 / 4 in the 265 only.  Replacements
+(`σ` entries) by what justifies them, `-O1`, `-Os`, the 265: equal unfolded terms 41, 21, 44 / 37,
+21, 40; the classes 1, 1, 7 / 1, 1, 7 (congruent phis of one block, `sym_addr`, keys congruent
+through phis); an inserted phi 24, 4, 25 / 28, 4, 29, each phi's operands its term on the edge,
+by unfolding (no nested inserted phi occurs).  Class pairs the checker validates: same key
+53, 21, 63 / 49, 21, 59; congruent phis 0, 0, 5; one pair (a phi equal to `0` through a
+predicate) dropped.  No replacement is a `ValuePhi::Value` one (below), none merges a call, a
+load or `clz`.  The one rejected step per level (`EcrecoverPrecompile`'s `permute`) merges two
+`sym_addr` of one symbol and deletes one: `sym_addr` is not pure in L2 and not deletable here.
+
+The checker (`checkGvnRewrite`, `GvnRewrite.lean`): the output's leading phis whose ids the input
+has not are the inserted ones; the input with them prepended to their blocks (`insPhis`, its ids
+`insIds`) is `f₁`, checked to bind no value the input mentions, with well-formed operands,
+`cfgOk` and `wordTyped` (`insOk`); the record's dead edges must be empty.  Then the schema
+checker's `aliasReject` in the mode `gvn cls pts` from `f₁` to the output: lines paired by id,
+deletions phis or pure statements other than `clz`, `σ` from the changed operands, both snapshots
+in strict SSA, known bits a post-fixpoint, and each `σ` entry `v ↦ x` (with `entryOk`'s chains)
+justified by a schema on unfolded terms, or (`entryGvn`) by the classes, `v` and `x` of one
+representative (`gTerm`) and `x`'s definition dominating `v`'s (`StepCtx.before`), or by an
+inserted phi `ψ` of block `Q` with term `t`, `Q` a tree ancestor-or-self of `v`'s block and `v`'s
+definition unfolding to `t`.  The certificate (`Mode.certOk`, in `aliasReject`): `cls` is the
+record's classes less the pairs a check fails, to a fixpoint (`keepValid`, a computation the check
+then validates); each pair `(v, r)`: `r` well formed, dominating `v`'s definition, and `v` a pure
+statement other than `clz` whose term over its operands' representatives a schema equates with
+`r`'s (`repTerm`: `r`'s own pure statement likewise, a literal, or an atom), or `v` a phi of `B`
+whose operand from each predecessor has the representative of `r`'s from it (`r` a phi of `B`) or
+of `r` (`r` above `B`) (`pairOk`); each inserted phi `ψ ↦ (Q, t)` with a term (`GTerm.toTerm` over
+the input's instructions by id, each pure with one argument per operand): `ψ` a phi of `Q` in
+`f₁`, `t` without `clz`, its atoms phis of `Q` or above `Q`, and from each predecessor `p` its
+operand equal by a schema to `t` with `Q`'s phis replaced by their operands from `p`
+(`substPhis`): the operand unfolded 0 to 3 levels, or an inserted phi of that term (`ptOk`).
+The record's `value_phis` and predicates are not read: each replacement is justified anew, and a
+class only a predicate justifies is dropped (none is used by a replacement in the corpora).
+
+Proof (no hypothesis beyond `StepSound.of_func`'s): `gvnRewrite_sound` composes two
+approximations.  `insPhis_sound`: `f₁` approximates `f`, block for block, its environment
+agreeing with `f`'s on every value `f` mentions (`LSCtx.Agree` over `funcVars`, from
+`lower_switches`), the new phis bound besides or the run stuck; `insPhis_wf` gives `f₁.wf`.  The
+rewrite from `f₁`: the schema simulation (`SF.sim`), whose mode predicate is now `Mode.Ok` (`exact`,
+`sccp`, `scalar` or `gvn`), with two invariants of the input's run in `InPt` and, at the
+predecessor's end, in `RS`: `GInv` (each class pair whose value dominates the point holds) and
+`PInv` (each inserted phi dominating the point holds its term's value).  `ginv_stmt`: a statement
+establishes its result's pairs (L2 for `r`'s statement, the operands' chains to their
+representatives at the point, `checkExact_sound`) and rebinds no value or representative of
+another dominating pair (`notRes`); `ginv_enter`: a phi's pair from the predecessor's end, the
+operands' representatives equal there (`gTerm_ok`), a value above the block unchanged
+(`above_enter`, `before_not_phi`); `pinv_enter`: entering `Q` from `p`, `t` on entry is
+`substPhis Q p t` at `p`'s end (`substPhis_eval`), which `ptOk` equates with the operand's
+unfolding (`unfold_sound`) or a nested phi's term (`PInv` at `p`'s end); elsewhere the term's
+atoms are not rebound (`atoms_domAt`).  `entryGvn_sound` turns an `entryGvn` justification into
+`opVal e x = opVal e (.var v)` at the input's point, which `alias_use` takes as the `gvn` case
+(`entryDirect_sound` and `entryOk_sound` take it as a hypothesis, so `SchemasEval.lean` does not
+depend on the invariants).  Checker changes for the proof: none to what a record gets; the
+certificate check sits in `aliasReject` so that `AF` carries it (`AF.cert`).
+
+**Record format.**  `ValuePhi::Value(x)` replacements (`resolve_value_phi_in_block`,
+`resolve_value_phi`, `:2812-2843`, `:2983-2987`) replace `v` by the available member of `x`'s class,
+which is not `v`'s: they are in neither `class` (another class) nor `value_phis` (no inserted
+phi).  Smallest example: `p = phi (x b1) (y b2)`, `q = phi (y b1) (x b2)` in `b3`, `u = add x y`
+in `b0`, `v = add p q` in `b3`: both per-predecessor queries are `add x y` (commutative), so `v`'s
+class gets `ValuePhi::Value(u)` and `v ↦ u`, and the record says nothing of why.  The checker
+rejects such a replacement unless a schema justifies it (0 occur).  Smallest addition: list them
+in `value_phis` as `(v, w, block)`, the value phi's block; the checker would then check it as an
+inserted phi with every operand `w` (`w` dominating the block), with `PInv`'s argument for an
+operand above the block in place of a phi.  The block can also be re-derived from `v`'s term (the
+phis it names), so a later checker could do without.
+
+Tests (`GvnTests.lean`, `GvnTests/gen.py`; `decide +kernel`, 25 s for all): accepted, four real
+steps of corpus v6 (`carry` of Bn254Add, two inserted phis; `from_slice` of Builder, a class;
+Blob's runtime root, congruent phis; Modexp's `odd_power`, classes two levels deep) and three
+hand-written ones (a commutative key, congruent phis, nested inserted phis from gvn.rs's
+`gvn_rewrite_lists_nested_value_phis_with_their_terms`); rejected: a class member of another key,
+no certificate, a leader that does not dominate the use, two loads merged across a store, two
+`clz` merged, phis differing on one predecessor, a class from an edge predicate in either
+polarity, dead edges in a rewrite, an inserted phi with a wrong operand, a wrong term, no term,
+recorded in another block, after an input phi; on the real records, a wrong inserted-phi operand,
+a wrong term, the other inserted phi used, a representative of another class used.
+
+**`gvn_prune`: not done.**  Its four steps (the 265: EntryPoint, C, Blob twice) remove the slots
+GVN proved dead (`br → jump`, phis' operands from removed edges, the blocks left unreachable,
+trivial phis): every one rests on an edge predicate.  EntryPoint and Blob: the branch condition
+has, through a class (same key; in Blob through congruent phis), the value of a dominating
+branch's condition on its taken edge (`cond = resolved`, a `br` on a boolean); C: a phi whose
+operand from a predecessor is, through a class, the case value of the `br_table` edge into that
+predecessor, so the phi is the constant `0`, and `br` on it has a dead slot.  A checker needs the
+predicates as an invariant (an edge's predicate holds where its target dominates, the target has
+it as its only non-dead in-edge, and the target does not dominate the edge's source), proved
+jointly with the run taking no dead edge (as SCCP's `execClosed`), and classes justified at a
+predecessor's end through those predicates; then a simulation of the CFG change.  Plan in the
+scratch hand-off (`provable-pipeline/gvn/HANDOFF.md`).
+
 ## Review 6 (phase 1) findings taken up in phase 2
 
 - F-1: adopted.  `Parse.statement` rejects a `phi` line after a statement (phase 2's one change
@@ -684,6 +924,24 @@ line of WETH9's `returnValue_run`.
   and `-Os`); the other kinds' per-step counts are those of the table above, none rejected, no
   summary table failing.
 
+- With `adce` proved as well (`StepKind.proved` has ten kinds; `chain-adce` after merging `chain`
+  `5a90a11`), on the same corpora (`adce/measure.sh`, `scripts/MachineSteps.lean` end to end and
+  `steps`, interpreted), v5 and v6 alike:
+
+  | corpus | end to end (`validate`), nine kinds | ten kinds | first rejected kind |
+  | --- | --- | --- | --- |
+  | FeProofs `-O0` | 40/40 | 40/40 | none |
+  | FeProofs `-O1` | 34/40 | 35/40 | `gvn_rewrite` 5 |
+  | FeProofs `-Os` | 34/40 | 35/40 | `gvn_rewrite` 5 |
+  | the 265 | 517/530 | 519/530 | `gvn_rewrite` 7, `gvn_prune` 4 |
+
+  Every `adce` function step is accepted (v6: `-O1` 12, `-Os` 6, the 265 13; v5: 8, 6, 9; none at
+  `-O0`), no step of a proved kind is rejected and no summary table fails; every rejection end to
+  end is a kind with no proof.  Of the sections `adce` stopped before, one per FeProofs level and
+  one of the 265's three now stop at a later `gvn_rewrite`.  Before the merge (eight kinds and
+  `adce`) the verdicts end to end were those of the eight kinds (`-O1` 32, `-Os` 32, the 265
+  494): every section with an `adce` step stopped earlier at `scalar_canonicalize`.
+
 ## The top theorem: what it covers (review 20, M-3)
 
 `machine_sound_of_sound` reads of the bytes only `Sound s` (review 6, F-6): the runtime bytes
@@ -855,6 +1113,9 @@ with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
 
 ## Not done
 
+- `gvn_prune` (4 function steps, the 265 only): no checker; plan in § `gvn_rewrite` and the
+  scratch hand-off.  `gvn_rewrite`'s `sym_addr` merges (1 step per level), `ValuePhi::Value`
+  replacements and classes only a predicate justifies (0 each) are rejected.
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
 - The summary table's effect and `will_return` claims are not checked (no consumer).
 - `known_bits_simplify`'s demand rounds, switched off (`demandRounds`; plan in `SCHEMAS-NOTES.md`).
