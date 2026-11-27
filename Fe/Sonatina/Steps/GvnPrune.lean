@@ -1,4 +1,5 @@
 import Fe.Sonatina.Steps.GvnRewrite
+import Fe.Sonatina.Steps.Prune
 
 /-!
 # The `gvn_prune` checker
@@ -40,32 +41,7 @@ namespace Fe.Sonatina.Steps.Schemas
 
 open KB
 
-/-! ## The pruned function -/
-
-/-- A terminator with its dead slots removed: a `br` with one slot dead becomes a `jump` to the
-    other; any other terminator is kept (`pruneShapeOk` rejects its dead slots). -/
-def pruneTerm (dead : List (Nat × Nat)) (b : Nat) : Fe.Sonatina.Term → Fe.Sonatina.Term
-  | .br c nz z =>
-    if dead.contains (b, 1) && !dead.contains (b, 0) then .jump nz
-    else if dead.contains (b, 0) && !dead.contains (b, 1) then .jump z
-    else .br c nz z
-  | t => t
-
-/-- A phi operand of block `T` survives the prune: its predecessor did not go to `T`, or still
-    does. -/
-def keepIn (B : NatMap Block) (dead : List (Nat × Nat)) (T : Nat) (ob : Operand × Nat) : Bool :=
-  match B.find? ob.2 with
-  | some pb => !pb.term.succs.contains T || (pruneTerm dead ob.2 pb.term).succs.contains T
-  | none => true
-
-def pruneBlock (B : NatMap Block) (dead : List (Nat × Nat)) (b : Block) : Block :=
-  { b with
-    phis := b.phis.map fun φ => { φ with incoming := φ.incoming.filter (keepIn B dead b.id) }
-    term := pruneTerm dead b.id b.term }
-
-/-- The input with every dead slot removed and the phi operands of the removed edges dropped. -/
-def pruneFunc (f : Func) (dead : List (Nat × Nat)) : Func :=
-  { f with blocks := f.blocks.map (pruneBlock (.ofListBy (·.id) f.blocks) dead) }
+/-! ## The pruned function (`pruneFunc`, `Prune.lean`) -/
 
 /-- Every dead slot is one of a `br` of the input, and no `br` has both dead. -/
 def pruneShapeOk (B : NatMap Block) (dead : List (Nat × Nat)) : Bool :=
