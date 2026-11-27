@@ -514,6 +514,19 @@ def Mode.certOk (X : StepCtx) : Mode → Bool
   | .gvn cls pts => X.clsOk cls && X.ptOk pts
   | _ => true
 
+/-- A `gvn_rewrite` justification of `v ↦ x` by the certificate: `v` and `x` have one
+    representative and `x`'s definition dominates `v`'s; or `x` is an inserted phi of a block
+    dominating `v`'s whose term `v`'s definition unfolds to. -/
+def entryGvn (X : StepCtx) (cls : List (Nat × Operand)) (pts : List (Nat × Nat × Term)) (v : Nat)
+    (x : Operand) : Bool :=
+  let C := NatMap.ofList cls
+  (gTerm C (.var v) == gTerm C x && X.before x v) ||
+  match x with
+  | .var ψ => ((NatMap.ofList pts).find? ψ).any fun Qt =>
+      (X.blockOf v).any (X.T.anc Qt.1 ·) &&
+      [1, 2, 3].any fun d => (X.tin d v).any fun tv => checkExact (kbOf X.K) tv Qt.2
+  | _ => false
+
 /-- One justification of `v ↦ x`, without chains. -/
 def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
   match m with
@@ -529,14 +542,7 @@ def entryDirect (X : StepCtx) (m : Mode) (v : Nat) (x : Operand) : Bool :=
       | _ => true) &&
     depths.any fun dd => (X.tin dd.1 v).any fun t =>
       checkDemand (kbOf X.K) (dOf DB v) t (X.tout dd.2 x)
-  | .gvn cls pts =>
-    let C := NatMap.ofList cls
-    (gTerm C (.var v) == gTerm C x && X.before x v) ||
-    (match x with
-      | .var ψ => ((NatMap.ofList pts).find? ψ).any fun Qt =>
-          (X.blockOf v).any (X.T.anc Qt.1 ·) &&
-          [1, 2, 3].any fun d => (X.tin d v).any fun tv => checkExact (kbOf X.K) tv Qt.2
-      | _ => false) ||
+  | .gvn cls pts => entryGvn X cls pts v x ||
     depths.any fun dd => (X.tin dd.1 v).any fun t => checkExact (kbOf X.K) t (X.tout dd.2 x)
 
 /-- The input operands of `v`'s definition. -/

@@ -666,4 +666,379 @@ theorem ginv_enter {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.bl
       rw [hkeep u (hrnot u rfl)]
       exact h1
 
+/-! ## Terms -/
+
+theorem Term.eval_congr {ρ ρ' : Nat → Nat} :
+    ∀ t : Term, (∀ a, t.hasAtom a = true → ρ a = ρ' a) → t.eval ρ = t.eval ρ'
+  | .atom v, h => by simp [Term.eval, h v (by simp [Term.hasAtom])]
+  | .lit _, _ => rfl
+  | .op1 o a, h => by
+    simp only [Term.eval]
+    rw [Term.eval_congr a fun x hx => h x (by simp [Term.hasAtom, hx])]
+  | .op2 o a b, h => by
+    simp only [Term.eval]
+    rw [Term.eval_congr a fun x hx => h x (by simp [Term.hasAtom, hx]),
+      Term.eval_congr b fun x hx => h x (by simp [Term.hasAtom, hx])]
+  | .op3 o a b c, h => by
+    simp only [Term.eval]
+    rw [Term.eval_congr a fun x hx => h x (by simp [Term.hasAtom, hx]),
+      Term.eval_congr b fun x hx => h x (by simp [Term.hasAtom, hx]),
+      Term.eval_congr c fun x hx => h x (by simp [Term.hasAtom, hx])]
+
+theorem Term.mem_atoms {a : Nat} : ∀ t : Term, t.hasAtom a = true → a ∈ t.atoms
+  | .atom v, h => by simp only [Term.hasAtom, beq_iff_eq] at h; simp [Term.atoms, h]
+  | .lit _, h => by simp [Term.hasAtom] at h
+  | .op1 _ x, h => by simp only [Term.atoms]; exact Term.mem_atoms x (by simpa [Term.hasAtom] using h)
+  | .op2 _ x y, h => by
+    simp only [Term.hasAtom, Bool.or_eq_true] at h
+    simp only [Term.atoms, List.mem_append]
+    rcases h with h | h
+    · exact Or.inl (Term.mem_atoms x h)
+    · exact Or.inr (Term.mem_atoms y h)
+  | .op3 _ x y z, h => by
+    simp only [Term.hasAtom, Bool.or_eq_true] at h
+    simp only [Term.atoms, List.mem_append]
+    rcases h with (h | h) | h
+    · exact Or.inl (Or.inl (Term.mem_atoms x h))
+    · exact Or.inl (Or.inr (Term.mem_atoms y h))
+    · exact Or.inr (Term.mem_atoms z h)
+
+theorem termOk_congr {e e' : Env} {t : Term} {n : Nat}
+    (h : ∀ a, t.hasAtom a = true → e'[a]? = e[a]?) (ht : TermOk e t n) : TermOk e' t n := by
+  refine ⟨?_, fun a ha => ?_⟩
+  · rw [← ht.1]
+    exact Term.eval_congr t fun a ha => by simp only [envWord, h a ha]
+  · rw [h a ha]; exact ht.2 a ha
+
+/-- What `ptOk` checks of an inserted phi. -/
+theorem ptOk_spec {X : StepCtx} {pts : List (Nat × Nat × Term)} (h : X.ptOk pts = true) :
+    ∀ ψ Q t, (ψ, Q, t) ∈ pts → X.inD.find? ψ = some (.phi Q) ∧
+      (∀ a ∈ t.atoms, X.inD.find? a = some (.phi Q) ∨ X.above Q (.var a) = true) ∧
+      ∃ φ, phiOf X.inB Q ψ = some φ ∧ ∀ ob ∈ φ.incoming,
+        (∃ ψ' Qt, ob.1 = .var ψ' ∧ (NatMap.ofList pts).find? ψ' = some Qt ∧
+          checkExact (kbOf X.K) (substPhis X Q ob.2 t) Qt.2 = true) ∨
+        ∃ d, checkExact (kbOf X.K) (substPhis X Q ob.2 t) (unfold X.inB X.inD X.cs d ob.1) = true := by
+  intro ψ Q t hm
+  have := List.all_eq_true.mp h (ψ, Q, t) hm
+  simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true, Bool.or_eq_true] at this
+  obtain ⟨⟨⟨hψ, _⟩, hat⟩, hφ⟩ := this
+  refine ⟨hψ, hat, ?_⟩
+  rcases hp : phiOf X.inB Q ψ with _ | φ
+  · rw [hp] at hφ; cases hφ
+  rw [hp, Option.any_some, List.all_eq_true] at hφ
+  refine ⟨φ, rfl, fun ob hob => ?_⟩
+  have h1 := hφ ob hob
+  simp only [Bool.or_eq_true, List.any_eq_true] at h1
+  rcases h1 with h1 | ⟨d, _, hd⟩
+  · left
+    cases ho : ob.1 with
+    | imm => rw [ho] at h1; cases h1
+    | var ψ' =>
+      rw [ho] at h1
+      simp only at h1
+      rcases hq : (NatMap.ofList pts).find? ψ' with _ | Qt
+      · rw [hq] at h1; cases h1
+      rw [hq, Option.any_some] at h1
+      exact ⟨ψ', Qt, rfl, hq, h1⟩
+  · exact Or.inr ⟨d, hd⟩
+
+/-! ## The inserted phis -/
+
+section pinv
+
+variable {f : Func} {X : StepCtx} (hB : X.inB = .ofListBy (·.id) f.blocks) (hD : X.inD = defsOf f)
+  (hT : X.T = domTree f) (hwf : f.wf sig syms = true) (hs : ssa f (domTree f) = true)
+
+include hD hT hwf in
+/-- The atoms of an inserted phi's term, phis of its block `Q` or above `Q`, dominate every point
+    `Q` dominates. -/
+theorem atoms_domAt {e0 : Nat} (hroot : (domTree f).idom.find? e0 = none) {b k Q : Nat}
+    (hbroot : (domTree f).Anc e0 b) {t : Term}
+    (hat : ∀ a ∈ t.atoms, X.inD.find? a = some (.phi Q) ∨ X.above Q (.var a) = true)
+    (hQb : (domTree f).Anc Q b) : ∀ a, t.hasAtom a = true → DomAt f (domTree f) b k a := by
+  intro a ha
+  have hn := Func.wf_ids hwf
+  rcases hat a (Term.mem_atoms t ha) with h | h
+  · exact domAt_of_def hn (defsOf_mem (hD ▸ h)) (Or.inr (Or.inl ⟨Q, rfl, hQb⟩))
+  · rcases above_spec h a rfl with hp | ⟨d, hne, had, hd | ⟨j, hd⟩⟩
+    · exact domAt_of_def hn (defsOf_mem (hD ▸ hp)) (Or.inl rfl)
+    · rw [hT] at had
+      exact domAt_of_def hn (defsOf_mem (hD ▸ hd)) (Or.inr (Or.inl ⟨d, rfl, had.trans hQb⟩))
+    · rw [hT] at had
+      refine domAt_of_def hn (defsOf_mem (hD ▸ hd)) (Or.inr (Or.inr ⟨d, j, rfl, Or.inl ⟨?_, had.trans hQb⟩⟩))
+      intro hdb
+      subst hdb
+      exact hne (DomTree.anc_antisymm hroot hbroot hQb had).symm
+
+include hD hT hwf hs in
+/-- A statement keeps the inserted phis' terms. -/
+theorem pinv_stmt {pts : List (Nat × Nat × Term)} (hok : X.ptOk pts = true) {e : Env} {b k : Nat}
+    (S : SidePt sig syms f e b k) (hP : PInv f pts e b k) {blk : Block} (hb : f.block? b = some blk)
+    {st : Stmt} (hst : blk.body[k]? = some st) (vals : List Val) :
+    PInv f pts ((st.dsts.zip vals).foldl bindStep e) b (k + 1) := by
+  have hU := UniqueDefs.of_ssa hs
+  obtain ⟨e1, _, hroot, hbroot⟩ := S.root
+  intro ψ Q t hm hdom
+  obtain ⟨hψ, hat, _⟩ := ptOk_spec hok ψ Q t hm
+  have hψd := defsOf_mem (hD ▸ hψ)
+  have hmem := List.mem_of_find?_eq_some hb
+  have hid : blk.id = b := by simpa using List.find?_some hb
+  have hnr : ψ ∉ st.dsts.map (·.1) := fun hr => by
+    obtain ⟨d, hd, hdd⟩ := List.mem_map.mp hr
+    cases hU.fn hψd (hdd ▸ hid ▸ stmt_def hmem hst hd)
+  have hdk := domAt_of_succ hb hst hdom hnr
+  obtain ⟨n, hn1, hok'⟩ := hP ψ Q t hm hdk
+  have hQb := anc_of_domAt_phi hU hdk hψd
+  have hat' := atoms_domAt hD hT hwf hroot (k := k) hbroot hat hQb
+  refine ⟨n, ?_, termOk_congr (fun a ha => fold_get_not _ _ _ fun hm' =>
+    notRes hU hb hst (hat' a ha) (keys_sub st vals a hm')) hok'⟩
+  rw [fold_get_not _ _ _ fun hm' => notRes hU hb hst hdk (keys_sub st vals ψ hm')]
+  exact hn1
+
+include hwf hs in
+/-- What entering a block from `q` binds one of its phis to: its operand's word from `q`. -/
+theorem enter_phi {env : Env} {q b : Nat} (hi : BlockInv f (domTree f) (env, some q, b))
+    {qblk : Block} (hqb : f.block? q = some qblk) (hW : Words f env q qblk.body.length)
+    {blk : Block} (hb : f.block? b = some blk) {vals : List Val}
+    (hF2 : List.Forall₂ (fun phi v => (some q >>= inc phi >>= opVal env) = some v) blk.phis vals)
+    (hlen : (blk.phis.map fun phi => (phi.dst, phi.ty)).length = vals.length) {φ : Phi}
+    (hφ : φ ∈ blk.phis) :
+    ∃ o n, (o, q) ∈ φ.incoming ∧ inc φ q = some o ∧ o.wf = true ∧ OpAt f q qblk.body.length o ∧
+      opVal env o = some (.int 256 n) ∧ n < W ∧
+      (((blk.phis.map fun phi => (phi.dst, phi.ty)).zip vals).foldl bindStep env)[φ.dst]? =
+        some (.int 256 n) := by
+  have hU := UniqueDefs.of_ssa hs
+  have hmem := List.mem_of_find?_eq_some hb
+  have hid : blk.id = b := by simpa using List.find?_some hb
+  have hssa := (ssa_block hs hmem (hid ▸ hi.2.2.1)).1
+  obtain ⟨o, val, hinc, hov, hget⟩ := enter_val hF2 hlen (hU.phis hmem) hφ
+  have hin := inc_mem hinc
+  have how := (Func.wf_operands hwf hmem).1 φ hφ _ hin
+  have hoat : OpAt f q qblk.body.length o := fun w hw =>
+    domAt_phiUse hwf hqb (hw ▸ hssa φ hφ _ hin hi.2.2.2.1)
+  have hword : ∃ n, opVal env o = some (.int 256 n) ∧ n < W := by
+    cases o with
+    | var u =>
+      obtain ⟨n, h1, h2⟩ := hW u (hoat u rfl)
+      exact ⟨n, by simp [opVal, h1], h2⟩
+    | imm bits w =>
+      simp only [Operand.wf, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at how
+      obtain ⟨rfl, hlt⟩ := how
+      exact ⟨w, rfl, hlt⟩
+  obtain ⟨n, hn1, hlt⟩ := hword
+  refine ⟨o, n, hin, hinc, how, hoat, hn1, hlt, ?_⟩
+  rw [hget, ((Func.wf_words hwf).2 blk hmem).1 φ hφ, phi_val_word hwf hmem hφ hin hi.1 hov]
+  rw [hov] at hn1
+  exact congrArg some (Option.some.inj hn1)
+
+/-- A term evaluates on entering `b` from `q` as the term with `b`'s phis replaced by their
+    operands from `q` before. -/
+theorem substPhis_eval {b q : Nat} {env e₁ : Env} :
+    ∀ t : Term, (∀ a, t.hasAtom a = true →
+      (X.inD.find? a = some (.phi b) → (phiArgTerm X b q a).eval (envWord env) = envWord e₁ a % W) ∧
+      (X.inD.find? a ≠ some (.phi b) → envWord e₁ a = envWord env a)) →
+    t.eval (envWord e₁) = (substPhis X b q t).eval (envWord env)
+  | .atom a, h => by
+    have ha := h a (by simp [Term.hasAtom])
+    simp only [substPhis]
+    by_cases hp : X.inD.find? a = some (.phi b)
+    · simp only [hp, beq_self_eq_true, ↓reduceIte, Term.eval]
+      exact (ha.1 hp).symm
+    · have : (X.inD.find? a == some (.phi b)) = false := by simpa using hp
+      simp only [this, Bool.false_eq_true, ↓reduceIte, Term.eval, ha.2 hp]
+  | .lit _, _ => rfl
+  | .op1 o x, h => by
+    simp only [substPhis, Term.eval]
+    rw [substPhis_eval x fun a ha => h a (by simp [Term.hasAtom, ha])]
+  | .op2 o x y, h => by
+    simp only [substPhis, Term.eval]
+    rw [substPhis_eval x fun a ha => h a (by simp [Term.hasAtom, ha]),
+      substPhis_eval y fun a ha => h a (by simp [Term.hasAtom, ha])]
+  | .op3 o x y z, h => by
+    simp only [substPhis, Term.eval]
+    rw [substPhis_eval x fun a ha => h a (by simp [Term.hasAtom, ha]),
+      substPhis_eval y fun a ha => h a (by simp [Term.hasAtom, ha]),
+      substPhis_eval z fun a ha => h a (by simp [Term.hasAtom, ha])]
+
+/-- The atoms of a term with `b`'s phis replaced: atoms of the term that are no phis of `b`, or of
+    a phi's replacement. -/
+theorem substPhis_atoms {b q : Nat} {x : Nat} :
+    ∀ t : Term, (substPhis X b q t).hasAtom x = true → ∃ a, t.hasAtom a = true ∧
+      ((X.inD.find? a ≠ some (.phi b) ∧ x = a) ∨
+        (X.inD.find? a = some (.phi b) ∧ (phiArgTerm X b q a).hasAtom x = true))
+  | .atom a, h => by
+    simp only [substPhis] at h
+    by_cases hp : X.inD.find? a = some (.phi b)
+    · simp only [hp, beq_self_eq_true, ↓reduceIte] at h
+      exact ⟨a, by simp [Term.hasAtom], Or.inr ⟨hp, h⟩⟩
+    · have : (X.inD.find? a == some (.phi b)) = false := by simpa using hp
+      simp only [this, Bool.false_eq_true, ↓reduceIte, Term.hasAtom, beq_iff_eq] at h
+      exact ⟨a, by simp [Term.hasAtom], Or.inl ⟨hp, h.symm⟩⟩
+  | .lit _, h => by simp [substPhis, Term.hasAtom] at h
+  | .op1 o y, h => by
+    simp only [substPhis, Term.hasAtom] at h
+    obtain ⟨a, ha, h'⟩ := substPhis_atoms y h
+    exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+  | .op2 o y z, h => by
+    simp only [substPhis, Term.hasAtom, Bool.or_eq_true] at h
+    rcases h with h | h
+    · obtain ⟨a, ha, h'⟩ := substPhis_atoms y h
+      exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+    · obtain ⟨a, ha, h'⟩ := substPhis_atoms z h
+      exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+  | .op3 o y z w, h => by
+    simp only [substPhis, Term.hasAtom, Bool.or_eq_true] at h
+    rcases h with (h | h) | h
+    · obtain ⟨a, ha, h'⟩ := substPhis_atoms y h
+      exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+    · obtain ⟨a, ha, h'⟩ := substPhis_atoms z h
+      exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+    · obtain ⟨a, ha, h'⟩ := substPhis_atoms w h
+      exact ⟨a, by simp [Term.hasAtom, ha], h'⟩
+
+omit hB hD hT hs in
+include hwf in
+/-- A phi of block `Q` is one of the phis of `Q`'s block. -/
+theorem phi_of_def {Q a : Nat} {blk : Block} (hb : f.block? Q = some blk)
+    (h : (a, Def.phi Q) ∈ defList f) : ∃ φa ∈ blk.phis, φa.dst = a := by
+  have hn := Func.wf_ids hwf
+  rcases mem_defList h with ⟨h1, _⟩ | ⟨bb, hbb, φa, hφa, h1, h2⟩ | ⟨_, _, _, _, _, h1, _⟩
+  · cases h1
+  · have hQ : Q = bb.id := Def.phi.inj h1
+    subst hQ
+    rw [block?_of_mem hn hbb] at hb
+    cases hb
+    exact ⟨φa, hφa, h2.symm⟩
+  · cases h1
+
+include hB hD hT hwf hs in
+/-- Entering a block from a reached predecessor keeps the inserted phis' terms, and establishes
+    those of its own. -/
+theorem pinv_enter {F : StepFacts} (hK : X.K = kbMap F) (hcs : X.cs = .empty)
+    {pts : List (Nat × Nat × Term)} (hok : X.ptOk pts = true) (c : Ctx) {env : Env} {q b : Nat}
+    (hi : BlockInv f (domTree f) (env, some q, b)) {qblk : Block} (hqb : f.block? q = some qblk)
+    (SP : SidePt sig syms f env q qblk.body.length) (hKq : KBHolds (kbMap F) env)
+    (hPq : PInv f pts env q qblk.body.length) {blk : Block} (hb : f.block? b = some blk)
+    {e₁ : Env} (he : enterOpt env (some q) blk = some e₁) (hW₁ : Words f e₁ b 0) :
+    PInv f pts e₁ b 0 := by
+  have hU := UniqueDefs.of_ssa hs
+  have hn := Func.wf_ids hwf
+  have hv := SP.valid
+  have hmem := List.mem_of_find?_eq_some hb
+  have hid : blk.id = b := by simpa using List.find?_some hb
+  obtain ⟨e1, he1, hroot, hbrootq⟩ := SP.root
+  have hbroot : (domTree f).Anc e1.id b := hid ▸ DomTree.valid_root hv he1 hmem (hid ▸ hi.2.2.1)
+  have hW := SP.words
+  obtain ⟨vals, hF2, hlen, rfl⟩ := enterOpt_spec he
+  have hkeys := enter_keys hlen
+  have hkeep : ∀ u, u ∉ blk.phis.map (·.dst) →
+      (((blk.phis.map fun phi => (phi.dst, phi.ty)).zip vals).foldl bindStep env)[u]? = env[u]? :=
+    fun u hu => fold_get_not _ _ _ (by rw [hkeys]; exact hu)
+  -- a value whose definition is no phi of `b` is no phi of `b`
+  have hnotphi : ∀ u, X.inD.find? u ≠ some (.phi b) → u ∉ blk.phis.map (·.dst) := by
+    intro u hu hm
+    obtain ⟨φ, hφ, rfl⟩ := List.mem_map.mp hm
+    exact hu (hD ▸ defsOf_find hU (hid ▸ phi_def hmem hφ))
+  intro ψ Q t hm hdom
+  obtain ⟨hψ, hat, φ, hφ, hinc⟩ := ptOk_spec hok ψ Q t hm
+  have hψd := defsOf_mem (hD ▸ hψ)
+  have hQb := anc_of_domAt_phi hU hdom hψd
+  by_cases hQ : Q = b
+  · subst hQ
+    obtain ⟨blk', hb', hφm, hφd⟩ := phiOf_spec hB hφ
+    rw [hb] at hb'
+    cases hb'
+    obtain ⟨o, n, hin, _, how, hoat, hov, hlt, hget⟩ :=
+      enter_phi hwf hs hi hqb hW hb hF2 hlen hφm
+    -- the term on entry is its substituted form before
+    have hsub : t.eval (envWord (((blk.phis.map fun phi => (phi.dst, phi.ty)).zip vals).foldl
+        bindStep env)) = (substPhis X Q q t).eval (envWord env) := by
+      refine substPhis_eval t fun a ha => ⟨fun hpa => ?_, fun hpa => ?_⟩
+      · obtain ⟨φa, hφa, rfl⟩ := phi_of_def hwf hb (defsOf_mem (hD ▸ hpa))
+        obtain ⟨oa, na, _, hinca, howa, _, hova, hlta, hgeta⟩ :=
+          enter_phi hwf hs hi hqb hW hb hF2 hlen hφa
+        have hpo : phiOf X.inB Q φa.dst = some φa := by
+          simp only [phiOf, hB, NatMap.find?_ofListBy]
+          exact Option.bind_eq_some_iff.mpr ⟨blk, hb, find?_dst (hU.phis hmem) hφa⟩
+        simp only [phiArgTerm, hpo, Option.bind_some, hinca]
+        rw [show envWord _ φa.dst = na by simp [envWord, hgeta], Nat.mod_eq_of_lt hlta]
+        cases oa with
+        | var u =>
+          simp only [Term.eval, envWord]
+          simp only [opVal] at hova
+          rw [hova, Nat.mod_eq_of_lt hlta]
+        | imm bits w =>
+          simp only [opVal, Option.some.injEq, Val.int.injEq] at hova
+          obtain ⟨_, rfl⟩ := hova
+          simp [Term.eval, Nat.mod_eq_of_lt hlta]
+      · simp only [envWord, hkeep a (hnotphi a hpa)]
+    -- the substituted term's value is the operand's
+    have hatq : ∀ x, (substPhis X Q q t).hasAtom x = true → ∃ m, env[x]? = some (.int 256 m) ∧ m < W := by
+      intro x hx
+      obtain ⟨a, ha, h1 | ⟨hpa, h2⟩⟩ := substPhis_atoms t hx
+      · obtain ⟨hpa, hxa⟩ := h1
+        rw [hxa]
+        rcases hat a (Term.mem_atoms t ha) with h' | h'
+        · exact absurd h' hpa
+        · exact hW a ((above_enter hD hT hwf hU hv hi hqb hb h').1 a rfl)
+      · obtain ⟨φa, hφa, rfl⟩ := phi_of_def hwf hb (defsOf_mem (hD ▸ hpa))
+        obtain ⟨oa, _, _, hinca, _, hoata, _⟩ := enter_phi hwf hs hi hqb hW hb hF2 hlen hφa
+        have hpo : phiOf X.inB Q φa.dst = some φa := by
+          simp only [phiOf, hB, NatMap.find?_ofListBy]
+          exact Option.bind_eq_some_iff.mpr ⟨blk, hb, find?_dst (hU.phis hmem) hφa⟩
+        simp only [phiArgTerm, hpo, Option.bind_some, hinca] at h2
+        cases oa with
+        | var u =>
+          simp only [Term.hasAtom, beq_iff_eq] at h2
+          subst h2
+          exact hW u (hoata u rfl)
+        | imm => simp [Term.hasAtom] at h2
+    have hval : (substPhis X Q q t).eval (envWord env) = n := by
+      rcases hinc (o, q) hin with ⟨ψ', Qt, ho, hq', hce⟩ | ⟨d, hce⟩
+      · simp only at ho
+        subst ho
+        rw [NatMap.find?_ofList] at hq'
+        have hm' := mem_of_lookup hq'
+        obtain ⟨n', hn1', hok'⟩ := hPq ψ' Qt.1 Qt.2 hm' (hoat ψ' rfl)
+        simp only [opVal] at hov
+        rw [hov] at hn1'
+        cases hn1'
+        rw [← hok'.1]
+        exact checkExact_sound hce (factsOn_env (hK ▸ hKq) fun a ha => by
+          simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true] at ha
+          rcases ha with ha | ha
+          · exact hatq a ha
+          · exact hok'.2 a ha)
+      · rw [hB, hD] at hce
+        obtain ⟨n', hn1', _, hok'⟩ := SP.unfold_sound (EnvSub.refl env) c (cs := X.cs)
+          (hcs ▸ cholds_empty env) d o how hoat
+        rw [opVal_of_intVal hn1'] at hov
+        cases hov
+        rw [← hok'.1]
+        exact checkExact_sound hce (factsOn_env (hK ▸ hKq) fun a ha => by
+          simp only [List.any_cons, List.any_nil, Bool.or_false, Bool.or_eq_true] at ha
+          rcases ha with ha | ha
+          · exact hatq a ha
+          · exact hok'.2 a ha)
+    refine ⟨n, by rw [← hφd]; exact hget, ⟨by rw [hsub, hval], fun a ha => ?_⟩⟩
+    obtain ⟨m, hm1, hm2⟩ := hW₁ a (atoms_domAt hD hT hwf hroot (k := 0) hbroot hat .refl a ha)
+    exact ⟨m, hm1, hm2⟩
+  · -- `ψ` is a phi of a strict ancestor of `b`
+    have hψb : ψ ∉ blk.phis.map (·.dst) :=
+      hnotphi ψ fun h => hQ (Def.phi.inj (Option.some.inj (hψ.symm.trans h)))
+    obtain ⟨n, hn1, hok'⟩ := hPq ψ Q t hm (domAt_enter hv hi hqb hb hdom hψb)
+    refine ⟨n, by rw [hkeep ψ hψb]; exact hn1, termOk_congr (fun a ha => hkeep a ?_) hok'⟩
+    refine hnotphi a fun hpa => ?_
+    rcases hat a (Term.mem_atoms t ha) with h' | h'
+    · exact hQ (Def.phi.inj (Option.some.inj (h'.symm.trans hpa)))
+    · rcases above_spec h' a rfl with hp | ⟨d, hne, had, hd | ⟨j, hd⟩⟩
+      · rw [hp] at hpa; cases hpa
+      · rw [hd] at hpa
+        cases hpa
+        rw [hT] at had
+        exact hne (DomTree.anc_antisymm hroot hbroot hQb had).symm
+      · rw [hd] at hpa; cases hpa
+
+end pinv
+
 end Fe.Sonatina.Steps.Schemas
