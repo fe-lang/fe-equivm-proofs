@@ -15,6 +15,9 @@ correctness (`machine_implementsP`), and wherever the bytes refine the machine I
 refine the lowered module (`machine_sound_of_sound`).  `Sound s` comes from `check_sound` for a
 sidecar without memory spills (`machine_sound`, `machine_sound_proved`), or from
 `checkSpills_sound` and `FrameSafe s` for one with spills (`machine_sound_spills_proved`).
+
+The records `rr` and `ri` are arguments: the statements tie them to `s` only through `validate`,
+whose composed module must be `s`'s machine IR, under `s`'s symbols (see `machine_sound_proved`).
 -/
 
 namespace Fe.Sonatina.Steps
@@ -262,7 +265,21 @@ theorem machine_sound_proved_of_sound {s : Sidecar} {rr ri : MachineSteps}
     `coalesce_copies`, `sccp_fold` and `known_bits_simplify`): no hypothesis.
 
     It applies to sidecars without memory spills only (`check s = true` holds `s.noSpills`); a
-    sidecar with spills has `machine_sound_spills_proved`. -/
+    sidecar with spills has `machine_sound_spills_proved`.
+
+    What ties the records `rr` (runtime) and `ri` (init) to `s`: `validate` composes each record
+    from its lowered functions through its steps and requires the result to be the section's
+    machine IR (`s.machineOf`), under the section's symbols (`s.symbolsOf`); the conclusion is
+    about `s.lowered rr ri`, `s` with each section's machine IR replaced by the module its record
+    starts from.  Nothing else: the statement holds for every pair of records `validate`
+    accepts, not only for the sidecar's own `machine_steps`.  `Sidecar` keeps no record (a
+    section's `Lowering` has no field for one), so the statement cannot name them; that a use of
+    the theorem passes the records of the same file is the elaborator's part: `machine_steps`
+    (`Read.lean`) reads them from the JSON file `sonatina_sidecar` reads `s` from.  Nor does
+    anything tie a record's lowered functions to the lowering of `s`'s source IR: they are what
+    the record says lowering produced.  For a record with no passes, its lowered functions are
+    the machine IR, `s.lowered rr ri` has `s`'s machine IR, and the theorem restates
+    `check_sound`. -/
 theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
     (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)
@@ -275,7 +292,8 @@ theorem machine_sound_proved {s : Sidecar} {rr ri : MachineSteps}
 /-- `machine_sound_proved` for a sidecar with memory spills: the spill-aware checker
     (`checkSpills`) in place of `check`, under `FrameSafe s` (the machine IR with its spills, under
     the sidecar's spill plan, ends as the machine IR does on every call and deployment), which
-    `checkSpills_sound` needs and nothing here proves for a sidecar with spills. -/
+    `checkSpills_sound` needs and nothing here proves for a sidecar with spills.  The records are
+    tied to `s` as in `machine_sound_proved`. -/
 theorem machine_sound_spills_proved {s : Sidecar} {rr ri : MachineSteps}
     (hr : validate (s.symbolsOf "runtime") rr (s.machineOf "runtime") = true)
     (hi : validate (s.symbolsOf "init") ri (s.machineOf "init") = true)

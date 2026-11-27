@@ -574,6 +574,21 @@ spill to `0x00`/`0x20` read back as IR data) and is not a proof of it, and
 `scripts/frame_safe_diff.sh` (`SpillDiff.lean`) tests it by running the two models on inputs
 (precompile generators and two corpus drivers; README, "Relying on `FrameSafe`").
 
+**The records** `rr` and `ri` are arguments of every statement here, not parts of `s`: `Sidecar`
+keeps no record (a section's `Lowering` has no field for one).  What ties them to `s` is
+`validate`: each record's composition, from its lowered functions through its steps, must be the
+section's machine IR (`s.machineOf`, compared function by function), under the section's symbols
+(`s.symbolsOf`).  What is not tied: that they are the sidecar's own `machine_steps` (any records
+`validate` accepts will do; `machine_steps` in `Read.lean` reads the record of a section from the
+same JSON file `sonatina_sidecar` reads `s` from, at elaboration, and that a use passes those is
+the user's), and that a record's lowered functions are what lowering made of `s`'s source IR.
+For a record with no passes the lowered functions are the machine IR and the theorem restates
+`check_sound`.  No projection from `s` to its records exists, so there is no corollary for `s`'s
+own records: it would need the record in the sidecar (a `machineSteps` field of `Lowering`, which
+`Syntax.lean` cannot have as `Record.lean` imports it: the record types would move below
+`Syntax.lean`, or the sidecar get a second structure), `parseLowering` reading `machine_steps`
+with `Read.parseMachineSteps`, and `Sidecar.records` projecting both sections'.
+
 ## Not done
 
 - `branch_canonicalize`'s zero-compare and inverted-compare rewrites (OPEN, above).
