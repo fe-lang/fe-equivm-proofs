@@ -28,6 +28,7 @@ import Fe.Sonatina.CheckArith
 import Fe.Sonatina.CheckIR
 import Fe.Sonatina.CheckBody
 import Fe.Sonatina.CheckSection
+import Fe.Sonatina.RealFeed
 import Fe.Sonatina.CheckCert
 import Fe.Sonatina.Run
 import Fe.Sonatina.Diff
@@ -37,3 +38,4 @@ import Fe.Sonatina.SpillDiff
 import Fe.Sonatina.Steps.Machine
 import Fe.Sonatina.Steps.Read
 import Fe.Sonatina.Steps.KnownBitsInv
+import Fe.Sonatina.H
