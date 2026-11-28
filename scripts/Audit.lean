@@ -11,7 +11,9 @@ import FeModel
 and `kb_point`, and the handover semantics' `runH_sound`, `runRuntime_sound`,
 `runDeploy_sound`, `message_eq_core`, `createWith_eq_core`, and its composition with the real feed's
 refinement, `Fe.EVM.RefinesOnFut.toH`, `Fe.EVM.RefinesDeployFut.toH`; Stage 3 Slice 1's
-`place_lower_sound`, `place_sidecar_sound` and `slice1_sound`).  Run:
+`place_lower_sound`, `place_sidecar_sound` and `slice1_sound`, with the deployed code
+`slice1_deploy_runtime` and `slice1_deploy_code`, and its instances' `refines_bin` and
+`deploy_code` for FeConstant and FeERC20).  Run:
 `lake lean scripts/Audit.lean`. -/
 open Lean
 
@@ -24,7 +26,8 @@ open Lean
     "machine_sound_spills_at", "machine_deploy_spills_at", "machine_sound_sidecar_fut",
     "machine_sound_spills_sidecar_fut", "proved_sound",
     "runH_sound", "runRuntime_sound", "runDeploy_sound", "message_eq_core", "createWith_eq_core",
-    "kb_reaches", "kb_point", "place_lower_sound", "place_sidecar_sound", "slice1_sound"]
+    "kb_reaches", "kb_point", "place_lower_sound", "place_sidecar_sound", "slice1_sound",
+    "slice1_deploy_runtime", "slice1_deploy_code"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString
     let has (part : String) := (last.splitOn part).length > 1
@@ -32,7 +35,11 @@ open Lean
         || last.startsWith "fe" && (has "Refines" || has "Keeps" || has "Solvent")
         || has "conserves")
       || (`Fe.Sonatina).isPrefixOf n && (machine.contains last || last.endsWith "_stepSound")
-      || [``Fe.EVM.RefinesOnFut.toH, ``Fe.EVM.RefinesDeployFut.toH].contains n then
+      || [``Fe.EVM.RefinesOnFut.toH, ``Fe.EVM.RefinesDeployFut.toH,
+          ``Fe.Sonatina.Stage3.Place.Examples.FeConstant.refines_bin,
+          ``Fe.Sonatina.Stage3.Place.Examples.FeConstant.deploy_code,
+          ``Fe.Sonatina.Stage3.Place.Examples.FeERC20.refines_bin,
+          ``Fe.Sonatina.Stage3.Place.Examples.FeERC20.deploy_code].contains n then
       some n
     else none
   for n in capstones.toArray.qsort (fun a b => a.toString < b.toString) do
