@@ -321,6 +321,250 @@ theorem evm_codeCopy {d o l : Operand} {args' : List Operand}
       hI' (write_size ..) (fun _ _ => bsize_write ..) (fun _ _ => by rw [State.writeBytes, addrOf_write])
       (fun _ _ => rfl)
 
+/-- `evm_ext_code_copy a d o l`: H writes the account's code bytes where the machine copies them. -/
+theorem evm_extCodeCopy {a d o l : Operand} {args' : List Operand}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' []) (hd : s.dsts = [])
+    (hi : s.inst = .base (.evm .extCodeCopy [a, d, o, l]))
+    (harg : ∀ b ∈ [a, d, o, l], (c.tyOf b).any Ty.value = true)
+    (hm : [a, d, o, l].mapM (mop F.vm) = some args') :
+    TemplOk P I cM S F g hst w envH envM s L' [⟨[], .evm .extCodeCopy args'⟩] := by
+  obtain ⟨a', t0, ha', hm0, rfl⟩ := mapM_cons' hm
+  obtain ⟨d', t1, hd', hm1, rfl⟩ := mapM_cons' hm0
+  obtain ⟨o', t2, ho', hm2, rfl⟩ := mapM_cons' hm1
+  obtain ⟨l', t3, hl', hm3, rfl⟩ := mapM_cons' hm2
+  cases mapM_nil' hm3
+  have hargs : s.inst.args = [a, d, o, l] := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨va, ma, hva, hma, hla, -, -, -, hwa⟩ := evm_arg hI hE hA (i := 0) (by rw [hargs]; rfl)
+    (harg a (by simp)) ha'
+  obtain ⟨vd, md, hvd, hmd, hld, hrd, -, hgd, -⟩ := evm_arg hI hE hA (i := 1) (by rw [hargs]; rfl)
+    (harg d (by simp)) hd'
+  obtain ⟨vo, mo, hvo, hmo, hlo, -, -, -, hwo⟩ := evm_arg hI hE hA (i := 2) (by rw [hargs]; rfl)
+    (harg o (by simp)) ho'
+  obtain ⟨vl, ml, hvl, hml, hll, -, -, -, hwl⟩ := evm_arg hI hE hA (i := 3) (by rw [hargs]; rfl)
+    (harg l (by simp)) hl'
+  have hwa := hwa (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hwo := hwo (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hwl := hwl (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hstep : stepInst P.ctx I envH hst s.inst = evmH I hst .extCodeCopy [va, vd, vo, vl] :=
+    step_evm hi (by simp [hva, hvd, hvo, hvl])
+  intro O res hres
+  rw [run_evm0 O cM envM .extCodeCopy (.cons hma (.cons hmd (.cons hmo (.cons hml .nil))))
+    (Fe.EVM.extcodecopy (.ofNat ma) (.ofNat md) (.ofNat mo) (.ofNat ml)) rfl] at hres
+  cases hr : hst.range vd ml with
+  | none => exact stepOk_ub (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hr, hwl])
+  | some rg =>
+    have hR := rangeAt_of hI hrd hgd hr
+    simp only [Fe.EVM.extcodecopy, Fe.M.exec_bind, Fe.M.exec_get, Fe.M.exec_set,
+      Fe.M.exec_pure, Option.some.injEq, toNat_ofNat_lt hld, toNat_ofNat_lt hlo,
+      toNat_ofNat_lt hll] at hres
+    subst hres
+    have hI' := inv_writeBytes_at hI hR
+      (bs := (((w.accounts.get? (Ethereum.AccountAddress.ofUInt256 (.ofNat ma))).option
+        ByteArray.empty (·.code)).readWithPadding mo ml))
+      (Check.readWithPadding_size' _ _ _) (mem_copy _ _ _ _ _)
+    have hst1 : stepInst P.ctx I envH hst s.inst = .ok [] (hst.writeBytes rg
+        (((w.accounts.get? (Ethereum.AccountAddress.ofUInt256 (.ofNat ma))).option
+          ByteArray.empty (·.code)).readWithPadding mo ml)) := by
+      rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hr, State.uword, hwa, hwo, hwl,
+        ← world_accounts hI]
+    exact stepOk_st0 hI hE hA hd hst1 hI' (write_size ..) (fun _ _ => bsize_write ..)
+      (fun _ _ => by rw [State.writeBytes, addrOf_write]) (fun _ _ => rfl)
+
+/-- `evm_return_data_copy d o l`: past the return data both exit `oob`; else H writes the return
+    data's bytes where the machine copies them. -/
+theorem evm_returnDataCopy {d o l : Operand} {args' : List Operand}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' []) (hd : s.dsts = [])
+    (hi : s.inst = .base (.evm .returnDataCopy [d, o, l]))
+    (harg : ∀ b ∈ [d, o, l], (c.tyOf b).any Ty.value = true)
+    (hm : [d, o, l].mapM (mop F.vm) = some args') :
+    TemplOk P I cM S F g hst w envH envM s L' [⟨[], .evm .returnDataCopy args'⟩] := by
+  obtain ⟨d', t1, hd', hm1, rfl⟩ := mapM_cons' hm
+  obtain ⟨o', t2, ho', hm2, rfl⟩ := mapM_cons' hm1
+  obtain ⟨l', t3, hl', hm3, rfl⟩ := mapM_cons' hm2
+  cases mapM_nil' hm3
+  have hargs : s.inst.args = [d, o, l] := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨vd, md, hvd, hmd, hld, hrd, -, hgd, -⟩ := evm_arg hI hE hA (i := 0) (by rw [hargs]; rfl)
+    (harg d (by simp)) hd'
+  obtain ⟨vo, mo, hvo, hmo, hlo, -, -, -, hwo⟩ := evm_arg hI hE hA (i := 1) (by rw [hargs]; rfl)
+    (harg o (by simp)) ho'
+  obtain ⟨vl, ml, hvl, hml, hll, -, -, -, hwl⟩ := evm_arg hI hE hA (i := 2) (by rw [hargs]; rfl)
+    (harg l (by simp)) hl'
+  have hwo := hwo (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hwl := hwl (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hstep : stepInst P.ctx I envH hst s.inst = evmH I hst .returnDataCopy [vd, vo, vl] :=
+    step_evm hi (by simp [hvd, hvo, hvl])
+  have hrdw := world_returnData hI
+  intro O res hres
+  rw [run_evm0 O cM envM .returnDataCopy (.cons hmd (.cons hmo (.cons hml .nil)))
+    (Fe.EVM.returndatacopy (.ofNat md) (.ofNat mo) (.ofNat ml)) rfl] at hres
+  by_cases hob : mo + ml > w.returnData.size
+  · simp only [Fe.EVM.returndatacopy, Fe.M.exec_bind, Fe.M.exec_get, Fe.M.exec_fail,
+      toNat_ofNat_lt hlo, toNat_ofNat_lt hll, hob, if_true, Option.some.injEq] at hres
+    subst hres
+    exact stepOk_exit (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hwo, hwl, ← hrdw, hob])
+  cases hr : hst.range vd ml with
+  | none => exact stepOk_ub (by
+      rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hr, hwo, hwl, ← hrdw, hob])
+  | some rg =>
+    have hR := rangeAt_of hI hrd hgd hr
+    simp only [Fe.EVM.returndatacopy, Fe.M.exec_bind, Fe.M.exec_get, Fe.M.exec_set,
+      Fe.M.exec_pure, Option.some.injEq, toNat_ofNat_lt hld, toNat_ofNat_lt hlo,
+      toNat_ofNat_lt hll, hob, if_false] at hres
+    subst hres
+    have hI' := inv_writeBytes_at hI hR (bs := w.returnData.readWithPadding mo ml)
+      (Check.readWithPadding_size' _ _ _) (mem_copy _ _ _ _ _)
+    have hst1 : stepInst P.ctx I envH hst s.inst =
+        .ok [] (hst.writeBytes rg (w.returnData.readWithPadding mo ml)) := by
+      rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hr, hwo, hwl, ← hrdw, hob]
+    exact stepOk_st0 hI hE hA hd hst1 hI' (write_size ..) (fun _ _ => bsize_write ..)
+      (fun _ _ => by rw [State.writeBytes, addrOf_write]) (fun _ _ => rfl)
+
+/-- `evm_log k p l topics…`: under a static call both exit `static`; else H emits its bytes at
+    the range, the machine's there. -/
+theorem evm_log {kk : Nat} {p l : Operand} {ts : List Operand} {args' : List Operand}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' []) (hd : s.dsts = [])
+    (hi : s.inst = .base (.evm (.log kk) (p :: l :: ts))) (hk : kk ≤ 4) (hlen : ts.length = kk)
+    (harg : ∀ b ∈ p :: l :: ts, (c.tyOf b).any Ty.value = true)
+    (hm : (p :: l :: ts).mapM (mop F.vm) = some args') :
+    TemplOk P I cM S F g hst w envH envM s L' [⟨[], .evm (.log kk) args'⟩] := by
+  obtain ⟨p', t1, hp', hm1, rfl⟩ := mapM_cons' hm
+  obtain ⟨l', ts', hl', hts, rfl⟩ := mapM_cons' hm1
+  have hargs : s.inst.args = p :: l :: ts := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨vp, mp, hvp, hmp, hlp, hrp, -, hgp, -⟩ := evm_arg hI hE hA (i := 0) (by rw [hargs]; rfl)
+    (harg p (by simp)) hp'
+  obtain ⟨vl, ml, hvl, hml, hll, -, -, -, hwl⟩ := evm_arg hI hE hA (i := 1) (by rw [hargs]; rfl)
+    (harg l (by simp)) hl'
+  have hwl := hwl (by simp [nonObserving, hi, EvmOp.addrPos])
+  obtain ⟨tvs, tms, htvs, htms, hmap, hlt⟩ := args_rel (st := hst) (envH := envH) (envM := envM) hts
+    (fun a ha a' ha' => by
+      obtain ⟨j, hj⟩ := List.mem_iff_getElem?.mp ha
+      obtain ⟨v, m, hv, hm, -, -, -, -, hw⟩ := evm_arg hI hE hA (i := j + 2)
+        (by rw [hargs]; simpa using hj) (harg a (by simp [ha])) ha'
+      exact ⟨v, m, hv, hm, hw (by simp [nonObserving, hi, EvmOp.addrPos])⟩)
+  have hstep : stepInst P.ctx I envH hst s.inst = evmH I hst (.log kk) (vp :: vl :: tvs) :=
+    step_evm hi (by simp [hvp, hvl, htvs])
+  rw [hlen] at hlt
+  intro O res hres
+  rw [run_evm0 O cM envM (.log kk) (.cons hmp (.cons hml htms))
+    (Fe.EVM.logData (.ofNat mp) (.ofNat ml) (tms.map Ethereum.UInt256.ofNat).toArray) rfl] at hres
+  rw [show Fe.EVM.logData (.ofNat mp) (.ofNat ml) (tms.map Ethereum.UInt256.ofNat).toArray =
+    (get >>= fun m => Fe.EVM.emit (tms.map Ethereum.UInt256.ofNat).toArray
+      (m.memory.readWithPadding (Ethereum.UInt256.ofNat mp).toNat (Ethereum.UInt256.ofNat ml).toNat))
+    from rfl, exec_get_bind, toNat_ofNat_lt hlp, toNat_ofNat_lt hll] at hres
+  by_cases hperm : I.perm = false
+  · simp only [Fe.EVM.emit, Fe.M.exec_bind, Fe.M.exec_read, hperm, Bool.false_eq_true, if_false,
+      Fe.M.exec_fail, Option.some.injEq] at hres
+    subst hres
+    exact stepOk_exit (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hk, hlt, hperm])
+  cases hr : hst.range vp ml with
+  | none => exact stepOk_ub (by
+      rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hk, hlt, hperm, hwl, hr])
+  | some rg =>
+    have hR := rangeAt_of hI hrp hgp hr
+    rw [hR.bytes hI] at hres
+    refine stepOk_lift0 hI hE hA hd (ignoresMemory_emit _ _) ?_ hres
+    rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hk, hlt, hperm, hwl, hr, hmap]
+
+/-- `evm_create v p l`: H creates from its bytes at the range, the machine's there, by the
+    memory-free core of the creation. -/
+theorem evm_create {v p l : Operand} {args' : List Operand} {r x : Nat} {tx : Ty}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' [r]) (hd : s.dsts = [(x, tx)]) (hwx : isWord tx = true)
+    (hvx : F.vm.find? x = some (.var r))
+    (hi : s.inst = .base (.evm .create [v, p, l]))
+    (harg : ∀ b ∈ [v, p, l], (c.tyOf b).any Ty.value = true)
+    (hm : [v, p, l].mapM (mop F.vm) = some args') :
+    TemplOk P I cM S F g hst w envH envM s L' [⟨[(r, .int 256)], .evm .create args'⟩] := by
+  obtain ⟨v', t1, hv', hm1, rfl⟩ := mapM_cons' hm
+  obtain ⟨p', t2, hp', hm2, rfl⟩ := mapM_cons' hm1
+  obtain ⟨l', t3, hl', hm3, rfl⟩ := mapM_cons' hm2
+  cases mapM_nil' hm3
+  have hargs : s.inst.args = [v, p, l] := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨vv, mv, hvv, hmv, hlv, -, -, -, hwv⟩ := evm_arg hI hE hA (i := 0) (by rw [hargs]; rfl)
+    (harg v (by simp)) hv'
+  obtain ⟨vp, mp, hvp, hmp, hlp, hrp, -, hgp, -⟩ := evm_arg hI hE hA (i := 1) (by rw [hargs]; rfl)
+    (harg p (by simp)) hp'
+  obtain ⟨vl, ml, hvl, hml, hll, -, -, -, hwl⟩ := evm_arg hI hE hA (i := 2) (by rw [hargs]; rfl)
+    (harg l (by simp)) hl'
+  have hwv := hwv (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hwl := hwl (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hstep : stepInst P.ctx I envH hst s.inst = evmH I hst .create [vv, vp, vl] :=
+    step_evm hi (by simp [hvv, hvp, hvl])
+  intro O res hres
+  rw [run_evm1 O cM envM .create (.cons hmv (.cons hmp (.cons hml .nil))) r
+    (Fe.EVM.create (.ofNat mv) (.ofNat mp) (.ofNat ml)) rfl, Fe.EVM.create,
+    exec_bind_congr (H.createWith_eq_core _ _ _ _ I w), toNat_ofNat_lt hlp,
+    toNat_ofNat_lt hll] at hres
+  by_cases hperm : I.perm = false
+  · simp only [H.createCore, Fe.M.exec_bind, Fe.M.exec_read, hperm, if_true, Fe.M.exec_fail,
+      Option.some.injEq] at hres
+    subst hres
+    exact stepOk_exit (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm])
+  by_cases hbig : ml > 49152
+  · simp [H.createCore, Fe.M.exec_bind, Fe.M.exec_read, hperm, H.readWithPadding_size, hbig,
+      Fe.M.exec_diverge] at hres
+  cases hr : hst.range vp ml with
+  | none => exact stepOk_ub (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm, hbig,
+      hwl, hr])
+  | some rg =>
+    have hR := rangeAt_of hI hrp hgp hr
+    rw [hR.bytes hI] at hres
+    refine stepOk_lift1 hI hE hA hd hwx hvx (ignoresMemory_createCore _ _ _) ?_ hres
+    rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm, hbig, hwl, hr, State.uword, hwv]
+
+/-- `evm_create2 v p l salt`: as `evm_create`, with the salt's word. -/
+theorem evm_create2 {v p l sa : Operand} {args' : List Operand} {r x : Nat} {tx : Ty}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' [r]) (hd : s.dsts = [(x, tx)]) (hwx : isWord tx = true)
+    (hvx : F.vm.find? x = some (.var r))
+    (hi : s.inst = .base (.evm .create2 [v, p, l, sa]))
+    (harg : ∀ b ∈ [v, p, l, sa], (c.tyOf b).any Ty.value = true)
+    (hm : [v, p, l, sa].mapM (mop F.vm) = some args') :
+    TemplOk P I cM S F g hst w envH envM s L' [⟨[(r, .int 256)], .evm .create2 args'⟩] := by
+  obtain ⟨v', t1, hv', hm1, rfl⟩ := mapM_cons' hm
+  obtain ⟨p', t2, hp', hm2, rfl⟩ := mapM_cons' hm1
+  obtain ⟨l', t3, hl', hm3, rfl⟩ := mapM_cons' hm2
+  obtain ⟨sa', t4, hs', hm4, rfl⟩ := mapM_cons' hm3
+  cases mapM_nil' hm4
+  have hargs : s.inst.args = [v, p, l, sa] := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨vv, mv, hvv, hmv, hlv, -, -, -, hwv⟩ := evm_arg hI hE hA (i := 0) (by rw [hargs]; rfl)
+    (harg v (by simp)) hv'
+  obtain ⟨vp, mp, hvp, hmp, hlp, hrp, -, hgp, -⟩ := evm_arg hI hE hA (i := 1) (by rw [hargs]; rfl)
+    (harg p (by simp)) hp'
+  obtain ⟨vl, ml, hvl, hml, hll, -, -, -, hwl⟩ := evm_arg hI hE hA (i := 2) (by rw [hargs]; rfl)
+    (harg l (by simp)) hl'
+  obtain ⟨vs, ms, hvs, hms, hls, -, -, -, hws⟩ := evm_arg hI hE hA (i := 3) (by rw [hargs]; rfl)
+    (harg sa (by simp)) hs'
+  have hwv := hwv (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hwl := hwl (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hws := hws (by simp [nonObserving, hi, EvmOp.addrPos])
+  have hstep : stepInst P.ctx I envH hst s.inst = evmH I hst .create2 [vv, vp, vl, vs] :=
+    step_evm hi (by simp [hvv, hvp, hvl, hvs])
+  intro O res hres
+  rw [run_evm1 O cM envM .create2 (.cons hmv (.cons hmp (.cons hml (.cons hms .nil)))) r
+    (Fe.EVM.create2 (.ofNat mv) (.ofNat mp) (.ofNat ml) (.ofNat ms)) rfl, Fe.EVM.create2,
+    exec_bind_congr (H.createWith_eq_core _ _ _ _ I w), toNat_ofNat_lt hlp,
+    toNat_ofNat_lt hll] at hres
+  by_cases hperm : I.perm = false
+  · simp only [H.createCore, Fe.M.exec_bind, Fe.M.exec_read, hperm, if_true, Fe.M.exec_fail,
+      Option.some.injEq] at hres
+    subst hres
+    exact stepOk_exit (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm])
+  by_cases hbig : ml > 49152
+  · simp [H.createCore, Fe.M.exec_bind, Fe.M.exec_read, hperm, H.readWithPadding_size, hbig,
+      Fe.M.exec_diverge] at hres
+  cases hr : hst.range vp ml with
+  | none => exact stepOk_ub (by rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm, hbig,
+      hwl, hr])
+  | some rg =>
+    have hR := rangeAt_of hI hrp hgp hr
+    rw [hR.bytes hI] at hres
+    refine stepOk_lift1 hI hE hA hd hwx hvx (ignoresMemory_createCore _ _ _) ?_ hres
+    rw [hstep]; simp [evmH, EvmOp.arity, EvmOp.memFree, hperm, hbig, hwl, hr, State.uword, hwv, hws]
+
 end ops
 
 end Fe.Sonatina.Stage3.Place

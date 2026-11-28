@@ -377,4 +377,28 @@ theorem cells_at {S : SecFacts} {st : H.State} {w : World} {g : Ghost} (hI : Inv
       obtain ⟨i, hi, rfl⟩ := hcm
       exact hI.frags b hb (o + i) (by omega) b' o' k he
 
+/-! ## The world parts -/
+
+theorem exec_bind_congr {α β : Type} {x y : FeM α} {I : Fe.EVM.Env} {w : World}
+    (h : x.exec I w = y.exec I w) (k : α → FeM β) : (x >>= k).exec I w = (y >>= k).exec I w := by
+  simp only [Fe.M.exec_bind, h]
+
+theorem exec_get_bind {α β : Type} {I : Fe.EVM.Env} {w : World} (f : World → FeM α)
+    (k : α → FeM β) : ((get >>= f) >>= k).exec I w = (f w >>= k).exec I w := by
+  rw [bind_assoc, Fe.M.exec_bind, Fe.M.exec_get]
+
+theorem ignoresMemory_emit (topics : Array Ethereum.UInt256) (data : ByteArray) :
+    IgnoresMemory (Fe.EVM.emit topics data) := by
+  intro I w memory
+  simp only [Fe.EVM.emit, Fe.M.exec_bind, Fe.M.exec_read, Fe.M.exec_modify, Fe.M.exec_fail]
+  split <;> rfl
+
+theorem world_accounts {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g) :
+    w.accounts = hst.world.accounts := by
+  have := congrArg World.accounts hI.world; simpa using this
+
+theorem world_returnData {S : SecFacts} {hst : H.State} {w : World} {g : Ghost}
+    (hI : Inv S hst w g) : w.returnData = hst.world.returnData := by
+  have := congrArg World.returnData hI.world; simpa using this
+
 end Fe.Sonatina.Stage3.Place
