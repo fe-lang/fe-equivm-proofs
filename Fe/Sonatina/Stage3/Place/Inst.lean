@@ -512,6 +512,8 @@ structure At (S : SecFacts) (F : Frame) (c : FCtx) (Dr : Derived) (k : Nat) (s :
   clob : ∀ y, (y ∈ L ∨ y ∈ L') → y ∉ s.defs → ∀ m ∈ ds, F.vm.find? y ≠ some (.var m)
   nodup : (s.dsts.map (·.1)).Nodup
   self : ∀ y, Operand.var y ∈ s.inst.args → y ∉ s.defs
+  s3 : ∀ a v, ((∃ t, s.inst = .base (.mstore a v t)) ∨ s.inst = .base (.evm .mstore [a, v])) →
+    origOf F.O v = []
   orig : ∀ x t, s.dsts = [(x, t)] → ∀ o ∈ stmtOrig c.frec F.O s, o ∈ origOf F.O (.var x)
   D : F.D = Dr.has k
   obs : S.z = true → ∀ i a, s.inst.args[i]? = some a → Dr.op k a = true → i ∈ nonObserving Dr k s
