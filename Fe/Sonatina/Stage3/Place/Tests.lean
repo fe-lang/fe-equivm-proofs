@@ -49,6 +49,16 @@ def run (src mach : String) (r : Record) (efp : Option Nat := none) : Option Str
   | .error e, _ => some s!"source: {e}"
   | _, .error e => some s!"machine: {e}"
 
+/-- `run` with the section's symbols. -/
+def runSyms (syms : List (String × Nat × Nat)) (src mach : String) (r : Record)
+    (efp : Option Nat := none) : Option String :=
+  match H.Parse.parseModule src, Fe.Sonatina.Parse.parseModule mach with
+  | .ok hm, .ok mm =>
+    let s : HSection := ⟨hm, "main", syms⟩
+    diagnose s mm efp (r.withHints s mm)
+  | .error e, _ => some s!"source: {e}"
+  | _, .error e => some s!"machine: {e}"
+
 /-- The rule a rejection names: the part of its reason before the colon. -/
 def rule (d : Option String) : String :=
   match d with
@@ -438,5 +448,296 @@ func public %main() {
 }
 "
 #guard rule (run (s12 "") m12 (rec1 0 [])) == "translation"
+
+/-! ## Review 25: unsound acceptances of the first checker
+
+Each was accepted by the checker before the fix (checked once) and is rejected now. -/
+
+-- C1: `sub p p` is an integer in H, and `add` of it and another block's pointer points there:
+-- neither is a pointer into the terminal buffer.  M returns 99, H 42.
+def c1s : String := "
+func public %main() {
+    block0:
+        v1.*i256 = alloca i256;
+        mstore v1 42.i256 i256;
+        v2.*i256 = evm_malloc 32.i256;
+        mstore v2 99.i256 i256;
+        v3.i256 = sub v2 v2;
+        v4.i256 = ptr_to_int v1 i256;
+        v5.i256 = add v3 v4;
+        evm_return v5 32.i256;
+}
+"
+def c1m : String := "
+func public %main() {
+    block0:
+        evm_mstore 160.i256 42.i256;
+        evm_mstore 160.i256 99.i256;
+        v0.i256 = sub 160.i256 160.i256;
+        v1.i256 = add v0 160.i256;
+        evm_return v1 32.i256;
+}
+"
+#guard rule (run c1s c1m (rec1 160 [fr "main" [(1, .scratch 0)] [(2, .fixed 160 .terminal)]])) == "S6"
+
+-- C2: a machine value defined twice: the heap malloc's new free pointer in its base's id.
+def c2s : String := "
+func public %main() {
+    block0:
+        v1.*i256 = evm_malloc 32.i256;
+        v2.*i256 = evm_malloc 32.i256;
+        mstore v1 42.i256 i256;
+        mstore v2 99.i256 i256;
+        v3.i256 = mload v1 i256;
+        mstore v1 v3 i256;
+        evm_return v1 32.i256;
+}
+"
+def c2m : String := "
+func public %main() {
+    block0:
+        v10.i256 = evm_mload 64.i256;
+        v10.i256 = add v10 32.i256;
+        evm_mstore 64.i256 v10;
+        v11.i256 = evm_mload 64.i256;
+        v12.i256 = add v11 32.i256;
+        evm_mstore 64.i256 v12;
+        evm_mstore v10 42.i256;
+        evm_mstore v11 99.i256;
+        v13.i256 = evm_mload v10;
+        evm_mstore v10 v13;
+        evm_return v10 32.i256;
+}
+"
+#guard rule (run c2s c2m (rec1 160 [fr "main" [] [(1, .heap 160 none true), (2, .heap 160 none true)]])
+  (some 160)) == "translation"
+-- C2: two machine parameters of one id.
+def c2ps : String := "
+func private %f(v1.i256, v2.i256) -> i256 {
+    block0:
+        return v1;
+}
+
+func public %main() {
+    block0:
+        v1.i256 = call %f 42.i256 99.i256;
+        v2.*i256 = alloca i256;
+        mstore v2 v1 i256;
+        evm_return v2 32.i256;
+}
+"
+def c2pm : String := "
+func private %f(v0.i256, v0.i256) -> i256 {
+    block0:
+        return v0;
+}
+
+func public %main() {
+    block0:
+        v0.i256 = call %f 42.i256 99.i256;
+        evm_mstore 160.i256 v0;
+        evm_return 160.i256 32.i256;
+}
+"
+#guard rule (run c2ps c2pm (rec1 160 [fr "f", fr "main" [(2, .scratch 0)]])) == "translation"
+
+-- C4: a source value defined twice: the second `alloca v1`, of no bytes, hides the first's range
+-- from S7.
+def c4s : String := "
+func public %main() {
+    block0:
+        v1.*i256 = alloca i256;
+        v2.*i256 = bitcast v1 *i256;
+        v1.*[i256;0] = alloca [i256;0];
+        v3.*i256 = alloca i256;
+        mstore v2 42.i256 i256;
+        mstore v3 99.i256 i256;
+        v4.i256 = mload v2 i256;
+        v5.*i256 = alloca i256;
+        mstore v5 v4 i256;
+        evm_return v5 32.i256;
+}
+"
+def c4m : String := "
+func public %main() {
+    block0:
+        evm_mstore 160.i256 42.i256;
+        evm_mstore 160.i256 99.i256;
+        v0.i256 = evm_mload 160.i256;
+        evm_mstore 192.i256 v0;
+        evm_return 192.i256 32.i256;
+}
+"
+#guard rule (run c4s c4m (rec1 160 [fr "main" [(1, .scratch 0), (3, .scratch 0), (5, .scratch 1)]])) == "translation"
+
+-- C5a: two source blocks of one id: the checks read the second, H runs the first.
+def c5as : String := "
+func public %main() {
+    block0:
+        v1.*i256 = alloca i256;
+        v5.*i256 = alloca i256;
+        mstore v1 42.i256 i256;
+        jump block1;
+
+    block1:
+        v10.*i256 = bitcast v1 *i256;
+        v11.*i256 = bitcast v1 *i256;
+        v12.*i256 = bitcast v1 *i256;
+        v13.*i256 = bitcast v1 *i256;
+        v3.*i256 = alloca i256;
+        mstore v3 99.i256 i256;
+        v4.i256 = mload v1 i256;
+        mstore v5 v4 i256;
+        evm_return v5 32.i256;
+
+    block1:
+        mstore v1 99.i256 i256;
+        v6.i256 = mload v1 i256;
+        mstore v5 v6 i256;
+        evm_return v5 32.i256;
+}
+"
+def c5am : String := "
+func public %main() {
+    block0:
+        evm_mstore 160.i256 42.i256;
+        jump block1;
+
+    block1:
+        evm_mstore 160.i256 99.i256;
+        v0.i256 = evm_mload 160.i256;
+        evm_mstore 192.i256 v0;
+        evm_return 192.i256 32.i256;
+}
+"
+#guard rule (run c5as c5am (rec1 160 [{ fr "main" [(1, .scratch 0), (3, .scratch 0), (5, .scratch 1)] with
+  blockMap := some [(0, 0), (1, 1)] }])) == "translation"
+
+-- C5b: two source blocks mapped to one machine block: the machine takes a phi's operand from it
+-- on an edge H's phi has none for.
+def c5bs : String := "
+func public %main() {
+    block0:
+        v1.i256 = evm_calldata_size;
+        br v1 block1 block2;
+
+    block1:
+        jump block3;
+
+    block2:
+        jump block3;
+
+    block3:
+        v2.i256 = phi (42.i256 block1);
+        v3.*i256 = alloca i256;
+        mstore v3 v2 i256;
+        evm_return v3 32.i256;
+}
+"
+def c5bm : String := "
+func public %main() {
+    block0:
+        v0.i256 = evm_calldata_size;
+        br v0 block1 block1;
+
+    block1:
+        jump block2;
+
+    block2:
+        v1.i256 = phi (42.i256 block1);
+        evm_mstore 160.i256 v1;
+        evm_return 160.i256 32.i256;
+}
+"
+#guard rule (run c5bs c5bm (rec1 160 [{ fr "main" [(3, .scratch 0)] with
+  blockMap := some [(0, 0), (1, 1), (2, 1), (3, 2)] }])) == "translation"
+
+-- H1: a symbol offset of `2 ^ 256`: H is stuck binding it, the machine wraps it to 0.
+def h1s : String := "
+func public %main() {
+    block0:
+        v1.i256 = sym_addr &big;
+        v2.*i256 = alloca i256;
+        mstore v2 v1 i256;
+        evm_return v2 32.i256;
+}
+"
+def h1m : String := "
+func public %main() {
+    block0:
+        v0.i256 = sym_addr &big;
+        evm_mstore 160.i256 v0;
+        evm_return 160.i256 32.i256;
+}
+"
+#guard rule (runSyms [("&big", 2 ^ 256, 0)] h1s h1m (rec1 160 [fr "main" [(2, .scratch 0)]])) == "translation"
+#guard rule (runSyms [("&big", 2 ^ 255, 0)] h1s h1m (rec1 160 [fr "main" [(2, .scratch 0)]])) == "accepted"
+
+-- H2: `int_to_ptr` to an integer type reads the address word (1 in H, 0 in the machine).
+#guard rule (run (s9 "        v3.i1 = int_to_ptr v1 i1;\n") (m9 "        v0.i256 = and 0.i256 1.i256;\n") r9) == "S8"
+
+-- M1: a clamp diamond whose two arms are one block: the machine's phi always takes the first
+-- operand.
+def m1s : String := "
+func public %main() {
+    block0:
+        v1.*i256 = evm_malloc 32.i256;
+        mstore v1 7.i256 i256;
+        evm_return v1 32.i256;
+}
+"
+def m1m : String := "
+func public %main() {
+    block0:
+        v0.i256 = evm_mload 64.i256;
+        v1.i256 = gt v0 255.i256;
+        br v1 block1 block1;
+
+    block1:
+        jump block2;
+
+    block2:
+        v2.i256 = phi (v0 block1) (256.i256 block1);
+        v3.i256 = add v2 32.i256;
+        evm_mstore 64.i256 v3;
+        evm_mstore v2 7.i256;
+        evm_return v2 32.i256;
+}
+"
+#guard rule (run m1s m1m (rec1 160 [fr "main" [] [(1, .heap 256 none true)]]) (some 128)) == "translation"
+
+-- M2: a `br_table` case on the terminal buffer's address.
+def m2s : String := "
+func public %main() {
+    block0:
+        v1.*i256 = evm_malloc 64.i256;
+        mstore v1 7.i256 i256;
+        v2.i256 = ptr_to_int v1 i256;
+        br_table 5.i256 block1 (v2 block2);
+
+    block1:
+        evm_revert v1 32.i256;
+
+    block2:
+        evm_revert v1 32.i256;
+}
+"
+def m2m : String := "
+func public %main() {
+    block0:
+        evm_mstore 512.i256 7.i256;
+        br_table 5.i256 block1 (512.i256 block2);
+
+    block1:
+        evm_revert 512.i256 32.i256;
+
+    block2:
+        evm_revert 512.i256 32.i256;
+}
+"
+#guard rule (run m2s m2m r8) == "S6"
+
+-- L1: two placements for one `alloca`.
+#guard rule (run s1 m1 (rec1 160 [fr "main" [(1, .scratch 0), (1, .scratch 1)]])) == "S2"
 
 end Fe.Sonatina.Stage3.Place.Tests

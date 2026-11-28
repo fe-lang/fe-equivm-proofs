@@ -109,11 +109,16 @@ def ruleS1 (P : List (Nat × HFunc × FuncRec)) (rs : List Range) (efp : Option 
       | none => some "S1: a heap malloc without an entry free pointer"
     else none
 
-/-- Rule S2's function facts: no free-pointer restore. -/
+/-- Rule S2's function facts: no free-pointer restore; one placement per site (review 25,
+    L1). -/
 def ruleS2 (src : HSection) (r : Record) (P : List (Nat × HFunc × FuncRec)) : Option String :=
   match P.find? fun (_, _, fr) => fr.restoresFp with
   | some (_, f, _) => some s!"S2: {f.name} restores the free pointer"
-  | none => sitesRecorded src r P
+  | none =>
+    match P.find? fun (_, _, fr) =>
+        !(distinct (fr.allocas.map (·.1)) && distinct (fr.mallocs.map (·.1))) with
+    | some (_, f, _) => some s!"S2: a site of {f.name} has two placements"
+    | none => sitesRecorded src r P
 
 /-- Rules S4 and S5. -/
 def ruleS45 (P : List (Nat × HFunc × FuncRec)) (rs : List Range) (efp : Option Nat) : Option String :=
@@ -172,31 +177,61 @@ def reachIter (f : HFunc) : Nat → List Nat → List Nat
     let R' := nset (R ++ R.flatMap fun b => ((f.block? b).map (·.term.succs)).getD [])
     if R'.length == R.length then R else reachIter f n R'
 
-/-- The values whose address is derived only from fixed buffer `t`: its result, and `gep`s,
-    `add`s, `sub`s of an integer, word casts and `black_box`es of them; never a `phi`. -/
-def mustStep (M : List Nat) (s : HStmt) : Bool :=
+/-- The statement's results are integers in every run of H: a comparison, `is_zero`, an
+    operation on words other than the five that may keep a pointer (`ptrBin`), a cast that does
+    not keep one, `evm_mload_bytes`, `trunc_nuw`, a symbol's offset or size, a memory-free EVM
+    operation (`evmH`, `ofSonatina`). -/
+def intStmt (s : HStmt) : Bool :=
+  match s.inst with
+  | .base (.cmp ..) | .base (.isZero _) | .base (.not _) | .base (.neg _) | .base (.clz _)
+  | .base (.ctz _) | .base (.ovf ..) | .base (.sat ..) | .base (.symAddr _) | .base (.symSize _)
+  | .mloadBytes .. | .truncNuw .. => true
+  | .base (.bin op _ _) => !(op == .add || op == .sub || op == .or || op == .xor || op == .and)
+  | .base (.cast op _ t) => !keepsPtr op t
+  | .base (.evm op _) => op.memFree
+  | _ => false
+
+/-- The integer operands of function `f`, whose values are integers in every run of H: an
+    immediate; a value declared narrower than a word (`Val.fits`: a pointer has width 256); a
+    result of an `intStmt` (each value of `f` is defined once, `funcLower`). -/
+def intOperands (f : HFunc) : List Nat :=
+  f.params.filterMap (fun (x, t) => if t.bits < 256 then some x else none) ++
+  f.blocks.flatMap fun b =>
+    b.phis.filterMap (fun p => if p.ty.bits < 256 then some p.dst else none) ++
+    b.body.flatMap fun s => if intStmt s then s.defs else
+      s.dsts.filterMap fun (x, t) => if t.bits < 256 then some x else none
+
+/-- The values whose value is a pointer into fixed buffer `t` in every run of H (review 25,
+    C1): its result, and `gep`s of them, `add`s of them and an integer (`I`, `intOperands`) in
+    either order, `sub`s of an integer from them, the casts that keep a pointer and
+    `black_box`es of them; never a `phi`. -/
+def mustStep (I M : List Nat) (s : HStmt) : Bool :=
   let m := fun (a : Operand) => match a with
     | .var y => M.contains y
     | .imm .. => false
+  let i := fun (a : Operand) => match a with
+    | .var y => I.contains y
+    | .imm .. => true
   match s.inst with
   | .gep _ b _ => m b
-  | .base (.bin .add a b) => m a || m b
-  | .base (.bin .sub a _) => m a
-  | .base (.cast op a _) => (op == .ptrToInt || op == .bitcast || op == .intToPtr) && m a
+  | .base (.bin .add a b) => m a && i b || i a && m b
+  | .base (.bin .sub a b) => m a && i b
+  | .base (.cast op a t) => keepsPtr op t && m a
   | .base (.blackBox a) => m a
   | _ => false
 
-def mustIter (f : HFunc) : Nat → List Nat → List Nat
+def mustIter (f : HFunc) (I : List Nat) : Nat → List Nat → List Nat
   | 0, M => M
   | n + 1, M =>
     let M' := nset (M ++ f.blocks.flatMap fun b => b.body.flatMap fun s =>
-      if mustStep M s then s.defs else [])
-    if M'.length == M.length then M else mustIter f n M'
+      if mustStep I M s then s.defs else [])
+    if M'.length == M.length then M else mustIter f I n M'
 
 /-- Rule S6 for terminal fixed buffer `t` at statement `k` of block `b` of `f`. -/
 def s6Site (O : Orig) (f : HFunc) (b : HBlock) (k t : Nat) : Bool :=
   let R := reachIter f (f.blocks.length + 1) (nset b.term.succs)
-  let M := mustIter f (f.blocks.length + 1) [t]
+  let I := intOperands f
+  let M := mustIter f I (f.blocks.length + 1) [t]
   let inM := fun (a : Operand) => match a with
     | .var y => M.contains y
     | .imm .. => false
@@ -213,11 +248,11 @@ def s6Site (O : Orig) (f : HFunc) (b : HBlock) (k t : Nat) : Bool :=
   let termOk := fun (tm : HTerm) => match tm with
     | .base (.jump _) | .base .evmStop | .base .evmInvalid | .base .unreachable | .returnCode .. => true
     | .base (.br c _ _) => noT c
-    | .base (.brTable s _ _) => noT s
+    | .base (.brTable s _ cs) => noT s && cs.all (noT ·.1)
     | .base (.evmReturn a l) | .base (.evmRevert a l) => inM a || isZeroImm l
     | _ => false
   -- The must-origin set is justified member by member; the reach set is closed.
-  (M.all fun y => y == t || f.blocks.any fun b => b.body.any fun s => s.defs.contains y && mustStep M s) &&
+  (M.all fun y => y == t || f.blocks.any fun b => b.body.any fun s => s.defs.contains y && mustStep I M s) &&
   (R.all fun c => match f.block? c with
     | some cb => cb.term.succs.all R.contains && cb.body.all stmtOk && termOk cb.term
     | none => false) &&

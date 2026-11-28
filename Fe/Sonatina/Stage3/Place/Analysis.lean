@@ -331,6 +331,13 @@ def _root_.Fe.Sonatina.EvmOp.addrPos : EvmOp → List (Nat × Nat)
   | .call | .callCode => [(3, 4), (5, 6)] | .staticCall | .delegateCall => [(2, 3), (4, 5)]
   | _ => []
 
+/-- The cast keeps a pointer operand as it is (`castVal`): `ptr_to_int` to `i256`, `bitcast` to
+    `i256` or a pointer type, `int_to_ptr` to a pointer type. -/
+def keepsPtr (op : CastOp) (t : Ty) : Bool :=
+  match op, t with
+  | .ptrToInt, .int 256 | .bitcast, .int 256 | .bitcast, .ptr _ | .intToPtr, .ptr _ => true
+  | _, _ => false
+
 /-- The operand positions of a statement where a derived value is not observed (§5.2 S8);
     `mload`/`mstore` lengths are 32, never zero. -/
 def nonObserving (D : Derived) (k : Nat) (s : HStmt) : List Nat :=
@@ -339,10 +346,9 @@ def nonObserving (D : Derived) (k : Nat) (s : HStmt) : List Nat :=
   | .gep _ _ idxs => if idxs.any d then [] else [0]
   | .base (.bin .add a b) => if d a && d b then [] else [0, 1]
   | .base (.bin .sub _ b) => if d b then [] else [0]
-  | .base (.cast op _ t) => match op with
-    | .ptrToInt | .bitcast => if isWord t then [0] else []
-    | .intToPtr => [0]
-    | _ => []
+  -- The casts that keep a pointer (`castVal`): `ptr_to_int` to `i256`, `bitcast` to a word,
+  -- `int_to_ptr` to a pointer type; any other reads the operand's word (review 25, H2).
+  | .base (.cast op _ t) => if keepsPtr op t then [0] else []
   | .base (.blackBox _) => [0]
   | .base (.select _ _ _) => [1, 2]
   | .base (.mload _ _) => [0]
