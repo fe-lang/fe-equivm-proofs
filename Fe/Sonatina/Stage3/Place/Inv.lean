@@ -489,4 +489,108 @@ theorem inv_heap {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : In
   · rw [fpWord_mstore, Nat.mod_eq_of_lt hend]
     exact ⟨by omega, by omega, fun _ => by omega, fun b hb => by have := hf3 b hb; omega⟩
 
+/-! ## Reads -/
+
+/-- A range of a live block reads, in H, the machine's bytes at its machine address. -/
+theorem inv_bytes {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    {b o len : Nat} (hb : g.live b) (ho : o + len ≤ hst.bsize b) :
+    w.memory.readWithPadding (g.j b + o) len = hst.bytes (.at b o) len :=
+  bytes_of_agree (hI.live_lt b hb) fun i hi => by
+    rw [Nat.add_assoc]; exact hI.bytes b hb (o + i) (by omega)
+
+/-- A typed load from a live block: its word is the machine's word there, and the value is
+    related to it (a loaded pointer is a heap block's, and none is loaded in address-0 mode). -/
+theorem inv_load {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    {b o : Nat} (hb : g.live b) (ho : o + 32 ≤ hst.bsize b) {ty : Ty} {v : H.Val}
+    (hl : hst.load b o ty = some v) (dx : Bool) :
+    (Ethereum.uInt256OfByteArray (w.memory.readWithPadding (g.j b + o) 32)).toNat = hst.word v ∧
+      VRel g S.z dx v (hst.word v) ∧ ValOk hst v ∧ ∀ b' o', v = .ptr b' o' → g.heap b' := by
+  rw [inv_bytes hI hb ho, load_word hl]
+  refine ⟨rfl, ?_⟩
+  rcases load_cases hl with ⟨b', o', hf, rfl⟩ | ⟨n, rfl⟩
+  · have hc := fragsOf_some hf
+    have h0 : hst.cell b o = .frag b' o' 0 := by
+      have := congrArg (·[0]?) hc
+      simp only [cellsAt_eq (hI.live_lt b hb), List.getElem?_map, List.getElem?_range] at this
+      simpa using this
+    obtain ⟨hh, hlt, hz⟩ := hI.frags b hb o (by omega) b' o' 0 h0
+    have hbl := hI.live_lt b' (hI.heap_live b' hh)
+    have hj : g.j b' ≠ 0 := by
+      have := hI.heap_floor b' hh; have := hI.e96 (hI.heap_has b' hh); omega
+    refine ⟨⟨?_, fun h => by rw [hz] at h; cases h⟩, ⟨hbl, hlt⟩, fun b2 o2 h => ?_⟩
+    · rw [word_ptr, hI.exact b' hbl hj]
+    · cases h; exact hh
+  · exact ⟨rfl, trivial, fun _ _ h => by cases h⟩
+
+/-! ## The world -/
+
+/-- A computation that ignores memory and returns leaves the memory as it was. -/
+theorem IgnoresMemory.keeps {α : Type} {x : FeM α} (hx : IgnoresMemory x) {I : Fe.EVM.Env}
+    {w w' : World} {a : α} (h : x.exec I w = some (.ok (a, w'))) : w'.memory = w.memory := by
+  have e := hx I w w.memory
+  rw [show ({ w with memory := w.memory } : World) = w from rfl, h] at e
+  simp only [withMemory_ok, Option.some.injEq, Except.ok.injEq, Prod.mk.injEq] at e
+  rw [e.2]
+
+/-- A computation that ignores memory runs on H's world as on the machine's, with H's memory. -/
+theorem IgnoresMemory.onH {α : Type} {x : FeM α} (hx : IgnoresMemory x) {S : SecFacts}
+    {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g) (I : Fe.EVM.Env) :
+    x.exec I hst.world = withMemory hst.world.memory (x.exec I w) := by
+  rw [← hI.world]; exact hx I w _
+
+/-- An operation that changes the world but not the machine's memory keeps the invariant, H's
+    world changed alike. -/
+theorem inv_world {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    {w' : World} (hm : w'.memory = w.memory) :
+    Inv S { hst with world := { w' with memory := hst.world.memory } } w' g where
+  world := rfl
+  live_lt := hI.live_lt
+  heap_live := hI.heap_live
+  heap_has := hI.heap_has
+  bytes_size := hI.bytes_size
+  exact := hI.exact
+  zero := hI.zero
+  bound := hI.bound
+  disj := hI.disj
+  bytes := fun b hb i hi => by rw [hm]; exact hI.bytes b hb i hi
+  frags := hI.frags
+  e96 := hI.e96
+  heap_floor := hI.heap_floor
+  fp := fun hh => by rw [hm]; exact hI.fp hh
+  frame := hI.frame
+
+/-! ## Frames -/
+
+/-- The machine word of an operand: a machine value's (every one is an `i256`), or an `i256`
+    immediate's. -/
+def mval (env : Env) : Operand → Option Nat
+  | .var r => match env[r]? with
+    | some (.int 256 m) => some m
+    | _ => none
+  | .imm bits v => if bits = 256 then some v else none
+
+/-- What the relation of one frame of function `f` needs: the value map, the declared types,
+    the origins (S3), the function's `alloca` ranges and footprint, and its derived values
+    (S8). -/
+structure Frame where
+  vm : VM
+  decls : NatMap Ty
+  O : Orig
+  R : NatMap Range
+  fpf : List Range
+  D : Nat → Bool
+
+/-- The frame relation at a point whose live values are `L`: each is defined in H with a value of
+    its declared type, its machine operand has a word, the two are related, the value is a valid
+    one, and rule S3's consequence holds of it. -/
+def EnvRel (z : Bool) (F : Frame) (g : Ghost) (hst : H.State) (envH : HEnv) (envM : Env)
+    (L : List Nat) : Prop :=
+  ∀ x ∈ L, ∃ v m, envH[x]? = some v ∧ (∃ t, F.decls.find? x = some t ∧ v.fits t = true) ∧
+    (F.vm.find? x).bind (mval envM) = some m ∧ VRel g z (F.D x) v m ∧ ValOk hst v ∧
+    OrigOk g hst F.R F.fpf (origOf F.O (.var x)) v
+
+theorem EnvRel.mono {z : Bool} {F : Frame} {g : Ghost} {hst : H.State} {envH : HEnv} {envM : Env}
+    {L L' : List Nat} (h : EnvRel z F g hst envH envM L) (hs : ∀ x ∈ L', x ∈ L) :
+    EnvRel z F g hst envH envM L' := fun x hx => h x (hs x hx)
+
 end Fe.Sonatina.Stage3.Place
