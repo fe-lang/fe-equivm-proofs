@@ -329,4 +329,28 @@ theorem blockLower_some {c : FCtx} {vm : VM} {rets : List Ty} {b : HBlock} {cs :
     exact ⟨mb, mblk, ms₁, bs₁, tblk, hmb, hmblk, hw, htblk, ht, rfl⟩
   · cases h
 
+/-- The `k`-th element, the first of its name, is the one `find?` finds by name. -/
+theorem find_of_firstOf {α : Type} {name : α → String} :
+    ∀ {l : List α} {k : Nat} {n : String}, firstOf name l k n = true →
+      ∃ x, l[k]? = some x ∧ l.find? (fun y => name y == n) = some x
+  | [], k, n, h => by simp [firstOf] at h
+  | a :: l, 0, n, h => by
+    simp only [firstOf, List.getElem?_cons_zero, List.take_zero, List.all_nil, Bool.and_true] at h
+    exact ⟨a, rfl, by simp [h]⟩
+  | a :: l, k + 1, n, h => by
+    simp only [firstOf, List.getElem?_cons_succ, List.take_succ_cons, List.all_cons] at h
+    split at h
+    · next x hx =>
+      simp only [Bool.and_eq_true, bne_iff_ne, ne_eq] at h
+      obtain ⟨hxn, ha, hrest⟩ := h
+      have h' : firstOf name l k n = true := by
+        simp only [firstOf, hx, hxn, hrest, Bool.and_self]
+      obtain ⟨y, hy, hf⟩ := find_of_firstOf h'
+      refine ⟨y, hy, ?_⟩
+      rw [List.find?_cons]
+      have : (name a == n) = false := by simpa using ha
+      rw [this]
+      exact hf
+    · cases h
+
 end Fe.Sonatina.Stage3.Place
