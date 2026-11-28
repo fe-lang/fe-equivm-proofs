@@ -401,4 +401,12 @@ theorem world_returnData {S : SecFacts} {hst : H.State} {w : World} {g : Ghost}
     (hI : Inv S hst w g) : w.returnData = hst.world.returnData := by
   have := congrArg World.returnData hI.world; simpa using this
 
+theorem ignoresMemory_read : IgnoresMemory (read : FeM Fe.EVM.Env) := by
+  intro I w memory; simp [Fe.M.exec_read]
+
+/-- A message call's core as H runs it: the environment read, then `messageCore`. -/
+theorem ignoresMemory_readCore (f : Fe.EVM.Env → FeM (Ethereum.UInt256 × ByteArray))
+    (hf : ∀ I, IgnoresMemory (f I)) : IgnoresMemory (read >>= f) :=
+  IgnoresMemory.bind ignoresMemory_read hf
+
 end Fe.Sonatina.Stage3.Place
