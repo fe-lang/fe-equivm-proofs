@@ -44,4 +44,36 @@ theorem memFree_ignoresMemory {op : EvmOp} (h : op.memFree = true) (args : List 
     | (split_ifs <;> rfl)
     | (rcases w with ⟨_, _, _, _, f, _⟩; cases f <;> rfl)
 
+/-- The memory-free core of a message call ignores memory. -/
+theorem ignoresMemory_messageCore (g : UInt256) (src rcp t : AccountAddress) (v v' : UInt256)
+    (input : ByteArray) (perm : Bool) :
+    IgnoresMemory (H.messageCore g src rcp t v v' input perm) := by
+  intro I w memory
+  rcases w with ⟨a, l, m, rd, f, c⟩
+  cases f with
+  | nil => rfl
+  | cons sp rest =>
+    simp only [H.messageCore, Fe.EVM.next, M.exec_bind, M.exec_read, M.exec_get, M.exec_set,
+      M.exec_pure]
+    split <;> rfl
+
+/-- The memory-free core of a creation ignores memory. -/
+theorem ignoresMemory_createCore (salt : Option ByteArray) (v : UInt256) (init : ByteArray) :
+    IgnoresMemory (H.createCore salt v init) := by
+  intro I w memory
+  rcases w with ⟨a, l, m, rd, f, c⟩
+  unfold H.createCore
+  simp only [M.exec_bind, M.exec_read]
+  split
+  · rfl
+  split
+  · rfl
+  cases f with
+  | nil => rfl
+  | cons sp rest =>
+    simp only [Fe.EVM.next, M.exec_bind, M.exec_get, M.exec_set, M.exec_pure]
+    split
+    · split <;> rfl
+    · rfl
+
 end Fe.Sonatina.Stage3.Place
