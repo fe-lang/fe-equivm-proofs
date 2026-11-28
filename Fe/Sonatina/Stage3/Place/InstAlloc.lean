@@ -151,4 +151,98 @@ theorem inst_alloca {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {F
       fun b hb' => Ghost.add_heap_old (by have := hlive_lt b (hI.heap_live b hb'); omega) hb',
       fun b hb' hd' => Ghost.add_live_old (by have := hlive_lt b hb'; omega) ⟨hb', (hd' _ hfp).symm⟩⟩
 
+/-! ## The heap -/
+
+theorem orElse_eq_some {α : Type} {x y : Option α} {a : α} (h : (x <|> y) = some a) :
+    x = some a ∨ (x = none ∧ y = some a) := by
+  cases x <;> simp_all
+
+/-- The clamp diamond of a heap `evm_malloc` (`emit_word_max_with_compare`): `cnd = gt b0
+    (minBase - 1)` ends block `mb`, which branches to two blocks that only jump to the join `jn`,
+    whose one phi takes `b0` or `minBase`. -/
+def ClampAt (c : FCtx) (mb minBase b0 : Nat) (rest1 : List Stmt) (base : Operand) (mb1 : Nat)
+    (ms1 : List Stmt) (dc : List Nat) : Prop :=
+  minBase ≠ 0 ∧ ∃ (cnd : Nat) (cur : Block) (lb rb : Nat) (mlb mrb : Block) (jn : Nat) (jb : Block)
+    (φ : Phi), take1 (.cmp .gt (.var b0) (imm (minBase - 1))) rest1 = some (cnd, []) ∧
+    c.mf.block? mb = some cur ∧ cur.term = .br (.var cnd) lb rb ∧ lb ≠ rb ∧
+    c.mf.block? lb = some mlb ∧ c.mf.block? rb = some mrb ∧ jumpOnly mlb jn = true ∧
+    jumpOnly mrb jn = true ∧ c.mf.block? jn = some jb ∧ jb.phis = [φ] ∧ φ.ty = w256 ∧
+    φ.incoming = [(.var b0, lb), (imm minBase, rb)] ∧ base = .var φ.dst ∧ mb1 = jn ∧
+    ms1 = jb.body ∧ dc = [cnd, φ.dst]
+
+/-- A heap `evm_malloc`'s template: `b0 = mload 0x40`, the clamp diamond or none, the aligned
+    size, `nf = add base size`, `mstore 0x40 nf`; the result is the base. -/
+theorem stmt_heap {c : FCtx} {vm vm' : VM} {s : HStmt} {mb mb' : Nat} {ms ms' : List Stmt}
+    {callee? : Option Nat} {ds : List Nat} {a : Operand} {x : Nat} {tx : Ty} {minBase : Nat}
+    (hi : s.inst = .base (.malloc a)) (hd : s.dsts = [(x, tx)])
+    (hl : c.frec.mallocs.lookup x = some (.heap minBase none true))
+    (h : stmt c true vm s mb ms callee? = some (vm', mb', ms', ds)) :
+    isWord tx = true ∧ (c.tyOf a).any Ty.value = true ∧ vm' = vm ∧
+    ∃ b0 rest1 base mb1 ms1 dc szo ms2 dsz nf ms3,
+      ms = ⟨[(b0, .int 256)], .evm .mload [imm 64]⟩ :: rest1 ∧
+      (ClampAt c mb minBase b0 rest1 base mb1 ms1 dc ∨
+        (base = .var b0 ∧ mb1 = mb ∧ ms1 = rest1 ∧ dc = [])) ∧
+      mallocSize vm a ms1 = some (szo, ms2, dsz) ∧
+      ms2 = ⟨[(nf, .int 256)], .bin .add base szo⟩ :: ms3 ∧
+      ms3 = ⟨[], .evm .mstore [imm 64, .var nf]⟩ :: ms' ∧
+      vm.find? x = some base ∧ mb' = mb1 ∧ ds = [b0] ++ dc ++ dsz ++ [nf] := by
+  simp only [stmt, hi, hd, hl, bindV, Option.bind_eq_bind, Option.bind_eq_some_iff,
+    Option.bind_none, Option.ite_none_right_eq_some, Option.some.injEq, Prod.mk.injEq, beq_iff_eq,
+    reduceCtorEq, false_and, exists_false, and_false, ite_true, ite_false, ↓reduceIte] at h
+  obtain ⟨hc, _, rfl, h⟩ := h
+  simp only [Bool.and_eq_true] at hc
+  simp only [Option.bind_eq_some_iff] at h
+  obtain ⟨⟨b0, rest1⟩, hb0, ⟨base, mb1, ms1, dc⟩, hcl, ⟨szo, ms2, dsz⟩, hsz, ⟨nf, ms3⟩, hnf, ms4,
+    hst0, h⟩ := h
+  simp only [Option.ite_none_right_eq_some, Option.some.injEq, Prod.mk.injEq,
+    Option.bind_eq_some_iff] at h
+  obtain ⟨_, ⟨hx, rfl⟩, rfl, rfl, rfl, rfl⟩ := h
+  refine ⟨hc.1, hc.2, rfl, b0, rest1, base, mb1, ms1, dc, szo, ms2, dsz, nf, ms3, take1_some hb0,
+    ?_, hsz, take1_some hnf, take0_some hst0, hx, rfl, rfl⟩
+  rcases orElse_eq_some hcl with hcl | ⟨-, hcl⟩
+  · left
+    split at hcl
+    · next hne =>
+      simp only [Option.bind_eq_some_iff] at hcl
+      obtain ⟨⟨cnd, r1⟩, hcnd, hcl⟩ := hcl
+      split at hcl
+      · next hr1 =>
+        simp only [Option.bind_eq_some_iff] at hcl
+        obtain ⟨cur, hcur, hcl⟩ := hcl
+        split at hcl
+        · next cv lb rb hterm =>
+          simp only [Option.bind_eq_some_iff] at hcl
+          obtain ⟨mlb, hmlb, mrb, hmrb, hcl⟩ := hcl
+          split at hcl
+          · next jn hjt =>
+            split at hcl
+            · next hok =>
+              simp only [Bool.and_eq_true, beq_iff_eq, bne_iff_ne, ne_eq] at hok
+              obtain ⟨⟨⟨hcv, hlr⟩, hjl⟩, hjr⟩ := hok
+              simp only [Option.bind_eq_some_iff] at hcl
+              obtain ⟨jb, hjb, hcl⟩ := hcl
+              split at hcl
+              · next φ hph =>
+                split at hcl
+                · next hok2 =>
+                  simp only [Bool.and_eq_true, beq_iff_eq] at hok2
+                  simp only [Option.some.injEq, Prod.mk.injEq] at hcl
+                  obtain ⟨rfl, rfl, rfl, rfl⟩ := hcl
+                  have hr1' : r1 = [] := List.isEmpty_iff.mp hr1
+                  subst hr1'
+                  exact ⟨by simpa using hne, cnd, cur, lb, rb, mlb, mrb, jn, jb, φ, hcnd, hcur,
+                    by rw [hterm, hcv], hlr, hmlb, hmrb, hjl, hjr, hjb, hph, hok2.1, hok2.2, rfl, rfl,
+                    rfl, rfl⟩
+                · cases hcl
+              · cases hcl
+            · cases hcl
+          · cases hcl
+        · cases hcl
+      · cases hcl
+    · cases hcl
+  · right
+    simp only [Option.some.injEq, Prod.mk.injEq] at hcl
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := hcl
+    exact ⟨rfl, rfl, rfl, rfl⟩
+
 end Fe.Sonatina.Stage3.Place
