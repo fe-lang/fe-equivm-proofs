@@ -158,4 +158,156 @@ theorem envRel_step {z : Bool} {F : Frame} {g : Ghost} {hst hst' : H.State} {env
     · rw [bindVals_other hb hd]; exact h1
     · rw [mval_keep hkeep (hcl x hx hd)]; exact h3
 
+theorem take1_some {inst : Inst} {ms rest : List Stmt} {r : Nat} (h : take1 inst ms = some (r, rest)) :
+    ms = ⟨[(r, .int 256)], inst⟩ :: rest := by
+  unfold take1 at h
+  split at h
+  · next r' i rest' =>
+    split at h
+    · next he => cases h; rw [beq_iff_eq.mp he]
+    · cases h
+  · cases h
+
+theorem stmt_bin {c : FCtx} {vm vm' : VM} {s : HStmt} {mb mb' : Nat} {ms ms' : List Stmt}
+    {callee? : Option Nat} {ds : List Nat} {op : BinOp} {a b : Operand} {x : Nat} {tx : Ty}
+    (hi : s.inst = .base (.bin op a b)) (hd : s.dsts = [(x, tx)])
+    (h : stmt c true vm s mb ms callee? = some (vm', mb', ms', ds)) :
+    ∃ ta tb a' b' r, c.tyOf a = some ta ∧ c.tyOf b = some tb ∧ mop vm a = some a' ∧
+      mop vm b = some b' ∧
+      (sameW ta tb && !op.generic && (ta.bits == 256 || ta.bits == 1 && op.okI1) &&
+        sameW tx ta) = true ∧
+      ms = ⟨[(r, .int 256)], .bin op a' b'⟩ :: ms' ∧ vm' = vm ∧ vm.find? x = some (.var r) ∧
+      mb' = mb ∧ ds = [r] := by
+  simp only [stmt, hi, hd, bindV, Option.bind_eq_bind, Option.bind_eq_some_iff, ite_true] at h
+  obtain ⟨ta, hta, tb, htb, a', ha', b', hb', h⟩ := h
+  split at h
+  · next hok =>
+    simp only [Option.bind_eq_some_iff] at h
+    obtain ⟨⟨r, rest⟩, ht, h⟩ := h
+    have hms := take1_some ht
+    simp only [Option.bind_eq_some_iff] at h
+    obtain ⟨vm2, hv, h⟩ := h
+    split at hv
+    · next hf =>
+      cases hv
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+      exact ⟨ta, tb, a', b', r, hta, htb, ha', hb', hok, hms, rfl, beq_iff_eq.mp hf, rfl, rfl⟩
+    · cases hv
+  · simp at h
+
+/-! ## Operands -/
+
+/-- Whether an operand is a derived value of the frame (S8). -/
+def Frame.dOp (F : Frame) : Operand → Bool
+  | .var y => F.D y
+  | .imm .. => false
+
+/-- A source operand live (or an immediate of its width) at a point where the frame relation
+    holds: its H value, of its type, and its machine operand's word, related. -/
+theorem opnd_rel {z : Bool} {F : Frame} {g : Ghost} {hst : H.State} {envH : HEnv} {envM : Env}
+    {L : List Nat} {c : FCtx} {vm : VM} {a a' : Operand} {ta : Ty}
+    (hE : EnvRel z F g hst envH envM L) (hdecl : F.decls = c.decls) (hvm : F.vm = vm)
+    (hlive : ∀ y, a = .var y → y ∈ L) (ht : c.tyOf a = some ta) (hm : mop vm a = some a') :
+    ∃ v m, evalOp envH a = some v ∧ v.fits ta = true ∧ mval envM a' = some m ∧
+      VRel g z (F.dOp a) v m ∧ ValOk hst v ∧ OrigOk g hst F.R F.fpf (origOf F.O a) v := by
+  cases a with
+  | var y =>
+    obtain ⟨v, m, h1, ⟨t, ht', hf⟩, h3, h4, h5, h6⟩ := hE y (hlive y rfl)
+    simp only [FCtx.tyOf] at ht
+    rw [hdecl, ht] at ht'
+    cases ht'
+    simp only [mop] at hm
+    rw [hvm, hm] at h3
+    exact ⟨v, m, h1, hf, h3, h4, h5, h6⟩
+  | imm bits n =>
+    simp only [FCtx.tyOf] at ht
+    split at ht
+    · next hw =>
+      cases ht
+      simp only [mop, Option.some.injEq] at hm
+      subst hm
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hw
+      refine ⟨.int bits n, n, rfl, ?_, by simp [mval], rfl, trivial, trivial⟩
+      simp [H.Val.fits, hw.2]
+    · cases ht
+
+theorem OrigOk.mono {g : Ghost} {hst : H.State} {R : NatMap Range} {fpf : List Range}
+    {os os' : List Nat} {v : H.Val} (h : OrigOk g hst R fpf os v) (hs : ∀ o ∈ os, o ∈ os') :
+    OrigOk g hst R fpf os' v := by
+  cases v with
+  | int => trivial
+  | ptr b o =>
+    rcases h with h | ⟨hl, ⟨s, hs1, hs2⟩ | ⟨h0, hd⟩⟩
+    · exact Or.inl h
+    · exact Or.inr ⟨hl, Or.inl ⟨s, hs s.succ hs1, hs2⟩⟩
+    · exact Or.inr ⟨hl, Or.inr ⟨hs 0 h0, hd⟩⟩
+
+/-! ## Binary operations -/
+
+theorem binVal_some {st : H.State} {op : BinOp} {x y : H.Val} (hg : op.generic = false)
+    (hb : x.bits = y.bits) : ∃ v, binVal st op x y = some v := by
+  unfold binVal
+  rw [hg, hb]
+  simp only [Bool.false_or, bne_self_eq_false, Bool.false_eq_true, if_false]
+  match x, y with
+  | .int _ _, .int _ _ => exact ⟨_, rfl⟩
+  | .ptr _ _, .int _ _ => exact ⟨_, rfl⟩
+  | .int _ _, .ptr _ _ => exact ⟨_, rfl⟩
+  | .ptr _ _, .ptr _ _ => exact ⟨_, rfl⟩
+
+theorem ptrBin_some {op : BinOp} {b o k : Nat} {f : Bool} {v : H.Val}
+    (h : ptrBin op b o k f = some v) :
+    ∃ o', v = .ptr b o' ∧ (o' < W ∨ o' = o) ∧
+      ((op = .add ∨ op = .or ∨ op = .xor ∨ op = .and) ∨ (op = .sub ∧ f = true)) := by
+  cases op <;> simp only [ptrBin, Option.some.injEq, reduceCtorEq] at h
+  · exact ⟨_, h.symm, Or.inl (Nat.mod_lt _ (by positivity)), Or.inl (Or.inl rfl)⟩
+  · split at h
+    · next hf => cases h; exact ⟨_, rfl, Or.inl (Nat.mod_lt _ (by positivity)), Or.inr ⟨rfl, hf⟩⟩
+    · cases h
+  all_goals (split at h <;> simp only [Option.some.injEq, reduceCtorEq] at h)
+  all_goals (subst h; exact ⟨_, rfl, Or.inr rfl, by simp⟩)
+
+/-- A pointer `binVal` gives keeps an operand's block, through one of the origin-keeping
+    operations (`sub` only with the pointer first), at an offset below `2 ^ 256` if the
+    operands' are. -/
+theorem binVal_ptr {st : H.State} {op : BinOp} {x y : H.Val} {b o : Nat}
+    (h : binVal st op x y = some (.ptr b o)) (hx : ValOk st x) (hy : ValOk st y) :
+    o < W ∧ (((∃ o', x = .ptr b o') ∧ (op = .add ∨ op = .sub ∨ op = .or ∨ op = .xor ∨ op = .and)) ∨
+      ((∃ o', y = .ptr b o') ∧ (op = .add ∨ op = .or ∨ op = .xor ∨ op = .and))) := by
+  unfold binVal at h
+  split at h
+  · cases h
+  match x, y, h with
+  | .int _ _, .int _ _, h => cases h
+  | .ptr b' o', .int _ k, h =>
+    dsimp only at h
+    cases hp : ptrBin op b' o' k true with
+    | none => rw [hp] at h; cases h
+    | some v =>
+      rw [hp] at h
+      simp only [Option.getD_some, Option.some.injEq] at h
+      subst h
+      obtain ⟨o2, he, hlt, hop⟩ := ptrBin_some hp
+      cases he
+      refine ⟨hlt.elim id (fun e => e ▸ hx.2), Or.inl ⟨⟨o', rfl⟩, ?_⟩⟩
+      rcases hop with h | ⟨h, _⟩
+      · rcases h with h | h | h | h <;> simp [h]
+      · simp [h]
+  | .int _ k, .ptr b' o', h =>
+    dsimp only at h
+    cases hp : ptrBin op b' o' k false with
+    | none => rw [hp] at h; cases h
+    | some v =>
+      rw [hp] at h
+      simp only [Option.getD_some, Option.some.injEq] at h
+      subst h
+      obtain ⟨o2, he, hlt, hop⟩ := ptrBin_some hp
+      cases he
+      refine ⟨hlt.elim id (fun e => e ▸ hy.2), Or.inr ⟨⟨o', rfl⟩, ?_⟩⟩
+      rcases hop with h | ⟨_, h⟩
+      · exact h
+      · cases h
+  | .ptr _ _, .ptr _ _, h => cases h
+
 end Fe.Sonatina.Stage3.Place
