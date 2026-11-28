@@ -83,7 +83,9 @@ so that it composes with `RefinesDeployFut` for any of them (`H/Compose.lean`).
   for the `evm_sstore` value or a log topic) and reverts with `be4(sel) ++ be32(word)`, `be4`
   the low four bytes of the selector's big-endian word (`revertWordData`).  It touches no
   memory and fails in no other way.  The relation does not check the operands' types (no
-  terminator's are); `wfH` does (`operandType`: `sel` of width 32, `word` of width 256).
+  terminator's are); `wfH` does (`operandType`: `sel` of width 32 or 256, `word` of width 256).  The
+  low four bytes are the selector's value for an `i32`, and for the `i256` EVM legalization
+  widens it to.
 -/
 
 namespace Fe.Sonatina.H

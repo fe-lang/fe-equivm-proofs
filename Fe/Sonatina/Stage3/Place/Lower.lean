@@ -424,20 +424,24 @@ def mapTerm (c : FCtx) (vm : VM) (rets : List Ty) : Term → Option Term
     unless (c.tyOf a).any Ty.value do none
     return .evmSelfDestruct (← mop vm a)
 
+/-- A type `evm_revert_word`'s selector may have: width 32 or 256. -/
+def selTy (t : Ty) : Bool := sameW t (.int 32) || sameW t (.int 256)
+
 /-- The expansion of `evm_revert_word sel word` (decision 9.2, design §8 step 2b): the selector
     word stored at 0, `word` at 4, and a revert of the 36 bytes at 0, in the typed forms of the
     panic blocks before the terminator (`evm_mstore 0.i256 C.i256; evm_mstore 4.i256 word;
-    evm_revert 0.i256 36.i256`).  The selector word `C` is the immediate `sel · 2 ^ 224` for an
-    immediate `sel`, else the result of `shl 224 sel` just before the first store, which
-    `word`'s machine operand is not.  `sel` is an `i32` (an immediate one below `2 ^ 32`) and
-    `word` a word (PLAN F9): H reverts with the low four bytes of `sel`'s word (`revertWordData`),
-    which are what `shl 224` keeps of the machine's. -/
+    evm_revert 0.i256 36.i256`).  The selector word `C` is the immediate
+    `(sel mod 2 ^ 32) · 2 ^ 224` for an immediate `sel` (`lower_revert_word`), else the result of
+    `shl 224 sel` just before the first store, which `word`'s machine operand is not.  `sel` has
+    width 32 or 256 (Sonatina's signature; EVM legalization widens the `i32` to `i256`) and
+    `word` is a word (PLAN F9): H reverts with the low four bytes of `sel`'s word
+    (`revertWordData`), which are what the mask and `shl 224` keep of the machine's. -/
 def revertWordOk (c : FCtx) (vm : VM) (s w : Operand) (ms : List Stmt) (mt : Term) : Bool :=
   (do
-    unless (c.tyOf s).any (sameW · (.int 32)) && (c.tyOf w).any isWord do none
+    unless (c.tyOf s).any selTy && (c.tyOf w).any isWord do none
     let w' ← mop vm w
     let rest ← match s with
-      | .imm _ v => take0 (.evm .mstore [imm 0, imm (v * 2 ^ 224)]) ms
+      | .imm _ v => take0 (.evm .mstore [imm 0, imm (v % 2 ^ 32 * 2 ^ 224)]) ms
       | .var _ => do
         let s' ← mop vm s
         let (t, ms) ← take1 (.bin .shl (imm 224) s') ms

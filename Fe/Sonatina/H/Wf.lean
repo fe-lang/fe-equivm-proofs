@@ -44,8 +44,8 @@ widths.  Each check names the way a run would otherwise be stuck:
   Sonatina width whose value is in range (`evalOp`, `Val.fits`);
 - `operandType`: the operands an instruction takes at one width have it (`bin`, `cmp`, `ovf`,
   `select`, a stored value and its type; `binVal`, `stepInst`); `evm_revert_word`'s selector is
-  an `i32` and its word of width 256 (H reads any value, I12; this is the instruction's
-  signature);
+  of width 32 or 256 (Sonatina's signature; EVM legalization widens the `i32` to `i256`) and its
+  word of width 256 (H reads any value, I12);
 - `results`, `resultType`: a statement binds as many values as its instruction gives, each
   declared at the width it has (`bindVals`; for a call, the callee's results);
 - `phiType`, `ret`, `retType`: each phi's operands have its width; each `return` returns as many
@@ -257,7 +257,7 @@ def wfReasons (s : HSection) : List (String × String) := Id.run do
         unless d.isSome && keys.length == cases.length && keys.eraseDups.length == keys.length do
           out := out ++ [("brTable", tw)]
       | .revertWord sel word =>
-        if known [sel, word] && (w sel != 32 || w word != 256) then
+        if known [sel, word] && ((w sel != 32 && w sel != 256) || w word != 256) then
           out := out ++ [("operandType", tw)]
       | _ => pure ()
   return out

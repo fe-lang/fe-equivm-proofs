@@ -926,9 +926,26 @@ func public %main() {
 #guard rule (run rws (rwm.replace "        evm_mstore 4" "        evm_mstore8 3.i256 0.i256;\n        evm_mstore 4") (rec1 160 [])) == "translation"
 -- A store missing.
 #guard rule (run rws (rwm.replace "        evm_mstore 4.i256 17.i256;\n" "") (rec1 160 [])) == "translation"
--- A selector of type `i256` (H would read the low four bytes of a word the machine keeps only
--- through the shift; the signature is `i32`, F9): rejected.
-#guard rule (run (rws.replace "1313373041.i32" "1313373041.i256") rwm (rec1 160 [])) == "translation"
+-- A selector of type `i256`, as EVM legalization writes it (corpus v9): accepted.
+#guard rule (run (rws.replace "1313373041.i32" "1313373041.i256") rwm (rec1 160 [])) == "accepted"
+-- A selector of another width (`i64`, `i8`): rejected (F9).
+#guard rule (run (rws.replace "1313373041.i32" "1313373041.i64") rwm (rec1 160 [])) == "translation"
+#guard rule (run (rws.replace "1313373041.i32" "113.i8") rwm (rec1 160 [])) == "translation"
+-- An `i256` immediate of `2 ^ 32` or more: its high bits are dropped (`(v mod 2 ^ 32) · 2 ^ 224`,
+-- `lower_revert_word`), so `2 ^ 32 + 0x4e487b71` gives Panic's constant: accepted.
+#guard rule (run (rws.replace "1313373041.i32" "5608340337.i256") rwm (rec1 160 [])) == "accepted"
+-- A machine immediate that keeps the high bits, `v · 2 ^ 224`, is the same word once read (the
+-- reader takes immediates modulo `2 ^ 256`), so that mutant cannot be written; one with a wrong
+-- low word, the selector's high word (`1 · 2 ^ 224`): rejected.
+#guard rule (run (rws.replace "1313373041.i32" "5608340337.i256")
+  (rwm.replace "35408467139433450592217433187231851964531694900788300625387963629091585785856" "26959946667150639794667015087019630673637144422540572481103610249216")
+  (rec1 160 [])) == "translation"
+#guard rule (run (rws.replace "1313373041.i32" "5608340337.i256")
+  (rwm.replace "35408467139433450592217433187231851964531694900788300625387963629091585785856" "35408467139433450592217433187231851964531694900788300625387963629091585785856000") (rec1 160 [])) == "translation"
+-- `-1.i256`: the low four bytes are `0xffffffff`.
+#guard rule (run (rws.replace "1313373041.i32" "-1.i256")
+  (rwm.replace "35408467139433450592217433187231851964531694900788300625387963629091585785856" "-26959946667150639794667015087019630673637144422540572481103610249216")
+  (rec1 160 [])) == "accepted"
 
 /-- A computed selector (an `i32` truncated from a word) and word: the shift `shl 224 sel` before
     the first store. -/

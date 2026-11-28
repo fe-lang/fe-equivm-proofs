@@ -167,9 +167,10 @@ theorem sel_bytes {c : Ethereum.UInt256} {n : Nat} (hc : c.toNat = n % 2 ^ 32 * 
   rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
   exact this
 
+/-- The selector word of an immediate selector of any value: its low 32 bits shifted. -/
 theorem shl224_toNat (n : Nat) :
-    (Ethereum.UInt256.ofNat (n * 2 ^ 224)).toNat = n % 2 ^ 32 * 2 ^ 224 := by
-  rw [toNat_ofNat_mod, show W = 2 ^ 32 * 2 ^ 224 by norm_num, Nat.mul_mod_mul_right]
+    (Ethereum.UInt256.ofNat (n % 2 ^ 32 * 2 ^ 224)).toNat = n % 2 ^ 32 * 2 ^ 224 := by
+  rw [toNat_ofNat_mod, show W = 2 ^ 32 * 2 ^ 224 by norm_num, Nat.mul_mod_mul_right, Nat.mod_mod]
 
 /-- Two words stored at 0 and 4, read back at `[0, 36)`: the first one's first four bytes and the
     second one. -/
@@ -199,14 +200,15 @@ theorem read_two_words (m : ByteArray) (c x : Ethereum.UInt256) :
 theorem revertWordOk_some {c : FCtx} {vm : VM} {s wd : Operand} {ms : List Stmt} {mt : Term}
     (h : revertWordOk c vm s wd ms mt = true) :
     ∃ w', mop vm wd = some w' ∧ mt = .evmRevert (imm 0) (imm 36) ∧
-      (c.tyOf s).any (sameW · (.int 32)) = true ∧ (c.tyOf wd).any isWord = true ∧
+      (c.tyOf s).any selTy = true ∧ (c.tyOf wd).any isWord = true ∧
       ((∃ b v, s = .imm b v ∧
-          ms = [⟨[], .evm .mstore [imm 0, imm (v * 2 ^ 224)]⟩, ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
+          ms = [⟨[], .evm .mstore [imm 0, imm (v % 2 ^ 32 * 2 ^ 224)]⟩,
+            ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
        (∃ x s' t, s = .var x ∧ mop vm s = some s' ∧ w' ≠ .var t ∧
           ms = [⟨[(t, .int 256)], .bin .shl (imm 224) s'⟩, ⟨[], .evm .mstore [imm 0, .var t]⟩,
             ⟨[], .evm .mstore [imm 4, w']⟩])) := by
   unfold revertWordOk at h
-  cases hc : ((c.tyOf s).any (sameW · (.int 32)) && (c.tyOf wd).any isWord) with
+  cases hc : ((c.tyOf s).any selTy && (c.tyOf wd).any isWord) with
   | false => simp [hc] at h
   | true =>
   simp only [Bool.and_eq_true] at hc
@@ -216,7 +218,7 @@ theorem revertWordOk_some {c : FCtx} {vm : VM} {s wd : Operand} {ms : List Stmt}
   refine ⟨w', rfl, ?_⟩
   cases s with
   | imm b v =>
-    cases h1 : take0 (.evm .mstore [imm 0, imm (v * 2 ^ 224)]) ms with
+    cases h1 : take0 (.evm .mstore [imm 0, imm (v % 2 ^ 32 * 2 ^ 224)]) ms with
     | none => simp [hc, hw', h1, -Nat.reducePow] at h
     | some rest =>
     cases h2 : take0 (.evm .mstore [imm 4, w']) rest with
@@ -773,15 +775,15 @@ theorem FnUnp.termCode {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be 
 
 /-- A selector of type `i32` and a word: their declared types, value types. -/
 theorem revertWord_types {c : FCtx} {s wd : Operand}
-    (hts : (c.tyOf s).any (sameW · (.int 32)) = true) (htw : (c.tyOf wd).any isWord = true) :
+    (hts : (c.tyOf s).any selTy = true) (htw : (c.tyOf wd).any isWord = true) :
     (∃ t, c.tyOf s = some t ∧ Ty.value t = true) ∧ ∃ t, c.tyOf wd = some t ∧ Ty.value t = true := by
   constructor
   · cases e : c.tyOf s with
     | none => rw [e] at hts; cases hts
     | some t =>
       rw [e] at hts
-      simp only [Option.any_some, sameW, Bool.and_eq_true] at hts
-      exact ⟨t, rfl, hts.1.1⟩
+      simp only [Option.any_some, selTy, sameW, Bool.or_eq_true, Bool.and_eq_true] at hts
+      exact ⟨t, rfl, by rcases hts with h | h <;> exact h.1.1⟩
   · cases e : c.tyOf wd with
     | none => rw [e] at htw; cases htw
     | some t =>
@@ -792,7 +794,8 @@ theorem revertWord_types {c : FCtx} {s wd : Operand}
 /-- The selector's machine operand, which `revertWordOk` takes or which is an immediate. -/
 theorem revertWord_mop {vm : VM} {s : Operand} {ms : List Stmt} {w' : Operand}
     (h : (∃ b v, s = .imm b v ∧
-          ms = [⟨[], .evm .mstore [imm 0, imm (v * 2 ^ 224)]⟩, ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
+          ms = [⟨[], .evm .mstore [imm 0, imm (v % 2 ^ 32 * 2 ^ 224)]⟩,
+            ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
        (∃ x s' t, s = .var x ∧ mop vm s = some s' ∧ w' ≠ .var t ∧
           ms = [⟨[(t, .int 256)], .bin .shl (imm 224) s'⟩, ⟨[], .evm .mstore [imm 0, .var t]⟩,
             ⟨[], .evm .mstore [imm 4, w']⟩])) : ∃ s', mop vm s = some s' := by

@@ -393,8 +393,10 @@ inductive TRes where
     bytes of `word`'s, as the EVM's `MSTORE` lays a word out (`UInt256.toByteArray`).  Each
     operand is read as the value operands of the other EVM operations are (`State.word`, the
     `evm_sstore` value, a log topic): an integer's value, a pointer's address word.  For a
-    selector of type `i32` (the `operandType` check of `wfH`) the low four bytes are its value;
-    taking them is also what the machine's `shl 224 sel` keeps of a wider word. -/
+    selector of type `i32` the low four bytes are its value; of an `i256` (the width EVM
+    legalization gives it; `wfH`'s `operandType` admits both) they are its value modulo
+    `2 ^ 32`, which is what machine lowering keeps (`(sel & 0xffffffff) << 224`, or
+    `shl 224 sel`). -/
 def revertWordData (sel word : Nat) : ByteArray :=
   (UInt256.ofNat sel).toByteArray.extract 28 32 ++ (UInt256.ofNat word).toByteArray
 

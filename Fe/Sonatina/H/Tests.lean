@@ -278,6 +278,12 @@ def revertOf (sel : List Nat) (word : List Nat) : String :=
   revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
 #guard outcome same (prog "        evm_revert_word 1313373041.i32 17.i256;\n") ==
   revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
+-- An `i256` selector, as EVM legalization widens it: its low four bytes, also of `2 ^ 32` or more.
+#guard outcome apart (prog "        evm_revert_word 1313373041.i256 17.i256;\n") ==
+  revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
+#guard outcome apart (prog "        evm_revert_word 5608340337.i256 17.i256;\n") ==
+  revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
+#guard outcome apart (prog "        evm_revert_word -1.i256 0.i256;\n") == revertOf [255, 255, 255, 255] []
 -- A selector of `2 ^ 31` or more, written negative.
 #guard outcome apart (prog "        evm_revert_word -1.i32 0.i256;\n") == revertOf [255, 255, 255, 255] []
 -- Computed operands: the selector a value of type `i32`, the word a value.
@@ -295,7 +301,8 @@ def revertOf (sel : List Nat) (word : List Nat) : String :=
 #guard (outcome apart (prog "        evm_revert_word v7 0.i256;\n")).startsWith "stuck"
 #guard rs (main1 [] (.revertWord (.imm 32 1) (k 0))) == []
 #guard rs (main1 [⟨[(1, .ptr i256)], .base (.alloca i256)⟩] (.revertWord (.imm 32 1) (v 1))) == []
-#guard rs (main1 [] (.revertWord (k 1) (k 0))) == ["operandType"]
+#guard rs (main1 [] (.revertWord (k 1) (k 0))) == []
+#guard rs (main1 [] (.revertWord (.imm 64 1) (k 0))) == ["operandType"]
 #guard rs (main1 [] (.revertWord (.imm 32 1) (.imm 32 0))) == ["operandType"]
 #guard rs (main1 [] (.revertWord (.imm 32 (2 ^ 32)) (k 0))) == ["imm"]
 #guard rs (main1 [] (.revertWord (v 9) (k 0))) == ["dominance", "undeclared"]
