@@ -53,4 +53,19 @@ theorem notObserved_evm_mstore {D : Derived} {k : Nat} {f : HFunc} (h : notObser
     rcases hop with rfl | rfl <;> simp [nonObserving, hi, EvmOp.addrPos] at this <;>
       split at this <;> simp at this
 
+/-- Rule S8's certificate for one statement: the results of a statement whose result is derived
+    (`stmtDerived`) are derived. -/
+theorem derivedOk_stmt {fs : List (Nat × HFunc × List (List (HStmt × Option Nat)))} {D : Derived}
+    (h : derivedOk fs D = true) {k : Nat} {f : HFunc} {bss : List (List (HStmt × Option Nat))}
+    (hf : (k, f, bss) ∈ fs) {b : HBlock} {ss : List (HStmt × Option Nat)}
+    (hb : (b, ss) ∈ f.blocks.zip bss) {s : HStmt} {c : Option Nat} (hs : (s, c) ∈ ss)
+    (hd : stmtDerived D k s c = true) : ∀ x ∈ s.defs, D.has k x = true := by
+  unfold derivedOk at h
+  simp only [List.all_eq_true, Bool.and_eq_true] at h
+  have h1 := ((h _ hf).2 _ hb).1.2 _ hs
+  simp only [Bool.or_eq_true, Bool.not_eq_true', Bool.and_eq_true] at h1
+  rcases h1.1 with h2 | h2
+  · rw [hd] at h2; cases h2
+  · exact List.all_eq_true.mp h2
+
 end Fe.Sonatina.Stage3.Place

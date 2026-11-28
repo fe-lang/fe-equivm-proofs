@@ -439,36 +439,210 @@ theorem mem_nset {y : Nat} : ∀ {l : List Nat}, y ∈ nset l ↔ y ∈ l
     show y ∈ sortedInsert x (nset xs) ↔ _
     rw [mem_sortedInsert, mem_nset, List.mem_cons]
 
-/-- A binary operation (`lower_structural`), outside address-0 mode: H's step gives the value
-    `binVal` does, of the result's type, with no change of state; the machine's statement binds
-    its machine value to the word of it; the value is related, valid, and rule S3 holds of it
-    by the origins certificate (`horig`). -/
-theorem inst_bin {S : SecFacts} {F : Frame} {g : Ghost} {hst : H.State} {w : World}
-    {envH : HEnv} {envM : Env} {L : List Nat} {c : FCtx} {vm vm' : VM} {s : HStmt}
-    {mb mb' : Nat} {ms ms' : List Stmt} {callee? : Option Nat} {ds : List Nat} {op : BinOp}
-    {a b : Operand} {x : Nat} {tx : Ty} (P : HSection) (I : Fe.EVM.Env) (cM : Ctx)
-    (fr : FuncRec) (hI : Inv S hst w g) (hz : S.z = false)
-    (hE : EnvRel S.z F g hst envH envM L) (hdecl : F.decls = c.decls) (hvm : F.vm = vm)
+
+/-! ## The step of a source statement
+
+What the simulation needs of each source statement `s` other than a call (`TemplOk`): the
+machine's run of the statements of its template, with calls by any oracle, ends in a result
+that H's step at `s` matches (`StepOk`): H halts in an outcome that excuses the result, or both
+go on, related by `Inv` and `EnvRel` at the point after `s`, the ghost extended (`GhostLe`). -/
+
+/-- H's outcome `o` excuses the machine's result `r`: H's run is undefined or out of heap
+    there, or the machine ends as H does. -/
+def Excuses {α : Type} (o : Outcome) (r : Except (Exit World) α) : Prop :=
+  o = .ub ∨ o = .exhausted ∨ ∃ e, r = .error e ∧ Matches o (.error e)
+
+/-- The ghost `g'` of state `hst'` extends the ghost `g` of `hst`: old blocks keep their
+    machine bases, sizes and address words, heap blocks stay heap blocks, and a live block whose
+    range misses every range of `fp` (the running function's footprint) stays live. -/
+structure GhostLe (fp : List Range) (g g' : Ghost) (hst hst' : H.State) : Prop where
+  size : hst.blocks.size ≤ hst'.blocks.size
+  j : ∀ b, b < hst.blocks.size → g'.j b = g.j b
+  bsize : ∀ b, b < hst.blocks.size → hst'.bsize b = hst.bsize b
+  addr : ∀ b, b < hst.blocks.size → hst'.addrOf b = hst.addrOf b
+  heap : ∀ b, g.heap b → g'.heap b
+  live : ∀ b, g.live b → (∀ r ∈ fp, Disj r (g.rg hst b)) → g'.live b
+
+theorem GhostLe.refl (fp : List Range) (g : Ghost) (hst : H.State) : GhostLe fp g g hst hst :=
+  ⟨le_refl _, fun _ _ => rfl, fun _ _ => rfl, fun _ _ => rfl, fun _ h => h, fun _ h _ => h⟩
+
+theorem GhostLe.rg {fp : List Range} {g g' : Ghost} {hst hst' : H.State}
+    (h : GhostLe fp g g' hst hst') {b : Nat} (hb : b < hst.blocks.size) :
+    g'.rg hst' b = g.rg hst b := by
+  simp only [Ghost.rg, h.j b hb, h.bsize b hb]
+
+theorem GhostLe.trans {fp : List Range} {g g' g'' : Ghost} {hst hst' hst'' : H.State}
+    (h₁ : GhostLe fp g g' hst hst') (h₂ : GhostLe fp g' g'' hst' hst'')
+    (hlt : ∀ b, g.live b → b < hst.blocks.size) : GhostLe fp g g'' hst hst'' where
+  size := le_trans h₁.size h₂.size
+  j b hb := by rw [h₂.j b (lt_of_lt_of_le hb h₁.size), h₁.j b hb]
+  bsize b hb := by rw [h₂.bsize b (lt_of_lt_of_le hb h₁.size), h₁.bsize b hb]
+  addr b hb := by rw [h₂.addr b (lt_of_lt_of_le hb h₁.size), h₁.addr b hb]
+  heap b hb := h₂.heap b (h₁.heap b hb)
+  live b hb hd := h₂.live b (h₁.live b hb hd) (by rw [h₁.rg (hlt b hb)]; exact hd)
+
+/-- What H does at statement `s`, against the machine's result `r` of its template: it halts in
+    an outcome that excuses `r`, or the machine goes on and H steps to a state related to the
+    machine's at the point after `s`, whose live values are `L'`. -/
+def StepOk (P : HSection) (I : Fe.EVM.Env) (S : SecFacts) (F : Frame) (g : Ghost) (hst : H.State)
+    (envH : HEnv) (s : HStmt) (L' : List Nat) (r : Except (Exit World) (Env × World)) : Prop :=
+  (∃ o, (∀ rest, ExecBody P I envH (s :: rest) hst (.halt o)) ∧ Excuses o r) ∨
+  ∃ envM' w', r = .ok (envM', w') ∧ ∃ envH' hst' g', Inv S hst' w' g' ∧
+    EnvRel S.z F g' hst' envH' envM' L' ∧ GhostLe F.fpf g g' hst hst' ∧
+    ∀ rest o, ExecBody P I envH' rest hst' o → ExecBody P I envH (s :: rest) hst o
+
+/-- The machine statements `pre` of `s`'s template, run from `envM` and `w` with calls by any
+    oracle, end in a result H's step at `s` matches. -/
+def TemplOk (P : HSection) (I : Fe.EVM.Env) (cM : Ctx) (S : SecFacts) (F : Frame) (g : Ghost)
+    (hst : H.State) (w : World) (envH : HEnv) (envM : Env) (s : HStmt) (L' : List Nat)
+    (pre : List Stmt) : Prop :=
+  ∀ (O : Oracle) r, (runBodyO O cM envM pre).exec I w = some r → StepOk P I S F g hst envH s L' r
+
+/-- The facts the simulation has at source statement `s` of a function walked under `c`: the
+    values live before it (`L`) and after it (`L'`), the machine values its template defines
+    (`ds`), and what the checks give about it: its results are declared, its operands live, the
+    machine values it defines none of another live value's (`clobberOk`), origins (S3) and, in
+    address-0 mode, derived values (S8) of the function's place `k`. -/
+structure At (S : SecFacts) (F : Frame) (c : FCtx) (Dr : Derived) (k : Nat) (s : HStmt)
+    (callee? : Option Nat) (L L' ds : List Nat) : Prop where
+  decls : F.decls = c.decls
+  dsts : ∀ d ∈ s.dsts, F.decls.find? d.1 = some d.2
+  uses : ∀ y, Operand.var y ∈ s.inst.args → y ∈ L
+  keep : ∀ y ∈ L', y ∉ s.defs → y ∈ L
+  clob : ∀ y ∈ L', y ∉ s.defs → ∀ m ∈ ds, F.vm.find? y ≠ some (.var m)
+  orig : ∀ x t, s.dsts = [(x, t)] → ∀ o ∈ stmtOrig c.frec F.O s, o ∈ origOf F.O (.var x)
+  D : F.D = Dr.has k
+  obs : S.z = true → ∀ i a, s.inst.args[i]? = some a → Dr.op k a = true → i ∈ nonObserving Dr k s
+  der : S.z = true → stmtDerived Dr k s callee? = true → ∀ x ∈ s.defs, Dr.has k x = true
+
+theorem At.dOp {S : SecFacts} {F : Frame} {c : FCtx} {Dr : Derived} {k : Nat} {s : HStmt}
+    {callee? : Option Nat} {L L' ds : List Nat} (hA : At S F c Dr k s callee? L L' ds) (a : Operand) :
+    F.dOp a = Dr.op k a := by
+  cases a <;> simp [Frame.dOp, Derived.op, hA.D]
+
+/-- Call-free statements run with calls by any oracle as `runPlain` runs them. -/
+theorem runBodyO_plain (O : Oracle) (c : Ctx) (env : Env) (ms : List Stmt)
+    (h : ∀ st ∈ ms, ∀ g a, st.inst ≠ .call g a) : runBodyO O c env ms = runPlain c env ms := by
+  induction ms generalizing env with
+  | nil => rfl
+  | cons st rest ih =>
+    rcases st with ⟨dsts, inst⟩
+    have h0 : ∀ g a, inst ≠ .call g a := h _ (List.mem_cons_self ..)
+    simp only [runBodyO, runPlain, runStmtO]
+    cases inst
+    case call g a => exact absurd rfl (h0 g a)
+    all_goals
+      congr 1; funext vals; congr 1; funext env'
+      exact ih env' fun st hs => h st (List.mem_cons_of_mem _ hs)
+
+/-- A statement H steps without changing its state, to one value related to the machine value
+    its template binds: the step goes on, related at the next point. -/
+theorem stepOk_pure1 {P : HSection} {I : Fe.EVM.Env} {S : SecFacts} {F : Frame} {g : Ghost}
+    {hst : H.State} {w : World} {envH : HEnv} {envM envM' : Env} {L L' : List Nat} {c : FCtx}
+    {Dr : Derived} {k : Nat} {s : HStmt} {callee? : Option Nat} {ds : List Nat}
+    (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' ds) {x : Nat} {tx : Ty} (hd : s.dsts = [(x, tx)])
+    {v : H.Val} (hstep : stepInst P.ctx I envH hst s.inst = .ok [v] hst) (hfit : v.fits tx = true)
+    (hkeep : ∀ r, r ∉ ds → envM'[r]? = envM[r]?) {m : Nat}
+    (hm : (F.vm.find? x).bind (mval envM') = some m) (hv : VRel g S.z (F.D x) v m)
+    (hok : ValOk hst v) (horig : OrigOk g hst F.R F.fpf (origOf F.O (.var x)) v) :
+    StepOk P I S F g hst envH s L' (.ok (envM', w)) := by
+  have hb : bindVals envH s.dsts [v] = some (envH.insert x v) := by
+    simp [bindVals, hd, hfit]
+  have hdefs : s.defs = [x] := by simp [HStmt.defs, hd]
+  refine Or.inr ⟨envM', w, rfl, envH.insert x v, hst, g, hI, ?_, GhostLe.refl _ _ _,
+    fun rest o hr => ExecBody.step hstep hb hr⟩
+  refine envRel_step hE (fun y hy hn => hA.keep y hy (by rw [hdefs]; rwa [hd] at hn)) hb hkeep
+    (fun y hy hn => hA.clob y hy (by rw [hdefs]; rwa [hd] at hn)) (fun _ h => h) (fun _ _ h => h) ?_
+  have hdt : F.decls.find? x = some tx := hA.dsts (x, tx) (by simp [hd])
+  intro y hy _
+  simp only [hd, List.map_cons, List.map_nil, List.mem_singleton] at hy
+  subst hy
+  exact ⟨v, m, by simp, ⟨tx, hdt, hfit⟩, hm, hv, hok, horig⟩
+
+/-! ## Binary operations -/
+
+theorem ptrBin_off {op : BinOp} {b o k b' o' : Nat} (A : Nat)
+    (h : ptrBin op b o k true = some (.ptr b' o')) :
+    b' = b ∧ (A + o') % W = op.eval 256 ((A + o) % W) k := by
+  cases op <;> simp only [ptrBin, reduceCtorEq, Option.some.injEq, H.Val.ptr.injEq] at h
+  · obtain ⟨rfl, rfl⟩ := h; exact ⟨rfl, wrap_add _ _ _⟩
+  · split at h
+    · obtain ⟨rfl, rfl⟩ := h; exact ⟨rfl, wrap_sub _ _ _⟩
+    · cases h
+  all_goals
+    split at h
+    · next hk =>
+      simp only [Option.some.injEq, H.Val.ptr.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      subst hk
+      refine ⟨rfl, ?_⟩
+      simp only [BinOp.eval]
+      first | rw [Nat.or_zero] | rw [Nat.xor_zero]
+            | rw [Nat.and_two_pow_sub_one_eq_mod, Nat.mod_mod]
+    · cases h
+
+theorem ptrBin_off2 {op : BinOp} {b o k b' o' : Nat} (A : Nat)
+    (h : ptrBin op b o k false = some (.ptr b' o')) :
+    b' = b ∧ (A + o') % W = op.eval 256 k ((A + o) % W) := by
+  cases op <;> simp only [ptrBin, reduceCtorEq, Option.some.injEq, H.Val.ptr.injEq,
+    Bool.false_eq_true, if_false] at h
+  · obtain ⟨rfl, rfl⟩ := h
+    refine ⟨rfl, ?_⟩
+    show (A + (o + k) % W) % W = wrap 256 (((k + (A + o) % W : Nat)) : Int)
+    rw [wrap_nat]; simp only [W]; omega
+  all_goals
+    split at h
+    · next hk =>
+      simp only [Option.some.injEq, H.Val.ptr.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      subst hk
+      refine ⟨rfl, ?_⟩
+      simp only [BinOp.eval]
+      first | rw [Nat.zero_or] | rw [Nat.zero_xor]
+            | rw [Nat.and_comm, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_mod]
+    · cases h
+
+theorem ptrBin_add_some (b o k : Nat) (f : Bool) : (ptrBin .add b o k f).isSome := by
+  simp [ptrBin]
+
+theorem ptrBin_sub_some (b o k : Nat) : (ptrBin .sub b o k true).isSome := by
+  simp [ptrBin]
+
+/-- A related machine word is a word. -/
+theorem vrel_lt {g : Ghost} {z dx : Bool} {v : H.Val} {m : Nat} {t : Ty} (hv : VRel g z dx v m)
+    (hf : v.fits t = true) (ht : Ty.value t = true) : m < W := by
+  cases v with
+  | int bits n =>
+    have : n = m := hv
+    subst this
+    exact lt_of_lt_of_le (fits_int hf).1 (Nat.pow_le_pow_right (by norm_num) (value_bits ht).2)
+  | ptr b o => rw [← hv.1]; exact Nat.mod_lt _ (by positivity)
+
+/-- A binary operation (`lower_structural`): H's step gives the value `binVal` does, of the
+    result's type, with no change of state; the machine's statement binds its machine value to
+    a word related to it.  Outside address-0 mode every operand's word in H is its machine word;
+    in it, rule S8 allows a derived (possibly inexact) pointer only as an operand of `add` with
+    an integer, or the first of `sub`, which keep its block and add to its offset. -/
+theorem inst_bin {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {F : Frame}
+    {g : Ghost} {hst : H.State} {w : World} {envH : HEnv} {envM : Env} {L L' : List Nat}
+    {c : FCtx} {Dr : Derived} {k : Nat} {s : HStmt} {mb mb' : Nat} {ms ms' : List Stmt}
+    {callee? : Option Nat} {vm' : VM} {ds : List Nat} {op : BinOp} {a b : Operand} {x : Nat}
+    {tx : Ty} (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
+    (hA : At S F c Dr k s callee? L L' ds)
     (hi : s.inst = .base (.bin op a b)) (hd : s.dsts = [(x, tx)])
-    (hlive : ∀ y, (a = .var y ∨ b = .var y) → y ∈ L)
-    (horig : ∀ o ∈ stmtOrig fr F.O s, o ∈ origOf F.O (.var x))
-    (h : stmt c true vm s mb ms callee? = some (vm', mb', ms', ds)) :
-    ∃ v r st1, ms = st1 :: ms' ∧ ds = [r] ∧ vm' = vm ∧ mb' = mb ∧ vm.find? x = some (.var r) ∧
-      (∀ rest, runPlain cM envM (st1 :: rest) =
-        runPlain cM (envM.insert r (.int 256 (hst.word v))) rest) ∧
-      stepInst P.ctx I envH hst s.inst = .ok [v] hst ∧ v.fits tx = true ∧
-      VRel g S.z (F.D x) v (hst.word v) ∧ ValOk hst v ∧
-      OrigOk g hst F.R F.fpf (origOf F.O (.var x)) v := by
+    (h : stmt c true F.vm s mb ms callee? = some (vm', mb', ms', ds)) :
+    ∃ pre, ms = pre ++ ms' ∧ mb' = mb ∧ TemplOk P I cM S F g hst w envH envM s L' pre := by
   obtain ⟨ta, tb, a', b', r, hta, htb, ha', hb', hok, hms, rfl, hx, rfl, rfl⟩ := stmt_bin hi hd h
   simp only [Bool.and_eq_true, Bool.not_eq_true', Bool.or_eq_true, beq_iff_eq] at hok
   obtain ⟨⟨⟨hsw, hgen⟩, hbits⟩, hsx⟩ := hok
-  obtain ⟨va, ma, hva, hfa, hma, hra, hoa, hga⟩ :=
-    opnd_rel hE hdecl hvm (fun y hy => hlive y (Or.inl hy)) hta ha'
-  obtain ⟨vb, mb, hvb, hfb, hmb, hrb, hob, hgb⟩ :=
-    opnd_rel hE hdecl hvm (fun y hy => hlive y (Or.inr hy)) htb hb'
+  have hargs : s.inst.args = [a, b] := by simp [hi, HInst.args, HInst.skel, Inst.args]
+  obtain ⟨va, ma, hva, hfa, hma, hra, hoa, hga⟩ := opnd_rel hE hA.decls rfl
+    (fun y hy => hA.uses y (by rw [hargs, ← hy]; simp)) hta ha'
+  obtain ⟨vb, mb, hvb, hfb, hmb, hrb, hob, hgb⟩ := opnd_rel hE hA.decls rfl
+    (fun y hy => hA.uses y (by rw [hargs, ← hy]; simp)) htb hb'
   have hval : Ty.value ta = true := by simp only [sameW, Bool.and_eq_true] at hsw; exact hsw.1.1
   have hfb' : vb.fits ta = true := fits_sameW hsw hfb
-  -- The operands' widths are the type's.
   have hbw : ∀ v : H.Val, v.fits ta = true → v.bits = ta.bits := by
     intro v hv
     rw [fits_iff hval] at hv
@@ -476,16 +650,110 @@ theorem inst_bin {S : SecFacts} {F : Frame} {g : Ghost} {hst : H.State} {w : Wor
     | int bits n => exact hv.1
     | ptr _ _ => exact hv.1.symm
   obtain ⟨v, hv⟩ := binVal_some (st := hst) hgen ((hbw va hfa).trans (hbw vb hfb').symm)
-  have hwa := vrel_word hI hra hoa (Or.inl hz)
-  have hwb := vrel_word hI hrb hob (Or.inl hz)
   have hfv : v.fits ta = true := binVal_fits hv hfa hfb' hval hbits hoa hob
-  have hword : hst.word v = op.eval 256 ma mb := by
-    rw [binVal_word hv, hbw va hfa, hwa, hwb]
-    rcases hbits with h256 | ⟨h1, hi1⟩
-    · rw [h256]
-    · rw [h1]; exact BinOp.okI1_eval hi1 1 256 _ _
-  have hlt : ∀ u : H.Val, u.fits ta = true → hst.word u < W := fun u hu =>
-    word_lt hst u hu (value_bits hval).2
+  have hla : ma < W := vrel_lt hra hfa hval
+  have hlb : mb < W := vrel_lt hrb hfb' hval
+  -- Rule S8, in address-0 mode: where a derived operand may be, and that the result is derived.
+  have hobs : S.z = true → (F.dOp a = true → (op = .add ∧ F.dOp b = false) ∨
+      (op = .sub ∧ F.dOp b = false)) ∧ (F.dOp b = true → op = .add ∧ F.dOp a = false) := by
+    intro hz
+    rw [hA.dOp a, hA.dOp b]
+    have h0 := hA.obs hz 0 a (by rw [hargs]; rfl)
+    have h1 := hA.obs hz 1 b (by rw [hargs]; rfl)
+    simp only [nonObserving, hi] at h0 h1
+    constructor
+    · intro hda
+      have := h0 hda
+      cases op <;> simp_all
+    · intro hdb
+      have := h1 hdb
+      cases op <;> simp_all
+  have hder : S.z = true → (F.dOp a = true ∨ F.dOp b = true) → F.D x = true := by
+    intro hz hab
+    have hs : stmtDerived Dr k s callee? = true := by
+      obtain ⟨h1, h2⟩ := hobs hz
+      rw [hA.dOp a, hA.dOp b] at h1 h2 hab
+      simp only [stmtDerived, hi]
+      rcases hab with hab | hab
+      · rcases h1 hab with ⟨rfl, _⟩ | ⟨rfl, _⟩ <;> simp [hab]
+      · obtain ⟨rfl, _⟩ := h2 hab; simp [hab]
+    rw [hA.D]
+    exact hA.der hz hs x (by simp [HStmt.defs, hd])
+  -- The value is related to the machine's word.
+  have hw : ∀ y : H.Val, ∀ dy my, VRel g S.z dy y my → ValOk hst y → S.z = false →
+      hst.word y = my := fun y dy my hy ho hz => vrel_word hI hy ho (Or.inl hz)
+  have hrel : VRel g S.z (F.D x) v (op.eval 256 ma mb % W) := by
+    have hev : ∀ n, n < W → op.eval 256 ma mb = n → n = op.eval 256 ma mb % W := fun n hn he => by
+      rw [he, Nat.mod_eq_of_lt hn]
+    unfold binVal at hv
+    rw [if_neg (by rw [hgen]; simp [(hbw va hfa).trans (hbw vb hfb').symm])] at hv
+    match va, vb, hv, hra, hrb, hoa, hob with
+    | .int bits na, .int _ nb, hv, hra, hrb, _, _ =>
+      simp only [Option.some.injEq] at hv
+      subst hv
+      have e1 : na = ma := hra
+      have e2 : nb = mb := hrb
+      subst e1 e2
+      have hbt : bits = ta.bits := hbw _ hfa
+      show op.eval bits na nb = _
+      have : op.eval bits na nb = op.eval 256 na nb := by
+        rcases hbits with h256 | ⟨h1, hi1⟩
+        · rw [hbt, h256]
+        · rw [hbt, h1]; exact BinOp.okI1_eval hi1 1 256 _ _
+      rw [this, Nat.mod_eq_of_lt (eval_lt op hla hlb)]
+    | .ptr ba oa, .int _ kb, hv, hra, hrb, hoa, _ =>
+      have e2 : kb = mb := hrb
+      subst e2
+      dsimp only at hv
+      cases hp : ptrBin op ba oa kb true with
+      | some v' =>
+        rw [hp] at hv
+        simp only [Option.getD_some, Option.some.injEq] at hv
+        subst hv
+        obtain ⟨o', rfl, _⟩ := ptrBin_some hp
+        obtain ⟨-, he⟩ := ptrBin_off (g.j ba) hp
+        exact ⟨by rw [he, hra.1, Nat.mod_eq_of_lt (eval_lt op hla hlb)],
+          fun hz => hder hz (Or.inl (hra.2 hz))⟩
+      | none =>
+        rw [hp] at hv
+        simp only [Option.getD_none, Option.some.injEq] at hv
+        subst hv
+        cases hz : S.z
+        · show op.eval 256 (hst.word (.ptr ba oa)) kb = _
+          rw [hw _ _ _ hra hoa hz, Nat.mod_eq_of_lt (eval_lt op hla hlb)]
+        · exfalso
+          rcases (hobs hz).1 (hra.2 hz) with ⟨rfl, _⟩ | ⟨rfl, _⟩ <;> simp [ptrBin] at hp
+    | .int _ ka, .ptr bb ob, hv, hra, hrb, _, hob =>
+      have e1 : ka = ma := hra
+      subst e1
+      dsimp only at hv
+      cases hp : ptrBin op bb ob ka false with
+      | some v' =>
+        rw [hp] at hv
+        simp only [Option.getD_some, Option.some.injEq] at hv
+        subst hv
+        obtain ⟨o', rfl, _⟩ := ptrBin_some hp
+        obtain ⟨-, he⟩ := ptrBin_off2 (g.j bb) hp
+        exact ⟨by rw [he, hrb.1, Nat.mod_eq_of_lt (eval_lt op hla hlb)],
+          fun hz => hder hz (Or.inr (hrb.2 hz))⟩
+      | none =>
+        rw [hp] at hv
+        simp only [Option.getD_none, Option.some.injEq] at hv
+        subst hv
+        cases hz : S.z
+        · show op.eval 256 ka (hst.word (.ptr bb ob)) = _
+          rw [hw _ _ _ hrb hob hz, Nat.mod_eq_of_lt (eval_lt op hla hlb)]
+        · exfalso
+          obtain ⟨rfl, _⟩ := (hobs hz).2 (hrb.2 hz)
+          simp [ptrBin] at hp
+    | .ptr ba oa, .ptr bb ob, hv, hra, hrb, hoa, hob =>
+      simp only [Option.some.injEq] at hv
+      subst hv
+      cases hz : S.z
+      · show op.eval 256 (hst.word (.ptr ba oa)) (hst.word (.ptr bb ob)) = _
+        rw [hw _ _ _ hra hoa hz, hw _ _ _ hrb hob hz, Nat.mod_eq_of_lt (eval_lt op hla hlb)]
+      · exfalso
+        rcases (hobs hz).1 (hra.2 hz) with ⟨_, h⟩ | ⟨_, h⟩ <;> rw [hrb.2 hz] at h <;> cases h
   have hok : ValOk hst v := by
     cases v with
     | int => trivial
@@ -494,25 +762,26 @@ theorem inst_bin {S : SecFacts} {F : Frame} {g : Ghost} {hst : H.State} {w : Wor
       rcases hc with ⟨⟨o', rfl⟩, _⟩ | ⟨⟨o', rfl⟩, _⟩
       · exact ⟨hoa.1, holt⟩
       · exact ⟨hob.1, holt⟩
-  refine ⟨v, r, _, hms, rfl, rfl, rfl, hx, fun rest => ?_, ?_, fits_sameW hsx hfv, ?_, hok, ?_⟩
-  · rw [runPlain_bin cM hma hmb, ← hword, Nat.mod_eq_of_lt (hlt v hfv)]
-  · simp [stepInst, hi, hva, hvb, hv]
-  · cases v with
-    | int bits n => rfl
-    | ptr bv ov =>
-      refine ⟨?_, fun h => by rw [hz] at h; cases h⟩
-      have hj : g.j bv ≠ 0 := fun h0 => by rw [hI.zero bv hok.1 h0] at hz; cases hz
-      rw [word_ptr, hI.exact bv hok.1 hj]
-  · cases v with
+  have horig : OrigOk g hst F.R F.fpf (origOf F.O (.var x)) v := by
+    cases v with
     | int => trivial
     | ptr bv ov =>
       obtain ⟨_, hc⟩ := binVal_ptr hv hoa hob
-      have hsub : ∀ o ∈ stmtOrig fr F.O s, o ∈ origOf F.O (.var x) := horig
+      have hsub := hA.orig x tx hd
       simp only [stmtOrig, hi] at hsub
       rcases hc with ⟨⟨o', rfl⟩, hop⟩ | ⟨⟨o', rfl⟩, hop⟩
       · refine OrigOk.mono (os := origOf F.O a) hga fun o ho => hsub o ?_
         rcases hop with rfl | rfl | rfl | rfl | rfl <;> simp [mem_nset, ho]
       · refine OrigOk.mono (os := origOf F.O b) hgb fun o ho => hsub o ?_
         rcases hop with rfl | rfl | rfl | rfl <;> simp [mem_nset, ho]
+  refine ⟨[_], hms, rfl, fun O res hres => ?_⟩
+  rw [runBodyO_plain O cM envM _ (by simp), runPlain_bin cM hma hmb] at hres
+  simp only [runPlain, Fe.M.exec_pure, Option.some.injEq] at hres
+  subst hres
+  refine stepOk_pure1 hI hE hA hd (by simp [stepInst, hi, hva, hvb, hv]) (fits_sameW hsx hfv)
+    (fun r' hr' => ?_) (by rw [hx]; simp [mval]) hrel hok horig
+  have hne : r ≠ r' := fun e => hr' (by simp [e])
+  rw [Std.TreeMap.getElem?_insert]
+  simp [compare_eq_iff_eq, hne]
 
 end Fe.Sonatina.Stage3.Place
