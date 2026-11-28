@@ -307,14 +307,15 @@ theorem TemplOk.c {O : Oracle} {F : Frame} {g : Ghost} {hst : H.State} {w : Worl
 
 /-- The machine run of a diamond's template from block `mb`: its statements `ms` in `mb`, the
     branch on `cv`, the arm taken (the join itself, or a block without phis that jumps to it),
-    and the join's phis. -/
+    the join's phis, and the template's statements `pre₂` at the start of the join's body. -/
 def diaRun (O : Oracle) (mf : Func) (mb : Nat) (ms : List Stmt) (cv : Operand) (t₁ t₂ jn : Nat)
-    (jb : Block) (envM : Env) : FeM Env :=
+    (jb : Block) (pre₂ : List Stmt) (envM : Env) : FeM Env :=
   runBodyO O cM envM ms >>= fun env₁ => evalInt env₁ cv >>= fun p =>
     (if (if p.2 != 0 then t₁ else t₂) = jn then pure (env₁, mb)
      else match mf.block? (if p.2 != 0 then t₁ else t₂) with
        | some ab => runBodyO O cM env₁ ab.body >>= fun e => pure (e, if p.2 != 0 then t₁ else t₂)
-       | none => stuck) >>= fun q => Fe.Sonatina.enter q.1 (some q.2) jb
+       | none => stuck) >>= fun q => Fe.Sonatina.enter q.1 (some q.2) jb >>= fun e =>
+    runBodyO O cM e pre₂
 
 end defs
 
@@ -334,16 +335,17 @@ def StdK (fn : Fn) (b : HBlock) (i : Nat) (s : HStmt) (ms ms' : List Stmt) : Pro
 
 /-- A statement whose template branches: block `mb` runs the statements `ms` left and branches
     on `cv`; an arm is the join `mb'` or a block without phis that jumps to it; the join's phis
-    end the template, whose run (`diaRun`) ends as H's step does. -/
+    and the statements `pre₂` its body starts with end the template, whose run (`diaRun`) ends as
+    H's step does. -/
 def DiaK (fn : Fn) (b : HBlock) (i : Nat) (s : HStmt) (mb : Nat) (ms : List Stmt) (mb' : Nat)
     (ms' : List Stmt) : Prop :=
-  ∃ mblk cv t₁ t₂ jb, fn.c.mf.block? mb = some mblk ∧ mblk.term = .br cv t₁ t₂ ∧
-    fn.c.mf.block? mb' = some jb ∧ ms' = jb.body ∧
+  ∃ mblk cv t₁ t₂ jb pre₂, fn.c.mf.block? mb = some mblk ∧ mblk.term = .br cv t₁ t₂ ∧
+    fn.c.mf.block? mb' = some jb ∧ jb.body = pre₂ ++ ms' ∧
     (∀ a, (a = t₁ ∨ a = t₂) → a ≠ mb' →
       ∃ ab, fn.c.mf.block? a = some ab ∧ ab.phis = [] ∧ ab.term = .jump mb') ∧
     ∀ O, CP O → ∀ g hst w envH envM, Inv S hst w g →
       EnvRel S.z fn.F g hst envH envM (fn.live b i) →
-      ∀ r, (diaRun cM O fn.c.mf mb ms cv t₁ t₂ mb' jb envM).exec I w = some r →
+      ∀ r, (diaRun cM O fn.c.mf mb ms cv t₁ t₂ mb' jb pre₂ envM).exec I w = some r →
         StepOk P I S fn.F g hst envH s (fn.live b (i + 1)) r
 
 /-- A terminal fixed buffer (rule S6): every run of the rest of the function from the site that
@@ -362,7 +364,7 @@ def StmtObl (fn : Fn) : Prop :=
   ∀ b ∈ fn.f.blocks, ∀ i s, b.body[i]? = some s → ∀ mb ms cs, fn.pos b i = some (mb, ms, cs) →
     ∀ vm' mb' ms' ds, stmt fn.c true fn.F.vm s mb ms (calleeOf s cs).1 = some (vm', mb', ms', ds) →
       (mb' = mb ∧ StdK P I cM S CP fn b i s ms ms') ∨
-      (mb' ≠ mb ∧ DiaK P I cM S CP fn b i s mb ms mb' ms') ∨ FixK P I cM S Dr CP fn b i mb ms
+      DiaK P I cM S CP fn b i s mb ms mb' ms' ∨ FixK P I cM S Dr CP fn b i mb ms
 
 /-- Every block's terminator, with the machine statements left in the block its region ends in:
     H halts excusing the machine's result, or both go to related blocks, or both return. -/
@@ -419,21 +421,23 @@ def BQ (fn : Fn) (O : Oracle) (env : Env) (prev : Option Nat) (id : Nat) (w : Wo
     PrevOk fn pH prev → EdgeRel S fn g hst pH b envH env → Inv S hst w g →
     GhostLe fn.F.fpf g₀ g hst₀ hst → (∀ b, g₀.live b → b < hst₀.blocks.size) →
     ∃ fo, ExecBlocks P I fn.f envH pH b.id hst fo ∧ FRel S Dr fn g₀ hst₀ fo r) ∧
-  (∀ b ∈ fn.f.blocks, ∀ i s mb ms cs vm' jn ms' ds cs' mblk cv t₁ t₂ jb envH envM g g₀ hst hst₀ w₀,
+  (∀ b ∈ fn.f.blocks, ∀ i s mb ms cs vm' jn ms' ds cs' mblk cv t₁ t₂ jb pre₂ envH envM g g₀ hst hst₀
+      w₀,
     b.body[i]? = some s → fn.pos b i = some (mb, ms, cs) →
     stmt fn.c true fn.F.vm s mb ms (calleeOf s cs).1 = some (vm', jn, ms', ds) →
     fn.pos b (i + 1) = some (jn, ms', cs') →
     fn.c.mf.block? mb = some mblk → mblk.term = .br cv t₁ t₂ → fn.c.mf.block? jn = some jb →
-    ms' = jb.body → Inv S hst w₀ g → GhostLe fn.F.fpf g₀ g hst₀ hst →
+    jb.body = pre₂ ++ ms' → Inv S hst w₀ g → GhostLe fn.F.fpf g₀ g hst₀ hst →
     (∀ b, g₀.live b → b < hst₀.blocks.size) →
-    (∀ x, (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb envM).exec I w₀ = some x →
+    (∀ x, (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb pre₂ envM).exec I w₀ = some x →
       StepOk P I S fn.F g hst envH s (fn.live b (i + 1)) x) →
-    ((id = jn ∧ ∃ p, prev = some p ∧ ∀ x, (Fe.Sonatina.enter env (some p) jb).exec I w = some x →
-        (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb envM).exec I w₀ = some x) ∨
+    ((id = jn ∧ ∃ p, prev = some p ∧ ∀ x, (Fe.Sonatina.enter env (some p) jb >>= fun e =>
+        runBodyO O cM e pre₂).exec I w = some x →
+        (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb pre₂ envM).exec I w₀ = some x) ∨
      (id ≠ jn ∧ prev = some mb ∧ ∃ ab, fn.c.mf.block? id = some ab ∧ ab.phis = [] ∧
         ab.term = .jump jn ∧ ∀ x, (runBodyO O cM env ab.body >>= fun e =>
-          Fe.Sonatina.enter e (some id) jb).exec I w = some x →
-          (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb envM).exec I w₀ = some x)) →
+          Fe.Sonatina.enter e (some id) jb >>= fun e' => runBodyO O cM e' pre₂).exec I w = some x →
+          (diaRun cM O fn.c.mf mb ms cv t₁ t₂ jn jb pre₂ envM).exec I w₀ = some x)) →
     Tail P I S Dr fn g₀ hst₀ b (b.body.drop i) envH hst r)
 
 end obl
@@ -601,7 +605,7 @@ theorem walk_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {O 
     obtain ⟨s, hs⟩ : ∃ s, b.body[i]? = some s :=
       ⟨b.body[i]'(by omega), List.getElem?_eq_getElem (by omega)⟩
     obtain ⟨vm', mb', ms', ds, hstm, hp'⟩ := pos_succ hp hs (hfn.walks b hb)
-    rcases hfn.stmt b hb i s hs mb ms cs hp vm' mb' ms' ds hstm with ⟨hmm, hK⟩ | ⟨hne, hK⟩ | hK
+    rcases hfn.stmt b hb i s hs mb ms cs hp vm' mb' ms' ds hstm with ⟨hmm, hK⟩ | hK | hK
     · rw [hmm] at hp'
       obtain ⟨pre, rfl, hT⟩ := hK O hO g hst w envH envM hI hE
       rw [drop_cons hs]
@@ -616,7 +620,7 @@ theorem walk_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {O 
           obtain ⟨rfl, rfl⟩ := heq
           exact tail_step hc (ih (i + 1) (by omega) mb ms' _ hp' mblk hmb g₀ hst₀ g' hst' w₁ envH'
             envM₁ hI' hE' (hgl.trans hgl' hlt) hlt r h2)
-    · obtain ⟨mblk', cv, t₁, t₂, jb, hmb', hbr, hjb, hms', harms, hD⟩ := hK
+    · obtain ⟨mblk', cv, t₁, t₂, jb, pre₂, hmb', hbr, hjb, hms', harms, hD⟩ := hK
       rw [hmb] at hmb'
       cases hmb'
       have hstep := hD O hO g hst w envH envM hI hE
@@ -632,7 +636,7 @@ theorem walk_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {O 
           · rw [drop_cons hs]; exact tail_halt hall (Excuses.of_error hx)
           · cases heq
         · have hq := (hG env₁ (some mb) _ w₂ r h4).2.2 b hb i s mb ms cs vm' mb' ms' ds _ mblk cv
-            t₁ t₂ jb envH envM g g₀ hst hst₀ w hs hp hstm hp' hmb hbr hjb hms' hI hgl hlt hstep
+            t₁ t₂ jb pre₂ envH envM g g₀ hst hst₀ w hs hp hstm hp' hmb hbr hjb hms' hI hgl hlt hstep
           by_cases ha : (if v != 0 then t₁ else t₂) = mb'
           · refine hq (Or.inl ⟨ha, mb, rfl, fun x hx => ?_⟩)
             unfold diaRun
@@ -691,17 +695,19 @@ theorem blocks_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {
         have := walk_sim hfn hO hG hb b.body.length 0 (by omega) id mblk.body (fn.cs b.id)
           (pos_zero hstart) mblk hblk g₀ hst₀ g hst w envH₁ env₁ hI hE hgl hlt r h2'
         simpa only [List.drop_zero] using this
-    · intro b hb i s mb ms cs vm' jn ms' ds cs' mblk cv t₁ t₂ jb envH envM g g₀ hst hst₀ w₀ hs hp
-        hstm hp' hmb hbr hjb hms' hI hgl hlt hstep hkind
+    · intro b hb i s mb ms cs vm' jn ms' ds cs' mblk cv t₁ t₂ jb pre₂ envH envM g g₀ hst hst₀ w₀ hs
+        hp hstm hp' hmb hbr hjb hms' hI hgl hlt hstep hkind
       have hi : i < b.body.length := by rw [List.getElem?_eq_some_iff] at hs; exact hs.1
       rcases hkind with ⟨rfl, p, rfl, hpre⟩ | ⟨hne, rfl, ab, hab, hph, hterm, hpre⟩
-      · simp only [stepBlock, hjb, bind_assoc] at h
-        rcases exec_bind_some h with ⟨e, h1, -⟩ | ⟨env₂, w₁, h1, h2⟩
-        · obtain ⟨a, ha⟩ := Quiet.enter env (some p) jb I w _ h1
-          cases ha
-        · have hw := Quiet.world (Quiet.enter env (some p) jb) h1
-          subst hw
-          rcases hstep _ (hpre _ h1) with ⟨o, hall, hx⟩ |
+      · simp only [stepBlock, hjb, hms', runBodyO_append, bind_assoc] at h
+        have h' : ((Fe.Sonatina.enter env (some p) jb >>= fun e => runBodyO O cM e pre₂) >>=
+            fun e => runBodyO O cM e ms' >>= fun e => termK G id e jb.term).exec I w = some r := by
+          simp only [bind_assoc, termK_eq]; exact h
+        rcases exec_bind_some h' with ⟨e, h1, rfl⟩ | ⟨env₂, w₁, h1, h2⟩
+        · rcases hstep _ (hpre _ h1) with ⟨o, hall, hx⟩ | ⟨_, _, heq, _⟩
+          · rw [drop_cons hs]; exact tail_halt hall (Excuses.of_error hx)
+          · cases heq
+        · rcases hstep _ (hpre _ h1) with ⟨o, hall, hx⟩ |
             ⟨envM', w', heq, envH', hst', g', hI', hE', hgl', hc⟩
           · rw [drop_cons hs]; exact tail_halt hall (Excuses.of_ok hx r)
           · simp only [Except.ok.injEq, Prod.mk.injEq] at heq
@@ -709,18 +715,16 @@ theorem blocks_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {
             subst envM'
             subst w'
             rw [drop_cons hs]
-            subst hms'
-            refine tail_step hc (walk_sim hfn hO hG hb (b.body.length - (i + 1)) (i + 1) (by omega)
-              id jb.body cs' hp' jb hjb g₀ hst₀ g' hst' w envH' env₂ hI' hE' (hgl.trans hgl' hlt)
-              hlt r ?_)
-            simp only [termK_eq]; exact h2
+            exact tail_step hc (walk_sim hfn hO hG hb (b.body.length - (i + 1)) (i + 1) (by omega)
+              id ms' cs' hp' jb hjb g₀ hst₀ g' hst' w₁ envH' env₂ hI' hE' (hgl.trans hgl' hlt)
+              hlt r h2)
       · simp only [stepBlock, hab, enter_nil hph, pure_bind, hterm, runTerm, bind_assoc] at h
         rcases exec_bind_some h with ⟨e, h1, rfl⟩ | ⟨e, w₁, h1, h2⟩
         · rcases hstep _ (hpre _ (exec_bind_error h1)) with ⟨o, hall, hx⟩ | ⟨_, _, heq, _⟩
           · rw [drop_cons hs]; exact tail_halt hall (Excuses.of_error hx)
           · cases heq
         · exact (hG e (some id) jn w₁ r h2).2.2 b hb i s mb ms cs vm' jn ms' ds cs' mblk cv t₁ t₂ jb
-            envH envM g g₀ hst hst₀ w₀ hs hp hstm hp' hmb hbr hjb hms' hI hgl hlt hstep
+            pre₂ envH envM g g₀ hst hst₀ w₀ hs hp hstm hp' hmb hbr hjb hms' hI hgl hlt hstep
             (Or.inl ⟨rfl, id, rfl, fun x hx => hpre x (by rw [exec_bind_ok h1]; exact hx)⟩)
 
 /-- A function run with calls by an oracle that satisfies the call contract satisfies it. -/
