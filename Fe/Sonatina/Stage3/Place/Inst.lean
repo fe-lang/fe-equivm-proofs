@@ -310,4 +310,209 @@ theorem binVal_ptr {st : H.State} {op : BinOp} {x y : H.Val} {b o : Nat}
       · cases h
   | .ptr _ _, .ptr _ _, h => cases h
 
+theorem wrap_lt (bits : Nat) (n : Int) : wrap bits n < 2 ^ bits := by
+  unfold wrap
+  have hp : ((2 : Int) ^ bits) = ((2 ^ bits : Nat) : Int) := by push_cast; rfl
+  rw [hp]
+  have hp' : (0 : Int) < ((2 ^ bits : Nat) : Int) := by positivity
+  rw [Int.toNat_lt (Int.emod_nonneg _ (ne_of_gt hp'))]
+  exact Int.emod_lt_of_pos _ hp'
+
+theorem toNat_lt' (u : Ethereum.UInt256) : u.toNat < W := u.val.isLt
+
+/-- An operation on words gives a word. -/
+theorem eval_lt (op : BinOp) {x y : Nat} (hx : x < W) (hy : y < W) : op.eval 256 x y < W := by
+  cases op <;> simp only [BinOp.eval]
+  all_goals first
+    | exact wrap_lt _ _
+    | exact toNat_lt' _
+    | (split <;> (try split) <;> first
+        | exact wrap_lt _ _
+        | exact Nat.two_pow_pos 256
+        | exact Nat.sub_lt (Nat.two_pow_pos 256) Nat.one_pos
+        | exact lt_of_le_of_lt (Nat.div_le_self _ _) hx
+        | exact lt_of_le_of_lt (Nat.mod_le _ _) hx
+        | (rw [Nat.shiftRight_eq_div_pow]; exact lt_of_le_of_lt (Nat.div_le_self _ _) hy))
+    | exact Nat.and_lt_two_pow _ hy
+    | exact Nat.or_lt_two_pow hx hy
+    | exact Nat.xor_lt_two_pow hx hy
+
+theorem fits_iff {v : H.Val} {t : Ty} (ht : Ty.value t = true) :
+    v.fits t = true ↔ match v with
+      | .int bits n => bits = t.bits ∧ n < 2 ^ t.bits
+      | .ptr _ o => t.bits = 256 ∧ o < W := by
+  cases v <;> cases t <;> simp_all [H.Val.fits, Ty.value, Ty.bits, W]
+
+theorem fits_sameW {v : H.Val} {t u : Ty} (h : sameW t u = true) (hv : v.fits u = true) :
+    v.fits t = true := by
+  simp only [sameW, Bool.and_eq_true, beq_iff_eq] at h
+  rw [fits_iff h.1.2] at hv
+  rw [fits_iff h.1.1, h.2]
+  exact hv
+
+/-- `binVal`'s result has its operands' type, at a word or (an operation of `okI1`) at `i1`. -/
+theorem binVal_fits {st : H.State} {op : BinOp} {x y v : H.Val} {t : Ty}
+    (h : binVal st op x y = some v) (hx : x.fits t = true) (hy : y.fits t = true)
+    (ht : Ty.value t = true) (hb : t.bits = 256 ∨ (t.bits = 1 ∧ op.okI1 = true))
+    (hox : ValOk st x) (hoy : ValOk st y) : v.fits t = true := by
+  rw [fits_iff ht]
+  cases v with
+  | ptr b o =>
+    obtain ⟨hlt, hc⟩ := binVal_ptr h hox hoy
+    rcases hc with ⟨⟨o', rfl⟩, _⟩ | ⟨⟨o', rfl⟩, _⟩
+    · exact ⟨(fits_ptr hx).2, hlt⟩
+    · exact ⟨(fits_ptr hy).2, hlt⟩
+  | int bits n =>
+    unfold binVal at h
+    split at h
+    · cases h
+    match x, y, h with
+    | .int b1 a1, .int _ a2, h =>
+      simp only [Option.some.injEq, H.Val.int.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      obtain ⟨h1, h1'⟩ := fits_int hx
+      obtain ⟨h2, _⟩ := fits_int hy
+      refine ⟨h1', ?_⟩
+      rw [h1']
+      rcases hb with hb | ⟨hb, hok⟩
+      · rw [hb] at h1 h2 ⊢; exact eval_lt op h1 h2
+      · rw [hb] at h1 h2 ⊢
+        cases op <;> simp [BinOp.okI1] at hok <;> simp only [BinOp.eval]
+        · exact Nat.and_lt_two_pow _ h2
+        · exact Nat.or_lt_two_pow h1 h2
+        · exact Nat.xor_lt_two_pow h1 h2
+    | .ptr b' o', .int _ k, h =>
+      dsimp only at h
+      have ht256 := (fits_ptr hx).2
+      cases hp : ptrBin op b' o' k true with
+      | none =>
+        rw [hp] at h
+        simp only [Option.getD_none, Option.some.injEq, H.Val.int.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hk : k < W := by have := (fits_int hy).1; rwa [ht256] at this
+        refine ⟨ht256.symm, ?_⟩
+        rw [ht256]
+        exact eval_lt op (Nat.mod_lt _ (by positivity)) hk
+      | some v' =>
+        rw [hp] at h
+        obtain ⟨_, he, _⟩ := ptrBin_some hp
+        simp only [Option.getD_some, Option.some.injEq] at h
+        rw [h] at he; cases he
+    | .int _ k, .ptr b' o', h =>
+      dsimp only at h
+      have ht256 := (fits_ptr hy).2
+      cases hp : ptrBin op b' o' k false with
+      | none =>
+        rw [hp] at h
+        simp only [Option.getD_none, Option.some.injEq, H.Val.int.injEq] at h
+        obtain ⟨rfl, rfl⟩ := h
+        have hk : k < W := by have := (fits_int hx).1; rwa [ht256] at this
+        refine ⟨ht256.symm, ?_⟩
+        rw [ht256]
+        exact eval_lt op hk (Nat.mod_lt _ (by positivity))
+      | some v' =>
+        rw [hp] at h
+        obtain ⟨_, he, _⟩ := ptrBin_some hp
+        simp only [Option.getD_some, Option.some.injEq] at h
+        rw [h] at he; cases he
+    | .ptr _ _, .ptr _ _, h =>
+      simp only [Option.some.injEq, H.Val.int.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      have ht256 := (fits_ptr hx).2
+      refine ⟨ht256.symm, ?_⟩
+      rw [ht256]
+      exact eval_lt op (Nat.mod_lt _ (by positivity)) (Nat.mod_lt _ (by positivity))
+
+theorem mem_sortedInsert {x y : Nat} : ∀ {l : List Nat}, y ∈ sortedInsert x l ↔ y = x ∨ y ∈ l
+  | [] => by simp [sortedInsert]
+  | z :: zs => by
+    unfold sortedInsert
+    split
+    · simp
+    · split
+      · next h => simp only [beq_iff_eq] at h; subst h; simp
+      · rw [List.mem_cons, List.mem_cons, mem_sortedInsert]; tauto
+
+theorem mem_nset {y : Nat} : ∀ {l : List Nat}, y ∈ nset l ↔ y ∈ l
+  | [] => by simp [nset]
+  | x :: xs => by
+    show y ∈ sortedInsert x (nset xs) ↔ _
+    rw [mem_sortedInsert, mem_nset, List.mem_cons]
+
+/-- A binary operation (`lower_structural`), outside address-0 mode: H's step gives the value
+    `binVal` does, of the result's type, with no change of state; the machine's statement binds
+    its machine value to the word of it; the value is related, valid, and rule S3 holds of it
+    by the origins certificate (`horig`). -/
+theorem inst_bin {S : SecFacts} {F : Frame} {g : Ghost} {hst : H.State} {w : World}
+    {envH : HEnv} {envM : Env} {L : List Nat} {c : FCtx} {vm vm' : VM} {s : HStmt}
+    {mb mb' : Nat} {ms ms' : List Stmt} {callee? : Option Nat} {ds : List Nat} {op : BinOp}
+    {a b : Operand} {x : Nat} {tx : Ty} (P : HSection) (I : Fe.EVM.Env) (cM : Ctx)
+    (fr : FuncRec) (hI : Inv S hst w g) (hz : S.z = false)
+    (hE : EnvRel S.z F g hst envH envM L) (hdecl : F.decls = c.decls) (hvm : F.vm = vm)
+    (hi : s.inst = .base (.bin op a b)) (hd : s.dsts = [(x, tx)])
+    (hlive : ∀ y, (a = .var y ∨ b = .var y) → y ∈ L)
+    (horig : ∀ o ∈ stmtOrig fr F.O s, o ∈ origOf F.O (.var x))
+    (h : stmt c true vm s mb ms callee? = some (vm', mb', ms', ds)) :
+    ∃ v r st1, ms = st1 :: ms' ∧ ds = [r] ∧ vm' = vm ∧ mb' = mb ∧ vm.find? x = some (.var r) ∧
+      (∀ rest, runPlain cM envM (st1 :: rest) =
+        runPlain cM (envM.insert r (.int 256 (hst.word v))) rest) ∧
+      stepInst P.ctx I envH hst s.inst = .ok [v] hst ∧ v.fits tx = true ∧
+      VRel g S.z (F.D x) v (hst.word v) ∧ ValOk hst v ∧
+      OrigOk g hst F.R F.fpf (origOf F.O (.var x)) v := by
+  obtain ⟨ta, tb, a', b', r, hta, htb, ha', hb', hok, hms, rfl, hx, rfl, rfl⟩ := stmt_bin hi hd h
+  simp only [Bool.and_eq_true, Bool.not_eq_true', Bool.or_eq_true, beq_iff_eq] at hok
+  obtain ⟨⟨⟨hsw, hgen⟩, hbits⟩, hsx⟩ := hok
+  obtain ⟨va, ma, hva, hfa, hma, hra, hoa, hga⟩ :=
+    opnd_rel hE hdecl hvm (fun y hy => hlive y (Or.inl hy)) hta ha'
+  obtain ⟨vb, mb, hvb, hfb, hmb, hrb, hob, hgb⟩ :=
+    opnd_rel hE hdecl hvm (fun y hy => hlive y (Or.inr hy)) htb hb'
+  have hval : Ty.value ta = true := by simp only [sameW, Bool.and_eq_true] at hsw; exact hsw.1.1
+  have hfb' : vb.fits ta = true := fits_sameW hsw hfb
+  -- The operands' widths are the type's.
+  have hbw : ∀ v : H.Val, v.fits ta = true → v.bits = ta.bits := by
+    intro v hv
+    rw [fits_iff hval] at hv
+    cases v with
+    | int bits n => exact hv.1
+    | ptr _ _ => exact hv.1.symm
+  obtain ⟨v, hv⟩ := binVal_some (st := hst) hgen ((hbw va hfa).trans (hbw vb hfb').symm)
+  have hwa := vrel_word hI hra hoa (Or.inl hz)
+  have hwb := vrel_word hI hrb hob (Or.inl hz)
+  have hfv : v.fits ta = true := binVal_fits hv hfa hfb' hval hbits hoa hob
+  have hword : hst.word v = op.eval 256 ma mb := by
+    rw [binVal_word hv, hbw va hfa, hwa, hwb]
+    rcases hbits with h256 | ⟨h1, hi1⟩
+    · rw [h256]
+    · rw [h1]; exact BinOp.okI1_eval hi1 1 256 _ _
+  have hlt : ∀ u : H.Val, u.fits ta = true → hst.word u < W := fun u hu =>
+    word_lt hst u hu (value_bits hval).2
+  have hok : ValOk hst v := by
+    cases v with
+    | int => trivial
+    | ptr bv ov =>
+      obtain ⟨holt, hc⟩ := binVal_ptr hv hoa hob
+      rcases hc with ⟨⟨o', rfl⟩, _⟩ | ⟨⟨o', rfl⟩, _⟩
+      · exact ⟨hoa.1, holt⟩
+      · exact ⟨hob.1, holt⟩
+  refine ⟨v, r, _, hms, rfl, rfl, rfl, hx, fun rest => ?_, ?_, fits_sameW hsx hfv, ?_, hok, ?_⟩
+  · rw [runPlain_bin cM hma hmb, ← hword, Nat.mod_eq_of_lt (hlt v hfv)]
+  · simp [stepInst, hi, hva, hvb, hv]
+  · cases v with
+    | int bits n => rfl
+    | ptr bv ov =>
+      refine ⟨?_, fun h => by rw [hz] at h; cases h⟩
+      have hj : g.j bv ≠ 0 := fun h0 => by rw [hI.zero bv hok.1 h0] at hz; cases hz
+      rw [word_ptr, hI.exact bv hok.1 hj]
+  · cases v with
+    | int => trivial
+    | ptr bv ov =>
+      obtain ⟨_, hc⟩ := binVal_ptr hv hoa hob
+      have hsub : ∀ o ∈ stmtOrig fr F.O s, o ∈ origOf F.O (.var x) := horig
+      simp only [stmtOrig, hi] at hsub
+      rcases hc with ⟨⟨o', rfl⟩, hop⟩ | ⟨⟨o', rfl⟩, hop⟩
+      · refine OrigOk.mono (os := origOf F.O a) hga fun o ho => hsub o ?_
+        rcases hop with rfl | rfl | rfl | rfl | rfl <;> simp [mem_nset, ho]
+      · refine OrigOk.mono (os := origOf F.O b) hgb fun o ho => hsub o ?_
+        rcases hop with rfl | rfl | rfl | rfl <;> simp [mem_nset, ho]
+
 end Fe.Sonatina.Stage3.Place
