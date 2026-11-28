@@ -215,4 +215,87 @@ theorem bytes_of_agree {st : H.State} {m : ByteArray} {b o len A : Nat} (hb : b 
   simp only [State.bytes, State.cells, cellsAt_eq hb]
   exact readWithPadding_of_mem (by simp) fun i hi => by simp [hag i hi]
 
+/-! ## Words in cells -/
+
+theorem wordBytes_size (x : Nat) : (wordBytes x).size = 32 :=
+  Reasoning.Theory.toByteArray_size _
+
+theorem toList_length (bs : ByteArray) : bs.toList.length = bs.size := by
+  rw [Reasoning.Theory.byteArray_toList_eq, Array.length_toList]; rfl
+
+/-- The 32 bytes of a word, by index, are its byte list. -/
+theorem finRange_get! (bs : ByteArray) (h : bs.size = 32) :
+    (List.finRange 32).map (fun (i : Fin 32) => bs.get! (i : Nat)) = bs.toList := by
+  rw [Reasoning.Theory.byteArray_toList_eq]
+  apply List.ext_getElem
+  · rw [List.length_map, List.length_finRange, Array.length_toList]
+    exact h.symm
+  · intro k h1 h2
+    rw [List.getElem_map, List.getElem_finRange, Array.getElem_toList]
+    rcases bs with ⟨arr⟩
+    have hk : k < arr.size := by simpa using h2
+    show arr[k]! = arr[k]
+    exact getElem!_pos arr k hk
+
+/-- The byte values of the cells a typed store writes are the 32 big-endian bytes of the
+    stored value's word. -/
+theorem cells_val (st : H.State) (v : H.Val) :
+    v.cells.map (·.val st.addrOf) = (wordBytes (st.word v)).toList := by
+  cases v with
+  | int bits x =>
+    simp only [H.Val.cells, List.map_map, Function.comp_def, MByte.val, List.map_id']
+    rfl
+  | ptr b o =>
+    simp only [H.Val.cells, List.map_map]
+    exact finRange_get! _ (wordBytes_size _)
+
+theorem cells_length (v : H.Val) : v.cells.length = 32 := by
+  cases v with
+  | int bits x => simp only [H.Val.cells, List.length_map, toList_length, wordBytes_size]
+  | ptr b o => simp [H.Val.cells]
+
+theorem fragsOf_some {cs : List MByte} {b o : Nat} (h : fragsOf cs = some (b, o)) :
+    cs = (List.finRange 32).map (.frag b o) := by
+  unfold fragsOf at h
+  split at h
+  · split at h
+    · next he =>
+      simp only [Option.some.injEq, Prod.mk.injEq] at h
+      obtain ⟨rfl, rfl⟩ := h
+      exact he
+    · cases h
+  · cases h
+
+/-- A typed load gives the pointer whose fragments the cells are, or an integer whose value is
+    the machine word of the cells' bytes. -/
+theorem load_cases {st : H.State} {b o : Nat} {ty : Ty} {v : H.Val}
+    (h : st.load b o ty = some v) :
+    (∃ b' o', fragsOf (st.cellsAt b o 32) = some (b', o') ∧ v = .ptr b' o') ∨
+      ∃ n, v = .int n (Ethereum.uInt256OfByteArray (st.bytes (.at b o) 32)).toNat := by
+  unfold State.load at h
+  simp only at h
+  split at h <;> (try split at h) <;>
+    first
+    | (cases h; exact Or.inl ⟨_, _, by assumption, rfl⟩)
+    | (cases h; exact Or.inr ⟨_, rfl⟩)
+    | cases h
+
+/-- The word of a typed load of 32 cells is the machine word of their byte values. -/
+theorem load_word {st : H.State} {b o : Nat} {ty : Ty} {v : H.Val}
+    (h : st.load b o ty = some v) :
+    (Ethereum.uInt256OfByteArray (st.bytes (.at b o) 32)).toNat = st.word v := by
+  rcases load_cases h with ⟨b', o', hf, rfl⟩ | ⟨n, rfl⟩
+  · have hc := fragsOf_some hf
+    have hb : st.bytes (.at b o) 32 = wordBytes ((st.addrOf b' + o') % 2 ^ 256) := by
+      simp only [State.bytes, State.cells]
+      rw [hc]
+      have e := finRange_get! (wordBytes ((st.addrOf b' + o') % 2 ^ 256)) (wordBytes_size _)
+      rw [Reasoning.Theory.byteArray_toList_eq] at e
+      apply ByteArray.ext
+      rw [← @Array.toArray_toList _ (wordBytes _).data, ← e, List.map_map]
+      rfl
+    rw [hb, wordBytes, Reasoning.Theory.uInt256OfByteArray_toByteArray]
+    exact Nat.mod_eq_of_lt (Nat.mod_lt _ (by positivity))
+  · rfl
+
 end Fe.Sonatina.Stage3.Place
