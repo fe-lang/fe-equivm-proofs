@@ -254,4 +254,79 @@ theorem funcLower_some {c : FCtx} {f : HFunc} {fl : FuncLower} (h : funcLower c 
     · cases h
   · cases h
 
+/-! ## The checking walk, position by position -/
+
+theorem walk_cons (c : FCtx) (vm : VM) (s : HStmt) (rest : List HStmt) (mb : Nat) (ms : List Stmt)
+    (cs : List Nat) : walk c true vm (s :: rest) mb ms cs =
+      match calleeOf s cs with
+      | (callee?, cs') => (stmt c true vm s mb ms callee?).bind fun r =>
+        (walk c true r.1 rest r.2.1 r.2.2.1 cs').bind fun r' =>
+          some (r'.1, r'.2.1, r'.2.2.1, r.2.2.2 :: r'.2.2.2.1, entered c.mf mb r.2.1 ++ r'.2.2.2.2) :=
+  rfl
+
+/-- The checking walk is `walkTo`, statement by statement: it keeps the value map, ends where
+    `walkTo` does after the last statement, and records each statement's machine values. -/
+theorem walk_walkTo {c : FCtx} {vm : VM} : ∀ {l : List HStmt} {mb : Nat} {ms : List Stmt}
+    {cs : List Nat} {vm' : VM} {tbk : Nat} {ms' : List Stmt} {dss : List (List Nat)}
+    {bs : List Nat}, walk c true vm l mb ms cs = some (vm', tbk, ms', dss, bs) →
+    vm' = vm ∧ (∃ cs', walkTo c vm l mb ms cs l.length = some (tbk, ms', cs')) ∧
+    ∀ (i : Nat) (s : HStmt) (mb₁ : Nat) (ms₁ : List Stmt) (cs₁ : List Nat) (vm₂ : VM) (mb₂ : Nat)
+      (ms₂ : List Stmt) (ds : List Nat), l[i]? = some s →
+      walkTo c vm l mb ms cs i = some (mb₁, ms₁, cs₁) →
+      stmt c true vm s mb₁ ms₁ (calleeOf s cs₁).1 = some (vm₂, mb₂, ms₂, ds) → dss[i]? = some ds
+  | [], mb, ms, cs, vm', tbk, ms', dss, bs, h => by
+    simp only [walk, Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, ⟨cs, rfl⟩, fun i s _ _ _ _ _ _ _ hs => by simp at hs⟩
+  | s :: rest, mb, ms, cs, vm', tbk, ms', dss, bs, h => by
+    rw [walk_cons] at h
+    rcases hc : calleeOf s cs with ⟨callee?, cs₀⟩
+    rw [hc] at h
+    dsimp only at h
+    obtain ⟨⟨vm₁, mb₁, ms₁, ds₁⟩, h1, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨⟨vm₂, tb₂, ms₂, dss₂, bs₂⟩, h2, h⟩ := Option.bind_eq_some_iff.mp h
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    have hv1 : vm₁ = vm := stmt_vm h1
+    subst hv1
+    obtain ⟨hv2, ⟨cs', hw⟩, hds⟩ := walk_walkTo h2
+    refine ⟨hv2, ⟨cs', ?_⟩, ?_⟩
+    · simp only [List.length_cons, walkTo, hc, h1]
+      exact hw
+    · intro i t mb₃ ms₃ cs₃ vm₃ mb₄ ms₄ ds hi hp hst
+      cases i with
+      | zero =>
+        simp only [List.getElem?_cons_zero, Option.some.injEq] at hi
+        subst hi
+        simp only [walkTo, Option.some.injEq, Prod.mk.injEq] at hp
+        obtain ⟨rfl, rfl, rfl⟩ := hp
+        rw [hc] at hst
+        rw [h1] at hst
+        simp only [Option.some.injEq, Prod.mk.injEq] at hst
+        simp [hst.2.2.2]
+      | succ i =>
+        simp only [List.getElem?_cons_succ] at hi
+        simp only [walkTo, hc, h1] at hp
+        simpa using hds i t mb₃ ms₃ cs₃ vm₃ mb₄ ms₄ ds hi hp hst
+
+theorem blockLower_some {c : FCtx} {vm : VM} {rets : List Ty} {b : HBlock} {cs : List Nat}
+    {vm' : VM} {tbk : Nat} {dss : List (List Nat)} {bs' : List Nat}
+    (h : blockLower c true vm rets b cs = some (vm', tbk, dss, bs')) :
+    ∃ mb mblk ms bs tblk, c.bm.find? b.id = some mb ∧ c.mf.block? mb = some mblk ∧
+      walk c true vm b.body mb mblk.body cs = some (vm', tbk, ms, dss, bs) ∧
+      c.mf.block? tbk = some tblk ∧ termOk c vm' rets b.term ms tblk.term = true ∧
+      bs' = mb :: bs := by
+  unfold blockLower at h
+  obtain ⟨mb, hmb, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨mblk, hmblk, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨⟨vm₁, tb₁, ms₁, dss₁, bs₁⟩, hw, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨tblk, htblk, h⟩ := Option.bind_eq_some_iff.mp h
+  dsimp only at h
+  split at h
+  · next ht =>
+    simp only [Option.some.injEq, Prod.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    exact ⟨mb, mblk, ms₁, bs₁, tblk, hmb, hmblk, hw, htblk, ht, rfl⟩
+  · cases h
+
 end Fe.Sonatina.Stage3.Place
