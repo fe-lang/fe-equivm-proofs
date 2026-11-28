@@ -236,11 +236,13 @@ def ImplementsH (h : Object) (ir : ContractModel) (admits : ExecutionEnv → Pro
     `ir`'s constructor on arguments `validArgs` admits, its result put after `irRuntime`, that
     ends under a feed is matched by some run of `h`'s init section under the same feed.  The
     machine IR's model of a sidecar takes `irRuntime := .empty` (its init section never
-    returns, `Sidecar.runSection`). -/
+    returns, `Sidecar.runSection`).  As `ImplementsH`, it is stated on the calls `admits`
+    holds of: machine lowering's `memzero` is a copy from calldata at `calldatasize`, which
+    copies zeros only when calldata has fewer than `2 ^ 256` bytes (review 25, C3). -/
 def ImplementsDeployH (h : Object) (ir : ContractModel) (creation irRuntime : ByteArray)
-    (validArgs : ByteArray → Prop) : Prop :=
+    (validArgs : ByteArray → Prop) (admits : ExecutionEnv → Prop) : Prop :=
   ∀ I σ A feed args r, validArgs args → I.code = creation ++ args → OwnerExists σ I →
-    I.perm = true →
+    I.perm = true → admits I →
     (ir.init args >>= fun tail => pure (irRuntime ++ tail)).exec I (World.init σ A feed)
       = some r →
     ∃ out, h.Deploy args I (World.init σ A feed) out ∧ Matches out r

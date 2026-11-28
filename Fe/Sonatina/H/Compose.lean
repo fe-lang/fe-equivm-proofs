@@ -15,8 +15,11 @@ refine a model of the IR right after lowering, under the real feed) with Stage 3
 implements the handover object under H, `ImplementsH`, `ImplementsDeployH`).  Both are stated
 for any model, runtime bytes and arguments.  The design's `RefinesDeployH` has no `validArgs`;
 this one takes it, as `RefinesDeployFut` does, so that the composition holds for any; the
-design's form is `validArgs := fun _ => True`.  `stage3_sound` and `o0_sound` are not stated:
-they need Stage 3's checker.
+design's form is `validArgs := fun _ => True`.  `RefinesDeployH` and `ImplementsDeployH` are
+stated on the calls `admits` holds of, as `RefinesOnH` and `ImplementsH` are: Slice 1 needs
+`CalldataFits` for deployments too, as machine lowering's `memzero` copies from calldata at
+`calldatasize` (review 25, C3); `RefinesDeployFut` holds on every call, so it composes for any.
+`stage3_sound` and `o0_sound` are not stated: they need Stage 3's checker.
 -/
 
 namespace Fe.Sonatina.H
@@ -40,11 +43,12 @@ def RefinesOnH (p : Profile) (code : ByteArray) (h : Object) (admits : Execution
     RefinesForH p h σ σ₀ g A I
 
 /-- The creation bytes refine the handover object's constructor on every deployment with
-    arguments `validArgs` holds of (§7.4, with `validArgs` as `RefinesDeployFut` has it). -/
+    arguments `validArgs` holds of (§7.4, with `validArgs` as `RefinesDeployFut` has it) that
+    `admits` holds of, as `RefinesOnH` has it. -/
 def RefinesDeployH (p : Profile) (creation : ByteArray) (h : Object)
-    (validArgs : ByteArray → Prop) : Prop :=
+    (validArgs : ByteArray → Prop) (admits : ExecutionEnv → Prop) : Prop :=
   ∀ σ σ₀ g A I args, validArgs args → I.code = creation ++ args → OwnerExists σ I →
-    I.perm = true →
+    I.perm = true → admits I →
     Exhausted (Ξ σ σ₀ g A I) ∨
       ∃ feed, RealFeed σ σ₀ g A I feed ∧ ∃ out, h.Deploy args I (World.init σ A feed) out ∧
         (out = .ub ∨ out = .exhausted ∨ ∃ r, out = .ends r ∧ Agrees p (Ξ σ σ₀ g A I) (some r))
@@ -85,13 +89,13 @@ theorem RefinesOnFut.toH {p : Profile} {code : ByteArray} {m : ContractModel} {h
       exact .inr ⟨feed, hreal, out, hout, hmat.agrees hag⟩
 
 /-- Links 4 and 5 composed with Stage 3 on deployments, for any runtime bytes the model's
-    result is put after and any arguments. -/
+    result is put after, any arguments and any calls `admits` holds of. -/
 theorem RefinesDeployFut.toH {p : Profile} {creation runtime : ByteArray} {m : ContractModel}
-    {h : Object} {validArgs : ByteArray → Prop}
+    {h : Object} {validArgs : ByteArray → Prop} {admits : ExecutionEnv → Prop}
     (hb : RefinesDeployFut p creation runtime m validArgs)
-    (hm : ImplementsDeployH h m creation runtime validArgs) :
-    RefinesDeployH p creation h validArgs := by
-  intro σ σ₀ g A I args hv hc ho hp
+    (hm : ImplementsDeployH h m creation runtime validArgs admits) :
+    RefinesDeployH p creation h validArgs admits := by
+  intro σ σ₀ g A I args hv hc ho hp ha
   rcases hb σ σ₀ g A I args hv hc ho hp with hx | ⟨feed, hreal, hag⟩
   · exact .inl hx
   · cases hrun : (m.init args >>= fun tail => pure (runtime ++ tail)).exec I
@@ -99,7 +103,7 @@ theorem RefinesDeployFut.toH {p : Profile} {creation runtime : ByteArray} {m : C
     | none => rw [hrun] at hag; exact hag.elim
     | some r =>
       rw [hrun] at hag
-      obtain ⟨out, hout, hmat⟩ := hm I σ A feed args r hv hc ho hp hrun
+      obtain ⟨out, hout, hmat⟩ := hm I σ A feed args r hv hc ho hp ha hrun
       exact .inr ⟨feed, hreal, out, hout, hmat.agrees hag⟩
 
 end Fe.EVM
