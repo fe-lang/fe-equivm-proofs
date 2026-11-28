@@ -5,9 +5,12 @@ import Fe.Sonatina.Stage3.Place.Examples
 
 `Examples.lean` for a third contract of another shape: WETH9 as corpus v8 builds it at `-O0`
 (`Tests/WETH9.O0.sidecar.json`, the corpus sidecar; the `.bin` files are the corpus ones), whose
-runtime has 226 functions (FeERC20's 125) and whose constructor stores through `evm_sstore`.  It
-imports `Examples.lean` only so that a build does not check the two at once: the kernel's checks
-here peak at about 21 GB resident, `Examples.lean`'s at about 12 GB.
+runtime has 226 functions (FeERC20's 125) and whose constructor stores through `evm_sstore`.
+
+Not in the default build: its kernel checks take about three minutes and peak at about 21 GB
+resident (`Examples.lean`'s at about 12 GB).  Build it on its own, with
+`lake build Fe.Sonatina.Stage3.Place.ExamplesWETH9`.  It imports `Examples.lean` so that a build
+of both does not check the two at once.
 -/
 
 namespace Fe.Sonatina.Stage3.Place.Examples

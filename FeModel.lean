@@ -50,4 +50,3 @@ import Fe.Sonatina.Stage3.Place.Term
 import Fe.Sonatina.Stage3.Place.Sidecar
 import Fe.Sonatina.Stage3.Place.Deploy
 import Fe.Sonatina.Stage3.Place.Examples
-import Fe.Sonatina.Stage3.Place.ExamplesWETH9
