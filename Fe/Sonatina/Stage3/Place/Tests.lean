@@ -3,7 +3,7 @@ import Fe.Sonatina.Stage3.Place.Fixture
 /-!
 # Tests of the S14 check
 
-Real sections of corpus v8 (`-O0`, sidecar version 6), under the placement records the compiler
+Real sections of corpus v10 (`-O0`, sidecar version 6), under the placement records the compiler
 wrote into their sidecars, checked in the kernel, with mutants of the parsed records; the reader
 of the record on small lowerings; and small hand-written sections, accepted, with a rejected mutant for each rule and
 for each attack of design §5.5 that applies without free-pointer restores (attacks 10, 16–19,
@@ -27,6 +27,11 @@ example : check feErc20Rt.src feErc20Rt.low feErc20Rt.efp feErc20Rt.rec = true :
   decide +kernel
 example : check feErc20Init.src feErc20Init.low feErc20Init.efp feErc20Init.rec = true := by
   decide +kernel
+
+-- Each of the three sections ends its panics with `evm_revert_word`, so the checks above cover
+-- its lowering.
+#guard [feConstantRt.src, feErc20Rt.src, feErc20Init.src].all fun s =>
+  s.module.funcs.any fun f => f.blocks.any (·.term matches .revertWord ..)
 
 /-- A wrong word for one `alloca` of FeConstant's runtime is a rejection. -/
 def feConstantBadWord : Record :=

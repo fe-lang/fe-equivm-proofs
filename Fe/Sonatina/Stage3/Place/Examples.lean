@@ -4,7 +4,7 @@ import Fe.Sonatina.Stage3.Place.Deploy
 /-!
 # Slice 1 on real contracts
 
-`slice1_sound` for FeConstant and FeERC20 as the compiler of corpus v8 builds them at `-O0`
+`slice1_sound` for FeConstant and FeERC20 as the compiler of corpus v10 builds them at `-O0`
 (`Tests/*.O0.sidecar.json`, the corpus sidecars): the three hypotheses are decided by the
 kernel, so each contract's bytes refine its handover object with no hypothesis left.  The bytes
 are the ones the compiler wrote: `Tests/*.O0.runtime.bin` and `Tests/*.O0.bin` are the corpus
