@@ -6,7 +6,8 @@ import Fe.Sonatina.H.Wf
 
 Small sections, each run by `runRuntime` under two oracles (blocks far apart, and blocks at
 one address word), checking the outcome: the rules of §3.2–§3.4 and §3.7 one at a time, and
-that `wfH` rejects what §3.7 lists.  Each `#guard` evaluates when the module builds.
+that `wfH` rejects what §3.7 lists; the module header's fixed memory limit, as both readers read
+it.  Each `#guard` evaluates when the module builds.
 -/
 
 namespace Fe.Sonatina.H.Tests
@@ -149,7 +150,7 @@ def blk (id : Nat) (body : List HStmt) (term : HTerm) (phis : List Phi := []) : 
 /-- A section of these functions and structs, entered at `main`. -/
 def sec (funcs : List HFunc) (structs : List (String × List Ty) := [])
     (symbols : List (String × Nat × Nat) := [(".", 0, 0)]) : HSection :=
-  ⟨⟨structs, funcs⟩, "main", symbols⟩
+  ⟨⟨structs, funcs, some 0⟩, "main", symbols⟩
 /-- A section whose `main` is one block. -/
 def main1 (body : List HStmt) (term : HTerm := stop) : HSection := sec [func "main" [blk 0 body term]]
 def rs (s : HSection) : List String := ((wfReasons s).map (·.1)).eraseDups
@@ -306,5 +307,53 @@ def revertOf (sel : List Nat) (word : List Nat) : String :=
 #guard rs (main1 [] (.revertWord (.imm 32 1) (.imm 32 0))) == ["operandType"]
 #guard rs (main1 [] (.revertWord (.imm 32 (2 ^ 32)) (k 0))) == ["imm"]
 #guard rs (main1 [] (.revertWord (v 9) (k 0))) == ["dominance", "undeclared"]
+
+/-! ## The header's fixed memory limit -/
+
+/-- A module of one function, after the header lines `hdr`. -/
+def withHeader (hdr : List String) : String :=
+  "\n".intercalate (hdr ++ ["", prog "        evm_stop;\n"])
+
+def tgt : String := "target = \"evm-ethereum-osaka\""
+
+/-- The limit H's reader reads from the text, `none` for an error. -/
+def limitOf (text : String) : Option (Option Nat) := (Parse.parseModule text).toOption.map (·.fixedLimit)
+
+/-- The machine IR's reader reads the text. -/
+def machineReads (text : String) : Bool := (Fe.Sonatina.Parse.parseModule text).toOption.isSome
+
+-- Declared limits, after the `target` line, in hex as `ModuleWriter` prints them, or in decimal.
+#guard limitOf (withHeader [tgt, "evm_fixed_memory_limit = 0x0"]) == some (some 0)
+#guard limitOf (withHeader [tgt, "", "evm_fixed_memory_limit = 0x0"]) == some (some 0)
+#guard limitOf (withHeader [tgt, "evm_fixed_memory_limit = 0"]) == some (some 0)
+#guard limitOf (withHeader [tgt, "evm_fixed_memory_limit = 0x20"]) == some (some 32)
+#guard limitOf (withHeader [tgt, "evm_fixed_memory_limit = 0xA0"]) == some (some 160)
+#guard limitOf (withHeader [tgt, "evm_fixed_memory_limit = 4096"]) == some (some 4096)
+-- No declaration.
+#guard limitOf (withHeader [tgt]) == some none
+#guard limitOf (prog "        evm_stop;\n") == some none
+-- Both readers read these.
+#guard [[tgt, "evm_fixed_memory_limit = 0x0"], [tgt, "evm_fixed_memory_limit = 0"],
+  [tgt, "evm_fixed_memory_limit = 0x20"], [tgt]].all (machineReads ∘ withHeader)
+
+/-- Header lines both readers reject. -/
+def badHeaders : List (List String) :=
+  [-- Malformed values and lines.
+   [tgt, "evm_fixed_memory_limit = 0x"], [tgt, "evm_fixed_memory_limit = 0xg"],
+   [tgt, "evm_fixed_memory_limit = 0X20"], [tgt, "evm_fixed_memory_limit = -1"],
+   [tgt, "evm_fixed_memory_limit = 1_0"], [tgt, "evm_fixed_memory_limit = 0x0;"],
+   [tgt, "evm_fixed_memory_limit = 0x0 0x0"], [tgt, "evm_fixed_memory_limit 0x0"],
+   [tgt, "evm_fixed_memory_limit ="], [tgt, "evm_fixed_memory_limits = 0x0"],
+   -- Elsewhere than right after the `target` line, or twice.
+   ["evm_fixed_memory_limit = 0x0", tgt], ["evm_fixed_memory_limit = 0x0"],
+   [tgt, "evm_fixed_memory_limit = 0x0", "evm_fixed_memory_limit = 0x0"],
+   [tgt, "type @s = {i256};", "evm_fixed_memory_limit = 0x0"]]
+
+#guard badHeaders.all fun h => limitOf (withHeader h) == none && !machineReads (withHeader h)
+-- After a function, and in a function.
+#guard limitOf (withHeader [tgt] ++ "evm_fixed_memory_limit = 0x0\n") == none
+#guard !machineReads (withHeader [tgt] ++ "evm_fixed_memory_limit = 0x0\n")
+#guard limitOf (prog "        evm_fixed_memory_limit = 0x0;\n        evm_stop;\n") == none
+#guard !machineReads (prog "        evm_fixed_memory_limit = 0x0;\n        evm_stop;\n")
 
 end Fe.Sonatina.H.Tests

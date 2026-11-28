@@ -9,6 +9,8 @@ with the machine IR's reader (`Fe/Sonatina/Parse.lean`) for every line that read
 the instructions of `H/Syntax.lean` it does not.  An instruction outside both is an error.
 Global declarations (constant data, which `sym_addr $g` locates in the code) and enum type
 declarations (lowered before this dialect) are skipped, as the machine IR's reader skips them.
+The header's fixed memory limit is read as the machine IR's reader reads it, and kept
+(`HModule.fixedLimit`).
 
 Each `gep` is given the type its base operand is declared with, from the function's parameters,
 phis and statement results.
@@ -85,8 +87,10 @@ def annotate (params : List (Nat × Ty)) (blocks : List HBlock) : P (List HBlock
       | _ => pure s
     return { b with body }
 
-/-- A module from the lines of a section's `source_ir`. -/
+/-- A module from the lines of a section's `source_ir`, with the fixed memory limit its header
+    declares (`Fe.Sonatina.Parse.header`). -/
 def parseLines (lines : List String) : P HModule := do
+  let (fixedLimit, lines) ← Fe.Sonatina.Parse.header lines
   let mut structs : List (String × List Ty) := []
   let mut funcs : List HFunc := []
   let mut func : Option (String × List (Nat × Ty) × List Ty × List HBlock) := none
@@ -129,7 +133,7 @@ def parseLines (lines : List String) : P HModule := do
       func := some (name, params, rets, [])
     else throw s!"unsupported declaration: {line}"
   if func.isSome then throw "unterminated function"
-  return ⟨structs.reverse, funcs.reverse⟩
+  return ⟨structs.reverse, funcs.reverse, fixedLimit⟩
 
 /-- A module from the text of a section's `source_ir`. -/
 def parseModule (text : String) : P HModule := parseLines (Fe.Sonatina.Parse.lines text)

@@ -40,7 +40,12 @@ memory instructions (`mload`, `mstore`, `gep`, `alloca`, `insert_value`, `obj.*`
 
 The text form is what `ModuleWriter` prints (`crates/ir/src/ir_writer.rs`), and Sonatina's
 parser (`crates/parser/src/sonatina.pest`) reads it back. Sonatina has no structured
-serialization (no serde).
+serialization (no serde). A module's header is its `target` line and, when the module declares
+one, the end `L` of its EVM fixed memory region `[0, L)` on the next line,
+`evm_fixed_memory_limit = L` (Sonatina `fce9af30`, `docs/memory.md` E2; Fe declares `0x0`). Both
+readers read that line strictly (`Parse.header`); the handover dialect keeps the limit
+(`HModule.fixedLimit`), and Slice 1's `placeSec` admits only a module declaring 0, the one H, which
+has no fixed region, is the semantics of.
 
 The committed `.sona` files (`FeProofs/{ERC20,Deposit,WETH9}`) are the output of
 `fe build --emit ir` at the listed Fe commits: rebuilding with Fe `51f4eee504` (ERC20) and

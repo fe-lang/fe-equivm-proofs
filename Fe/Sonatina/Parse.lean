@@ -8,7 +8,8 @@ import Lean.Elab.Command
 `parseModule` reads a module in the text form Sonatina's `ModuleWriter` prints, a statement a
 line, and `parseSidecar` the JSON `fe build --emit sidecar` writes: that text, and the bytes and
 symbols of each section compiled from it.  An instruction outside the subset of `Syntax.lean` is
-an error, not skipped.  In a sidecar, what the checker reads (the object declarations, and per
+an error, not skipped.  A module's header is its `target` line and, when the module declares
+one, its EVM fixed memory limit on the next line (`header`), read strictly.  In a sidecar, what the checker reads (the object declarations, and per
 section the bytes, symbols, machine IR, hints and record of machine steps) must be read; the
 module after optimization and a section's IR before machine lowering are `none` where they are
 outside the subset, and a model of either level is then stuck.
@@ -305,8 +306,35 @@ def funcHeader (line : String) : P (String × List (Nat × Ty) × List Ty) := do
 def lines (text : String) : List String :=
   (text.splitOn "\n").map (·.trimAscii.toString) |>.filter (!·.isEmpty)
 
-/-- A module and its objects from the lines of the text `ModuleWriter` prints. -/
+/-- The limit a header line `evm_fixed_memory_limit = L` declares: the end of the module's EVM
+    fixed memory region `[0, L)` (Sonatina's `docs/memory.md` E2), `L` in `0x` hexadecimal or in
+    decimal, as Sonatina's grammar reads it. -/
+def fixedLimit (line : String) : P Nat :=
+  match tokens line with
+  | ["evm_fixed_memory_limit", "=", v] =>
+    match parseNat v.toList with
+    | some n => if v.startsWith "0x" || (!v.isEmpty && v.all Char.isDigit) then pure n
+      else throw s!"bad fixed memory limit: {line}"
+    | none => throw s!"bad fixed memory limit: {line}"
+  | _ => throw s!"bad fixed memory limit: {line}"
+
+/-- The fixed memory limit a module's header declares, `none` if it declares none, and the
+    module's lines without the limit's line.  `ModuleWriter` (`ir_writer.rs`) prints the limit
+    on the line after the `target` line, the first one, when the module declares one, and
+    Sonatina's grammar admits it only there: anywhere else it is an unsupported declaration. -/
+def header (lines : List String) : P (Option Nat × List String) :=
+  match lines with
+  | t :: l :: rest =>
+    if t.startsWith "target" && l.startsWith "evm_fixed_memory_limit" then
+      return (some (← fixedLimit l), t :: rest)
+    else pure (none, lines)
+  | _ => pure (none, lines)
+
+/-- A module and its objects from the lines of the text `ModuleWriter` prints.  The header's
+    fixed memory limit is read (`header`) and not kept: the machine IR's memory is the EVM's,
+    and the limit is about the IR machine lowering reads, which H models (`H.Parse`). -/
 def parseLines (lines : List String) : P (Module × List Object) := do
+  let (_, lines) ← header lines
   let mut structs : List (String × List Ty) := []
   let mut funcs : List Func := []
   let mut objects : List Object := []

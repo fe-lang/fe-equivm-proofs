@@ -72,10 +72,15 @@ structure HFunc where
   blocks : List HBlock
   deriving Repr, BEq, Inhabited
 
-/-- The struct types and functions of a section's module. -/
+/-- The struct types and functions of a section's module, and the end `L` of the EVM fixed
+    memory region `[0, L)` it declares (`evm_fixed_memory_limit`, Sonatina's `docs/memory.md`
+    E2), `none` if it declares none.  H has no fixed region: it is the semantics of a module that
+    declares `L = 0`, the only one `placeSec` admits.  Without a declaration, E2 takes
+    `L = 0xa0` and lets the module share the free pointer at `0x40`, which H does not model. -/
 structure HModule where
   structs : List (String × List Ty)
   funcs : List HFunc
+  fixedLimit : Option Nat
   deriving Repr, BEq, Inhabited
 
 def HModule.func? (m : HModule) (name : String) : Option HFunc := m.funcs.find? (·.name == name)
