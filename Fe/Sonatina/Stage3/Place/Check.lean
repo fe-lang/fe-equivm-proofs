@@ -23,7 +23,8 @@ The rules, in the order `diagnose` tries them (PLAN §3):
   a source value live across it (`clobberOk`).
 - **S3** origins certificate and flags; no value with origins is stored as data or returned.
 - **S6** terminal fixed buffers: everything reachable after the site is pure, stores through
-  the buffer, or halts with a payload in it.
+  the buffer, or halts with a payload in it, with none, or by a memory-free terminal
+  (`evm_return_code`, `evm_revert_word`, which read no memory).
 - **S7** footprints certificate; A1 at each `alloca`, A2 at each call (PLAN §3).
 - **S8** when an `alloca` or fixed buffer is at address 0: derived certificate, no derived
   value observed.
@@ -252,7 +253,8 @@ def s6Site (O : Orig) (f : HFunc) (b : HBlock) (k t : Nat) : Bool :=
     | .base (.evm .mstore [a, _]) | .base (.evm .mstore8 [a, _]) => inM a
     | _ => false
   let termOk := fun (tm : HTerm) => match tm with
-    | .base (.jump _) | .base .evmStop | .base .evmInvalid | .base .unreachable | .returnCode .. => true
+    | .base (.jump _) | .base .evmStop | .base .evmInvalid | .base .unreachable | .returnCode ..
+    | .revertWord .. => true
     | .base (.br c _ _) => noT c
     | .base (.brTable s _ cs) => noT s && cs.all (noT ·.1)
     | .base (.evmReturn a l) | .base (.evmRevert a l) => inM a || isZeroImm l

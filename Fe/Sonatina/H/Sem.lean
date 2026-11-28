@@ -78,6 +78,12 @@ so that it composes with `RefinesDeployFut` for any of them (`H/Compose.lean`).
   the machine IR's interpreter coerces (`Val.as`).
 - **I11** The deploy outcome ignores the argument bytes, as the machine IR's model does
   (`Sidecar.model`): the init code reads them from `I.code`.
+- **I12** `evm_revert_word sel word` (decision 9.2) reads its operands as the value operands of
+  the EVM operations are read (`State.word`: an integer's value, a pointer's address word, as
+  for the `evm_sstore` value or a log topic) and reverts with `be4(sel) ++ be32(word)`, `be4`
+  the low four bytes of the selector's big-endian word (`revertWordData`).  It touches no
+  memory and fails in no other way.  The relation does not check the operands' types (no
+  terminator's are); `wfH` does (`operandType`: `sel` of width 32, `word` of width 256).
 -/
 
 namespace Fe.Sonatina.H

@@ -18,7 +18,7 @@ block it came from and each block's address word is a choice.
 
 | Module | What | Design |
 | --- | --- | --- |
-| `H/Syntax` | `HInst`/`HTerm` (the machine IR's syntax plus `gep`, `evm_mload_bytes`, `trunc_nuw`, `evm_return_code`), `HSection`, `Object` | §10 Slice 1 |
+| `H/Syntax` | `HInst`/`HTerm` (the machine IR's syntax plus `gep`, `evm_mload_bytes`, `trunc_nuw`, `evm_return_code`, `evm_revert_word`), `HSection`, `Object` | §10 Slice 1 |
 | `H/Parse` | `parseModule` of `source_ir`, `objectOfSidecar` | |
 | `H/Value` | `Val` (integers, pointers with origins), `MByte` (bytes, pointer fragments), `MemBlock` | §3.2–§3.4 |
 | `H/Memory` | `State`, `AddrOk`, `align32`, `heapBudget`, `State.alloc`, `State.range` (E1, U1), typed `load`, `sizeOf` | §3.3, §3.4 |

@@ -36,6 +36,9 @@ read byte values (E3).
 (`trunc_nuw`), U5a (`evm_mload_bytes` with `len > 32`).  U2a, U4a–U4c are about objects, enums
 and annotations, which this dialect does not have or H does not read (U4a).
 
+**Memory-free terminals** (§3.6): `evm_return_code` returns code, `evm_revert_word` reverts
+with the 36 bytes of its operands (`revertWordData`); neither touches memory.
+
 **Not in H** (§3.6): `evm_msize`, `get_function_ptr`, generic `udiv`/`sdiv`/`umod`/`smod`
 (outside the subset on EVM), aggregates: each is `stuck`.  `unreachable` and `evm_invalid`
 trap; EVM division is total, as the model library's `BinOp.eval` computes it.
@@ -385,6 +388,16 @@ inductive TRes where
   /-- The model library's run does not terminate. -/
   | diverge
 
+/-- The revert data of `evm_revert_word sel word` (decision 9.2), from the operands' words:
+    `be4(sel) ++ be32(word)`, the low four bytes of the selector's big-endian word and the 32
+    bytes of `word`'s, as the EVM's `MSTORE` lays a word out (`UInt256.toByteArray`).  Each
+    operand is read as the value operands of the other EVM operations are (`State.word`, the
+    `evm_sstore` value, a log topic): an integer's value, a pointer's address word.  For a
+    selector of type `i32` (the `operandType` check of `wfH`) the low four bytes are its value;
+    taking them is also what the machine's `shl 224 sel` keeps of a wider word. -/
+def revertWordData (sel word : Nat) : ByteArray :=
+  (UInt256.ofNat sel).toByteArray.extract 28 32 ++ (UInt256.ofNat word).toByteArray
+
 /-- Run a terminator (§3.6). -/
 def stepTerm (I : ExecutionEnv) (env : HEnv) (st : State) : HTerm → TRes
   | .base t =>
@@ -421,6 +434,9 @@ def stepTerm (I : ExecutionEnv) (env : HEnv) (st : State) : HTerm → TRes
   | .returnCode o l => match evalOp env o, evalOp env l with
     | some x, some n =>
       .halt (.ends (.error (.stop (I.code.readWithPadding (st.word x) (st.word n)) st.world)))
+    | _, _ => .stuck "an operand with no value"
+  | .revertWord s w => match evalOp env s, evalOp env w with
+    | some x, some y => .halt (.ends (.error (.revert (revertWordData (st.word x) (st.word y)))))
     | _, _ => .stuck "an operand with no value"
 
 end Fe.Sonatina.H

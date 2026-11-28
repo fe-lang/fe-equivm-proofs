@@ -4,9 +4,10 @@ import Fe.Sonatina.Stage3.Place.FixSite
 # After a terminal fixed buffer: terminators
 
 Rule S6 allows after the site only jumps and branches (to blocks after the site), halts without
-data, `evm_return_code`, and `evm_return`/`evm_revert` of the buffer or of nothing.  Each ends
-as H's (`FnUnp.sfxTermBase`, `FnUnp.sfxTermCode`): H halts in an outcome that excuses the
-machine's result, or both go to the same successor.
+data, the memory-free terminals `evm_return_code` and `evm_revert_word`, and
+`evm_return`/`evm_revert` of the buffer or of nothing.  Each ends as H's (`FnUnp.sfxTermBase`,
+`FnUnp.sfxTermCode`, `FnUnp.sfxTermWord`): H halts in an outcome that excuses the machine's
+result, or both go to the same successor.
 -/
 
 namespace Fe.Sonatina.Stage3.Place
@@ -347,6 +348,34 @@ theorem FnUnp.sfxTermCode {efp : Option Nat} (U : FnUnp src low r fn fr fl e me 
       exact excuses_stop hR.world
     · simp at hto
   · simp at hto
+
+/-- `evm_revert_word` after the site: the machine stores the selector word at 0 and the word at
+    4 and reverts with them; H reverts with the same 36 bytes. -/
+theorem FnUnp.sfxTermWord {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be rs)
+    (I : Fe.EVM.Env) (cM : Ctx) {b : HBlock} (hb : b ∈ fn.f.blocks)
+    {s wd : Operand} (ht : b.term = .revertWord s wd) {ms : List Stmt} {mt : Term}
+    (hto : termOk fn.c fn.F.vm fn.f.rets b.term ms mt = true) (O : Oracle) {kt base n t : Nat}
+    {g : Ghost} {hst : H.State} {w : World} {envH : HEnv} {envM : Env}
+    (hR : SR (secS src r efp) fn kt base n t b b.body.length (fn.live b b.body.length) g hst w envH envM)
+    {res : Except (Exit World) (Next × World)}
+    (hres : (runBodyO O cM envM ms >>= fun e => runTerm e mt).exec I w = some res) :
+    ∃ o', stepTerm I envH hst b.term = .halt o' ∧ Excuses o' res := by
+  rw [ht] at hto
+  have hto' : revertWordOk fn.c fn.F.vm s wd ms mt = true := hto
+  obtain ⟨w', hw', -, hts, htw, hsel⟩ := revertWordOk_some hto'
+  obtain ⟨⟨tS, htS, hvS⟩, tW, htW, hvW⟩ := revertWord_types hts htw
+  obtain ⟨s', hs'⟩ := revertWord_mop hsel
+  obtain ⟨x, mx, hx, hmx, -, -, -, hwx⟩ := U.sfxOpnd hb hR (a := s)
+    (by rw [ht]; simp [HTerm.skel, Term.args]) htS hvS hs'
+  obtain ⟨y, my, hy, hmy, -, -, -, hwy⟩ := U.sfxOpnd hb hR (a := wd)
+    (by rw [ht]; simp [HTerm.skel, Term.args]) htW hvW hw'
+  have hwx := hwx fun hz => (U.obsWord hb ht hz).1
+  have hwy := hwy fun hz => (U.obsWord hb ht hz).2
+  have hr := run_revertWord hto' O cM I (ns := mx) (nw := my)
+    (fun s'' h => by rw [hs'] at h; cases h; exact hmx)
+    (fun w'' h => by rw [hw'] at h; cases h; exact hmy) hres
+  subst hr
+  exact ⟨_, by simp [stepTerm, ht, hx, hy, hwx, hwy], excuses_exit⟩
 
 end unp
 

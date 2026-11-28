@@ -876,4 +876,135 @@ func public %main() {
 #guard rule (run t2s t2m (rec1 160 [{ fr "main" [] with
   blockMap := some [(0, 0), (7, 1)] }])) == "translation"
 
+/-! ## `evm_revert_word` (decision 9.2)
+
+The terminator against its expansion, `evm_mstore 0 C; evm_mstore 4 word; evm_revert 0 36` with
+`C = sel · 2 ^ 224` (`revertWordOk`), and mutants a wrong lowering could produce, each with the
+rule that rejects it. -/
+
+/-- `Panic(0x11)`: `0x4e487b71` and 17. -/
+def rws : String := "
+func public %main() {
+    block0:
+        evm_revert_word 1313373041.i32 17.i256;
+}
+"
+def rwm : String := "
+func public %main() {
+    block0:
+        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;
+        evm_mstore 4.i256 17.i256;
+        evm_revert 0.i256 36.i256;
+}
+"
+#guard rule (run rws rwm (rec1 160 [])) == "accepted"
+-- The wrong selector constant (`0x4e487b72 << 224`).
+#guard rule (run rws (rwm.replace "35408467139433450592217433187231851964531694900788300625387963629091585785856"
+  "35408467166393397259368072981898867051551325574425445047928536110195196035072") (rec1 160 [])) == "translation"
+-- The selector unshifted.
+#guard rule (run rws (rwm.replace "35408467139433450592217433187231851964531694900788300625387963629091585785856"
+  "1313373041") (rec1 160 [])) == "translation"
+-- `mstore 4` of another value.
+#guard rule (run rws (rwm.replace "evm_mstore 4.i256 17.i256" "evm_mstore 4.i256 18.i256") (rec1 160 [])) == "translation"
+-- The stores in the other order (the selector word's zeros then overwrite the word's bytes).
+#guard rule (run rws "
+func public %main() {
+    block0:
+        evm_mstore 4.i256 17.i256;
+        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;
+        evm_revert 0.i256 36.i256;
+}
+" (rec1 160 [])) == "translation"
+-- The second store at another offset.
+#guard rule (run rws (rwm.replace "evm_mstore 4.i256" "evm_mstore 32.i256") (rec1 160 [])) == "translation"
+-- Another revert length or offset; a return instead of the revert.
+#guard rule (run rws (rwm.replace "evm_revert 0.i256 36.i256" "evm_revert 0.i256 32.i256") (rec1 160 [])) == "translation"
+#guard rule (run rws (rwm.replace "evm_revert 0.i256 36.i256" "evm_revert 4.i256 36.i256") (rec1 160 [])) == "translation"
+#guard rule (run rws (rwm.replace "evm_revert 0.i256 36.i256" "evm_return 0.i256 36.i256") (rec1 160 [])) == "translation"
+-- A statement between the stores and the revert, or between the two stores.
+#guard rule (run rws (rwm.replace "        evm_revert" "        evm_mstore 0.i256 0.i256;\n        evm_revert") (rec1 160 [])) == "translation"
+#guard rule (run rws (rwm.replace "        evm_mstore 4" "        evm_mstore8 3.i256 0.i256;\n        evm_mstore 4") (rec1 160 [])) == "translation"
+-- A store missing.
+#guard rule (run rws (rwm.replace "        evm_mstore 4.i256 17.i256;\n" "") (rec1 160 [])) == "translation"
+-- A selector of type `i256` (H would read the low four bytes of a word the machine keeps only
+-- through the shift; the signature is `i32`, F9): rejected.
+#guard rule (run (rws.replace "1313373041.i32" "1313373041.i256") rwm (rec1 160 [])) == "translation"
+
+/-- A computed selector (an `i32` truncated from a word) and word: the shift `shl 224 sel` before
+    the first store. -/
+def rwvs : String := "
+func public %main() {
+    block0:
+        v1.i256 = evm_calldata_load 0.i256;
+        v2.i32 = trunc v1 i32;
+        evm_revert_word v2 v1;
+}
+"
+def rwvm : String := "
+func public %main() {
+    block0:
+        v1.i256 = evm_calldata_load 0.i256;
+        v2.i256 = and v1 4294967295.i256;
+        v3.i256 = shl 224.i256 v2;
+        evm_mstore 0.i256 v3;
+        evm_mstore 4.i256 v1;
+        evm_revert 0.i256 36.i256;
+}
+"
+#guard rule (run rwvs rwvm (rec1 160 [])) == "accepted"
+-- A shift by another amount; no shift; the shifted word stored at 4.
+#guard rule (run rwvs (rwvm.replace "shl 224.i256" "shl 192.i256") (rec1 160 [])) == "translation"
+#guard rule (run rwvs (rwvm.replace "        v3.i256 = shl 224.i256 v2;\n" "" |>.replace "evm_mstore 0.i256 v3" "evm_mstore 0.i256 v2") (rec1 160 [])) == "translation"
+#guard rule (run rwvs (rwvm.replace "evm_mstore 4.i256 v1" "evm_mstore 4.i256 v3") (rec1 160 [])) == "translation"
+-- The shift's result redefines the word's machine value (distinct machine definitions).
+#guard rule (run rwvs (rwvm.replace "v3.i256 = shl" "v1.i256 = shl" |>.replace "evm_mstore 0.i256 v3" "evm_mstore 0.i256 v1") (rec1 160 [])) == "translation"
+-- A selector of type `i64`.
+#guard rule (run (rwvs.replace "v2.i32 = trunc v1 i32" "v2.i64 = trunc v1 i64") (rwvm.replace "4294967295" "18446744073709551615") (rec1 160 [])) == "translation"
+
+/-- The word a pointer to an `alloca` at `a`: its address word. -/
+def rwps : String := "
+func public %main() {
+    block0:
+        v1.*i256 = alloca i256;
+        mstore v1 1.i256 i256;
+        evm_revert_word 1313373041.i32 v1;
+}
+"
+def rwpm (a : Nat) : String := s!"
+func public %main() \{
+    block0:
+        evm_mstore {a}.i256 1.i256;
+        evm_mstore 0.i256 35408467139433450592217433187231851964531694900788300625387963629091585785856.i256;
+        evm_mstore 4.i256 {a}.i256;
+        evm_revert 0.i256 36.i256;
+}
+"
+-- Off address 0 the address word is observed as an `evm_sstore` value is: accepted.
+#guard rule (run rwps (rwpm 160) (rec1 160 [fr "main" [(1, .scratch 0)]])) == "accepted"
+-- At address 0 (address-0 mode), `word` is an observation of a derived value: S8.
+#guard rule (run rwps (rwpm 0) (rec1 0 [fr "main" [(1, .scratch 0)]])) == "S8"
+-- The same through the selector (an `i32` of the address, `ptr_to_int` narrowed): S8.
+#guard rule (run "
+func public %main() {
+    block0:
+        v1.*i256 = alloca i256;
+        v2.i32 = ptr_to_int v1 i32;
+        evm_revert_word v2 0.i256;
+}
+" "
+func public %main() {
+    block0:
+        v2.i256 = and 0.i256 4294967295.i256;
+        v3.i256 = shl 224.i256 v2;
+        evm_mstore 0.i256 v3;
+        evm_mstore 4.i256 0.i256;
+        evm_revert 0.i256 36.i256;
+}
+" (rec1 0 [fr "main" [(1, .scratch 0)]])) == "S8"
+
+-- After a terminal fixed buffer (rule S6): a memory-free terminal, allowed as `evm_return_code`
+-- is; it reads no memory.
+#guard rule (run (rws.replace "        evm_revert_word" "        v1.*i256 = evm_malloc 64.i256;\n        mstore v1 7.i256 i256;\n        evm_revert_word")
+  (rwm.replace "        evm_mstore 0" "        evm_mstore 512.i256 7.i256;\n        evm_mstore 0") r8) == "accepted"
+
 end Fe.Sonatina.Stage3.Place.Tests

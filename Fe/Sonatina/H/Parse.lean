@@ -37,6 +37,7 @@ def parseInst (name : String) (args : List String) : P HInst := do
 def parseTerm? (name : String) (args : List String) : P (Option HTerm) := do
   match name, args with
   | "evm_return_code", [o, l] => return some (.returnCode (← parseOperand o) (← parseOperand l))
+  | "evm_revert_word", [s, w] => return some (.revertWord (← parseOperand s) (← parseOperand w))
   | _, _ => return (← Fe.Sonatina.Parse.parseTerm? name args).map .base
 
 /-- A block in the making: its phis and statements so far, last first. -/

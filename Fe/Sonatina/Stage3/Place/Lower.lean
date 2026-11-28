@@ -424,10 +424,33 @@ def mapTerm (c : FCtx) (vm : VM) (rets : List Ty) : Term → Option Term
     unless (c.tyOf a).any Ty.value do none
     return .evmSelfDestruct (← mop vm a)
 
+/-- The expansion of `evm_revert_word sel word` (decision 9.2, design §8 step 2b): the selector
+    word stored at 0, `word` at 4, and a revert of the 36 bytes at 0, in the typed forms of the
+    panic blocks before the terminator (`evm_mstore 0.i256 C.i256; evm_mstore 4.i256 word;
+    evm_revert 0.i256 36.i256`).  The selector word `C` is the immediate `sel · 2 ^ 224` for an
+    immediate `sel`, else the result of `shl 224 sel` just before the first store, which
+    `word`'s machine operand is not.  `sel` is an `i32` (an immediate one below `2 ^ 32`) and
+    `word` a word (PLAN F9): H reverts with the low four bytes of `sel`'s word (`revertWordData`),
+    which are what `shl 224` keeps of the machine's. -/
+def revertWordOk (c : FCtx) (vm : VM) (s w : Operand) (ms : List Stmt) (mt : Term) : Bool :=
+  (do
+    unless (c.tyOf s).any (sameW · (.int 32)) && (c.tyOf w).any isWord do none
+    let w' ← mop vm w
+    let rest ← match s with
+      | .imm _ v => take0 (.evm .mstore [imm 0, imm (v * 2 ^ 224)]) ms
+      | .var _ => do
+        let s' ← mop vm s
+        let (t, ms) ← take1 (.bin .shl (imm 224) s') ms
+        unless w' != Operand.var t do none
+        take0 (.evm .mstore [imm 0, Operand.var t]) ms
+    let rest ← take0 (.evm .mstore [imm 4, w']) rest
+    unless rest.isEmpty && mt == Term.evmRevert (imm 0) (imm 36) do none
+    some ()).isSome
+
 /-- The source terminator `t`, with the machine statements `ms` left in the region's last block,
     is lowered as the machine terminator `mt`: `evm_return_code o l` is `evm_code_copy 0 o l;
-    evm_return 0 l` (`lower_return_code`), every other terminator is `mapTerm`'s with nothing
-    before it. -/
+    evm_return 0 l` (`lower_return_code`), `evm_revert_word` is `revertWordOk`'s two stores and
+    revert, every other terminator is `mapTerm`'s with nothing before it. -/
 def termOk (c : FCtx) (vm : VM) (rets : List Ty) (t : HTerm) (ms : List Stmt) (mt : Term) :
     Bool :=
   match t with
@@ -437,6 +460,7 @@ def termOk (c : FCtx) (vm : VM) (rets : List Ty) (t : HTerm) (ms : List Stmt) (m
       let rest ← take0 (.evm .codeCopy [imm 0, o', l']) ms
       unless rest.isEmpty && mt == Term.evmReturn (imm 0) l' do none
       some ()).isSome
+  | .revertWord s w => revertWordOk c vm s w ms mt
   | .base t => ms.isEmpty && mapTerm c vm rets t == some mt
 
 /-- The list without repeats, its first occurrences kept last to first (structural, so that the

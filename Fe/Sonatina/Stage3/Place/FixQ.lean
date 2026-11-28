@@ -371,7 +371,8 @@ def fixStmtOk (O : Orig) (M : List Nat) (t : Nat) (s : HStmt) : Bool :=
 /-- The terminators allowed after a terminal fixed buffer (`s6Site`'s `termOk`). -/
 def fixTermOk (O : Orig) (M : List Nat) (t : Nat) (tm : HTerm) : Bool :=
   match tm with
-  | .base (.jump _) | .base .evmStop | .base .evmInvalid | .base .unreachable | .returnCode .. => true
+  | .base (.jump _) | .base .evmStop | .base .evmInvalid | .base .unreachable | .returnCode ..
+  | .revertWord .. => true
   | .base (.br c _ _) => fixNoT O t c
   | .base (.brTable s _ cs) => fixNoT O t s && cs.all (fixNoT O t ·.1)
   | .base (.evmReturn a l) | .base (.evmRevert a l) => fixInM M a || isZeroImm l
@@ -506,6 +507,9 @@ theorem stepTerm_succ {I : Fe.EVM.Env} {env : HEnv} {st : H.State} {t : HTerm} {
     (h : stepTerm I env st t = .goto d) : d ∈ t.succs := by
   cases t with
   | returnCode o l =>
+    simp only [stepTerm] at h
+    split at h <;> cases h
+  | revertWord s w =>
     simp only [stepTerm] at h
     split at h <;> cases h
   | base t =>

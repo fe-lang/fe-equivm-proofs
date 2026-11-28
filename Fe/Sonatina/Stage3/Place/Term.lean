@@ -4,7 +4,8 @@ import Fe.Sonatina.Stage3.Place.Obl
 # The terminator obligation of a placed function
 
 `FnUnp.termObl`: every source terminator, against the machine terminator `termOk` matched with
-it (and, for `evm_return_code`, the code copy before it), ends alike: H halts in an outcome that
+it (and, for `evm_return_code`, the code copy before it; for `evm_revert_word`, the two stores
+before it, `run_revertWord`), ends alike: H halts in an outcome that
 excuses the machine's result, or both go to related blocks, or both return related values.
 -/
 
@@ -113,6 +114,186 @@ theorem read_write_zero (src m : ByteArray) (so len : Nat) :
       (by simp) fun i hi => by simp [mem_write, hi],
     readWithPadding_of_mem (l := (List.range len).map fun i => src.data.getD (so + i) 0)
       (by simp) fun i hi => by simp [mem]]
+
+/-! ## `evm_revert_word`: the bytes of its expansion -/
+
+theorem toByteArray_list_length (w : Ethereum.UInt256) :
+    (Ethereum.UInt256.toByteArray w).toList.length = 32 := by
+  rw [Reasoning.Theory.byteArray_toList_eq]; exact Reasoning.Theory.toByteArray_size w
+
+theorem toList_extract_toByteArray (w : Ethereum.UInt256) (a b : Nat) :
+    ((Ethereum.UInt256.toByteArray w).extract a b).toList =
+      ((Ethereum.UInt256.toByteArray w).toList.take b).drop a := by
+  rw [Reasoning.Theory.byteArray_toList_eq, Reasoning.Theory.byteArray_toList_eq,
+    ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop, List.drop_take]
+
+/-- The last four bytes of a word are its value modulo `2 ^ 32`. -/
+theorem fromBE_toByteArray_extract28 (w : Ethereum.UInt256) :
+    Ethereum.fromByteArrayBigEndian ((Ethereum.UInt256.toByteArray w).extract 28 32) =
+      w.toNat % 2 ^ 32 := by
+  have hl := toByteArray_list_length w
+  have hfull := Reasoning.Theory.fromByteArrayBigEndian_toByteArray w
+  unfold Ethereum.fromByteArrayBigEndian at hfull ⊢
+  rw [toList_extract_toByteArray, List.take_of_length_le (by omega)]
+  have hb := Reasoning.Theory.fromBytesBigEndian_bound ((Ethereum.UInt256.toByteArray w).toList.drop 28)
+  rw [List.length_drop, hl] at hb
+  rw [← List.take_append_drop 28 (Ethereum.UInt256.toByteArray w).toList,
+    Reasoning.Theory.fromBytesBigEndian_append, List.length_drop, hl] at hfull
+  rw [← hfull, Nat.mul_add_mod_of_lt hb]
+
+theorem toNat_ofNat_mod (m : Nat) : (Ethereum.UInt256.ofNat m).toNat = m % W := by
+  simp only [Ethereum.UInt256.ofNat, Ethereum.UInt256.toNat]; rfl
+
+/-- The first four bytes of the word `n · 2 ^ 224` (`shl 224 n`) are `be4(n)`, the last four of
+    `n`'s word. -/
+theorem sel_bytes {c : Ethereum.UInt256} {n : Nat} (hc : c.toNat = n % 2 ^ 32 * 2 ^ 224) :
+    c.toByteArray.extract 0 4 = (Ethereum.UInt256.ofNat n).toByteArray.extract 28 32 := by
+  have h1 := Reasoning.Theory.fromByteArrayBigEndian_toByteArray_extract0_4 c
+  have h2 := fromBE_toByteArray_extract28 (Ethereum.UInt256.ofNat n)
+  rw [hc, Nat.mul_div_cancel _ (by norm_num)] at h1
+  rw [toNat_ofNat_mod, Nat.mod_mod_of_dvd n (by norm_num)] at h2
+  have hlen : ∀ (w : Ethereum.UInt256) (a b : Nat), b ≤ 32 →
+      ((Ethereum.UInt256.toByteArray w).extract a b).toList.length = b - a := by
+    intro w a b hb
+    rw [toList_extract_toByteArray, List.length_drop, List.length_take, toByteArray_list_length]
+    omega
+  have := Reasoning.Theory.fromBytesBigEndian_inj_of_length
+    (xs := (c.toByteArray.extract 0 4).toList)
+    (ys := ((Ethereum.UInt256.ofNat n).toByteArray.extract 28 32).toList)
+    (by rw [hlen _ _ _ (by norm_num), hlen _ _ _ (by norm_num)])
+    (by unfold Ethereum.fromByteArrayBigEndian at h1 h2; rw [h1, h2])
+  apply ByteArray.ext
+  apply Array.toList_inj.mp
+  rw [← Reasoning.Theory.byteArray_toList_eq, ← Reasoning.Theory.byteArray_toList_eq]
+  exact this
+
+theorem shl224_toNat (n : Nat) :
+    (Ethereum.UInt256.ofNat (n * 2 ^ 224)).toNat = n % 2 ^ 32 * 2 ^ 224 := by
+  rw [toNat_ofNat_mod, show W = 2 ^ 32 * 2 ^ 224 by norm_num, Nat.mul_mod_mul_right]
+
+/-- Two words stored at 0 and 4, read back at `[0, 36)`: the first one's first four bytes and the
+    second one. -/
+theorem read_two_words (m : ByteArray) (c x : Ethereum.UInt256) :
+    (x.toByteArray.write 0 (c.toByteArray.write 0 m 0 32) 4 32).readWithPadding 0 36 =
+      c.toByteArray.extract 0 4 ++ x.toByteArray := by
+  have hc := Reasoning.Theory.toByteArray_size c
+  have hx := Reasoning.Theory.toByteArray_size x
+  have hs : (c.toByteArray.extract 0 4 ++ x.toByteArray).data.toList.length = 36 := by
+    simp [hc, hx]
+  refine (readWithPadding_of_mem hs fun i hi => ?_).trans rfl
+  have hc' : c.toByteArray.data.size = 32 := hc
+  have hx' : x.toByteArray.data.size = 32 := hx
+  rw [mem_write, mem_write]
+  simp only [Array.getElem_toList, ByteArray.data_append]
+  by_cases h4 : i < 4
+  · rw [ite_eq_right_iff.mpr (fun h => absurd h.1 (by omega)),
+      ite_cond_eq_true _ _ (eq_true (by omega)), Array.getElem_append_left (by simp [hc]; omega)]
+    simp [ByteArray.data_extract, Array.getElem_extract, Array.getD_eq_getD_getElem?,
+      Array.getElem?_eq_getElem (show i < c.toByteArray.data.size by omega)]
+  · rw [ite_cond_eq_true _ _ (eq_true (by omega)), Array.getElem_append_right (by simp [hc]; omega)]
+    simp [ByteArray.data_extract, Array.getD_eq_getD_getElem?, hc,
+      Array.getElem?_eq_getElem (show i - 4 < x.toByteArray.data.size by omega)]
+
+/-- What `revertWordOk` accepts: the machine operand of `word`, the revert of `[0, 36)`, the types,
+    and the two stores, the first of the immediate selector word or of a `shl` just before. -/
+theorem revertWordOk_some {c : FCtx} {vm : VM} {s wd : Operand} {ms : List Stmt} {mt : Term}
+    (h : revertWordOk c vm s wd ms mt = true) :
+    ∃ w', mop vm wd = some w' ∧ mt = .evmRevert (imm 0) (imm 36) ∧
+      (c.tyOf s).any (sameW · (.int 32)) = true ∧ (c.tyOf wd).any isWord = true ∧
+      ((∃ b v, s = .imm b v ∧
+          ms = [⟨[], .evm .mstore [imm 0, imm (v * 2 ^ 224)]⟩, ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
+       (∃ x s' t, s = .var x ∧ mop vm s = some s' ∧ w' ≠ .var t ∧
+          ms = [⟨[(t, .int 256)], .bin .shl (imm 224) s'⟩, ⟨[], .evm .mstore [imm 0, .var t]⟩,
+            ⟨[], .evm .mstore [imm 4, w']⟩])) := by
+  unfold revertWordOk at h
+  cases hc : ((c.tyOf s).any (sameW · (.int 32)) && (c.tyOf wd).any isWord) with
+  | false => simp [hc] at h
+  | true =>
+  simp only [Bool.and_eq_true] at hc
+  cases hw' : mop vm wd with
+  | none => simp [hc, hw'] at h
+  | some w' =>
+  refine ⟨w', rfl, ?_⟩
+  cases s with
+  | imm b v =>
+    cases h1 : take0 (.evm .mstore [imm 0, imm (v * 2 ^ 224)]) ms with
+    | none => simp [hc, hw', h1, -Nat.reducePow] at h
+    | some rest =>
+    cases h2 : take0 (.evm .mstore [imm 4, w']) rest with
+    | none => simp [hc, hw', h1, h2, -Nat.reducePow] at h
+    | some rest2 =>
+    simp [hc, hw', h1, h2, -Nat.reducePow] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have e1 := take0_some h1
+    have e2 := take0_some h2
+    subst e1 e2
+    exact ⟨rfl, hc.1, hc.2, Or.inl ⟨b, v, rfl, rfl⟩⟩
+  | var x =>
+    cases hs' : mop vm (.var x) with
+    | none => simp [hc, hw', hs'] at h
+    | some s' =>
+    cases h0 : take1 (.bin .shl (imm 224) s') ms with
+    | none => simp [hc, hw', hs', h0] at h
+    | some p =>
+    obtain ⟨t, ms1⟩ := p
+    by_cases hne : w' = Operand.var t
+    · simp [hc, hw', hs', h0, hne] at h
+    cases h1 : take0 (.evm .mstore [imm 0, Operand.var t]) ms1 with
+    | none => simp [hc, hw', hs', h0, hne, h1] at h
+    | some rest =>
+    cases h2 : take0 (.evm .mstore [imm 4, w']) rest with
+    | none => simp [hc, hw', hs', h0, hne, h1, h2] at h
+    | some rest2 =>
+    simp [hc, hw', hs', h0, hne, h1, h2] at h
+    obtain ⟨rfl, rfl⟩ := h
+    have e0 := take1_some h0
+    have e1 := take0_some h1
+    have e2 := take0_some h2
+    subst e0 e1 e2
+    exact ⟨rfl, hc.1, hc.2, Or.inr ⟨x, s', t, rfl, rfl, hne, rfl⟩⟩
+
+theorem eval_shl224 (n : Nat) : BinOp.eval .shl 256 224 n % W = n % 2 ^ 32 * 2 ^ 224 := by
+  simp only [BinOp.eval, show ¬ (224 ≥ 256) by omega, if_false]
+  rw [wrap_nat, Nat.shiftLeft_eq, Nat.mod_mod, show 2 ^ 256 = 2 ^ 32 * 2 ^ 224 by norm_num,
+    Nat.mul_mod_mul_right]
+
+/-- The machine run of `evm_revert_word`'s expansion (`revertWordOk`): it reverts with H's data of
+    the selector's and the word's machine words. -/
+theorem run_revertWord {c : FCtx} {vm : VM} {s wd : Operand} {ms : List Stmt} {mt : Term}
+    (hto : revertWordOk c vm s wd ms mt = true) (O : Oracle) (cM : Ctx) (I : Fe.EVM.Env)
+    {envM : Env} {w : World} {ns nw : Nat}
+    (hs : ∀ s', mop vm s = some s' → mval envM s' = some ns)
+    (hw : ∀ w', mop vm wd = some w' → mval envM w' = some nw)
+    {res : Except (Exit World) (Next × World)}
+    (hres : (runBodyO O cM envM ms >>= fun e => runTerm e mt).exec I w = some res) :
+    res = .error (.revert (revertWordData ns nw)) := by
+  obtain ⟨w', hw', rfl, -, -, h⟩ := revertWordOk_some hto
+  have hmw := hw w' hw'
+  have hi : ∀ (env : Env) n, evalWord env (imm n) = pure (Ethereum.UInt256.ofNat n) := fun _ _ =>
+    mval_evalWord (by simp [imm, mval])
+  have h0' : (Ethereum.UInt256.ofNat 0).toNat = 0 := toNat_ofNat_lt (by unfold W; norm_num)
+  have h4' : (Ethereum.UInt256.ofNat 4).toNat = 4 := toNat_ofNat_lt (by unfold W; norm_num)
+  have h36' : (Ethereum.UInt256.ofNat 36).toNat = 36 := toNat_ofNat_lt (by unfold W; norm_num)
+  rcases h with ⟨b, v, rfl, rfl⟩ | ⟨x, s', t, rfl, hs', hne, rfl⟩
+  · have hv : ns = v := by
+      have := hs _ rfl
+      simp only [mop, mval, if_true, Option.some.injEq] at this
+      exact this.symm
+    subst hv
+    rw [runBodyO_plain O cM envM _ (by simp)] at hres
+    simp [runPlain, runInst, EvmOp.run, Fe.EVM.mstore, hi, mval_evalWord hmw, Fe.Sonatina.bind,
+      runTerm, revertData, Fe.M.revert, h0', h4', h36', -Nat.reducePow] at hres
+    rw [read_two_words, sel_bytes (shl224_toNat ns)] at hres
+    exact hres.symm
+  · have hms' := hs s' hs'
+    rw [runBodyO_plain O cM envM _ (by simp),
+      runPlain_bin cM (show mval envM (imm 224) = some 224 by simp [imm, mval]) hms'] at hres
+    have hne' : ∀ q, w' = .var q → q ≠ t := fun q hq he => hne (he ▸ hq)
+    simp [runPlain, runInst, EvmOp.run, Fe.EVM.mstore, hi, mval_evalWord (mval_insert_self envM t _),
+      mval_evalWord ((mval_insert_other hne').trans hmw), Fe.Sonatina.bind, runTerm, revertData,
+      Fe.M.revert, h0', h4', h36', -Nat.reducePow] at hres
+    rw [read_two_words, sel_bytes (by rw [toNat_ofNat_mod, Nat.mod_mod, eval_shl224])] at hres
+    exact hres.symm
 
 section unp
 
@@ -590,6 +771,76 @@ theorem FnUnp.termCode {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be 
     · simp at hto
   · simp at hto
 
+/-- A selector of type `i32` and a word: their declared types, value types. -/
+theorem revertWord_types {c : FCtx} {s wd : Operand}
+    (hts : (c.tyOf s).any (sameW · (.int 32)) = true) (htw : (c.tyOf wd).any isWord = true) :
+    (∃ t, c.tyOf s = some t ∧ Ty.value t = true) ∧ ∃ t, c.tyOf wd = some t ∧ Ty.value t = true := by
+  constructor
+  · cases e : c.tyOf s with
+    | none => rw [e] at hts; cases hts
+    | some t =>
+      rw [e] at hts
+      simp only [Option.any_some, sameW, Bool.and_eq_true] at hts
+      exact ⟨t, rfl, hts.1.1⟩
+  · cases e : c.tyOf wd with
+    | none => rw [e] at htw; cases htw
+    | some t =>
+      rw [e] at htw
+      simp only [Option.any_some, isWord, Bool.and_eq_true] at htw
+      exact ⟨t, rfl, htw.1⟩
+
+/-- The selector's machine operand, which `revertWordOk` takes or which is an immediate. -/
+theorem revertWord_mop {vm : VM} {s : Operand} {ms : List Stmt} {w' : Operand}
+    (h : (∃ b v, s = .imm b v ∧
+          ms = [⟨[], .evm .mstore [imm 0, imm (v * 2 ^ 224)]⟩, ⟨[], .evm .mstore [imm 4, w']⟩]) ∨
+       (∃ x s' t, s = .var x ∧ mop vm s = some s' ∧ w' ≠ .var t ∧
+          ms = [⟨[(t, .int 256)], .bin .shl (imm 224) s'⟩, ⟨[], .evm .mstore [imm 0, .var t]⟩,
+            ⟨[], .evm .mstore [imm 4, w']⟩])) : ∃ s', mop vm s = some s' := by
+  rcases h with ⟨b, v, rfl, -⟩ | ⟨-, s', -, -, hs', -, -⟩
+  · exact ⟨_, rfl⟩
+  · exact ⟨s', hs'⟩
+
+/-- Rule S8 at `evm_revert_word`: in address-0 mode neither operand is derived (both are
+    observed, `notObserved`'s last case). -/
+theorem FnUnp.obsWord {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be rs) {b : HBlock}
+    (hb : b ∈ fn.f.blocks) {s wd : Operand} (ht : b.term = .revertWord s wd)
+    (hz : (secS src r efp).z = true) : fn.F.dOp s = false ∧ fn.F.dOp wd = false := by
+  have h := U.rules.s8 hz
+  simp only [notObserved, List.all_eq_true, Bool.and_eq_true] at h
+  have h1 := (h b hb).2
+  rw [ht] at h1
+  simp only [HTerm.skel, Term.args, List.any_eq_false, Bool.not_eq_true'] at h1
+  rw [U.dOp, U.dOp]
+  exact ⟨by simpa using h1 s (by simp), by simpa using h1 wd (by simp)⟩
+
+/-- `evm_revert_word`: the machine stores the selector word at 0 and the word at 4 and reverts
+    with `[0, 36)`; H reverts with the same 36 bytes and touches no memory. -/
+theorem FnUnp.termWord {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be rs)
+    (I : Fe.EVM.Env) (cM : Ctx) {b : HBlock} (hb : b ∈ fn.f.blocks)
+    {s wd : Operand} (ht : b.term = .revertWord s wd) {ms : List Stmt} {mt : Term}
+    (hto : termOk fn.c fn.F.vm fn.f.rets b.term ms mt = true) (O : Oracle) {g : Ghost}
+    {hst : H.State} {w : World} {envH : HEnv} {envM : Env} (hI : Inv (secS src r efp) hst w g)
+    (hE : EnvRel (secS src r efp).z fn.F g hst envH envM (fn.live b b.body.length))
+    {res : Except (Exit World) (Next × World)}
+    (hres : (runBodyO O cM envM ms >>= fun e => runTerm e mt).exec I w = some res) :
+    TermGoal I (secS src r efp) (secX src r).derived fn b b.term g hst w envH res := by
+  rw [ht] at hto
+  have hto' : revertWordOk fn.c fn.F.vm s wd ms mt = true := hto
+  obtain ⟨w', hw', -, hts, htw, hsel⟩ := revertWordOk_some hto'
+  obtain ⟨⟨tS, htS, hvS⟩, tW, htW, hvW⟩ := revertWord_types hts htw
+  obtain ⟨s', hs'⟩ := revertWord_mop hsel
+  obtain ⟨x, mx, hx, -, hmx, -, hvx, hox, -⟩ := U.topnd hb hE (a := s)
+    (by rw [ht]; simp [HTerm.skel, Term.args]) htS hvS hs'
+  obtain ⟨y, my, hy, -, hmy, -, hvy, hoy, -⟩ := U.topnd hb hE (a := wd)
+    (by rw [ht]; simp [HTerm.skel, Term.args]) htW hvW hw'
+  have hwx : hst.word x = mx := vrel_exact hI hvx hox fun hz => (U.obsWord hb ht hz).1
+  have hwy : hst.word y = my := vrel_exact hI hvy hoy fun hz => (U.obsWord hb ht hz).2
+  have hr := run_revertWord hto' O cM I (ns := mx) (nw := my)
+    (fun s'' h => by rw [hs'] at h; cases h; exact hmx)
+    (fun w'' h => by rw [hw'] at h; cases h; exact hmy) hres
+  subst hr
+  exact Or.inl ⟨_, by simp [stepTerm, ht, hx, hy, hwx, hwy], excuses_exit⟩
+
 /-- Every block's terminator. -/
 theorem FnUnp.termObl {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be rs)
     (hS : SecChecked src low efp r) (I : Fe.EVM.Env) (cM : Ctx) :
@@ -606,6 +857,8 @@ theorem FnUnp.termObl {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be r
     cases ht : b.term with
     | returnCode o l =>
       rw [← ht]; exact U.termCode I cM hb ht hto O hI hE hres
+    | revertWord s wd =>
+      rw [← ht]; exact U.termWord I cM hb ht hto O hI hE hres
     | base t =>
       rw [ht] at hto
       simp only [termOk, Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq] at hto

@@ -140,6 +140,12 @@ theorem FnUnp.sfxWalk {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be r
         exact ⟨o', Or.inr (Or.inr ⟨o', ho, rfl⟩), Excuses.of_error hx⟩
       · obtain ⟨o', ho, hx⟩ := U.sfxTermCode I cM hb htb' (htb' ▸ hto) O hR h1
         exact ⟨o', Or.inr (Or.inr ⟨o', ho, rfl⟩), Excuses.of_ok hx _⟩
+    | revertWord s wd =>
+      rcases exec_bind_some h' with ⟨e', h1, rfl⟩ | ⟨nx, w₁, h1, -⟩
+      · obtain ⟨o', ho, hx⟩ := U.sfxTermWord I cM hb htb' (htb' ▸ hto) O hR h1
+        exact ⟨o', Or.inr (Or.inr ⟨o', ho, rfl⟩), Excuses.of_error hx⟩
+      · obtain ⟨o', ho, hx⟩ := U.sfxTermWord I cM hb htb' (htb' ▸ hto) O hR h1
+        exact ⟨o', Or.inr (Or.inr ⟨o', ho, rfl⟩), Excuses.of_ok hx _⟩
     | base tm =>
       rw [htb'] at hto
       simp only [termOk, Bool.and_eq_true, List.isEmpty_iff, beq_iff_eq] at hto

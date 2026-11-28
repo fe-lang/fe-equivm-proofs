@@ -17,6 +17,8 @@ instructions of this dialect it has no constructor for.
 - `evm_mload_bytes addr len` (R4 of Sonatina's `docs/memory.md`, U5a of the design).
 - `trunc_nuw x T` (§3.6, U2c).
 - `evm_return_code off len`, a terminal (E5, §3.6).
+- `evm_revert_word sel word`, a terminal (decision 9.2, §3.6): the panic and error payload as
+  operands.
 
 Later slices add the instructions of the earlier dialects (objects, enums, aggregates,
 constant references); none of them is in `source_ir`.
@@ -43,6 +45,9 @@ inductive HTerm where
   | base (t : Term)
   /-- `evm_return_code off len`: return `code[off, off + len)`, touching no memory (E5). -/
   | returnCode (off len : Operand)
+  /-- `evm_revert_word sel word` (`sel : i32`, `word : i256`): revert with the 36 bytes
+      `be4(sel) ++ be32(word)`, touching no memory (decision 9.2). -/
+  | revertWord (sel word : Operand)
   deriving Repr, BEq, Inhabited
 
 /-- An instruction and the values it defines. -/
@@ -80,7 +85,7 @@ def HFunc.block? (f : HFunc) (id : Nat) : Option HBlock := f.blocks.find? (·.id
 /-- The blocks a terminator may go to. -/
 def HTerm.succs : HTerm → List Nat
   | .base t => t.succs
-  | .returnCode _ _ => []
+  | .returnCode _ _ | .revertWord _ _ => []
 
 /-- A section of the handover object: its module, entry function, and the place and size of
     each symbol of its compiled code (`sym_addr`, `sym_size`). -/

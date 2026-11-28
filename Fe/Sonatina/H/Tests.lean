@@ -266,4 +266,38 @@ def caller (args : List Operand) (dsts : List (Nat × Ty)) : HSection :=
 #guard rs (main1 [⟨[(1, i256)], .base (.select (.imm 1 1) (k 5) (k 6))⟩]) == ["select"]
 #guard rs (main1 [⟨[(1, i256)], .base (.select (.imm 1 1) (k 5) (.imm 8 6))⟩]) == ["select", "operandType"]
 
+/-! ## `evm_revert_word` (decision 9.2) -/
+
+/-- The outcome of a revert with the selector's four bytes and the word's 32. -/
+def revertOf (sel : List Nat) (word : List Nat) : String :=
+  s!"revert {sel ++ List.replicate (32 - word.length) 0 ++ word}"
+
+-- An immediate selector: `Panic(0x11)`, the 36 bytes, touching no memory (an `evm_revert` of
+-- the same bytes at address 0 is `ub`, line 63).
+#guard outcome apart (prog "        evm_revert_word 1313373041.i32 17.i256;\n") ==
+  revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
+#guard outcome same (prog "        evm_revert_word 1313373041.i32 17.i256;\n") ==
+  revertOf [0x4e, 0x48, 0x7b, 0x71] [17]
+-- A selector of `2 ^ 31` or more, written negative.
+#guard outcome apart (prog "        evm_revert_word -1.i32 0.i256;\n") == revertOf [255, 255, 255, 255] []
+-- Computed operands: the selector a value of type `i32`, the word a value.
+#guard outcome apart (prog "        v1.i32 = add 1313373040.i32 1.i32;\n        v2.i256 = add 65.i256 0.i256;\n        evm_revert_word v1 v2;\n") ==
+  revertOf [0x4e, 0x48, 0x7b, 0x71] [65]
+-- A selector truncated from a wider word keeps its low four bytes.
+#guard outcome apart (prog "        v1.i256 = add 4294967296.i256 8.i256;\n        v2.i32 = trunc v1 i32;\n        evm_revert_word v2 1.i256;\n") ==
+  revertOf [0, 0, 0, 8] [1]
+-- A pointer as the word is its address word (2 ^ 200 under `apart`), as an `evm_sstore` value is.
+#guard outcome apart (prog "        v1.*i256 = alloca i256;\n        evm_revert_word 0.i32 v1;\n") ==
+  revertOf [0, 0, 0, 0] (1 :: List.replicate 25 0)
+#guard outcome same (prog "        v1.*i256 = alloca i256;\n        evm_revert_word 0.i32 v1;\n") ==
+  revertOf [0, 0, 0, 0] [0x80]
+-- Its operands are values; `wfH` types them: the selector an `i32`, the word of width 256.
+#guard (outcome apart (prog "        evm_revert_word v7 0.i256;\n")).startsWith "stuck"
+#guard rs (main1 [] (.revertWord (.imm 32 1) (k 0))) == []
+#guard rs (main1 [⟨[(1, .ptr i256)], .base (.alloca i256)⟩] (.revertWord (.imm 32 1) (v 1))) == []
+#guard rs (main1 [] (.revertWord (k 1) (k 0))) == ["operandType"]
+#guard rs (main1 [] (.revertWord (.imm 32 1) (.imm 32 0))) == ["operandType"]
+#guard rs (main1 [] (.revertWord (.imm 32 (2 ^ 32)) (k 0))) == ["imm"]
+#guard rs (main1 [] (.revertWord (v 9) (k 0))) == ["dominance", "undeclared"]
+
 end Fe.Sonatina.H.Tests

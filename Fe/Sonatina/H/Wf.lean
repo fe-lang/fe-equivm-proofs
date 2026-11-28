@@ -43,7 +43,9 @@ widths.  Each check names the way a run would otherwise be stuck:
 - `undeclared`, `imm`: every operand anywhere is a declared value, or an immediate of a
   Sonatina width whose value is in range (`evalOp`, `Val.fits`);
 - `operandType`: the operands an instruction takes at one width have it (`bin`, `cmp`, `ovf`,
-  `select`, a stored value and its type; `binVal`, `stepInst`);
+  `select`, a stored value and its type; `binVal`, `stepInst`); `evm_revert_word`'s selector is
+  an `i32` and its word of width 256 (H reads any value, I12; this is the instruction's
+  signature);
 - `results`, `resultType`: a statement binds as many values as its instruction gives, each
   declared at the width it has (`bindVals`; for a call, the callee's results);
 - `phiType`, `ret`, `retType`: each phi's operands have its width; each `return` returns as many
@@ -96,6 +98,7 @@ def HInst.skel : HInst → Inst
 def HTerm.skel : HTerm → Term
   | .base t => t
   | .returnCode o l => .evmReturn o l
+  | .revertWord s w => .evmRevert s w
 
 /-- The function as the machine IR's syntax: its control flow, definitions and uses. -/
 def HFunc.skel (f : HFunc) : Func where
@@ -253,6 +256,9 @@ def wfReasons (s : HSection) : List (String × String) := Id.run do
           | _ => none
         unless d.isSome && keys.length == cases.length && keys.eraseDups.length == keys.length do
           out := out ++ [("brTable", tw)]
+      | .revertWord sel word =>
+        if known [sel, word] && (w sel != 32 || w word != 256) then
+          out := out ++ [("operandType", tw)]
       | _ => pure ()
   return out
 
