@@ -11,8 +11,14 @@ Fe.Sonatina.H.message_eq_core: [Classical.choice, Quot.sound, propext] + 0 nativ
 Fe.Sonatina.H.runDeploy_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.H.runH_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.H.runRuntime_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.Examples.FeConstant.deploy_code: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.Examples.FeConstant.refines_bin: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.Examples.FeERC20.deploy_code: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.Examples.FeERC20.refines_bin: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Stage3.Place.place_lower_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Stage3.Place.place_sidecar_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.slice1_deploy_code: [Classical.choice, Quot.sound, propext] + 0 native_decide
+Fe.Sonatina.Stage3.Place.slice1_deploy_runtime: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Stage3.Place.slice1_sound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.gvnPrune_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
 Fe.Sonatina.Steps.Schemas.gvnRewrite_stepSound: [Classical.choice, Quot.sound, propext] + 0 native_decide
