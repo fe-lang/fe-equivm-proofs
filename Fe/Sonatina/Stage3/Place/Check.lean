@@ -160,6 +160,12 @@ def clobberOk (f : HFunc) (L : Live) (pts : NatMap (List (List Nat))) (fl : Func
     (b.body.zipIdx.zip dss).all fun ((s, k), ds) =>
       ds.isEmpty || !hits (ptsAt pts b.id k ++ ptsAt pts b.id (k + 1)) s.defs ds
 
+/-- No statement reads a value it defines (session 3, T1).  With distinct definitions a statement
+    that does is in a block no run reaches with the value defined; the simulation of a template
+    reads the operands' machine values after some of its statements, which define the result's. -/
+def selfFree (f : HFunc) : Bool :=
+  f.blocks.all fun b => b.body.all fun s => s.defs.all fun y => !s.uses.contains y
+
 /-- Rule S3's two uses: no value with origins is the value operand of a store, or returned. -/
 def s3Uses (O : Orig) (f : HFunc) : Bool :=
   f.blocks.all fun b =>
@@ -355,6 +361,7 @@ def funcDiag (src : HSection) (low : Module) (r : Record) (X : Facts) (z : Bool)
     let O := X.origAt k
     if !liveOkAt f L pts then some s!"liveness: {f.name}"
     else if !clobberOk f L pts fl then some s!"translation: {f.name} redefines a live value's machine value"
+    else if !selfFree f then some s!"translation: {f.name} has a statement that reads its own result"
     else if !(origOk fr X.flags k f O && flagsOk X.flags fr f O) then some s!"S3: origins of {f.name}"
     else if !s3Uses O f then some s!"S3: {f.name} stores or returns a value with origins"
     else if !ruleS6 O fr f then some s!"S6: a terminal buffer of {f.name}"

@@ -740,4 +740,41 @@ func public %main() {
 -- L1: two placements for one `alloca`.
 #guard rule (run s1 m1 (rec1 160 [fr "main" [(1, .scratch 0), (1, .scratch 1)]])) == "S2"
 
+/-! ## Session 3: conditions the simulation lemmas need
+
+Each was accepted by the checker before the change (checked once) and is rejected now. -/
+
+/-- `run` with a value-map certificate the inference cannot find. -/
+def runVm (src mach : String) (r : Record) (vmc : List (Nat × Operand)) : Option String :=
+  match H.Parse.parseModule src, Fe.Sonatina.Parse.parseModule mach with
+  | .ok hm, .ok mm =>
+    let s : HSection := ⟨hm, "main", [(".", 0, 0)]⟩
+    let r1 := r.withHints s mm
+    diagnose s mm none { r1 with funcs := r1.funcs.map fun fr => { fr with vmCert := some vmc } }
+  | .error e, _ => some s!"source: {e}"
+  | _, .error e => some s!"machine: {e}"
+
+-- T1: a statement that reads its own result (here in a block no run reaches).  A template reads
+-- its operands' machine values after some of its statements (`gep`, `evm_malloc`), so the
+-- simulation needs operands other than the result.
+def t1s : String := "
+func public %main() {
+    block0:
+        evm_stop;
+    block1:
+        v1.i256 = add v1 1.i256;
+        jump block1;
+}
+"
+def t1m : String := "
+func public %main() {
+    block0:
+        evm_stop;
+    block1:
+        v0.i256 = add v0 1.i256;
+        jump block1;
+}
+"
+#guard rule (runVm t1s t1m (rec1 160 [fr "main"]) [(1, .var 0)]) == "translation"
+
 end Fe.Sonatina.Stage3.Place.Tests
