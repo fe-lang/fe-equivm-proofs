@@ -221,7 +221,7 @@ theorem inst_call {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {Dr 
     (hfg : ∀ kg, callee? = some kg → ∃ fg, fns kg = some fg ∧ c.src.funcs[kg]? = some fg.f ∧
       fg.k = kg ∧
       (∀ (j : Nat) (a : Operand) (p : Nat × Ty), args[j]? = some a → fg.f.params[j]? = some p →
-        (Dr.op k a = true → fg.F.D p.1 = true) ∧
+        (S.z = true → Dr.op k a = true → fg.F.D p.1 = true) ∧
         (origOf F.O a ≠ [] → 0 ∈ origOf fg.F.O (.var p.1))) ∧
       (∀ r ∈ fg.F.fpf, r ∈ F.fpf) ∧
       (∀ y, ((y ∈ L' ∧ y ∉ s.defs) ∨ Operand.var y ∈ args) → ∀ o ∈ origOf F.O (.var y),
@@ -259,7 +259,7 @@ theorem inst_call {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {Dr 
       refine ⟨m, rfl, fits_sameW (sameW_symm hsw) hf, ?_, ho, ?_⟩
       · cases v with
         | int => exact hr
-        | ptr b o => exact ⟨hr.1, fun hz => hd (by rw [← hA.dOp aj]; exact hr.2 hz)⟩
+        | ptr b o => exact ⟨hr.1, fun hz => hd hz (by rw [← hA.dOp aj]; exact hr.2 hz)⟩
       · refine origOk_arg hor h0 hfp fun o ho' => ?_
         cases aj with
         | var y => exact hA2 y (Or.inr (List.mem_of_getElem? haj)) o ho'

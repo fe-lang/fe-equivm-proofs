@@ -74,8 +74,8 @@ theorem inst_alloca {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {F
       F.R.find? x = some (c.prec.wordAddr loc.word, c.prec.wordAddr loc.word + n))
     (hsec : ∀ r, F.R.find? x = some r → r.2 < 2 ^ 32 ∧ (r.1 = 0 → S.z = true) ∧
       (S.hasHeap = true → r.2 ≤ S.e ∧ Disj r (0x40, 0x60)) ∧ r ∈ F.fpf)
-    (hA1 : ∀ r, F.R.find? x = some r → ∀ y ∈ L', y ≠ x → ∀ o ∈ origOf F.O (.var y),
-      o = 0 ∨ ∃ r', F.R.find? (o - 1) = some r' ∧ Disj r r')
+    (hA1 : ∀ r, F.R.find? x = some r → ∀ y ∈ L', y ≠ x → ∀ o ∈ origOf F.O (.var y), o ≠ 0 →
+      ∀ r', F.R.find? (o - 1) = some r' → Disj r r')
     (hI : Inv S hst w g) (hE : EnvRel S.z F g hst envH envM L)
     (hA : At S F c Dr k s callee? L L' ds)
     (hi : s.inst = .base (.alloca t)) (hd : s.dsts = [(x, tx)])
@@ -128,11 +128,8 @@ theorem inst_alloca {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {F
         · exact Or.inl (Ghost.add_heap_old (by omega) hh')
         · obtain ⟨s', hs', hRs⟩ := hsite
           refine Or.inr ⟨Ghost.add_live_old (by omega) ⟨hl, ?_⟩, Or.inl ⟨s', hs', by rw [hrg b hbk]; exact hRs⟩⟩
-          rcases hA1 _ hR y hy hyx (s' + 1) hs' with h0 | ⟨r', hr', hd'⟩
-          · cases h0
-          · simp only [Nat.add_sub_cancel] at hr'
-            rw [hRs] at hr'; cases hr'
-            exact hd'.symm
+          exact (hA1 _ hR y hy hyx (s' + 1) hs' (by omega) _
+            (by simp only [Nat.add_sub_cancel]; exact hRs)).symm
         · refine Or.inr ⟨Ghost.add_live_old (by omega) ⟨hl, (hdisj _ hfp).symm⟩, Or.inr ⟨h0, ?_⟩⟩
           intro r' hr'; rw [hrg b hbk]; exact hdisj r' hr'
     · intro y hy _

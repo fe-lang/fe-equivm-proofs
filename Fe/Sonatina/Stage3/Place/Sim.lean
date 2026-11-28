@@ -328,10 +328,12 @@ variable (P : HSection) (I : Fe.EVM.Env) (cM : Ctx) (S : SecFacts) (Dr : Derived
 
 /-- A statement whose template is a list of machine statements of its block (all but the two
     diamonds and the terminal fixed buffer): run with calls by an oracle that satisfies the call
-    contract, they end as H's step does. -/
-def StdK (fn : Fn) (b : HBlock) (i : Nat) (s : HStmt) (ms ms' : List Stmt) : Prop :=
+    contract, they end as H's step does; the walk stays in block `mb`. -/
+def StdK (fn : Fn) (b : HBlock) (i : Nat) (s : HStmt) (mb : Nat) (ms : List Stmt) (mb' : Nat)
+    (ms' : List Stmt) : Prop :=
   ∀ O, CP O → ∀ g hst w envH envM, Inv S hst w g → EnvRel S.z fn.F g hst envH envM (fn.live b i) →
-    ∃ pre, ms = pre ++ ms' ∧ TemplOkC P I cM S O fn.F g hst w envH envM s (fn.live b (i + 1)) pre
+    ∃ pre, ms = pre ++ ms' ∧ mb' = mb ∧
+      TemplOkC P I cM S O fn.F g hst w envH envM s (fn.live b (i + 1)) pre
 
 /-- A statement whose template branches: block `mb` runs the statements `ms` left and branches
     on `cv`; an arm is the join `mb'` or a block without phis that jumps to it; the join's phis
@@ -363,7 +365,7 @@ def FixK (fn : Fn) (b : HBlock) (i : Nat) (mb : Nat) (ms : List Stmt) : Prop :=
 def StmtObl (fn : Fn) : Prop :=
   ∀ b ∈ fn.f.blocks, ∀ i s, b.body[i]? = some s → ∀ mb ms cs, fn.pos b i = some (mb, ms, cs) →
     ∀ vm' mb' ms' ds, stmt fn.c true fn.F.vm s mb ms (calleeOf s cs).1 = some (vm', mb', ms', ds) →
-      (mb' = mb ∧ StdK P I cM S CP fn b i s ms ms') ∨
+      StdK P I cM S CP fn b i s mb ms mb' ms' ∨
       DiaK P I cM S CP fn b i s mb ms mb' ms' ∨ FixK P I cM S Dr CP fn b i mb ms
 
 /-- Every block's terminator, with the machine statements left in the block its region ends in:
@@ -605,9 +607,9 @@ theorem walk_sim {low : Module} {fn : Fn} (hfn : FnOk P I cM S Dr CP low fn) {O 
     obtain ⟨s, hs⟩ : ∃ s, b.body[i]? = some s :=
       ⟨b.body[i]'(by omega), List.getElem?_eq_getElem (by omega)⟩
     obtain ⟨vm', mb', ms', ds, hstm, hp'⟩ := pos_succ hp hs (hfn.walks b hb)
-    rcases hfn.stmt b hb i s hs mb ms cs hp vm' mb' ms' ds hstm with ⟨hmm, hK⟩ | hK | hK
-    · rw [hmm] at hp'
-      obtain ⟨pre, rfl, hT⟩ := hK O hO g hst w envH envM hI hE
+    rcases hfn.stmt b hb i s hs mb ms cs hp vm' mb' ms' ds hstm with hK | hK | hK
+    · obtain ⟨pre, rfl, hmm, hT⟩ := hK O hO g hst w envH envM hI hE
+      rw [hmm] at hp'
       rw [drop_cons hs]
       rw [runBodyO_append, bind_assoc] at h
       rcases exec_bind_some h with ⟨e, h1, rfl⟩ | ⟨envM₁, w₁, h1, h2⟩
