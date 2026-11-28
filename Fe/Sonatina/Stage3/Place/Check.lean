@@ -214,7 +214,7 @@ def mustStep (I M : List Nat) (s : HStmt) : Bool :=
     | .imm .. => true
   match s.inst with
   | .gep _ b _ => m b
-  | .base (.bin .add a b) => m a && i b || i a && m b
+  | .base (.bin .add a b) => m a && i b || m b && i a
   | .base (.bin .sub a b) => m a && i b
   | .base (.cast op a t) => keepsPtr op t && m a
   | .base (.blackBox a) => m a
