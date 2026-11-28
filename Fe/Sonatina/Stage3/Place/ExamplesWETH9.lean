@@ -3,7 +3,7 @@ import Fe.Sonatina.Stage3.Place.Examples
 /-!
 # Slice 1 on WETH9
 
-`Examples.lean` for a third contract of another shape: WETH9 as corpus v10 builds it at `-O0`
+`Examples.lean` for a third contract of another shape: WETH9 as corpus v12 builds it at `-O0`
 (`Tests/WETH9.O0.sidecar.json`, the corpus sidecar; the `.bin` files are the corpus ones), whose
 runtime has 226 functions (FeERC20's 125) and whose constructor stores through `evm_sstore`.
 

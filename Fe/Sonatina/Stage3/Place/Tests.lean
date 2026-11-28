@@ -1,11 +1,13 @@
 import Fe.Sonatina.Stage3.Place.Fixture
+import Fe.Sonatina.Stage3.Place.Sidecar
 
 /-!
 # Tests of the S14 check
 
-Real sections of corpus v10 (`-O0`, sidecar version 6), under the placement records the compiler
-wrote into their sidecars, checked in the kernel, with mutants of the parsed records; the reader
-of the record on small lowerings; and small hand-written sections, accepted, with a rejected mutant for each rule and
+Real sections of corpus v12 (`-O0`, sidecar version 6), under the placement records the compiler
+wrote into their sidecars, checked in the kernel, with mutants of the parsed records; `placeCheck`
+of a real sidecar whose modules declare another fixed memory limit or none; the reader of the
+record on small lowerings; and small hand-written sections, accepted, with a rejected mutant for each rule and
 for each attack of design §5.5 that applies without free-pointer restores (attacks 10, 16–19,
 21, 27 for S8, S5 and S1; 3, 8, 22 for S3; 7 and the call footprint for S7; 9 for S6).  The
 small ones run by `#guard`.
@@ -61,6 +63,28 @@ def feErc20InitHeap (g : Nat → Option Nat → Bool → Malloc) : Record :=
 #guard feErc20Init.rec.funcs.any fun fr => fr.mallocs.any (·.2 matches .heap ..)
 #guard ((diagnose feErc20Init.src feErc20Init.low feErc20Init.efp
   (feErc20InitHeap fun b e _ => .heap b e false)).getD "").startsWith "stage 1"
+
+/-! ## The fixed memory limit (`placeSec`) -/
+
+/-- `placeCheck` of a sidecar's text, read as `slice1_fixture` reads it. -/
+def placeCheckOf (text : String) : Except String Bool := do
+  let (s, h, rr, ri) ← slice1FixtureOf text
+  return s.placeCheck h rr ri
+
+-- FeConstant's sidecar declares the limit 0 in each of its five module texts (`ir`, and each
+-- section's `source_ir` and `machine_ir`).  `placeCheck` accepts it, also with the limit written
+-- in decimal, and rejects it with the limit `0x20` or with no declaration (the line removed).
+#eval show IO Unit from do
+  let text ← IO.FS.readFile "Fe/Sonatina/Stage3/Place/Tests/FeConstant.O0.sidecar.json"
+  let decl := "evm_fixed_memory_limit = 0x0\\n"
+  unless (text.splitOn decl).length == 6 do throw (IO.userError "expected five declarations")
+  for (what, t, want) in [("0x0", text, true),
+      ("0", text.replace decl "evm_fixed_memory_limit = 0\\n", true),
+      ("0x20", text.replace decl "evm_fixed_memory_limit = 0x20\\n", false),
+      ("none", text.replace decl "", false)] do
+    match placeCheckOf t with
+    | .ok b => unless b == want do throw (IO.userError s!"limit {what}: placeCheck gives {b}")
+    | .error e => throw (IO.userError s!"limit {what}: {e}")
 
 /-! ## The reader (`Read.lean`) -/
 

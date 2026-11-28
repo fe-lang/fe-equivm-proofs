@@ -406,7 +406,7 @@ theorem placeSec_symbols {t : Sidecar} {hs : HSection} {name : String} {rec : Re
         split at hp
         · cases hp
         · simp only [Bool.and_eq_true, beq_iff_eq] at hp
-          rw [hcode, Option.map_some, hp.1.2]
+          rw [hcode, Option.map_some, hp.1.1.2]
 
 /-- `asLowered` keeps each section's symbols. -/
 theorem asLowered_symbols (s : Sidecar) (n : String) :

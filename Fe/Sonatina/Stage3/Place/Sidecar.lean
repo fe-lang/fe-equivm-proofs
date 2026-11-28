@@ -9,7 +9,11 @@ import Fe.Sonatina.Steps.Machine
 sidecar as lowering made it (`s.asLowered`): S14 (`check`) of each section's source against its
 lowered machine module, under its entry free pointer and the placement record (`rr` for the
 runtime, `ri` for the init section), and that H's section has the sidecar's symbols and entry,
-so that H's `sym_addr`/`sym_size` and the machine's agree and both run the same function.
+so that H's `sym_addr`/`sym_size` and the machine's agree and both run the same function, and
+that its module declares the fixed memory limit 0 (`evm_fixed_memory_limit = 0x0`): H has no
+fixed region, every access of nonzero length through an integer address is `ub`, which is
+Sonatina's E2 for that limit and for no other, so a module that declares another limit or none
+is rejected.
 `place_sidecar_sound`: the lowered model then implements `h` under H; `slice1_sound` composes
 it with links 4 and 5 (`machine_sound_sidecar_fut`): the bytes refine `h`.
 -/
@@ -18,7 +22,9 @@ namespace Fe.Sonatina.Stage3.Place
 
 open Fe Fe.EVM Fe.Sonatina Fe.Sonatina.H Fe.Sonatina.Steps Ethereum
 
-/-- Section `name` of sidecar `t` against H's section `hs`, under the placement record `rec`. -/
+/-- Section `name` of sidecar `t` against H's section `hs`, under the placement record `rec`:
+    S14, the symbols and the entry, and that `hs`'s module declares an empty fixed memory region
+    (`HModule.fixedLimit`), the one H is the semantics of. -/
 def placeSec (t : Sidecar) (hs : HSection) (name : String) (rec : Record) : Bool :=
   match t.objects.find? (·.name == t.object) with
   | none => false
@@ -29,7 +35,7 @@ def placeSec (t : Sidecar) (hs : HSection) (name : String) (rec : Record) : Bool
       | some code => match code.lowering with
         | none => false
         | some l => check hs l.machine l.entryFreePtr rec && hs.symbols == code.symbols &&
-            hs.entry == sec.entry
+            hs.entry == sec.entry && hs.module.fixedLimit == some 0
 
 /-- Slice 1's check of a sidecar against the handover object `h`, with the placement records
     of its runtime and init sections. -/
@@ -55,7 +61,7 @@ theorem placeSec_run {t : Sidecar} {hs : HSection} {name : String} {rec : Record
         · cases hp
         · next l hl =>
           simp only [Bool.and_eq_true, beq_iff_eq] at hp
-          obtain ⟨⟨hc, hsym⟩, hen⟩ := hp
+          obtain ⟨⟨⟨hc, hsym⟩, hen⟩, -⟩ := hp
           refine ⟨l.machine, l.entryFreePtr, code.symbols, sec.entry, hc, hsym.symm, hen.symm, ?_⟩
           simp only [Sidecar.runSection, Sidecar.runSectionWith, hobj, hsec, hcode,
             Sidecar.moduleAt, hl, Option.map_some, Option.bind_some]
