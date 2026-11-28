@@ -46,3 +46,4 @@ import Fe.Sonatina.Stage3.Place.InstCall
 import Fe.Sonatina.Stage3.Place.Static
 import Fe.Sonatina.Stage3.Place.Fns
 import Fe.Sonatina.Stage3.Place.Obl
+import Fe.Sonatina.Stage3.Place.Term
