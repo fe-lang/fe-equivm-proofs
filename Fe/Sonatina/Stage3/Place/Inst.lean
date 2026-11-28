@@ -509,7 +509,8 @@ structure At (S : SecFacts) (F : Frame) (c : FCtx) (Dr : Derived) (k : Nat) (s :
   dsts : ∀ d ∈ s.dsts, F.decls.find? d.1 = some d.2
   uses : ∀ y, Operand.var y ∈ s.inst.args → y ∈ L
   keep : ∀ y ∈ L', y ∉ s.defs → y ∈ L
-  clob : ∀ y ∈ L', y ∉ s.defs → ∀ m ∈ ds, F.vm.find? y ≠ some (.var m)
+  clob : ∀ y, (y ∈ L ∨ y ∈ L') → y ∉ s.defs → ∀ m ∈ ds, F.vm.find? y ≠ some (.var m)
+  nodup : (s.dsts.map (·.1)).Nodup
   orig : ∀ x t, s.dsts = [(x, t)] → ∀ o ∈ stmtOrig c.frec F.O s, o ∈ origOf F.O (.var x)
   D : F.D = Dr.has k
   obs : S.z = true → ∀ i a, s.inst.args[i]? = some a → Dr.op k a = true → i ∈ nonObserving Dr k s
@@ -553,7 +554,7 @@ theorem stepOk_pure1 {P : HSection} {I : Fe.EVM.Env} {S : SecFacts} {F : Frame} 
   refine Or.inr ⟨envM', w, rfl, envH.insert x v, hst, g, hI, ?_, GhostLe.refl _ _ _,
     fun rest o hr => ExecBody.step hstep hb hr⟩
   refine envRel_step hE (fun y hy hn => hA.keep y hy (by rw [hdefs]; rwa [hd] at hn)) hb hkeep
-    (fun y hy hn => hA.clob y hy (by rw [hdefs]; rwa [hd] at hn)) (fun _ h => h) (fun _ _ h => h) ?_
+    (fun y hy hn => hA.clob y (Or.inr hy) (by rw [hdefs]; rwa [hd] at hn)) (fun _ h => h) (fun _ _ h => h) ?_
   have hdt : F.decls.find? x = some tx := hA.dsts (x, tx) (by simp [hd])
   intro y hy _
   simp only [hd, List.map_cons, List.map_nil, List.mem_singleton] at hy
