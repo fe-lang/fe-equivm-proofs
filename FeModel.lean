@@ -41,4 +41,4 @@ import Fe.Sonatina.Steps.KnownBitsInv
 import Fe.Sonatina.H
 import Fe.Sonatina.Stage3.Place.Check
 import Fe.Sonatina.Stage3.Place.Word
-import Fe.Sonatina.Stage3.Place.InstAlloc
+import Fe.Sonatina.Stage3.Place.InstEvm
