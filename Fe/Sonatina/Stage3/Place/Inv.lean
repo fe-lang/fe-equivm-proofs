@@ -226,4 +226,267 @@ theorem inv_write {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : I
     simp only [Ghost.rg, bsize_write]
     exact hI.frame hh b' hb' hnh
 
+/-! ## Allocation -/
+
+theorem Disj.symm {r s : Nat × Nat} (h : Disj r s) : Disj s r := by
+  unfold Disj at *; omega
+
+theorem val_congr {c : MByte} {a a' : Nat → Nat} (h : ∀ b o k, c = .frag b o k → a b = a' b) :
+    c.val a = c.val a' := by
+  cases c with
+  | byte x => rfl
+  | frag b o k => simp only [MByte.val, h b o k rfl]
+
+/-- The ghost with block `k` added at machine base `A`, kept live with the old blocks `keep`
+    holds of, a heap block if `isHeap`. -/
+def Ghost.add (g : Ghost) (k A : Nat) (keep : Nat → Prop) (isHeap : Prop) : Ghost where
+  j b := if b = k then A else g.j b
+  live b := b = k ∨ (b ≠ k ∧ keep b)
+  heap b := (b = k ∧ isHeap) ∨ (b ≠ k ∧ g.heap b)
+
+theorem Ghost.add_j_old {g : Ghost} {k A : Nat} {keep : Nat → Prop} {p : Prop} {b : Nat}
+    (h : b ≠ k) : (g.add k A keep p).j b = g.j b := by simp [Ghost.add, h]
+
+/-- The fresh bytes of a block the machine puts at `A`: the machine's there. -/
+def freshAt (m : ByteArray) (A n : Nat) : List UInt8 := (List.range n).map fun i => mem m (A + i)
+
+theorem freshAt_length (m : ByteArray) (A n : Nat) : (freshAt m A n).length = n := by
+  simp [freshAt]
+
+theorem alloc_size (st : H.State) (k : BlockKind) (n a : Nat) (fresh : List UInt8) :
+    (st.alloc k n a fresh).blocks.size = st.blocks.size + 1 := by
+  simp [State.alloc]
+
+/-- An allocation of `n` bytes at machine base `A` keeps the invariant: H's address word `a` is
+    `A` unless `A` is 0 (address-0 mode), its fresh bytes are the machine's there, the old blocks
+    `keep` holds of stay live (disjoint from the new one, and every heap block among them), the
+    machine changes no byte but the free-pointer word's, and the free-pointer facts hold after. -/
+theorem inv_add {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    {kind : BlockKind} {A n a R : Nat} {m' : ByteArray} {keep : Nat → Prop} {isHeap : Prop}
+    (ha : A ≠ 0 → a = A) (hz : A = 0 → S.z = true) (hA : A + n < W)
+    (hkeep : ∀ b, keep b → g.live b ∧ Disj (g.rg hst b) (A, A + n))
+    (hheap : ∀ b, g.heap b → keep b)
+    (hih : isHeap → S.hasHeap = true ∧ S.e ≤ A)
+    (hframe : S.hasHeap = true → ¬ isHeap → A + n ≤ S.e ∧ Disj (A, A + n) (0x40, 0x60))
+    (hm : ∀ i, mem m' i ≠ mem w.memory i → S.hasHeap = true ∧ 64 ≤ i ∧ i < 96)
+    (hfp : S.hasHeap = true → S.e ≤ fpWord m' ∧ fpWord m' ≤ S.F0 + R ∧
+      (isHeap → A + n ≤ fpWord m') ∧ ∀ b, g.heap b → g.j b + hst.bsize b ≤ fpWord m') :
+    Inv S { hst.alloc kind n a (freshAt w.memory A n) with heapReq := R } { w with memory := m' }
+      (g.add hst.blocks.size A keep isHeap) := by
+  set k := hst.blocks.size with hk
+  set g' := g.add k A keep isHeap
+  have hlt : ∀ b, g.live b → b < k := hI.live_lt
+  have hne : ∀ b, g.live b → b ≠ k := fun b hb => by have := hlt b hb; omega
+  have hj : ∀ b, b ≠ k → g'.j b = g.j b := fun b h => Ghost.add_j_old h
+  have hjk : g'.j k = A := by simp [g', Ghost.add]
+  have hsz : ∀ b, b ≠ k → (hst.alloc kind n a (freshAt w.memory A n)).bsize b = hst.bsize b :=
+    fun b h => by rw [bsize_alloc, if_neg h]
+  have hszk : (hst.alloc kind n a (freshAt w.memory A n)).bsize k = n := by
+    rw [bsize_alloc, if_pos rfl]
+  have hadr : ∀ b, b ≠ k → (hst.alloc kind n a (freshAt w.memory A n)).addrOf b = hst.addrOf b :=
+    fun b h => by rw [addrOf_alloc, if_neg h]
+  have hrg : ∀ b, b ≠ k → g'.rg { hst.alloc kind n a (freshAt w.memory A n) with heapReq := R } b =
+      g.rg hst b := fun b h => by
+    simp only [Ghost.rg, hj b h]; rw [show ({ hst.alloc kind n a (freshAt w.memory A n) with
+      heapReq := R } : H.State).bsize b = (hst.alloc kind n a (freshAt w.memory A n)).bsize b
+      from rfl, hsz b h]
+  have hrgk : g'.rg { hst.alloc kind n a (freshAt w.memory A n) with heapReq := R } k = (A, A + n) := by
+    simp only [Ghost.rg, hjk]
+    rw [show ({ hst.alloc kind n a (freshAt w.memory A n) with heapReq := R } : H.State).bsize k =
+      (hst.alloc kind n a (freshAt w.memory A n)).bsize k from rfl, hszk]
+  have hlive : ∀ b, g'.live b ↔ b = k ∨ (b ≠ k ∧ keep b) := fun b => Iff.rfl
+  have hheap' : ∀ b, g'.heap b ↔ (b = k ∧ isHeap) ∨ (b ≠ k ∧ g.heap b) := fun b => Iff.rfl
+  -- A byte the machine changed is in the free-pointer word, which no live block and not the new
+  -- block holds.
+  have hmem_old : ∀ b, g.live b → ∀ i, i < hst.bsize b → mem m' (g.j b + i) = mem w.memory (g.j b + i) := by
+    intro b hb i hi
+    by_contra hc
+    obtain ⟨hh, h1, h2⟩ := hm _ hc
+    by_cases hhb : g.heap b
+    · have := hI.heap_floor b hhb; have := hI.e96 hh; omega
+    · have hd := (hI.frame hh b hb hhb).2
+      unfold Disj Ghost.rg at hd; simp only at hd; omega
+  have hmem_new : ∀ i, i < n → mem m' (A + i) = mem w.memory (A + i) := by
+    intro i hi
+    by_contra hc
+    obtain ⟨hh, h1, h2⟩ := hm _ hc
+    by_cases hih' : isHeap
+    · have := (hih hih').2; have := hI.e96 hh; omega
+    · have hd := (hframe hh hih').2
+      unfold Disj at hd; simp only at hd; omega
+  have hval : ∀ b i, g.live b → i < hst.bsize b →
+      (hst.cell b i).val (hst.alloc kind n a (freshAt w.memory A n)).addrOf =
+        (hst.cell b i).val hst.addrOf := by
+    intro b i hb hi
+    apply val_congr
+    intro b2 o2 k2 hc
+    have := (hI.frags b hb i hi b2 o2 k2 hc).1
+    exact hadr b2 (hne b2 (hI.heap_live b2 this))
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hI.e96, ?_, ?_, ?_⟩
+  · exact hI.world
+  · intro b hb
+    show b < (hst.alloc kind n a (freshAt w.memory A n)).blocks.size
+    rw [alloc_size]
+    rcases hb with rfl | ⟨_, hb⟩
+    · omega
+    · have := hlt b (hkeep b hb).1; omega
+  · intro b hb
+    rcases hb with ⟨rfl, _⟩ | ⟨hb, hh⟩
+    · exact Or.inl rfl
+    · exact Or.inr ⟨hb, hheap b hh⟩
+  · intro b hb
+    rcases hb with ⟨rfl, hh⟩ | ⟨_, hh⟩
+    · exact (hih hh).1
+    · exact hI.heap_has b hh
+  · intro b blk h
+    change (hst.alloc kind n a (freshAt w.memory A n)).blocks[b]? = some blk at h
+    rw [alloc_get?] at h
+    split at h
+    · cases h; simp [freshAt_length]
+    · exact hI.bytes_size b blk h
+  · intro b hb hjb
+    change b < (hst.alloc kind n a (freshAt w.memory A n)).blocks.size at hb
+    change (hst.alloc kind n a (freshAt w.memory A n)).addrOf b = _
+    rw [alloc_size] at hb
+    by_cases hbk : b = k
+    · subst hbk; rw [addrOf_alloc, if_pos rfl, hjk]; rw [hjk] at hjb; exact ha hjb
+    · rw [hadr b hbk, hj b hbk]; rw [hj b hbk] at hjb; exact hI.exact b (by omega) hjb
+  · intro b hb hjb
+    change b < (hst.alloc kind n a (freshAt w.memory A n)).blocks.size at hb
+    rw [alloc_size] at hb
+    by_cases hbk : b = k
+    · subst hbk; rw [hjk] at hjb; exact hz hjb
+    · rw [hj b hbk] at hjb; exact hI.zero b (by omega) hjb
+  · intro b hb
+    change g'.j b + (hst.alloc kind n a (freshAt w.memory A n)).bsize b < W
+    rcases hb with rfl | ⟨hbk, hb⟩
+    · rw [hjk, hszk]; exact hA
+    · rw [hj b hbk, hsz b hbk]; exact hI.bound b (hkeep b hb).1
+  · intro b1 b2 h1 h2 hne12
+    rcases h1 with rfl | ⟨hb1, h1⟩ <;> rcases h2 with rfl | ⟨hb2, h2⟩
+    · exact absurd rfl hne12
+    · rw [hrgk, hrg b2 hb2]; exact (hkeep b2 h2).2.symm
+    · rw [hrgk, hrg b1 hb1]; exact (hkeep b1 h1).2
+    · rw [hrg b1 hb1, hrg b2 hb2]; exact hI.disj b1 b2 (hkeep b1 h1).1 (hkeep b2 h2).1 hne12
+  · intro b hb i hi
+    change i < (hst.alloc kind n a (freshAt w.memory A n)).bsize b at hi
+    change mem m' (g'.j b + i) = ((hst.alloc kind n a (freshAt w.memory A n)).cell b i).val
+      (hst.alloc kind n a (freshAt w.memory A n)).addrOf
+    rcases hb with rfl | ⟨hbk, hb⟩
+    · rw [hszk] at hi
+      rw [hjk, cell_alloc, if_pos rfl, dif_pos (by rw [freshAt_length]; exact hi), hmem_new i hi]
+      simp [MByte.val, freshAt]
+    · have hl := (hkeep b hb).1
+      rw [hsz b hbk] at hi
+      rw [hj b hbk, cell_alloc, if_neg hbk, hval b i hl hi, hmem_old b hl i hi]
+      exact hI.bytes b hl i hi
+  · intro b hb i hi b2 o2 k2 hc
+    change i < (hst.alloc kind n a (freshAt w.memory A n)).bsize b at hi
+    change (hst.alloc kind n a (freshAt w.memory A n)).cell b i = _ at hc
+    rcases hb with rfl | ⟨hbk, hb⟩
+    · rw [cell_alloc, if_pos rfl] at hc
+      split at hc <;> cases hc
+    · rw [cell_alloc, if_neg hbk] at hc
+      rw [hsz b hbk] at hi
+      obtain ⟨h1, h2, h3⟩ := hI.frags b (hkeep b hb).1 i hi b2 o2 k2 hc
+      exact ⟨Or.inr ⟨hne b2 (hI.heap_live b2 h1), h1⟩, h2, h3⟩
+  · intro b hb
+    rcases hb with ⟨rfl, hh⟩ | ⟨hbk, hh⟩
+    · rw [hjk]; exact (hih hh).2
+    · rw [hj b hbk]; exact hI.heap_floor b hh
+  · intro hh
+    obtain ⟨h1, h2, h3, h4⟩ := hfp hh
+    refine ⟨h1, h2, fun b hb => ?_⟩
+    change g'.j b + (hst.alloc kind n a (freshAt w.memory A n)).bsize b ≤ fpWord m'
+    rcases hb with ⟨rfl, hih'⟩ | ⟨hbk, hb⟩
+    · rw [hjk, hszk]; exact h3 hih'
+    · rw [hj b hbk, hsz b hbk]; exact h4 b hb
+  · intro hh b hb hnh
+    rw [hheap'] at hnh
+    rcases hb with rfl | ⟨hbk, hb⟩
+    · have hni : ¬ isHeap := fun h => hnh (Or.inl ⟨rfl, h⟩)
+      rw [hrgk]
+      change g'.j _ + (hst.alloc kind n a (freshAt w.memory A n)).bsize _ ≤ S.e ∧ _
+      rw [hjk, hszk]; exact hframe hh hni
+    · have hng : ¬ g.heap b := fun h => hnh (Or.inr ⟨hbk, h⟩)
+      rw [hrg b hbk]
+      change g'.j b + (hst.alloc kind n a (freshAt w.memory A n)).bsize b ≤ S.e ∧ _
+      rw [hj b hbk, hsz b hbk]
+      exact hI.frame hh b (hkeep b hb).1 hng
+
+/-- An `alloca` of `n` bytes at machine base `A` (its record word's address): H's block where
+    the machine has it (at address word 1 if that is 0), holding the machine's bytes there; the
+    old blocks that miss it stay live. -/
+theorem inv_alloca {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    {A n : Nat} (hA : A + n < 2 ^ 32) (hz : A = 0 → S.z = true)
+    (hh : S.hasHeap = true → A + n ≤ S.e ∧ Disj (A, A + n) (0x40, 0x60)) :
+    AddrOk (if A = 0 then 1 else A) n ∧
+    Inv S (hst.alloc .alloca n (if A = 0 then 1 else A) (freshAt w.memory A n)) w
+      (g.add hst.blocks.size A (fun b => g.live b ∧ Disj (g.rg hst b) (A, A + n)) False) := by
+  have hW : (2 : Nat) ^ 32 < W := by unfold W; norm_num
+  refine ⟨⟨by split <;> omega, by split <;> omega⟩, ?_⟩
+  refine inv_add (R := hst.heapReq) (m' := w.memory) hI (fun h => if_neg h) hz (by omega)
+    (fun b h => h) (fun b hb => ⟨hI.heap_live b hb, ?_⟩) (fun h => h.elim)
+    (fun hh' _ => hh hh') (fun i h => absurd rfl h) (fun hh' => ?_)
+  · have hhs := hI.heap_has b hb
+    have := (hh hhs).1; have := hI.heap_floor b hb
+    unfold Disj Ghost.rg; simp only; omega
+  · obtain ⟨h1, h2, h3⟩ := hI.fp hh'
+    exact ⟨h1, h2, fun h => h.elim, h3⟩
+
+theorem align32_ge (n : Nat) : n ≤ align32 n := by unfold align32; omega
+
+/-- The machine's free-pointer word after it stores `x` there. -/
+theorem fpWord_mstore (m : ByteArray) (x : Nat) :
+    fpWord ((Ethereum.UInt256.ofNat x).toByteArray.write 0 m 64 32) = x % W := by
+  unfold fpWord
+  have hT := Reasoning.Theory.toByteArray_size (Ethereum.UInt256.ofNat x)
+  have e : ((Ethereum.UInt256.ofNat x).toByteArray.write 0 m 64 32).readWithPadding 64 32 =
+      (Ethereum.UInt256.ofNat x).toByteArray := by
+    rw [readWithPadding_of_mem (l := (Ethereum.UInt256.ofNat x).toByteArray.toList)
+      (by rw [toList_length, hT]) (fun i hi => ?_)]
+    · apply ByteArray.ext; rw [Reasoning.Theory.byteArray_toList_eq]
+    · rw [mem_write, if_pos ⟨by omega, by omega⟩, show 0 + (64 + i - 64) = i by omega]
+      simp only [Reasoning.Theory.byteArray_toList_eq, Array.getElem_toList,
+        Array.getD_eq_getD_getElem?]
+      rw [Array.getElem?_eq_getElem (by rw [ByteArray.size_data]; omega)]
+      rfl
+  rw [e, Reasoning.Theory.uInt256OfByteArray_toByteArray]
+  rfl
+
+/-- A heap `evm_malloc` of `n` bytes within the budget at machine base `base`, at or above the
+    free pointer and at most `F0 + heapReq`, the machine then bumping the free pointer to
+    `base + align32 n`: H's block where the machine has it, holding the machine's bytes there;
+    every live block stays live. -/
+theorem inv_heap {S : SecFacts} {hst : H.State} {w : World} {g : Ghost} (hI : Inv S hst w g)
+    (hh : S.hasHeap = true) {base n : Nat} (hbase : fpWord w.memory ≤ base)
+    (hbF : base ≤ S.F0 + hst.heapReq) (hbud : hst.heapReq + align32 n < heapBudget)
+    (hF0 : S.F0 < 2 ^ 32) :
+    AddrOk base n ∧
+    Inv S { hst.alloc .malloc n base (freshAt w.memory base n) with
+        heapReq := hst.heapReq + align32 n }
+      { w with memory := (Ethereum.UInt256.ofNat (base + align32 n)).toByteArray.write 0 w.memory 64 32 }
+      (g.add hst.blocks.size base g.live True) := by
+  have hb' : hst.heapReq + align32 n < 2 ^ 255 := hbud
+  have han := align32_ge n
+  obtain ⟨hf1, hf2, hf3⟩ := hI.fp hh
+  have he := hI.e96 hh
+  have hend : base + align32 n < 2 ^ 256 := by omega
+  refine ⟨⟨by omega, lt_of_le_of_lt (by omega : base + n ≤ base + align32 n) hend⟩, ?_⟩
+  refine inv_add (R := hst.heapReq + align32 n)
+    (m' := (Ethereum.UInt256.ofNat (base + align32 n)).toByteArray.write 0 w.memory 64 32) hI (fun _ => rfl) (fun h => by omega)
+    (lt_of_le_of_lt (by omega : base + n ≤ base + align32 n) hend)
+    (fun b hb => ⟨hb, ?_⟩) (fun b hb => hI.heap_live b hb) (fun _ => ⟨hh, by omega⟩)
+    (fun _ h => (h trivial).elim) (fun i hi => ?_) (fun _ => ?_)
+  · unfold Disj Ghost.rg; simp only
+    by_cases hhb : g.heap b
+    · have := hf3 b hhb; omega
+    · have := (hI.frame hh b hb hhb).1; omega
+  · rw [mem_write] at hi
+    split at hi
+    · exact ⟨hh, by omega⟩
+    · exact absurd rfl hi
+  · rw [fpWord_mstore, Nat.mod_eq_of_lt hend]
+    exact ⟨by omega, by omega, fun _ => by omega, fun b hb => by have := hf3 b hb; omega⟩
+
 end Fe.Sonatina.Stage3.Place
