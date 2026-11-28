@@ -10,7 +10,8 @@ import FeModel
 `StepKind.proved_sound`, each step kind's `…_stepSound`, the known-bits invariant `kb_reaches`
 and `kb_point`, and the handover semantics' `runH_sound`, `runRuntime_sound`,
 `runDeploy_sound`, `message_eq_core`, `createWith_eq_core`, and its composition with the real feed's
-refinement, `Fe.EVM.RefinesOnFut.toH`, `Fe.EVM.RefinesDeployFut.toH`).  Run:
+refinement, `Fe.EVM.RefinesOnFut.toH`, `Fe.EVM.RefinesDeployFut.toH`; Stage 3 Slice 1's
+`place_lower_sound`, `place_sidecar_sound` and `slice1_sound`).  Run:
 `lake lean scripts/Audit.lean`. -/
 open Lean
 
@@ -23,7 +24,7 @@ open Lean
     "machine_sound_spills_at", "machine_deploy_spills_at", "machine_sound_sidecar_fut",
     "machine_sound_spills_sidecar_fut", "proved_sound",
     "runH_sound", "runRuntime_sound", "runDeploy_sound", "message_eq_core", "createWith_eq_core",
-    "kb_reaches", "kb_point"]
+    "kb_reaches", "kb_point", "place_lower_sound", "place_sidecar_sound", "slice1_sound"]
   let capstones := (← getEnv).constants.toList.filterMap fun (n, _) =>
     let last := n.lastComponentAsString
     let has (part : String) := (last.splitOn part).length > 1

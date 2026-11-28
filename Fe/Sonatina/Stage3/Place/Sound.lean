@@ -1,4 +1,5 @@
 import Fe.Sonatina.Stage3.Place.Dispatch
+import Fe.Sonatina.Stage3.Place.Fix
 
 /-!
 # S14 for one section (`place_lower_sound`, PLAN §0)
@@ -83,7 +84,8 @@ theorem inv_init {src : HSection} {low : Module} {efp : Option Nat} {r : Record}
 theorem place_lower_sound_of {src : HSection} {low : Module} {efp : Option Nat} {rec : Record}
     {symbols : List (String × Nat × Nat)} {entry : String}
     (hc : check src low efp rec = true) (hsym : symbols = src.symbols) (hentry : entry = src.entry)
-    (hX : ∀ I cM k fn, mkFn src low rec k = some fn → FixObls src low rec efp I cM fn) :
+    (hX : ∀ I cM k fn, cM.symbol = (fun s => src.symbols.lookup s) → mkFn src low rec k = some fn →
+      FixObls src low rec efp I cM fn) :
     ∀ I σ A feed r, I.calldata.size < 2 ^ 256 →
       (runLowered low efp symbols entry).exec I (World.init σ A feed) = some r →
       ∃ out, ExecFunc src I src.entry [] (State.init (World.init σ A feed)) (.halt out) ∧
@@ -98,7 +100,7 @@ theorem place_lower_sound_of {src : HSection} {low : Module} {efp : Option Nat} 
   have hall : ∀ kg fg, mkFn src low rec kg = some fg →
       FnOk src I cM (secS src rec efp) (secX src rec).derived
         (CallP src I (secS src rec efp) (secX src rec).derived (mkFn src low rec)) FixInv low fg :=
-    fun kg fg hk => fnOk_of hc hk hcd hcM (hX I cM kg fg hk)
+    fun kg fg hk => fnOk_of hc hk hcd hcM (hX I cM kg fg hcM hk)
   have hCP := callP_runFunc hall
   -- The free-pointer store.
   set w := World.init σ A feed with hw
@@ -133,6 +135,29 @@ theorem place_lower_sound_of {src : HSection} {low : Module} {efp : Option Nat} 
       · cases he'; exact hm
     · cases heq
   · simp [stuck] at h2
+
+/-- What the terminal fixed buffers of a function of a checked section need (`Fix.lean`,
+    `FixQ.lean`). -/
+theorem fixObls_of {src : HSection} {low : Module} {r : Record} {efp : Option Nat} {k : Nat}
+    {fn : Fn} (hc : check src low efp r = true) (hk : mkFn src low r k = some fn) (I : Fe.EVM.Env)
+    {cM : Ctx} (hcM : cM.symbol = fun s => src.symbols.lookup s) : FixObls src low r efp I cM fn := by
+  have hS := check_facts hc
+  obtain ⟨-, fr, fl, e, me, be, rs, U⟩ := fn_unp hc hk
+  refine ⟨fun b hb i s hs mb ms cs hp vm' mb' ms' ds hst a x tx base rule hi hd hl => ?_,
+    U.fixEntry, U.fixStep I, U.fixEdge I⟩
+  rw [U.frec] at hl
+  exact U.fixObl hS hcM I _ hb hs hp hi hd hl hst
+
+/-- S14 for one section (PLAN §0): every run of the lowered section that ends, from the entry
+    free-pointer store, is matched by a run of H of the section on the same call and feed. -/
+theorem place_lower_sound {src : HSection} {low : Module} {efp : Option Nat} {rec : Record}
+    {symbols : List (String × Nat × Nat)} {entry : String}
+    (hc : check src low efp rec = true) (hsym : symbols = src.symbols) (hentry : entry = src.entry) :
+    ∀ I σ A feed r, I.calldata.size < 2 ^ 256 →
+      (runLowered low efp symbols entry).exec I (World.init σ A feed) = some r →
+      ∃ out, ExecFunc src I src.entry [] (State.init (World.init σ A feed)) (.halt out) ∧
+        Matches out r :=
+  place_lower_sound_of hc hsym hentry fun I _ _ _ hcM hk => fixObls_of hc hk I hcM
 
 /-- `place_lower_sound`'s statement, for every section. -/
 def PlaceLowerSound : Prop :=

@@ -95,4 +95,22 @@ theorem slice1_sound_of (hL : PlaceLowerSound) {s : Sidecar} {h : H.Object} {rr 
   obtain ⟨hIR, hID⟩ := place_sidecar_sound_of hL hp
   exact ⟨RefinesOnFut.toH hR hIR rfl, RefinesDeployFut.toH hD hID⟩
 
+/-- The lowered model of a sidecar `placeCheck` accepts implements the handover object under H
+    (PLAN §0). -/
+theorem place_sidecar_sound {s : Sidecar} {h : H.Object} {rr ri : Record}
+    (hp : s.placeCheck h rr ri = true) :
+    ImplementsH h (s.asLowered.model .machine) CalldataFits ∧
+      ImplementsDeployH h (s.asLowered.model .machine) (s.code "init") .empty (fun _ => True)
+        CalldataFits :=
+  place_sidecar_sound_of (fun hc hsym hentry => place_lower_sound hc hsym hentry) hp
+
+/-- Slice 1 (PLAN §0): when the machine records validate, the byte checker accepts the sidecar
+    and S14 accepts both sections against the handover object, the bytes refine the handover
+    object on every call and deployment. -/
+theorem slice1_sound {s : Sidecar} {h : H.Object} {rr ri : Record} (hv : s.validate = true)
+    (hc : Fe.Sonatina.Check.check s = true) (hp : s.placeCheck h rr ri = true) :
+    RefinesOnH .P1 (s.code "runtime") h CalldataFits ∧
+      RefinesDeployH .P1 (s.code "init") h (fun _ => True) CalldataFits :=
+  slice1_sound_of (fun hc hsym hentry => place_lower_sound hc hsym hentry) hv hc hp
+
 end Fe.Sonatina.Stage3.Place

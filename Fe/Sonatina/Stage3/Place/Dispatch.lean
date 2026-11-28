@@ -32,6 +32,7 @@ theorem stdK_of {P : HSection} {I : Fe.EVM.Env} {cM : Ctx} {S : SecFacts} {CP : 
 def FixSiteOk (src : HSection) (low : Module) (r : Record) (efp : Option Nat) (I : Fe.EVM.Env)
     (cM : Ctx) (CP : Oracle → Prop) (fn : Fn) : Prop :=
   ∀ b ∈ fn.f.blocks, ∀ i s, b.body[i]? = some s → ∀ mb ms cs, fn.pos b i = some (mb, ms, cs) →
+    ∀ vm' mb' ms' ds, stmt fn.c true fn.F.vm s mb ms (calleeOf s cs).1 = some (vm', mb', ms', ds) →
     ∀ a x tx base rule, s.inst = .base (.malloc a) → s.dsts = [(x, tx)] →
       fn.c.frec.mallocs.lookup x = some (.fixed base rule) →
       FixK src I cM (secS src r efp) (secX src r).derived CP FixInv fn b i mb ms
@@ -136,7 +137,7 @@ theorem FnUnp.stmtObl {efp : Option Nat} (U : FnUnp src low r fn fr fl e me be r
           exact ⟨pre, h1, hmb, h2⟩)
     · simp [hl] at h0
     · simp [hl] at h0
-    · exact Or.inr (Or.inr (hFix b hb i s hs mb ms cs hp a x tx base rule hi hd hl))
+    · exact Or.inr (Or.inr (hFix b hb i s hs mb ms cs hp vm' mb' ms' ds hst a x tx base rule hi hd hl))
   next gn args dsts hi =>
     exact Or.inl fun O hO g hst' w envH envM hI hE =>
       inst_call hO hI hE hA hnd hi hst (U.callFacts hc hb hs hp hi)
