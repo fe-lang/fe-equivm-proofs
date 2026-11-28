@@ -523,7 +523,9 @@ def mdefs (mf : Func) : List Nat :=
 
 /-- The translation check of function `f` against machine function `c.mf` (`c.bm`, `c.decls` as
     `blockMapOf`, `declsOf` give them): each value of `f` and of `c.mf` is defined once, and the
-    blocks of `f` have distinct ids (review 25, C2, C4, C5a); parameters and results are words
+    blocks of `f` have distinct ids (review 25, C2, C4, C5a); every block a source terminator goes
+    to is a block of `f` (H has no rule for a jump elsewhere, where a record's block map may send
+    the machine on; session 4, T2); parameters and results are words
     at the same places; the machine entry is `bm` of the source entry, or a block that only
     jumps there (lowering adds one when the source entry has predecessors), and the source
     entry has no phi; every source block's region, terminator and phis match under the
@@ -537,7 +539,8 @@ def funcLower (c : FCtx) (f : HFunc) : Option FuncLower := do
       f.params.all (Ty.value ·.2) && f.rets.length == c.mf.rets.length &&
       c.mf.rets.all (· == w256) && f.rets.all Ty.value && e.phis.isEmpty &&
       (me.id == be || jumpOnly me be) && distinct f.defs && distinct (f.blocks.map (·.id)) &&
-      distinct (mdefs c.mf) do none
+      distinct (mdefs c.mf) &&
+      f.blocks.all (fun b => b.term.succs.all fun d => f.blocks.any (·.id == d)) do none
   let bcs := f.blocks.zipIdx.map fun (b, k) => (b, (c.frec.calls[k]?).getD [])
   let vm := match c.frec.vmCert with
     | some l => NatMap.ofList l

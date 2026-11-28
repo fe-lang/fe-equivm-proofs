@@ -777,4 +777,27 @@ func public %main() {
 "
 #guard rule (runVm t1s t1m (rec1 160 [fr "main"]) [(1, .var 0)]) == "translation"
 
+/-! ## Session 4: conditions the simulation needs
+
+Each was accepted by the checker before the change (checked once) and is rejected now. -/
+
+-- T2: a source terminator that goes to a block the function does not have.  H has no rule for
+-- it (`ExecBlocks` needs the block), while a record's block map sends the machine on.
+def t2s : String := "
+func public %main() {
+    block0:
+        jump block7;
+}
+"
+def t2m : String := "
+func public %main() {
+    block0:
+        jump block1;
+    block1:
+        evm_stop;
+}
+"
+#guard rule (run t2s t2m (rec1 160 [{ fr "main" [] with
+  blockMap := some [(0, 0), (7, 1)] }])) == "translation"
+
 end Fe.Sonatina.Stage3.Place.Tests
