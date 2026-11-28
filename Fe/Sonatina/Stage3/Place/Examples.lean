@@ -1,5 +1,5 @@
 import Fe.Sonatina.Stage3.Place.Fixture
-import Fe.Sonatina.Stage3.Place.Sidecar
+import Fe.Sonatina.Stage3.Place.Deploy
 
 /-!
 # Slice 1 on real contracts
@@ -9,7 +9,8 @@ import Fe.Sonatina.Stage3.Place.Sidecar
 kernel, so each contract's bytes refine its handover object with no hypothesis left.  The bytes
 are the ones the compiler wrote: `Tests/*.O0.runtime.bin` and `Tests/*.O0.bin` are the corpus
 `.bin` files, and `code_runtime`/`code_init` show the sidecar's sections hold them, so
-`refines_bin` is about those files' bytes.
+`refines_bin` is about those files' bytes.  `deployCheck` (`Deploy.lean`) ties the two halves:
+`deploy_code`, a deployment by the init bytes that succeeds deploys the runtime bytes.
 
 Each hypothesis is decided per section where its definition splits by section (`validate`,
 `placeCheck`), so the sections are checked as separate declarations; `check` is decided whole.
@@ -17,7 +18,7 @@ Each hypothesis is decided per section where its definition splits by section (`
 
 namespace Fe.Sonatina.Stage3.Place.Examples
 
-open Fe Fe.EVM Fe.Sonatina Fe.Sonatina.H Fe.Sonatina.Steps Fe.Sonatina.Stage3.Place
+open Ethereum Ethereum.EVM Fe Fe.EVM Fe.Sonatina Fe.Sonatina.H Fe.Sonatina.Steps Fe.Sonatina.Stage3.Place
 
 -- The kernel checks the fixtures' terms, deep lists, by recursion.
 set_option maxRecDepth 1000000
@@ -69,6 +70,22 @@ theorem FeConstant.refines_bin : RefinesOnH .P1 FeConstant.runtimeBin FeConstant
     RefinesDeployH .P1 FeConstant.initBin FeConstant.h (fun _ => True) CalldataFits := by
   rw [← FeConstant.code_runtime, ← FeConstant.code_init]; exact FeConstant.refines
 
+theorem FeConstant.deployCheck : FeConstant.s.deployCheck FeConstant.h = true := by decide +kernel
+
+/-- A deployment by FeConstant's init bytes that succeeds deploys its runtime bytes, unless H's init
+    section has a run that is `ub` or `exhausted` under the call's real feed. -/
+theorem FeConstant.deploy_code {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
+    {args : ByteArray} (hI : I.code = FeConstant.initBin ++ args) (ho : OwnerExists σ I)
+    (hperm : I.perm = true) (hcf : CalldataFits I) {accounts : AccountMap} {g' : UInt256}
+    {A' : Substate} {code : ByteArray}
+    (hx : Ξ σ σ₀ g A I = .ok (.success (accounts, g', A') code)) :
+    code = FeConstant.runtimeBin ∨ ∃ feed, RealFeed σ σ₀ g A I feed ∧
+      (FeConstant.h.Deploy args I (World.init σ A feed) .ub ∨
+        FeConstant.h.Deploy args I (World.init σ A feed) .exhausted) := by
+  rw [← FeConstant.code_init] at hI
+  rw [← FeConstant.code_runtime]
+  exact slice1_deploy_code FeConstant.validate FeConstant.check FeConstant.placeCheck FeConstant.deployCheck hI ho hperm hcf hx
+
 /-! ## FeERC20 -/
 
 slice1_fixture FeERC20 "Fe/Sonatina/Stage3/Place/Tests/FeERC20.O0.sidecar.json"
@@ -114,5 +131,21 @@ theorem FeERC20.refines : RefinesOnH .P1 (FeERC20.s.code "runtime") FeERC20.h Ca
 theorem FeERC20.refines_bin : RefinesOnH .P1 FeERC20.runtimeBin FeERC20.h CalldataFits ∧
     RefinesDeployH .P1 FeERC20.initBin FeERC20.h (fun _ => True) CalldataFits := by
   rw [← FeERC20.code_runtime, ← FeERC20.code_init]; exact FeERC20.refines
+
+theorem FeERC20.deployCheck : FeERC20.s.deployCheck FeERC20.h = true := by decide +kernel
+
+/-- A deployment by FeERC20's init bytes that succeeds deploys its runtime bytes, unless H's init
+    section has a run that is `ub` or `exhausted` under the call's real feed. -/
+theorem FeERC20.deploy_code {σ σ₀ : AccountMap} {g : UInt256} {A : Substate} {I : ExecutionEnv}
+    {args : ByteArray} (hI : I.code = FeERC20.initBin ++ args) (ho : OwnerExists σ I)
+    (hperm : I.perm = true) (hcf : CalldataFits I) {accounts : AccountMap} {g' : UInt256}
+    {A' : Substate} {code : ByteArray}
+    (hx : Ξ σ σ₀ g A I = .ok (.success (accounts, g', A') code)) :
+    code = FeERC20.runtimeBin ∨ ∃ feed, RealFeed σ σ₀ g A I feed ∧
+      (FeERC20.h.Deploy args I (World.init σ A feed) .ub ∨
+        FeERC20.h.Deploy args I (World.init σ A feed) .exhausted) := by
+  rw [← FeERC20.code_init] at hI
+  rw [← FeERC20.code_runtime]
+  exact slice1_deploy_code FeERC20.validate FeERC20.check FeERC20.placeCheck FeERC20.deployCheck hI ho hperm hcf hx
 
 end Fe.Sonatina.Stage3.Place.Examples

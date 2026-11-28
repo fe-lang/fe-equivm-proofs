@@ -47,11 +47,13 @@ def _root_.Fe.Sonatina.Sidecar.runtimeSym (s : Sidecar) : Option String :=
 def _root_.Fe.Sonatina.Sidecar.runtimeAt (s : Sidecar) : Option (Nat × Nat) :=
   s.runtimeSym.bind fun sym => (((s.section? "init").map (·.symbols)).getD []).lookup sym
 
-/-- The init bytes hold the runtime bytes at the runtime section's symbol. -/
+/-- The init bytes hold the runtime bytes at the runtime section's symbol.  The bytes are
+    compared as lists, which the kernel evaluates (it does not get through `ByteArray.extract`
+    in reasonable time). -/
 def _root_.Fe.Sonatina.Sidecar.embedsRuntime (s : Sidecar) : Bool :=
   match s.runtimeAt with
   | some (off, size) => decide (off + size ≤ (s.code "init").size) &&
-      ((s.code "init").extract off (off + size)).data.toList == (s.code "runtime").data.toList
+      ((s.code "init").data.toList.drop off).take size == (s.code "runtime").data.toList
   | none => false
 
 theorem getD_eq_getElem {a : Array UInt8} {i : Nat} (h : i < a.size) : a.getD i 0 = a[i] := by
@@ -86,7 +88,11 @@ theorem embedsRuntime_read {s : Sidecar} (he : s.embedsRuntime = true) :
     simp only [Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at he
     refine ⟨off, size, hat, fun args => ?_⟩
     rw [readWithPadding_prefix _ _ he.1]
-    exact ByteArray.ext (Array.toList_inj.mp he.2)
+    apply ByteArray.ext
+    apply Array.toList_inj.mp
+    rw [ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop,
+      Nat.add_sub_cancel_left]
+    exact he.2
   · cases he
 
 /-! ## H's init section returns the code at the symbol -/
