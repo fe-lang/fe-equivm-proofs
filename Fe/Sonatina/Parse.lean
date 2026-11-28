@@ -14,7 +14,7 @@ module after optimization and a section's IR before machine lowering are `none` 
 outside the subset, and a model of either level is then stuck.
 
 `parseMachineSteps` reads a section lowering's record of machine steps (`machine_steps`, design
-§3.1), which version 5 has in every section's lowering and version 4 in none.  It reads the
+§3.1), which versions 5 and 6 have in every section's lowering and version 4 in none.  It reads the
 record strictly: every key the writer (`SidecarMachineSteps` of Fe's `sidecar.rs`) writes must
 be there, a key it does not write is an error, and so are a step kind outside `StepKind.all` and
 a function twice in the lowered functions or in one step.  Each snapshot's text is one function
@@ -539,9 +539,10 @@ def parseMachineSteps (j : Json) : P MachineSteps := do
 
 end Record
 
-/-- A section's lowering, in a sidecar of version `version`: version 5 has a record of machine
-    steps (`machine_steps`), which must be there and be read, version 4 none, whose lowering
-    then has the empty record. -/
+/-- A section's lowering, in a sidecar of version `version`: versions 5 and 6 have a record of
+    machine steps (`machine_steps`), which must be there and be read, version 4 none, whose
+    lowering then has the empty record.  Version 6's placement record is read by
+    `Place.readPlacement` (`Stage3/Place/Read.lean`), not here. -/
 def parseLowering (version : Nat) (json : Json) : P Lowering := do
   let funcs ← (← json.getObjValAs? (Array Json) "funcs").toList.mapM fun f => do
     let blocks ← (← f.getObjValAs? (Array Json) "blocks").toList.mapM fun b => do
@@ -587,8 +588,8 @@ def parseLowering (version : Nat) (json : Json) : P Lowering := do
              | _, r => do parseMachineSteps (← r) }
 
 /-- The sidecar versions this reader reads: 5 adds `machine_steps` to a section's lowering
-    (`parseMachineSteps`). -/
-def sidecarVersions : List Nat := [4, 5]
+    (`parseMachineSteps`), 6 the placement record (`Place.readPlacement`). -/
+def sidecarVersions : List Nat := [4, 5, 6]
 
 /-- A sidecar from the JSON `fe build --emit sidecar` writes. -/
 def parseSidecar (text : String) : P Sidecar := do

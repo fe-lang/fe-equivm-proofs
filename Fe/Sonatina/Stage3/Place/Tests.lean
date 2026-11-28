@@ -3,9 +3,9 @@ import Fe.Sonatina.Stage3.Place.Fixture
 /-!
 # Tests of the S14 check
 
-Real sections of corpus v6 (`-O0`), with placement records synthesized from their lowered
-machine IR (`place/synth.py`, untrusted; the compiler's record does not exist yet), checked in
-the kernel; and small hand-written sections, accepted, with a rejected mutant for each rule and
+Real sections of corpus v7 (`-O0`, sidecar version 6), under the placement records the compiler
+wrote into their sidecars, checked in the kernel, with mutants of the parsed records; the reader
+of the record on small lowerings; and small hand-written sections, accepted, with a rejected mutant for each rule and
 for each attack of design §5.5 that applies without free-pointer restores (attacks 10, 16–19,
 21, 27 for S8, S5 and S1; 3, 8, 22 for S3; 7 and the call footprint for S7; 9 for S6).  The
 small ones run by `#guard`.
@@ -18,11 +18,8 @@ open Fe.Sonatina Fe.Sonatina.H Fe.Sonatina.Stage3.Place
 /-! ## Real sections -/
 
 place_fixture feConstantRt "Fe/Sonatina/Stage3/Place/Tests/FeConstant.O0.sidecar.json" "runtime"
-  "Fe/Sonatina/Stage3/Place/Tests/FeConstant.runtime.place.json"
 place_fixture feErc20Rt "Fe/Sonatina/Stage3/Place/Tests/FeERC20.O0.sidecar.json" "runtime"
-  "Fe/Sonatina/Stage3/Place/Tests/FeERC20.runtime.place.json"
 place_fixture feErc20Init "Fe/Sonatina/Stage3/Place/Tests/FeERC20.O0.sidecar.json" "init"
-  "Fe/Sonatina/Stage3/Place/Tests/FeERC20.init.place.json"
 
 example : check feConstantRt.src feConstantRt.low feConstantRt.efp feConstantRt.rec = true := by
   decide +kernel
@@ -36,7 +33,86 @@ def feConstantBadWord : Record :=
   { feConstantRt.rec with funcs := feConstantRt.rec.funcs.map fun fr =>
       { fr with allocas := fr.allocas.map fun (x, l) => (x, .scratch (l.word + 1)) } }
 
+#guard feConstantRt.rec.funcs.any (!·.allocas.isEmpty)
 #guard (diagnose feConstantRt.src feConstantRt.low feConstantRt.efp feConstantBadWord).isSome
+
+/-- The record's block map with two source blocks of a function swapped is a rejection. -/
+def feErc20InitBadBlocks : Record :=
+  { feErc20Init.rec with funcs := feErc20Init.rec.funcs.map fun fr =>
+      { fr with blockMap := fr.blockMap.map fun bm => match bm with
+        | (a, x) :: (b, y) :: rest => (a, y) :: (b, x) :: rest
+        | l => l } }
+
+#guard feErc20Init.rec.funcs.any fun fr => (fr.blockMap.getD []).length ≥ 2
+#guard (diagnose feErc20Init.src feErc20Init.low feErc20Init.efp feErc20InitBadBlocks).isSome
+
+/-- The heap mallocs of FeERC20's init made transient are a stage-1 rejection. -/
+def feErc20InitHeap (g : Nat → Option Nat → Bool → Malloc) : Record :=
+  { feErc20Init.rec with funcs := feErc20Init.rec.funcs.map fun fr =>
+      { fr with mallocs := fr.mallocs.map fun (x, m) => match m with
+        | .heap b e u => (x, g b e u)
+        | m => (x, m) } }
+
+#guard feErc20Init.rec.funcs.any fun fr => fr.mallocs.any (·.2 matches .heap ..)
+#guard ((diagnose feErc20Init.src feErc20Init.low feErc20Init.efp
+  (feErc20InitHeap fun b e _ => .heap b e false)).getD "").startsWith "stage 1"
+
+/-! ## The reader (`Read.lean`) -/
+
+/-- JSON written with `'` for `"`. -/
+def q (s : String) : String := s.replace "'" "\""
+
+/-- A section lowering with one function `f`, as version 6 writes it, with the given `allocas`,
+    `mallocs` and `frame.stable`. -/
+def lowering (allocas mallocs stable : String) : String := q s!"
+\{'arena_base': 160, 'fixed_slot_spills': true, 'funcs': [\{'name': 'f',
+  'allocas': [{allocas}], 'mallocs': [{mallocs}], 'restores_free_ptr': false,
+  'lowered_blocks': [[0, 0], [2, 1]],
+  'spill_reserve': \{'scratch': \{'start': 0, 'words': 0}, 'stable': \{'start': 8, 'words': 2}},
+  'frame': \{'stable': {stable}, 'lazy_frame': false, 'call_preserves': []}}]}"
+
+def readL (allocas mallocs : String) (stable : String := "'none'") : Except String Record :=
+  (Lean.Json.parse (lowering allocas mallocs stable) >>= readPlacement).map (·.record)
+
+def okL (allocas mallocs : String) (stable : String := "'none'") : Option FuncRec :=
+  match readL allocas mallocs stable with
+  | .ok r => r.funcs.head?
+  | .error _ => none
+
+def errL (allocas mallocs : String) (stable : String := "'none'") : Bool :=
+  (readL allocas mallocs stable) matches .error _
+
+def heapJ (clamp : Bool) : String :=
+  s!"\{'value': 3, 'placement': \{'heap': \{'min_base': 1152, 'exact_base': null,
+    'update_free_ptr': true, 'needs_dyn_sp_clamp': {clamp}, 'free_ptr_floor': 1152}}}"
+
+def fixedJ (rule : String) : String :=
+  s!"\{'value': 5, 'placement': \{'fixed': \{'base': 3104, 'rule': '{rule}'}}}"
+
+def readFR : FuncRec :=
+  { name := "f", allocas := [(0, .stable 4), (1, .scratch 0)]
+    mallocs := [(3, .heap 1152 none true), (5, .fixed 3104 .terminal)]
+    reserves := [(8, 10)], blockMap := some [(0, 0), (2, 1)] }
+
+-- Every field, read.
+#guard (readL "{'value': 0, 'loc': {'stable_abs': 4}, 'words': 2},
+    {'value': 1, 'loc': {'scratch_abs': 0}, 'words': 1}" (heapJ false ++ ", " ++ fixedJ "terminal")).toOption ==
+  some { arenaBase := 160, fixedSlots := true, funcs := [readFR] }
+-- The derived fields: the clamp from a heap malloc, the dynamic frame from `frame.stable`.
+#guard (okL "" (heapJ true)).map (·.dynSpClamp) == some true
+#guard (okL "" "" "'dynamic_frame'").map (·.dynFrame) == some true
+#guard (okL "" "" "{'abs': {'base_word': 3}}").map (·.dynFrame) == some false
+-- The fixed rules.
+#guard (okL "" (fixedJ "exact_entry")).map (·.mallocs) == some [(5, .fixed 3104 .exactEntry)]
+#guard (okL "" (fixedJ "private_static")).map (·.mallocs) == some [(5, .fixed 3104 .privateStatic)]
+#guard errL "" (fixedJ "other")
+-- An `alloca` in a dynamic frame has no location: the record is not read.
+#guard errL "{'value': 0, 'loc': {'stable_frame': 2}, 'words': 1}" "" "'dynamic_frame'"
+-- Unknown or missing keys, and a location with two keys.
+#guard errL "{'value': 0, 'loc': {'stack': 2}, 'words': 1}" ""
+#guard errL "{'value': 0, 'loc': {'scratch_abs': 2}}" ""
+#guard errL "{'value': 0, 'loc': {'scratch_abs': 2, 'stable_abs': 2}, 'words': 1}" ""
+#guard errL "" ((heapJ false).replace "free_ptr_floor" "floor")
 
 /-! ## Small sections -/
 
