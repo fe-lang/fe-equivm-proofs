@@ -3,7 +3,7 @@ import Fe.Sonatina.Stage3.Place.Fixture
 /-!
 # Tests of the S14 check
 
-Real sections of corpus v7 (`-O0`, sidecar version 6), under the placement records the compiler
+Real sections of corpus v8 (`-O0`, sidecar version 6), under the placement records the compiler
 wrote into their sidecars, checked in the kernel, with mutants of the parsed records; the reader
 of the record on small lowerings; and small hand-written sections, accepted, with a rejected mutant for each rule and
 for each attack of design §5.5 that applies without free-pointer restores (attacks 10, 16–19,
