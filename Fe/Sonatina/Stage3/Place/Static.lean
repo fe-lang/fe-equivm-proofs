@@ -214,4 +214,44 @@ theorem stmt_vm {c : FCtx} {vm vm' : VM} {s : HStmt} {mb mb' : Nat} {ms ms' : Li
     (h : stmt c true vm s mb ms callee? = some (vm', mb', ms', ds)) : vm' = vm :=
   stmt_keeps c vm s mb ms callee? _ h
 
+/-! ## The translation of a function -/
+
+theorem mapM_some_forall₂ {α β : Type} {f : α → Option β} :
+    ∀ {l : List α} {bs : List β}, l.mapM f = some bs → List.Forall₂ (fun a b => f a = some b) l bs
+  | [], bs, h => by simp only [List.mapM_nil, Option.pure_def, Option.some.injEq] at h; subst h; exact .nil
+  | a :: l, bs, h => by
+    simp only [List.mapM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+      Option.some.injEq] at h
+    obtain ⟨b, hb, bs', hbs', rfl⟩ := h
+    exact .cons hb (mapM_some_forall₂ hbs')
+
+theorem funcLower_some {c : FCtx} {f : HFunc} {fl : FuncLower} (h : funcLower c f = some fl) :
+    ∃ e me be rs, f.blocks.head? = some e ∧ c.mf.blocks.head? = some me ∧ c.bm.find? e.id = some be ∧
+      funcShapeOk c f e me be = true ∧ fl.vm = funcVm c f ∧ paramsOk c f fl.vm = true ∧
+      regionsOf c f fl.vm = some rs ∧ distinct (trampOf me be ++ rs.flatMap (·.2.2.2)) = true ∧
+      fl.tb = NatMap.ofList (rs.map fun (b, t, _) => (b, t)) ∧
+      fl.defs = NatMap.ofList (rs.map fun (b, _, d, _) => (b, d)) ∧
+      phisAllOk c f fl.vm fl.tb = true := by
+  unfold funcLower at h
+  obtain ⟨e, he, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨me, hme, h⟩ := Option.bind_eq_some_iff.mp h
+  obtain ⟨be, hbe, h⟩ := Option.bind_eq_some_iff.mp h
+  dsimp only at h
+  split at h
+  · next hc =>
+    split at h
+    · next hp =>
+      obtain ⟨rs, hrs, h⟩ := Option.bind_eq_some_iff.mp h
+      split at h
+      · next hd =>
+        split at h
+        · next hph =>
+          simp only [Option.some.injEq] at h
+          subst h
+          exact ⟨e, me, be, rs, he, hme, hbe, hc, rfl, hp, hrs, hd, rfl, rfl, hph⟩
+        · cases h
+      · cases h
+    · cases h
+  · cases h
+
 end Fe.Sonatina.Stage3.Place

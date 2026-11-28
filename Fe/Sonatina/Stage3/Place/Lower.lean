@@ -521,6 +521,46 @@ def _root_.Fe.Sonatina.H.HFunc.defs (f : HFunc) : List Nat :=
 def mdefs (mf : Func) : List Nat :=
   mf.params.map (·.1) ++ mf.blocks.flatMap fun b => b.phis.map (·.dst) ++ b.body.flatMap (·.dsts.map (·.1))
 
+/-- `funcLower`'s shape conditions (see there). -/
+def funcShapeOk (c : FCtx) (f : HFunc) (e : HBlock) (me : Block) (be : Nat) : Bool :=
+  f.params.length == c.mf.params.length && c.mf.params.all (·.2 == w256) &&
+    f.params.all (Ty.value ·.2) && f.rets.length == c.mf.rets.length &&
+    c.mf.rets.all (· == w256) && f.rets.all Ty.value && e.phis.isEmpty &&
+    (me.id == be || jumpOnly me be) && distinct f.defs && distinct (f.blocks.map (·.id)) &&
+    distinct (mdefs c.mf) &&
+    f.blocks.all (fun b => b.term.succs.all fun d => f.blocks.any (·.id == d))
+
+/-- Each source block with the callee places of its calls (the record's hints). -/
+def blockCalls (c : FCtx) (f : HFunc) : List (HBlock × List Nat) :=
+  f.blocks.zipIdx.map fun (b, k) => (b, (c.frec.calls[k]?).getD [])
+
+/-- The value map: the record's certificate, or the inferred one. -/
+def funcVm (c : FCtx) (f : HFunc) : VM :=
+  match c.frec.vmCert with
+  | some l => NatMap.ofList l
+  | none => inferVm c f (f.blocks.length + 1) (paramVm f c.mf) (blockCalls c f)
+
+/-- Each source parameter is the machine parameter at its place. -/
+def paramsOk (c : FCtx) (f : HFunc) (vm : VM) : Bool :=
+  (f.params.zip c.mf.params).all (fun (p, mp) => vm.find? p.1 == some (.var mp.1))
+
+/-- The checking walk of every source block: its id, the block its region ends in, the machine
+    values each statement defined, and the region's machine blocks. -/
+def regionsOf (c : FCtx) (f : HFunc) (vm : VM) :
+    Option (List (Nat × Nat × List (List Nat) × List Nat)) :=
+  (blockCalls c f).mapM fun (b, cs) => do
+    let (_, tbk, dss, bs) ← blockLower c true vm f.rets b cs
+    some (b.id, tbk, dss, bs)
+
+/-- The machine entry block, when it is a block that only jumps to the source entry's region. -/
+def trampOf (me : Block) (be : Nat) : List Nat := if me.id == be then [] else [me.id]
+
+/-- Every source block's phis match its machine start block's. -/
+def phisAllOk (c : FCtx) (f : HFunc) (vm : VM) (tb : NatMap Nat) : Bool :=
+  f.blocks.all fun b => match c.bm.find? b.id >>= c.mf.block? with
+    | some mblk => phisOk c vm tb b.phis mblk.phis
+    | none => false
+
 /-- The translation check of function `f` against machine function `c.mf` (`c.bm`, `c.decls` as
     `blockMapOf`, `declsOf` give them): each value of `f` and of `c.mf` is defined once, and the
     blocks of `f` have distinct ids (review 25, C2, C4, C5a); every block a source terminator goes
@@ -535,25 +575,13 @@ def funcLower (c : FCtx) (f : HFunc) : Option FuncLower := do
   let e ← f.blocks.head?
   let me ← c.mf.blocks.head?
   let be ← c.bm.find? e.id
-  unless f.params.length == c.mf.params.length && c.mf.params.all (·.2 == w256) &&
-      f.params.all (Ty.value ·.2) && f.rets.length == c.mf.rets.length &&
-      c.mf.rets.all (· == w256) && f.rets.all Ty.value && e.phis.isEmpty &&
-      (me.id == be || jumpOnly me be) && distinct f.defs && distinct (f.blocks.map (·.id)) &&
-      distinct (mdefs c.mf) &&
-      f.blocks.all (fun b => b.term.succs.all fun d => f.blocks.any (·.id == d)) do none
-  let bcs := f.blocks.zipIdx.map fun (b, k) => (b, (c.frec.calls[k]?).getD [])
-  let vm := match c.frec.vmCert with
-    | some l => NatMap.ofList l
-    | none => inferVm c f (f.blocks.length + 1) (paramVm f c.mf) bcs
-  unless (f.params.zip c.mf.params).all (fun (p, mp) => vm.find? p.1 == some (.var mp.1)) do none
-  let rs ← bcs.mapM fun (b, cs) => do
-    let (_, tbk, dss, bs) ← blockLower c true vm f.rets b cs
-    some (b.id, tbk, dss, bs)
-  unless distinct ((if me.id == be then [] else [me.id]) ++ rs.flatMap (·.2.2.2)) do none
+  unless funcShapeOk c f e me be do none
+  let vm := funcVm c f
+  unless paramsOk c f vm do none
+  let rs ← regionsOf c f vm
+  unless distinct (trampOf me be ++ rs.flatMap (·.2.2.2)) do none
   let tb := NatMap.ofList (rs.map fun (b, t, _) => (b, t))
-  unless f.blocks.all (fun b => match c.bm.find? b.id >>= c.mf.block? with
-      | some mblk => phisOk c vm tb b.phis mblk.phis
-      | none => false) do none
+  unless phisAllOk c f vm tb do none
   some ⟨vm, tb, NatMap.ofList (rs.map fun (b, _, d, _) => (b, d))⟩
 
 end Fe.Sonatina.Stage3.Place
